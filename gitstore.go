@@ -315,8 +315,16 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Write file
 	fullPath := filepath.Join(s.dir, path)
+
+	// Skip the write and commit entirely if the content is unchanged, so an
+	// untouched file (including its on-disk mode) never produces a no-op commit.
+	if existing, readErr := os.ReadFile(fullPath); readErr == nil && string(existing) == string(content) {
+		hash := plumbing.ComputeHash(plumbing.BlobObject, content)
+		return hash.String(), nil
+	}
+
+	// Write file
 	dir := filepath.Dir(fullPath)
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
