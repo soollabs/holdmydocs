@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,9 +58,10 @@ func OpenAuth(cfg Config) (*Auth, error) {
 			if err != nil {
 				return nil, fmt.Errorf("bootstrapping admin: %w", err)
 			}
+			slog.Info("bootstrapped admin user", "user", cfg.AdminUser)
 		} else {
 			// No bootstrap, empty users
-			log.Printf("Warning: no users.json and no HMD_ADMIN_USER/HMD_ADMIN_PASSWORD set. Run: hmd adduser <name> to create users")
+			slog.Warn("no users.json and no HMD_ADMIN_USER/HMD_ADMIN_PASSWORD set; run: hmd adduser <name>")
 		}
 	} else {
 		return nil, fmt.Errorf("reading users file: %w", err)
@@ -82,6 +83,9 @@ func (a *Auth) AddUser(name, password string) error {
 	err = a.save()
 	a.mu.Unlock()
 
+	if err == nil {
+		slog.Info("user added", "user", name)
+	}
 	return err
 }
 

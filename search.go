@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -101,7 +101,7 @@ func pollFS(store *Store, ix *Index, hashes map[string]string) {
 
 		paths, err := store.List()
 		if err != nil {
-			log.Printf("pollFS: List failed: %v", err)
+			slog.Warn("pollFS: list failed", "err", err)
 			continue
 		}
 
@@ -112,18 +112,20 @@ func pollFS(store *Store, ix *Index, hashes map[string]string) {
 
 			content, hash, err := store.Read(path)
 			if err != nil {
-				log.Printf("pollFS: reading %s: %v", path, err)
+				slog.Warn("pollFS: read failed", "path", path, "err", err)
 				continue
 			}
 			if hashes[slug] == hash {
 				continue
 			}
+			slog.Debug("pollFS: page changed", "slug", slug)
 			hashes[slug] = hash
 			ix.Update(ParsePage(slug, content))
 		}
 
 		for slug := range hashes {
 			if !seen[slug] {
+				slog.Debug("pollFS: page removed", "slug", slug)
 				delete(hashes, slug)
 				ix.Remove(slug)
 			}

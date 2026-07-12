@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -36,6 +37,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Loading config: %v", err)
 	}
+
+	// Wire slog level: debug when HMD_DEBUG is set, info otherwise.
+	level := slog.LevelInfo
+	if cfg.Debug {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 	// Handle subcommands
 	if len(os.Args) > 1 && os.Args[1] == "adduser" {
@@ -68,7 +76,7 @@ func main() {
 		return
 	}
 
-	log.Printf("hmd starting on %s", cfg.Bind)
+	slog.Info("hmd starting", "bind", cfg.Bind, "debug", cfg.Debug, "sync_mode", cfg.SyncMode)
 
 	// Open store
 	store, err := OpenStore(cfg)
@@ -98,6 +106,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("BuildIndex failed: %v", err)
 	}
+	slog.Info("index built", "pages", len(pages))
 
 	// Pages can be added or edited directly on disk (outside the UI, e.g. by
 	// git pull), so poll for changes rather than relying solely on handler
@@ -126,5 +135,6 @@ func main() {
 	}
 	app.SetConfig(cfg)
 
+	slog.Info("listening", "bind", cfg.Bind)
 	log.Fatal(http.ListenAndServe(cfg.Bind, auth.Middleware(app.Routes())))
 }

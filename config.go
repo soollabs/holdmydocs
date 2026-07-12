@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +29,7 @@ type Config struct {
 	ShowTagsSidebar bool
 	SyncMode        string
 	DefaultBranch   string
+	Debug           bool
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 }
@@ -55,6 +56,7 @@ type fileConfig struct {
 	ShowTagsSidebar *bool             `yaml:"show_tags_sidebar"`
 	SyncMode        string            `yaml:"sync_mode"`
 	DefaultBranch   string            `yaml:"default_branch"`
+	Debug           *bool             `yaml:"debug"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
 }
@@ -145,64 +147,68 @@ func LoadConfig() (Config, error) {
 		ShowTagsSidebar: pickBool("HMD_SHOW_TAGS_SIDEBAR", file.ShowTagsSidebar, true),
 		SyncMode:        pick("HMD_SYNC_MODE", file.SyncMode, "push"),
 		DefaultBranch:   pick("HMD_DEFAULT_BRANCH", file.DefaultBranch, "main"),
+		Debug:           pickBool("HMD_DEBUG", file.Debug, false),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
 	}
 
 	// Warn when an env var overrides a non-empty YAML value.
 	if file.Bind != "" && os.Getenv("HMD_BIND") != "" {
-		log.Printf("Warning: HMD_BIND overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_BIND")
 	}
 	if file.RepoDir != "" && os.Getenv("HMD_REPO_DIR") != "" {
-		log.Printf("Warning: HMD_REPO_DIR overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_REPO_DIR")
 	}
 	if file.AppDir != "" && os.Getenv("HMD_APP_DIR") != "" {
-		log.Printf("Warning: HMD_APP_DIR overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_APP_DIR")
 	}
 	if file.RemoteURL != "" && os.Getenv("HMD_REMOTE_URL") != "" {
-		log.Printf("Warning: HMD_REMOTE_URL overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_REMOTE_URL")
 	}
 	if file.GitUser != "" && os.Getenv("HMD_GIT_USER") != "" {
-		log.Printf("Warning: HMD_GIT_USER overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_GIT_USER")
 	}
 	if file.GitToken != "" && os.Getenv("HMD_GIT_TOKEN") != "" {
-		log.Printf("Warning: HMD_GIT_TOKEN overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_GIT_TOKEN")
 	}
 	if file.GitAuthor != "" && os.Getenv("HMD_GIT_AUTHOR") != "" {
-		log.Printf("Warning: HMD_GIT_AUTHOR overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_GIT_AUTHOR")
 	}
 	if file.AdminUser != "" && os.Getenv("HMD_ADMIN_USER") != "" {
-		log.Printf("Warning: HMD_ADMIN_USER overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_ADMIN_USER")
 	}
 	if file.AdminPass != "" && os.Getenv("HMD_ADMIN_PASSWORD") != "" {
-		log.Printf("Warning: HMD_ADMIN_PASSWORD overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_ADMIN_PASSWORD")
 	}
 	if file.SiteName != "" && os.Getenv("HMD_SITE_NAME") != "" {
-		log.Printf("Warning: HMD_SITE_NAME overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_SITE_NAME")
 	}
 	if file.Hostname != "" && os.Getenv("HMD_HOSTNAME") != "" {
-		log.Printf("Warning: HMD_HOSTNAME overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_HOSTNAME")
 	}
 	if file.PathLabel != "" && os.Getenv("HMD_PATH_LABEL") != "" {
-		log.Printf("Warning: HMD_PATH_LABEL overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_PATH_LABEL")
 	}
 	if file.UserLabel != "" && os.Getenv("HMD_USER_LABEL") != "" {
-		log.Printf("Warning: HMD_USER_LABEL overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_USER_LABEL")
 	}
 	if file.MaxUploadBytes != 0 && os.Getenv("HMD_MAX_UPLOAD_BYTES") != "" {
-		log.Printf("Warning: HMD_MAX_UPLOAD_BYTES overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_MAX_UPLOAD_BYTES")
 	}
 	if file.SyncPollMs != 0 && os.Getenv("HMD_SYNC_POLL_MS") != "" {
-		log.Printf("Warning: HMD_SYNC_POLL_MS overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_SYNC_POLL_MS")
 	}
 	if file.ShowTagsSidebar != nil && os.Getenv("HMD_SHOW_TAGS_SIDEBAR") != "" {
-		log.Printf("Warning: HMD_SHOW_TAGS_SIDEBAR overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_SHOW_TAGS_SIDEBAR")
 	}
 	if file.SyncMode != "" && os.Getenv("HMD_SYNC_MODE") != "" {
-		log.Printf("Warning: HMD_SYNC_MODE overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_SYNC_MODE")
 	}
 	if file.DefaultBranch != "" && os.Getenv("HMD_DEFAULT_BRANCH") != "" {
-		log.Printf("Warning: HMD_DEFAULT_BRANCH overriding config file value")
+		slog.Warn("env overriding config file value", "var", "HMD_DEFAULT_BRANCH")
+	}
+	if file.Debug != nil && os.Getenv("HMD_DEBUG") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_DEBUG")
 	}
 
 	// Token file overrides the token value, whichever source named it.

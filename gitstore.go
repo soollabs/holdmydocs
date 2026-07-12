@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -220,6 +220,7 @@ func OpenStore(cfg Config) (*Store, error) {
 			syncState: "ok",
 		}
 		seedOrFlagSetup(store, cfg)
+		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
 		return store, nil
 	}
 	// Try to clone if remote is set
@@ -252,6 +253,8 @@ func OpenStore(cfg Config) (*Store, error) {
 			syncState: "ok",
 		}
 
+		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.RemoteURL)
+
 		// Seed if the cloned repo is fresh or missing pages
 		seedOrFlagSetup(store, cfg)
 
@@ -279,6 +282,8 @@ init_empty_remote:
 		remote:    "",
 		syncState: "no remote",
 	}
+
+	slog.Info("initialised new repo", "dir", cfg.RepoDir, "branch", defaultBranch)
 
 	// Create index.md for local-only repos, or for empty remote case
 	if cfg.RemoteURL != "" {
@@ -320,6 +325,7 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	// Skip the write and commit entirely if the content is unchanged, so an
 	// untouched file (including its on-disk mode) never produces a no-op commit.
 	if existing, readErr := os.ReadFile(fullPath); readErr == nil && string(existing) == string(content) {
+		slog.Debug("save skipped, content unchanged", "path", path)
 		hash := plumbing.ComputeHash(plumbing.BlobObject, content)
 		return hash.String(), nil
 	}
@@ -362,6 +368,7 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	}
 	s.noteCommit(commitHash, preHead)
 	s.prependHistory(path, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
+	slog.Debug("committed", "path", path, "hash", commitHash.String()[:8], "author", authorName)
 
 	// Compute blob hash
 	hash := plumbing.ComputeHash(plumbing.BlobObject, content)
@@ -411,6 +418,7 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	}
 	s.noteCommit(commitHash, preHead)
 	delete(s.historyCache, path)
+	slog.Debug("removed", "path", path, "hash", commitHash.String()[:8])
 
 	if s.remote != "" {
 		s.syncState = "pending"
@@ -442,9 +450,15 @@ func (s *Store) push() {
 	if err == git.NoErrAlreadyUpToDate || err == nil {
 		s.syncState = "ok"
 		s.syncErr = ""
+		if err == nil {
+			slog.Info("pushed", "remote", s.remote)
+		} else {
+			slog.Debug("push already up to date")
+		}
 	} else {
 		s.syncState = "failed"
 		s.syncErr = err.Error()
+		slog.Warn("push failed", "err", err)
 	}
 }
 
@@ -589,12 +603,13 @@ func (s *Store) UpdateRemote(cfg Config) error {
 		if s.remote != "" {
 			if err := s.repo.DeleteRemote("origin"); err != nil {
 				// not fatal — may already be gone
-				log.Printf("deleting remote: %v", err)
+				slog.Warn("deleting remote", "err", err)
 			}
 		}
 		s.remote = ""
 		s.auth = nil
 		s.syncState = "no remote"
+		slog.Info("remote removed")
 		return nil
 	}
 
@@ -609,7 +624,7 @@ func (s *Store) UpdateRemote(cfg Config) error {
 	} else {
 		err := s.repo.DeleteRemote("origin")
 		if err != nil {
-			log.Printf("deleting old remote: %v", err)
+			slog.Warn("deleting old remote", "err", err)
 		}
 		_, err = s.repo.CreateRemote(&config.RemoteConfig{
 			Name: "origin",
@@ -630,6 +645,7 @@ func (s *Store) UpdateRemote(cfg Config) error {
 		s.auth = nil
 	}
 	s.syncState = "ok"
+	slog.Info("remote configured", "url", cfg.RemoteURL)
 	return nil
 }
 
@@ -681,6 +697,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	if localHash == remoteHash {
 		s.syncState = "ok"
 		s.syncErr = ""
+		slog.Debug("fetch: already up to date")
 		return FetchResult{}, nil
 	}
 
@@ -705,6 +722,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		}
 		s.syncState = "failed"
 		s.syncErr = "divergent: local and remote have diverged; resolve via git on the server"
+		slog.Warn("fetch: divergent branches", "local", localHash.String()[:8], "remote", remoteHash.String()[:8])
 		return FetchResult{}, fmt.Errorf("%s", s.syncErr)
 	}
 
@@ -734,6 +752,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	s.knownHead = remoteHash
 	s.syncState = "ok"
 	s.syncErr = ""
+	slog.Info("fast-forwarded", "paths", len(result.ChangedPaths), "commits", len(result.Commits))
 	return result, nil
 }
 

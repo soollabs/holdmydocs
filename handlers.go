@@ -8,7 +8,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -344,7 +344,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	// rather than a half-written page.
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		log.Printf("rendering %s: %v", name, err)
+		slog.Error("rendering template", "name", name, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -504,16 +504,18 @@ func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
-	password := r.FormValue("password")
 
-	token, ok := app.Auth.Login(username, password)
+	token, ok := app.Auth.Login(username, r.FormValue("password"))
 	if !ok {
+		slog.Warn("login failed", "username", username, "remote", r.RemoteAddr)
 		app.render(w, r, http.StatusUnauthorized, "login", TemplateData{
 			Title: "Login",
 			Error: "Invalid username or password",
 		})
 		return
 	}
+
+	slog.Info("login", "username", username, "remote", r.RemoteAddr)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "hmd_session",
@@ -742,7 +744,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	cfg := app.config()
 	if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
 		if _, err := app.Store.FetchAndFF(); err != nil {
-			log.Printf("save-time fetch for %s: %v", slug, err)
+			slog.Warn("save-time fetch", "slug", slug, "err", err)
 		}
 	}
 
@@ -801,6 +803,8 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	slog.Info("saved", "slug", slug, "file", newFile, "author", authorName, "message", message)
 
 	if hidden {
 		app.Index.Remove(slug)
@@ -1174,6 +1178,7 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reverting", http.StatusInternalServerError)
 		return
 	}
+	slog.Info("reverted", "slug", slug, "to", hash[:8], "author", authorName)
 
 	// Update index
 	page := ParsePage(slug, content)
@@ -1406,22 +1411,23 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.ThemeLight = snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
 
 	if err := SaveFileConfig(configPath, fc); err != nil {
-		log.Printf("saving config: %v", err)
+		slog.Error("saving config", "err", err)
 		http.Error(w, "Failed to save config", http.StatusInternalServerError)
 		return
 	}
 
 	newCfg, err := LoadConfig()
 	if err != nil {
-		log.Printf("reloading config after save: %v", err)
+		slog.Error("reloading config after save", "err", err)
 		http.Error(w, "Config saved but reload failed", http.StatusInternalServerError)
 		return
 	}
 	app.SetConfig(newCfg)
 
 	if err := app.Store.UpdateRemote(newCfg); err != nil {
-		log.Printf("updating store remote: %v", err)
+		slog.Warn("updating store remote", "err", err)
 	}
 
+	slog.Info("settings updated", "by", app.currentUser(r))
 	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 )
@@ -42,7 +42,7 @@ var themeHexRe = regexp.MustCompile(`--([\w-]+):\s*(#[0-9a-fA-F]{3,8})\s*;`)
 func loadThemeDefaults() {
 	css, err := webFS.ReadFile("web/static/style.css")
 	if err != nil {
-		log.Printf("warning: reading embedded style.css for theme defaults: %v", err)
+		slog.Warn("reading embedded style.css for theme defaults", "err", err)
 		return
 	}
 	defaultDark, defaultLight = parseThemeDefaults(css)
