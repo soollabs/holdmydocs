@@ -1,8 +1,10 @@
 package main
 
 import (
+	"log"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 )
@@ -85,6 +87,46 @@ func BuildIndex(pages []Page) (*Index, error) {
 	}
 
 	return ix, nil
+}
+
+// pollFS periodically rescans the store directory so pages written outside
+// the UI (e.g. `git pull`, an editor, a script) get picked up. hashes tracks
+// the last-seen blob hash per slug; it belongs solely to this goroutine.
+//
+// polling, not fsnotify — this is a personal wiki, a 5s lag on
+// externally-written pages is fine. Switch to fsnotify if that stops being true.
+func pollFS(store *Store, ix *Index, hashes map[string]string) {
+	for range time.Tick(5 * time.Second) {
+		paths, err := store.List()
+		if err != nil {
+			log.Printf("pollFS: List failed: %v", err)
+			continue
+		}
+
+		seen := make(map[string]bool, len(paths))
+		for _, path := range paths {
+			slug := path[:len(path)-3] // remove .md
+			seen[slug] = true
+
+			content, hash, err := store.Read(path)
+			if err != nil {
+				log.Printf("pollFS: reading %s: %v", path, err)
+				continue
+			}
+			if hashes[slug] == hash {
+				continue
+			}
+			hashes[slug] = hash
+			ix.Update(ParsePage(slug, content))
+		}
+
+		for slug := range hashes {
+			if !seen[slug] {
+				delete(hashes, slug)
+				ix.Remove(slug)
+			}
+		}
+	}
 }
 
 func (ix *Index) Update(p Page) error {

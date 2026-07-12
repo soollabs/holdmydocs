@@ -83,19 +83,26 @@ func main() {
 	}
 
 	var pages []Page
+	hashes := make(map[string]string)
 	for _, path := range paths {
-		content, _, err := store.Read(path)
+		content, hash, err := store.Read(path)
 		if err != nil {
 			log.Fatalf("Reading %s: %v", path, err)
 		}
 		slug := path[:len(path)-3] // remove .md
 		pages = append(pages, ParsePage(slug, content))
+		hashes[slug] = hash
 	}
 
 	index, err := BuildIndex(pages)
 	if err != nil {
 		log.Fatalf("BuildIndex failed: %v", err)
 	}
+
+	// Pages can be added or edited directly on disk (outside the UI, e.g. by
+	// git pull), so poll for changes rather than relying solely on handler
+	// updates.
+	go pollFS(store, index, hashes)
 
 	// Create renderer and auth
 	renderer := NewRenderer(index.Exists)
