@@ -10,6 +10,7 @@
 	{{if .ThemeStyle}}<style>{{.ThemeStyle}}</style>{{end}}
 	<script>
 		window.hmdSyncPollMs = {{.SyncPollMs}};
+		window.hmdSyncMode = "{{.SyncMode}}";
 		(function() {
 			var saved = localStorage.getItem('hmd-theme');
 			if (saved === 'light') {
@@ -65,7 +66,7 @@
 		<div class="seg seg-title" id="status-title">{{.Title}}{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
 		<div class="seg-spacer"></div>
 		<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
-		<div class="seg seg-sync" id="status-sync" data-state="{{.SyncState}}">{{if eq .SyncState "no remote"}}local only{{else}}⇡ {{.SyncState}}{{end}}</div>
+		<div class="seg seg-sync" id="status-sync" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</div>
 		{{if eq .StatusMode "edit"}}<button class="seg seg-save" type="submit" form="edit-form" id="save-btn">SAVE ctrl-s</button>{{end}}
 		<div class="seg seg-right seg-user">{{.Username}}</div>
 		<div class="seg seg-right">

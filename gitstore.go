@@ -537,3 +537,193 @@ func (s *Store) UpdateRemote(cfg Config) error {
 	s.syncState = "ok"
 	return nil
 }
+
+// FetchResult describes what changed when a fetch+ff brought in remote commits.
+type FetchResult struct {
+	ChangedPaths []string
+	Commits      []CommitInfo
+}
+
+// FetchAndFF fetches from origin and fast-forwards the local branch if the
+// remote is ahead. Returns the paths and commits that came in. If local and
+// remote are equal or local is ahead, returns empty. If divergent, sets
+// syncState to "failed" and returns an error.
+func (s *Store) FetchAndFF() (FetchResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.remote == "" {
+		return FetchResult{}, nil
+	}
+
+	err := s.repo.Fetch(&git.FetchOptions{
+		RemoteName: "origin",
+		Auth:       s.auth,
+	})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+
+	headRef, err := s.repo.Head()
+	if err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+	localHash := headRef.Hash()
+
+	remoteRefName := plumbing.NewRemoteReferenceName("origin", headRef.Name().Short())
+	remoteRef, err := s.repo.Reference(remoteRefName, true)
+	if err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+	remoteHash := remoteRef.Hash()
+
+	if localHash == remoteHash {
+		s.syncState = "ok"
+		s.syncErr = ""
+		return FetchResult{}, nil
+	}
+
+	localIsAncestor, err := s.isAncestor(localHash, remoteHash)
+	if err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+
+	if !localIsAncestor {
+		remoteIsAncestor, err := s.isAncestor(remoteHash, localHash)
+		if err != nil {
+			s.syncState = "failed"
+			s.syncErr = err.Error()
+			return FetchResult{}, err
+		}
+		if remoteIsAncestor {
+			s.syncState = "ok"
+			s.syncErr = ""
+			return FetchResult{}, nil
+		}
+		s.syncState = "failed"
+		s.syncErr = "divergent: local and remote have diverged; resolve via git on the server"
+		return FetchResult{}, fmt.Errorf("%s", s.syncErr)
+	}
+
+	result, err := s.diffCommits(localHash, remoteHash)
+	if err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+	if err := wt.Reset(&git.ResetOptions{
+		Commit: remoteHash,
+		Mode:   git.HardReset,
+	}); err != nil {
+		s.syncState = "failed"
+		s.syncErr = err.Error()
+		return FetchResult{}, err
+	}
+
+	s.syncState = "ok"
+	s.syncErr = ""
+	return result, nil
+}
+
+// isAncestor walks the commit graph from descendant toward roots, checking
+// whether ancestor is reachable.
+func (s *Store) isAncestor(ancestor, descendant plumbing.Hash) (bool, error) {
+	if ancestor == descendant {
+		return true, nil
+	}
+	commit, err := s.repo.CommitObject(descendant)
+	if err != nil {
+		return false, err
+	}
+	queue := []*object.Commit{commit}
+	seen := make(map[plumbing.Hash]bool)
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if c.Hash == ancestor {
+			return true, nil
+		}
+		if seen[c.Hash] {
+			continue
+		}
+		seen[c.Hash] = true
+		for i := 0; i < c.NumParents(); i++ {
+			p, err := c.Parent(i)
+			if err != nil {
+				continue
+			}
+			queue = append(queue, p)
+		}
+	}
+	return false, nil
+}
+
+// diffCommits computes changed file paths and commit list between oldHash and
+// newHash (exclusive of oldHash, inclusive of newHash).
+func (s *Store) diffCommits(oldHash, newHash plumbing.Hash) (FetchResult, error) {
+	oldCommit, err := s.repo.CommitObject(oldHash)
+	if err != nil {
+		return FetchResult{}, err
+	}
+	newCommit, err := s.repo.CommitObject(newHash)
+	if err != nil {
+		return FetchResult{}, err
+	}
+
+	patch, err := oldCommit.Patch(newCommit)
+	if err != nil {
+		return FetchResult{}, err
+	}
+	var changed []string
+	for _, fp := range patch.FilePatches() {
+		from, to := fp.Files()
+		if from != nil {
+			changed = append(changed, from.Path())
+		}
+		if to != nil && (from == nil || from.Path() != to.Path()) {
+			changed = append(changed, to.Path())
+		}
+	}
+
+	var commits []CommitInfo
+	visited := make(map[plumbing.Hash]bool)
+	queue := []*object.Commit{newCommit}
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if c.Hash == oldHash || visited[c.Hash] {
+			continue
+		}
+		visited[c.Hash] = true
+		commits = append(commits, CommitInfo{
+			Hash:    c.Hash.String(),
+			Message: c.Message,
+			Author:  c.Author.Name,
+			When:    c.Author.When,
+		})
+		for i := 0; i < c.NumParents(); i++ {
+			p, err := c.Parent(i)
+			if err != nil {
+				continue
+			}
+			queue = append(queue, p)
+		}
+	}
+
+	return FetchResult{ChangedPaths: changed, Commits: commits}, nil
+}

@@ -19,7 +19,7 @@
 		{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
 		{{if .RevisionCount}}<span>&middot; <a href="{{.RoutePrefix}}/{{.Slug}}/history">history({{.RevisionCount}})</a></span>{{end}}
 	</div>
-	<article id="page-content">
+	<article id="page-content" data-blob-hash="{{.BlobHash}}">
 		{{.Content}}
 	</article>
 

@@ -1371,6 +1371,15 @@ body.zen-manuscript .zen-status.visible {
 	margin: 4rem auto;
 }
 
+.remote-changed-banner {
+	background: var(--amber-bg);
+	color: var(--amber);
+	padding: 8px 14px;
+	border-radius: 6px;
+	margin-bottom: 12px;
+	font-size: 13.5px;
+}
+
 .conflict-banner {
 	background: var(--red-bg);
 	color: var(--red);

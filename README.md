@@ -60,6 +60,7 @@ Defaults shown:
 | `HMD_MAX_UPLOAD_BYTES` | `10485760` | Max image upload size in bytes (default 10 MiB) |
 | `HMD_SYNC_POLL_MS` | `10000` | Sync state poll interval in milliseconds |
 | `HMD_SHOW_TAGS_SIDEBAR` | `true` | Show the Tags section in the sidebar |
+| `HMD_SYNC_MODE` | `push` | Sync mode: `push` (local→remote only) or `bidirectional` (fetch + ff pull) |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file
@@ -83,6 +84,7 @@ path_label: ~/wiki
 max_upload_bytes: 10485760
 sync_poll_ms: 10000
 show_tags_sidebar: true
+# sync_mode: bidirectional  # default: push (local→remote only)
 # Theme overrides: 17 CSS colour variables per theme (see config.yaml.example
 # for the full list with defaults)
 # theme_dark:
@@ -108,9 +110,9 @@ process for most of them:
   HMD_X` badge. The environment always wins, so editing them there
   wouldn't do anything.
 - **Live vs restart-required:** `remote_url`, `git_user`, `git_token`,
-  `site_name`, `hostname`, `path_label`, `user_label`, theme colours, upload
-  size, sync poll interval, and the tags-sidebar toggle all apply
-  immediately on save. `bind`, `repo_dir`, and `app_dir` are marked
+  `sync_mode`, `site_name`, `hostname`, `path_label`, `user_label`, theme
+  colours, upload size, sync poll interval, and the tags-sidebar toggle all
+  apply immediately on save. `bind`, `repo_dir`, and `app_dir` are marked
   "restart required".
 - **Theme:** all 17 CSS colour variables, separately for dark and light, as
   colour pickers. Saving only writes values that differ from the built-in
@@ -146,6 +148,70 @@ echo "pat_xyz" > git_token.txt
 ```
 
 The file approach keeps the token out of environment inspection and docker-compose logs.
+
+## Remote URL & Sync
+
+`HMD_REMOTE_URL` is an HTTPS git remote (e.g.
+`https://git.example.com/you/wiki.git`). Auth is HTTPS BasicAuth:
+`HMD_GIT_USER` as the username, `HMD_GIT_TOKEN` as the PAT. SSH remotes
+are not supported (see Not in v1).
+
+### Sync modes
+
+`HMD_SYNC_MODE` controls the direction of sync:
+
+- **`push` (default):** one-way, local → remote. Every save commits locally
+  and async-pushes to `origin`. hmd never pulls; commits made on the remote
+  side (or by another writer) will not appear locally.
+- **`bidirectional`:** fetch + fast-forward pull on every sync poll and before
+  each save. Changes pushed by other writers (agents, another hmd instance,
+  direct git commits) appear in the UI automatically. ff-only — if local and
+  remote have diverged, the state is reported as `failed` and left for manual
+  resolution via git on the server. No merge commits, no conflict markers.
+
+### Startup
+
+- **Repo dir missing, remote set:** hmd clones the remote into `HMD_REPO_DIR`.
+- **Empty remote repo:** falls through to a local init, adds `origin`, pushes
+  once seeded.
+- **Repo dir exists:** hmd opens it and attaches `origin` pointing at
+  `HMD_REMOTE_URL` (no fetch, no merge).
+- **No remote set:** local-only repo, sync state stays `no remote`.
+
+### Every save
+
+Each `Save` / `Remove` commits locally, then fires an **asynchronous** push
+to `origin`. The save returns immediately; push success or failure is
+recorded in the in-memory sync state (not retried). A failed push does not
+block the write or surface as a save error — the commit is already local.
+
+In `bidirectional` mode, a fetch + ff pull runs **before** the optimistic-lock
+check. If the pull brought in remote changes to the page being saved, the
+existing conflict page renders (showing the remote commit as "theirs"), and
+the user chooses: overwrite with their version or discard. Other pages'
+remote changes come along in the same working tree update.
+
+### Background poll (bidirectional mode)
+
+In `bidirectional` mode, `/api/sync` fetches + ff-pulls on every poll
+(every `HMD_SYNC_POLL_MS`, default 10s). Changed pages are returned in the
+response. The frontend silently re-renders the currently-viewed page if it
+changed (hash check avoids flicker). If the page being **edited** changed
+remotely, a banner appears above the editor warning that saving will
+conflict.
+
+### Sync state
+
+The statusline sync indicator shows one of: `ok`, `pending`, `failed` (with
+the error string), or `no remote`. In `bidirectional` mode the arrow is `⇣⇡`;
+in `push` mode it's `⇡`. State is in-memory only; it resets on restart.
+
+### Editing live
+
+`remote_url`, `git_user`, `git_token`, and `sync_mode` are all editable from
+`/settings` and apply immediately (no restart). Clearing `remote_url` removes
+the `origin` remote entirely, switching the instance to local-only mode.
+Env-set values are read-only in the UI.
 
 ## First Run Behaviour
 
@@ -248,7 +314,7 @@ Click "History" on any page to see all versions. Click "View" to see an old vers
 
 ## Not in v1
 
-- Real-time collaborative editing (git-based sync only)
+- Real-time collaborative editing (bidirectional sync via `HMD_SYNC_MODE` covers fetch + ff pull, but no live cursors or shared buffers)
 - Folder/hierarchical page structure (flat, wiki-link-based only)
 - SSO/proxy-header auth (built-in username/password only)
 - SSH remotes (HTTPS + PAT only for now)

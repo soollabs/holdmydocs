@@ -466,3 +466,151 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 		t.Errorf("SyncState = %q after removing remote, want %q", state, "no remote")
 	}
 }
+
+func TestFetchAndFFBehind(t *testing.T) {
+	bareDir := t.TempDir()
+	if _, err := git.PlainInit(bareDir, true); err != nil {
+		t.Fatalf("init bare: %v", err)
+	}
+
+	dirA := t.TempDir()
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	storeA, err := OpenStore(cfgA)
+	if err != nil {
+		t.Fatalf("OpenStore A: %v", err)
+	}
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+		t.Fatalf("save A: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	dirB := t.TempDir()
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	storeB, err := OpenStore(cfgB)
+	if err != nil {
+		t.Fatalf("OpenStore B: %v", err)
+	}
+
+	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice"); err != nil {
+		t.Fatalf("save A 2: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	result, err := storeB.FetchAndFF()
+	if err != nil {
+		t.Fatalf("FetchAndFF: %v", err)
+	}
+	if len(result.Commits) != 1 {
+		t.Errorf("Commits = %d, want 1", len(result.Commits))
+	}
+	found := false
+	for _, p := range result.ChangedPaths {
+		if p == "page2.md" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("ChangedPaths = %v, want page2.md", result.ChangedPaths)
+	}
+	if _, err := os.Stat(filepath.Join(dirB, "page2.md")); err != nil {
+		t.Errorf("page2.md not on disk after ff: %v", err)
+	}
+}
+
+func TestFetchAndFFEqual(t *testing.T) {
+	bareDir := t.TempDir()
+	if _, err := git.PlainInit(bareDir, true); err != nil {
+		t.Fatalf("init bare: %v", err)
+	}
+
+	dirA := t.TempDir()
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	storeA, err := OpenStore(cfgA)
+	if err != nil {
+		t.Fatalf("OpenStore A: %v", err)
+	}
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+		t.Fatalf("save A: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	dirB := t.TempDir()
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	storeB, err := OpenStore(cfgB)
+	if err != nil {
+		t.Fatalf("OpenStore B: %v", err)
+	}
+
+	result, err := storeB.FetchAndFF()
+	if err != nil {
+		t.Fatalf("FetchAndFF: %v", err)
+	}
+	if len(result.ChangedPaths) != 0 {
+		t.Errorf("ChangedPaths = %v, want empty", result.ChangedPaths)
+	}
+	if len(result.Commits) != 0 {
+		t.Errorf("Commits = %d, want 0", len(result.Commits))
+	}
+}
+
+func TestFetchAndFFDivergent(t *testing.T) {
+	bareDir := t.TempDir()
+	if _, err := git.PlainInit(bareDir, true); err != nil {
+		t.Fatalf("init bare: %v", err)
+	}
+
+	dirA := t.TempDir()
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	storeA, err := OpenStore(cfgA)
+	if err != nil {
+		t.Fatalf("OpenStore A: %v", err)
+	}
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+		t.Fatalf("save A: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	dirB := t.TempDir()
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	storeB, err := OpenStore(cfgB)
+	if err != nil {
+		t.Fatalf("OpenStore B: %v", err)
+	}
+
+	if _, err := storeA.Save("page2.md", []byte("from A"), "add page2", "alice"); err != nil {
+		t.Fatalf("save A 2: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	if _, err := storeB.Save("page3.md", []byte("from B"), "add page3", "bob"); err != nil {
+		t.Fatalf("save B: %v", err)
+	}
+	waitForSync(storeB, 2*time.Second)
+
+	_, err = storeB.FetchAndFF()
+	if err == nil {
+		t.Fatal("FetchAndFF should fail on divergent state")
+	}
+	state, detail := storeB.SyncState()
+	if state != "failed" {
+		t.Errorf("SyncState = %q, want failed", state)
+	}
+	if detail == "" {
+		t.Error("syncErr should be non-empty for divergent state")
+	}
+
+	if _, err := os.Stat(filepath.Join(dirB, "page3.md")); err != nil {
+		t.Errorf("page3.md should still exist after failed ff (working tree untouched): %v", err)
+	}
+}
+
+func waitForSync(store *Store, timeout time.Duration) {
+	start := time.Now()
+	for time.Since(start) < timeout {
+		state, _ := store.SyncState()
+		if state == "ok" || state == "failed" {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}

@@ -66,13 +66,25 @@
 				{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
 			{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
 		</div>
-		<div class="settings-row">
-			<label for="git_token">git token</label>
-			<input type="password" id="git_token" name="git_token"
-				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
-				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
-			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
-		</div>
+	<div class="settings-row">
+		<label for="git_token">git token</label>
+		<input type="password" id="git_token" name="git_token"
+			placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
+			{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
+		{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
+	</div>
+	<div class="settings-row">
+		<label for="sync_mode">sync mode</label>
+		{{if .Settings.Fields.SyncMode.Editable}}
+		<select id="sync_mode" name="sync_mode">
+			<option value="push" {{if or (eq .Settings.SyncMode "") (eq .Settings.SyncMode "push")}}selected{{end}}>push (local &rarr; remote only)</option>
+			<option value="bidirectional" {{if eq .Settings.SyncMode "bidirectional"}}selected{{end}}>bidirectional (fetch + ff pull)</option>
+		</select>
+		{{else}}
+		<input type="text" id="sync_mode" name="sync_mode" value="{{.Settings.SyncMode}}" readonly>
+		{{end}}
+		{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
+	</div>
 	</fieldset>
 
 	<fieldset class="settings-section">

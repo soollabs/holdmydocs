@@ -77,21 +77,68 @@
     }
   }
 
-  // ---- Sync polling (while a push is pending) ----
+  // ---- Sync polling ----
   const syncSeg = $('#status-sync');
   if (syncSeg) {
     const pollMs = window.hmdSyncPollMs || 10000;
+    const bidi = window.hmdSyncMode === 'bidirectional';
     let pollTimer;
+    let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
+
+    function updateSyncSeg(state) {
+      const arrow = bidi ? '⇣⇡' : '⇡';
+      syncSeg.setAttribute('data-state', state);
+      syncSeg.textContent = state === 'no remote' ? 'local only' : arrow + ' ' + state;
+    }
+
+    function refreshViewedPage() {
+      if (!pageContent) return;
+      fetch(window.location.pathname, { headers: { 'X-Requested-With': 'fetch' } })
+        .then(r => r.text())
+        .then(html => {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const newContent = doc.querySelector('#page-content');
+          if (!newContent) return;
+          const newHash = newContent.dataset.blobHash || '';
+          if (newHash && newHash === lastRenderedHash) return;
+          lastRenderedHash = newHash;
+          const parent = pageContent.parentNode;
+          if (parent) parent.replaceChild(newContent, pageContent);
+          if (window.mermaid) {
+            const mermaids = newContent.querySelectorAll('pre code.language-mermaid');
+            if (mermaids.length > 0) window.mermaid.run({ nodes: mermaids });
+          }
+        })
+        .catch(() => {});
+    }
+
+    function showRemoteChangedBanner() {
+      const banner = $('#remote-changed-banner');
+      if (banner) banner.style.display = 'block';
+    }
+
     function pollSync() {
       fetch('/api/sync').then(r => r.json()).then(s => {
-        syncSeg.setAttribute('data-state', s.state);
-        syncSeg.textContent = s.state === 'no remote' ? 'local only' : '⇡ ' + s.state;
-        if (s.state === 'pending') {
+        updateSyncSeg(s.state);
+        if (s.pagesChanged && s.pagesChanged.length > 0 && pageContent) {
+          const slug = document.body.dataset.slug || '';
+          const routePrefix = document.body.dataset.routePrefix || '/page';
+          const prefix = routePrefix === '/hidden' ? '.' : '';
+          const pageFile = prefix + slug + '.md';
+          if (s.pagesChanged.includes(pageFile)) {
+            showRemoteChangedBanner();
+          } else {
+            refreshViewedPage();
+          }
+        }
+        if (s.state === 'pending' || bidi) {
           pollTimer = setTimeout(pollSync, pollMs);
         }
-      }).catch(() => {});
+      }).catch(() => {
+        if (bidi) pollTimer = setTimeout(pollSync, pollMs);
+      });
     }
-    if (syncSeg.dataset.state === 'pending') pollSync();
+    if (syncSeg.dataset.state === 'pending' || bidi) pollSync();
   }
 
   // ---- Mobile sidebar drawer ----

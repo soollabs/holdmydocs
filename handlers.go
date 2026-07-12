@@ -103,6 +103,8 @@ type TemplateData struct {
 	UserLabel        string // overrides Username in prompt when non-empty
 	ShowTagsSidebar  bool
 	SyncPollMs       int // injected as a JS global for sync polling
+	SyncMode         string
+	BlobHash         string // current page blob hash, for client-side change detection
 	ThemeStyle       template.CSS
 	Settings         *SettingsData
 	SetupHomePreview template.HTML
@@ -135,6 +137,7 @@ type SettingsData struct {
 	MaxUploadBytes  int64
 	SyncPollMs      int
 	ShowTagsSidebar bool
+	SyncMode        string
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 	HelpDrifted     bool
@@ -252,6 +255,8 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 	fields["PathLabel"] = mkField(cfg.PathLabel, "HMD_PATH_LABEL", false, false)
 	fields["UserLabel"] = mkField(cfg.UserLabel, "HMD_USER_LABEL", false, false)
 
+	fields["SyncMode"] = mkField(cfg.SyncMode, "HMD_SYNC_MODE", false, false)
+
 	return SettingsData{
 		Fields:          fields,
 		NoConfigFile:    !hasConfigFile,
@@ -259,6 +264,7 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 		MaxUploadBytes:  cfg.MaxUploadBytes,
 		SyncPollMs:      cfg.SyncPollMs,
 		ShowTagsSidebar: cfg.ShowTagsSidebar,
+		SyncMode:        cfg.SyncMode,
 		ThemeDark:       mergeTheme(defaultDark, cfg.ThemeDark),
 		ThemeLight:      mergeTheme(defaultLight, cfg.ThemeLight),
 	}
@@ -292,6 +298,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.UserLabel = cfg.UserLabel
 		data.ShowTagsSidebar = cfg.ShowTagsSidebar
 		data.SyncPollMs = cfg.SyncPollMs
+		data.SyncMode = cfg.SyncMode
 		data.ThemeStyle = buildThemeStyle(cfg)
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
@@ -601,7 +608,7 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
-	content, _, err := app.Store.Read(pageFile(slug))
+	content, blobHash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
@@ -654,6 +661,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		RevisionCount: revisionCount,
 		HeadAuthor:    headAuthor,
 		HeadWhen:      headWhen,
+		BlobHash:      blobHash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
 	})
 }
@@ -704,6 +712,13 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	if hidden {
 		newFile = hiddenFile(slug)
 		newPrefix = "/hidden"
+	}
+
+	cfg := app.config()
+	if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
+		if _, err := app.Store.FetchAndFF(); err != nil {
+			log.Printf("save-time fetch for %s: %v", slug, err)
+		}
 	}
 
 	// Check optimistic lock against the file's current location.
@@ -976,19 +991,56 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 type SyncStatus struct {
-	State  string `json:"state"`
-	Detail string `json:"detail"`
-	At     string `json:"at"`
+	State        string       `json:"state"`
+	Detail       string       `json:"detail"`
+	At           string       `json:"at"`
+	PagesChanged []string     `json:"pagesChanged,omitempty"`
+	Commits      []SyncCommit `json:"commits,omitempty"`
+}
+
+type SyncCommit struct {
+	Hash      string `json:"hash"`
+	ShortHash string `json:"shortHash"`
+	Message   string `json:"message"`
+	Author    string `json:"author"`
+	When      string `json:"when"`
 }
 
 func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 	state, detail := app.Store.SyncState()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SyncStatus{
+	resp := SyncStatus{
 		State:  state,
 		Detail: detail,
 		At:     time.Now().Format("15:04"),
-	})
+	}
+
+	cfg := app.config()
+	if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
+		result, err := app.Store.FetchAndFF()
+		if err != nil {
+			state, detail = app.Store.SyncState()
+			resp.State = state
+			resp.Detail = detail
+		} else {
+			resp.PagesChanged = result.ChangedPaths
+			for _, c := range result.Commits {
+				shortHash := c.Hash
+				if len(shortHash) > 8 {
+					shortHash = shortHash[:8]
+				}
+				resp.Commits = append(resp.Commits, SyncCommit{
+					Hash:      c.Hash,
+					ShortHash: shortHash,
+					Message:   c.Message,
+					Author:    c.Author,
+					When:      c.When.Format("2006-01-02 15:04"),
+				})
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -1246,6 +1298,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	maxUploadStr := r.FormValue("max_upload_bytes")
 	syncPollStr := r.FormValue("sync_poll_ms")
 	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
+	syncMode := r.FormValue("sync_mode")
 
 	if bind == "" {
 		http.Error(w, "Bind cannot be empty", http.StatusBadRequest)
@@ -1279,6 +1332,10 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Remote URL must be HTTPS or git@ SSH format", http.StatusBadRequest)
 		return
 	}
+	if syncMode != "push" && syncMode != "bidirectional" {
+		http.Error(w, "Sync mode must be push or bidirectional", http.StatusBadRequest)
+		return
+	}
 
 	maxUploadBytes, err := strconv.ParseInt(maxUploadStr, 10, 64)
 	if err != nil || maxUploadBytes < 1 {
@@ -1308,6 +1365,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.MaxUploadBytes = maxUploadBytes
 	fc.SyncPollMs = syncPollMs
 	fc.ShowTagsSidebar = boolPtr(showTagsSidebar)
+	fc.SyncMode = syncMode
 
 	if gitToken != "" {
 		fc.GitToken = gitToken

@@ -41,6 +41,10 @@ path_label: ~/wiki
 max_upload_bytes: 10485760   # 10 MiB
 sync_poll_ms: 10000
 show_tags_sidebar: true
+# sync_mode: push (default, local → remote only) or bidirectional
+# (fetch + fast-forward pull on every sync poll and before each save,
+# so changes pushed by other writers appear in the UI automatically)
+# sync_mode: bidirectional
 
 # --- Theme ---
 # All 17 CSS colour variables, separately for dark/light. Uncomment and

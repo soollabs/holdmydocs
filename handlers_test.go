@@ -65,6 +65,9 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 			if fc.ShowTagsSidebar != nil {
 				cfg.ShowTagsSidebar = *fc.ShowTagsSidebar
 			}
+			if fc.SyncMode != "" {
+				cfg.SyncMode = fc.SyncMode
+			}
 		}
 	}
 
@@ -1095,6 +1098,7 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
+		"sync_mode":          {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1143,6 +1147,7 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
+		"sync_mode":          {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1271,6 +1276,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
+		"sync_mode":          {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

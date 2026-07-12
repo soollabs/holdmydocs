@@ -259,3 +259,32 @@ func TestSaveFileConfigOverwrite(t *testing.T) {
 		t.Errorf("SiteName = %q, want %q", loaded.SiteName, "Second")
 	}
 }
+
+func TestSyncModeDefault(t *testing.T) {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.SyncMode != "push" {
+		t.Errorf("SyncMode = %q, want push (default)", cfg.SyncMode)
+	}
+}
+
+func TestSyncModeEnv(t *testing.T) {
+	t.Setenv("HMD_SYNC_MODE", "bidirectional")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.SyncMode != "bidirectional" {
+		t.Errorf("SyncMode = %q, want bidirectional", cfg.SyncMode)
+	}
+}
+
+func TestSyncModeInvalid(t *testing.T) {
+	t.Setenv("HMD_SYNC_MODE", "bogus")
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("LoadConfig should reject invalid sync_mode")
+	}
+}

@@ -26,6 +26,7 @@ type Config struct {
 	MaxUploadBytes  int64
 	SyncPollMs      int
 	ShowTagsSidebar bool
+	SyncMode        string
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 }
@@ -49,6 +50,7 @@ type fileConfig struct {
 	MaxUploadBytes  int64             `yaml:"max_upload_bytes"`
 	SyncPollMs      int               `yaml:"sync_poll_ms"`
 	ShowTagsSidebar *bool             `yaml:"show_tags_sidebar"`
+	SyncMode        string            `yaml:"sync_mode"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
 }
@@ -136,6 +138,7 @@ func LoadConfig() (Config, error) {
 		MaxUploadBytes:  pickInt64("HMD_MAX_UPLOAD_BYTES", file.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:      pickInt("HMD_SYNC_POLL_MS", file.SyncPollMs, 10000),
 		ShowTagsSidebar: pickBool("HMD_SHOW_TAGS_SIDEBAR", file.ShowTagsSidebar, true),
+		SyncMode:       pick("HMD_SYNC_MODE", file.SyncMode, "push"),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
 	}
@@ -186,6 +189,9 @@ func LoadConfig() (Config, error) {
 	if file.ShowTagsSidebar != nil && os.Getenv("HMD_SHOW_TAGS_SIDEBAR") != "" {
 		log.Printf("Warning: HMD_SHOW_TAGS_SIDEBAR overriding config file value")
 	}
+	if file.SyncMode != "" && os.Getenv("HMD_SYNC_MODE") != "" {
+		log.Printf("Warning: HMD_SYNC_MODE overriding config file value")
+	}
 
 	// Token file overrides the token value, whichever source named it.
 	if f := pick("HMD_GIT_TOKEN_FILE", file.GitTokenFile, ""); f != "" {
@@ -194,6 +200,10 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("reading git token file: %w", err)
 		}
 		cfg.GitToken = strings.TrimSpace(string(b))
+	}
+
+	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {
+		return Config{}, fmt.Errorf("invalid HMD_SYNC_MODE %q: must be push or bidirectional", cfg.SyncMode)
 	}
 
 	return cfg, nil

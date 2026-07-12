@@ -1,5 +1,8 @@
 {{define "content"}}
 <div class="editor-col">
+<div id="remote-changed-banner" class="remote-changed-banner" style="display:none">
+	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
+</div>
 <form method="POST" action="{{.RoutePrefix}}/{{.Slug}}/save" class="edit-form" id="edit-form">
 	<div class="edit-topbar">
 		<div class="edit-field">
