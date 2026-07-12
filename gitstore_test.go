@@ -614,3 +614,62 @@ func waitForSync(store *Store, timeout time.Duration) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// History results are cached; the cache must stay correct across UI saves
+// (incremental update) and be dropped when a commit lands outside the UI.
+func TestHistoryCacheExternalCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := OpenStore(Config{RepoDir: tmpDir, AppDir: t.TempDir(), GitUser: "test"})
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	if _, err := store.Save("page.md", []byte("v1"), "first", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	if _, err := store.History("page.md"); err != nil {
+		t.Fatalf("History failed: %v", err)
+	}
+
+	// A UI save after the cache is warm must appear without a re-walk.
+	if _, err := store.Save("page.md", []byte("v2"), "second", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("Save v2 failed: %v", err)
+	}
+	history, err := store.History("page.md")
+	if err != nil {
+		t.Fatalf("History after save failed: %v", err)
+	}
+	if len(history) != 2 || history[0].Message != "second" {
+		t.Fatalf("cached history after save = %+v, want 2 entries, newest 'second'", history)
+	}
+
+	// Commit outside the store (simulating git CLI on the server).
+	if err := os.WriteFile(filepath.Join(tmpDir, "page.md"), []byte("v3"), 0644); err != nil {
+		t.Fatalf("writing page.md: %v", err)
+	}
+	repo, err := git.PlainOpen(tmpDir)
+	if err != nil {
+		t.Fatalf("PlainOpen failed: %v", err)
+	}
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("Worktree failed: %v", err)
+	}
+	if _, err := wt.Add("page.md"); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
+	sig := &object.Signature{Name: "bob", Email: "bob@hmd.local", When: time.Now()}
+	if _, err := wt.Commit("external", &git.CommitOptions{Author: sig}); err != nil {
+		t.Fatalf("external commit failed: %v", err)
+	}
+
+	// Poll tick notices the foreign HEAD and drops the cache.
+	store.DropHistoryOnExternalCommit()
+	history, err = store.History("page.md")
+	if err != nil {
+		t.Fatalf("History after external commit failed: %v", err)
+	}
+	if len(history) != 3 || history[0].Message != "external" || history[0].Author != "bob" {
+		t.Fatalf("history after external commit = %+v, want 3 entries, newest 'external' by bob", history)
+	}
+}

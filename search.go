@@ -97,6 +97,8 @@ func BuildIndex(pages []Page) (*Index, error) {
 // externally-written pages is fine. Switch to fsnotify if that stops being true.
 func pollFS(store *Store, ix *Index, hashes map[string]string) {
 	for range time.Tick(5 * time.Second) {
+		store.DropHistoryOnExternalCommit()
+
 		paths, err := store.List()
 		if err != nil {
 			log.Printf("pollFS: List failed: %v", err)

@@ -34,6 +34,19 @@ type Store struct {
 	mu         sync.Mutex
 	syncState  string
 	syncErr    string
+	// historyCache holds History() results keyed by path, protected by mu.
+	// Save/Remove update it incrementally (O(1)); FetchAndFF drops it
+	// wholesale since a pull can touch any path. Without this, every page
+	// view re-walks the entire repo history (go-git's path-filtered Log has
+	// no shortcut - it diffs every commit), which is fine at dozens of
+	// commits and unusable at thousands.
+	historyCache map[string][]CommitInfo
+	// knownHead is the HEAD hash after the last commit or reset made by this
+	// process, protected by mu. When HEAD differs from it, a commit was made
+	// outside the UI (git CLI on the server) and historyCache is stale.
+	// Zero value means "not yet observed" and safely triggers one drop of an
+	// empty cache.
+	knownHead  plumbing.Hash
 	NeedsSetup atomic.Bool
 	// ForceSetup is set by the "re-run setup" button in settings — it shows
 	// the modal even when home.md/.help.md already exist, unlike NeedsSetup
@@ -319,16 +332,20 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	}
 
 	// Commit
-	_, err = wt.Commit(message, &git.CommitOptions{
+	preHead := s.headHash()
+	when := time.Now()
+	commitHash, err := wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  authorName,
 			Email: authorEmail,
-			When:  time.Now(),
+			When:  when,
 		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("committing: %w", err)
 	}
+	s.noteCommit(commitHash, preHead)
+	s.prependHistory(path, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
 
 	// Compute blob hash
 	hash := plumbing.ComputeHash(plumbing.BlobObject, content)
@@ -365,7 +382,8 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("removing file from index: %w", err)
 	}
 
-	_, err = wt.Commit(message, &git.CommitOptions{
+	preHead := s.headHash()
+	commitHash, err := wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  authorName,
 			Email: authorEmail,
@@ -375,12 +393,25 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	if err != nil {
 		return fmt.Errorf("committing: %w", err)
 	}
+	s.noteCommit(commitHash, preHead)
+	delete(s.historyCache, path)
 
 	if s.remote != "" {
 		s.syncState = "pending"
 		go s.push()
 	}
 	return nil
+}
+
+// prependHistory adds a newly-created commit to the cached history for path,
+// if a cache entry already exists (i.e. some earlier History() call paid the
+// full-walk cost). Callers must hold s.mu.
+func (s *Store) prependHistory(path string, entry CommitInfo) {
+	cached, ok := s.historyCache[path]
+	if !ok {
+		return
+	}
+	s.historyCache[path] = append([]CommitInfo{entry}, cached...)
 }
 
 func (s *Store) push() {
@@ -437,6 +468,17 @@ func (s *Store) ListHidden() ([]string, error) {
 }
 
 func (s *Store) History(path string) ([]CommitInfo, error) {
+	// The walk runs under mu so a concurrent Save can't commit mid-walk and
+	// then have its prependHistory no-op'd by us caching a pre-commit result.
+	// mu is already held across network pushes, so a one-time cold walk here
+	// is no worse.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if cached, ok := s.historyCache[path]; ok {
+		return cached, nil
+	}
+
 	iter, err := s.repo.Log(&git.LogOptions{FileName: &path})
 	if err != nil {
 		return nil, fmt.Errorf("getting log: %w", err)
@@ -453,7 +495,45 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 		return nil
 	})
 
+	if s.historyCache == nil {
+		s.historyCache = make(map[string][]CommitInfo)
+	}
+	s.historyCache[path] = commits
+
 	return commits, nil
+}
+
+// headHash returns the current HEAD hash, or ZeroHash for an unborn branch.
+// Callers must hold s.mu.
+func (s *Store) headHash() plumbing.Hash {
+	ref, err := s.repo.Head()
+	if err != nil {
+		return plumbing.ZeroHash
+	}
+	return ref.Hash()
+}
+
+// noteCommit records a commit made by this process. If HEAD had moved since
+// our last known commit (an external commit slipped in), the cache may miss
+// it for any path, so drop it wholesale. Callers must hold s.mu.
+func (s *Store) noteCommit(newHead, preHead plumbing.Hash) {
+	if s.knownHead != preHead {
+		s.historyCache = nil
+	}
+	s.knownHead = newHead
+}
+
+// DropHistoryOnExternalCommit invalidates the history cache when HEAD has
+// moved to a commit this process didn't create (e.g. git CLI on the server,
+// which pollFS exists to pick up). Cheap when nothing changed; called every
+// poll tick.
+func (s *Store) DropHistoryOnExternalCommit() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if head := s.headHash(); head != s.knownHead {
+		s.historyCache = nil
+		s.knownHead = head
+	}
 }
 
 func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
@@ -634,6 +714,8 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		return FetchResult{}, err
 	}
 
+	s.historyCache = nil
+	s.knownHead = remoteHash
 	s.syncState = "ok"
 	s.syncErr = ""
 	return result, nil
