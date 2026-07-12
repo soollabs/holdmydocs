@@ -25,6 +25,11 @@ git_user: you
 git_token_file: /run/secrets/git_token
 # git_token: pat_xyz
 
+# Default commit author, in "Name <email>" form. Used for every commit unless a
+# user has set their own author on the settings page. Falls back to the
+# logged-in username when unset.
+# git_author: hmd <hmd@example.com>
+
 # --- Bootstrap admin user ---
 # Only takes effect on first run (creates the user if it doesn't exist yet).
 # Manage users afterwards with `hmd adduser <name>`, not this file.

@@ -14,10 +14,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// userRecord is a stored user. GitAuthor, when set, is that user's commit
+// identity in "Name <email>" form and overrides the global default.
+type userRecord struct {
+	Hash      string `json:"hash"`
+	GitAuthor string `json:"git_author,omitempty"`
+}
+
 type Auth struct {
 	usersFile string
-	users     map[string]string // username -> bcrypt hash
-	sessions  map[string]string // token -> username
+	users     map[string]userRecord // username -> record
+	sessions  map[string]string     // token -> username
 	mu        sync.RWMutex
 }
 
@@ -31,7 +38,7 @@ func OpenAuth(cfg Config) (*Auth, error) {
 	usersFile := filepath.Join(cfg.AppDir, "users.json")
 	auth := &Auth{
 		usersFile: usersFile,
-		users:     make(map[string]string),
+		users:     make(map[string]userRecord),
 		sessions:  make(map[string]string),
 	}
 
@@ -69,39 +76,62 @@ func (a *Auth) AddUser(name, password string) error {
 	}
 
 	a.mu.Lock()
-	a.users[name] = string(hash)
+	rec := a.users[name] // preserve any existing git author
+	rec.Hash = string(hash)
+	a.users[name] = rec
+	err = a.save()
 	a.mu.Unlock()
 
-	// Write file atomically
+	return err
+}
+
+// AuthorFor returns the user's stored git author string, or "" if unset.
+func (a *Auth) AuthorFor(name string) string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.users[name].GitAuthor
+}
+
+// SetAuthor stores a per-user git author ("Name <email>", or "" to clear).
+func (a *Auth) SetAuthor(name, author string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	rec, ok := a.users[name]
+	if !ok {
+		return fmt.Errorf("unknown user %q", name)
+	}
+	rec.GitAuthor = author
+	a.users[name] = rec
+	return a.save()
+}
+
+// save writes the users map atomically. Caller must hold a.mu.
+func (a *Auth) save() error {
 	data, err := json.MarshalIndent(a.users, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshalling users: %w", err)
 	}
 
 	tmpFile := a.usersFile + ".tmp"
-	err = os.WriteFile(tmpFile, data, 0644)
-	if err != nil {
+	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
 		return fmt.Errorf("writing tmp file: %w", err)
 	}
-
-	err = os.Rename(tmpFile, a.usersFile)
-	if err != nil {
+	if err := os.Rename(tmpFile, a.usersFile); err != nil {
 		return fmt.Errorf("renaming tmp file: %w", err)
 	}
-
 	return nil
 }
 
 func (a *Auth) Login(name, password string) (token string, ok bool) {
 	a.mu.RLock()
-	hash, exists := a.users[name]
+	rec, exists := a.users[name]
 	a.mu.RUnlock()
 
 	if !exists {
 		return "", false
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(rec.Hash), []byte(password))
 	if err != nil {
 		return "", false
 	}

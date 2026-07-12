@@ -51,6 +51,7 @@ Defaults shown:
 | `HMD_GIT_USER` | `hmd` | Username for HTTPS authentication |
 | `HMD_GIT_TOKEN` | (none) | PAT for HTTPS authentication (env var) |
 | `HMD_GIT_TOKEN_FILE` | (none) | Read PAT from file instead of env var (takes precedence) |
+| `HMD_GIT_AUTHOR` | (none) | Default commit author as `Name <email>`; per-user overrides on the settings page take precedence, else the logged-in username is used |
 | `HMD_ADMIN_USER` | (none) | Bootstrap admin username on first run |
 | `HMD_ADMIN_PASSWORD` | (none) | Bootstrap admin password on first run |
 | `HMD_SITE_NAME` | `hold my docs (hmd)` | Site name shown in the header and page titles |
@@ -110,7 +111,7 @@ process for most of them:
   HMD_X` badge. The environment always wins, so editing them there
   wouldn't do anything.
 - **Live vs restart-required:** `remote_url`, `git_user`, `git_token`,
-  `sync_mode`, `site_name`, `hostname`, `path_label`, `user_label`, theme
+  `git_author`, `sync_mode`, `site_name`, `hostname`, `path_label`, `user_label`, theme
   colours, upload size, sync poll interval, and the tags-sidebar toggle all
   apply immediately on save. `bind`, `repo_dir`, and `app_dir` are marked
   "restart required".
@@ -208,9 +209,14 @@ in `push` mode it's `⇡`. State is in-memory only; it resets on restart.
 
 ### Editing live
 
-`remote_url`, `git_user`, `git_token`, and `sync_mode` are all editable from
-`/settings` and apply immediately (no restart). Clearing `remote_url` removes
-the `origin` remote entirely, switching the instance to local-only mode.
+`remote_url`, `git_user`, `git_token`, `git_author`, and `sync_mode` are all
+editable from `/settings` and apply immediately (no restart). Clearing
+`remote_url` removes the `origin` remote entirely, switching the instance to
+local-only mode.
+
+Each user can also set their own commit author (`Name <email>`) from
+`/settings`; it overrides `git_author` for that user's commits and is stored in
+`users.json`, not the config file.
 Env-set values are read-only in the UI.
 
 ## First Run Behaviour

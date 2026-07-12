@@ -141,6 +141,7 @@ type SettingsData struct {
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 	HelpDrifted     bool
+	UserGitAuthor   string // current user's per-user git author override
 }
 
 // relativeTime renders t as a short "N units ago" string, falling back to
@@ -229,6 +230,7 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 	fields["AppDir"] = mkField(cfg.AppDir, "HMD_APP_DIR", true, false)
 	fields["RemoteURL"] = mkField(cfg.RemoteURL, "HMD_REMOTE_URL", false, false)
 	fields["GitUser"] = mkField(cfg.GitUser, "HMD_GIT_USER", false, false)
+	fields["GitAuthor"] = mkField(cfg.GitAuthor, "HMD_GIT_AUTHOR", false, false)
 
 	// Token is special: masked, and locked if a token file is configured.
 	tokenValue := "not set"
@@ -360,6 +362,16 @@ func (app *App) currentUser(r *http.Request) string {
 	return user
 }
 
+// gitAuthor resolves the commit identity for username: the user's own override,
+// else the global HMD_GIT_AUTHOR default, else "<username> <username@hmd.local>".
+func (app *App) gitAuthor(username string) (name, email string) {
+	raw := app.Auth.AuthorFor(username)
+	if raw == "" {
+		raw = app.config().GitAuthor
+	}
+	return parseAuthor(raw, username)
+}
+
 // tocToken matches a <!-- hmd:toc --> or <!-- hmd:toc:tag1,tag2 --> token.
 var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 
@@ -447,6 +459,7 @@ func (app *App) Routes() http.Handler {
 	// Settings
 	mux.HandleFunc("GET /settings", app.handleSettingsGet)
 	mux.HandleFunc("POST /settings", app.handleSettingsPost)
+	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
 	mux.HandleFunc("POST /settings/setup", app.handleRerunSetup)
 	mux.HandleFunc("POST /settings/help/reset", app.handleResetHelp)
 
@@ -540,11 +553,12 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	cfg := app.config()
+	authorName, authorEmail := app.gitAuthor(cfg.GitUser)
 
 	if action == "add" {
 		if r.FormValue("add_home") == "on" {
 			content := Page{Slug: "home", Title: "Home", Body: defaultHomeMD}.Encode()
-			if _, err := app.Store.Save("home.md", content, "Add home.md", cfg.GitUser); err != nil {
+			if _, err := app.Store.Save("home.md", content, "Add home.md", authorName, authorEmail); err != nil {
 				http.Error(w, "Failed to seed home page", http.StatusInternalServerError)
 				return
 			}
@@ -552,7 +566,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		if r.FormValue("add_help") == "on" {
 			content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
-			if _, err := app.Store.Save(".help.md", content, "Add .help.md", cfg.GitUser); err != nil {
+			if _, err := app.Store.Save(".help.md", content, "Add .help.md", authorName, authorEmail); err != nil {
 				http.Error(w, "Failed to seed help guide", http.StatusInternalServerError)
 				return
 			}
@@ -593,12 +607,23 @@ func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
+// handleSetAuthor stores the current user's git author override ("Name <email>",
+// or empty to clear and fall back to the global default).
+func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
+	author := strings.TrimSpace(r.FormValue("git_author"))
+	if err := app.Auth.SetAuthor(app.currentUser(r), author); err != nil {
+		http.Error(w, "Failed to save git author", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+}
+
 // handleResetHelp overwrites .help.md with the built-in default, clearing
 // the drift warning on the settings page. Destructive to any local edits.
 func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
-	cfg := app.config()
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
 	content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
-	if _, err := app.Store.Save(".help.md", content, "Reset .help.md to built-in", cfg.GitUser); err != nil {
+	if _, err := app.Store.Save(".help.md", content, "Reset .help.md to built-in", authorName, authorEmail); err != nil {
 		http.Error(w, "Failed to reset .help.md", http.StatusInternalServerError)
 		return
 	}
@@ -765,13 +790,14 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		message = "Move " + title
 	}
 
+	authorName, authorEmail := app.gitAuthor(username)
 	if oldFile != newFile {
-		if err := app.Store.Remove(oldFile, message, username); err != nil {
+		if err := app.Store.Remove(oldFile, message, authorName, authorEmail); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 	}
-	if _, err := app.Store.Save(newFile, page.Encode(), message, username); err != nil {
+	if _, err := app.Store.Save(newFile, page.Encode(), message, authorName, authorEmail); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -861,7 +887,8 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save via store
-	_, err = app.Store.Save(path, content, "Add attachment "+filename, username)
+	authorName, authorEmail := app.gitAuthor(username)
+	_, err = app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail)
 	if err != nil {
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
 		return
@@ -1141,7 +1168,8 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save as new commit
-	_, err = app.Store.Save(pageFile(slug), content, "Revert "+slug+" to "+hash[:8], username)
+	authorName, authorEmail := app.gitAuthor(username)
+	_, err = app.Store.Save(pageFile(slug), content, "Revert "+slug+" to "+hash[:8], authorName, authorEmail)
 	if err != nil {
 		http.Error(w, "Error reverting", http.StatusInternalServerError)
 		return
@@ -1259,6 +1287,7 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 
 	sd := buildSettingsData(cfg, fc, configPath, hasConfigFile)
 	sd.HelpDrifted = HelpDrifted(app.Store)
+	sd.UserGitAuthor = app.Auth.AuthorFor(app.currentUser(r))
 
 	if q := r.URL.Query().Get("saved"); q == "1" {
 		sd.Flash = "Settings saved"
@@ -1290,6 +1319,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	appDir := r.FormValue("app_dir")
 	remoteURL := r.FormValue("remote_url")
 	gitUser := r.FormValue("git_user")
+	gitAuthor := r.FormValue("git_author")
 	gitToken := r.FormValue("git_token")
 	siteName := r.FormValue("site_name")
 	hostname := r.FormValue("hostname")
@@ -1358,6 +1388,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.AppDir = appDir
 	fc.RemoteURL = remoteURL
 	fc.GitUser = gitUser
+	fc.GitAuthor = gitAuthor
 	fc.SiteName = siteName
 	fc.Hostname = hostname
 	fc.PathLabel = pathLabel

@@ -130,3 +130,45 @@ func TestMiddleware(t *testing.T) {
 		t.Error("Should have valid token for testing")
 	}
 }
+
+func TestParseAuthor(t *testing.T) {
+	cases := []struct {
+		in, fallback, name, email string
+	}{
+		{"Example User <k@x.com>", "u", "Example User", "k@x.com"},
+		{"", "alice", "alice", "alice@hmd.local"},
+		{"Bob", "u", "Bob", "u@hmd.local"},
+		{"  Ada Lovelace  <ada@ex.org>  ", "u", "Ada Lovelace", "ada@ex.org"},
+	}
+	for _, c := range cases {
+		name, email := parseAuthor(c.in, c.fallback)
+		if name != c.name || email != c.email {
+			t.Errorf("parseAuthor(%q, %q) = %q, %q; want %q, %q", c.in, c.fallback, name, email, c.name, c.email)
+		}
+	}
+}
+
+func TestUserGitAuthorPersists(t *testing.T) {
+	appDir := t.TempDir()
+	auth, err := OpenAuth(Config{AppDir: appDir, AdminUser: "admin", AdminPass: "pw"})
+	if err != nil {
+		t.Fatalf("OpenAuth failed: %v", err)
+	}
+	if auth.AuthorFor("admin") != "" {
+		t.Errorf("new user should have empty git author")
+	}
+	if err := auth.SetAuthor("admin", "Admin <a@x.com>"); err != nil {
+		t.Fatalf("SetAuthor failed: %v", err)
+	}
+	// Reload from disk to confirm it persisted alongside the hash.
+	auth2, err := OpenAuth(Config{AppDir: appDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := auth2.AuthorFor("admin"); got != "Admin <a@x.com>" {
+		t.Errorf("AuthorFor after reload = %q; want %q", got, "Admin <a@x.com>")
+	}
+	if _, ok := auth2.Login("admin", "pw"); !ok {
+		t.Errorf("login should still work after author set")
+	}
+}

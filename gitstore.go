@@ -291,7 +291,7 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 	return content, hash.String(), nil
 }
 
-func (s *Store) Save(path string, content []byte, message, author string) (blobHash string, err error) {
+func (s *Store) Save(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -322,8 +322,8 @@ func (s *Store) Save(path string, content []byte, message, author string) (blobH
 	// Commit
 	_, err = wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  author,
-			Email: author + "@hmd.local",
+			Name:  authorName,
+			Email: authorEmail,
 			When:  time.Now(),
 		},
 	})
@@ -346,7 +346,7 @@ func (s *Store) Save(path string, content []byte, message, author string) (blobH
 
 // Remove deletes path from disk and the git index, committing the removal.
 // A no-op (returns nil) if the file is already gone.
-func (s *Store) Remove(path, message, author string) error {
+func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -368,8 +368,8 @@ func (s *Store) Remove(path, message, author string) error {
 
 	_, err = wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  author,
-			Email: author + "@hmd.local",
+			Name:  authorName,
+			Email: authorEmail,
 			When:  time.Now(),
 		},
 	})

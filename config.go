@@ -17,6 +17,7 @@ type Config struct {
 	RemoteURL       string
 	GitUser         string
 	GitToken        string
+	GitAuthor       string
 	AdminUser       string
 	AdminPass       string
 	SiteName        string
@@ -41,6 +42,7 @@ type fileConfig struct {
 	GitUser         string            `yaml:"git_user"`
 	GitToken        string            `yaml:"git_token"`
 	GitTokenFile    string            `yaml:"git_token_file"`
+	GitAuthor       string            `yaml:"git_author"`
 	AdminUser       string            `yaml:"admin_user"`
 	AdminPass       string            `yaml:"admin_password"`
 	SiteName        string            `yaml:"site_name"`
@@ -129,6 +131,7 @@ func LoadConfig() (Config, error) {
 		RemoteURL:       pick("HMD_REMOTE_URL", file.RemoteURL, ""),
 		GitUser:         pick("HMD_GIT_USER", file.GitUser, "hmd"),
 		GitToken:        pick("HMD_GIT_TOKEN", file.GitToken, ""),
+		GitAuthor:       pick("HMD_GIT_AUTHOR", file.GitAuthor, ""),
 		AdminUser:       pick("HMD_ADMIN_USER", file.AdminUser, ""),
 		AdminPass:       pick("HMD_ADMIN_PASSWORD", file.AdminPass, ""),
 		SiteName:        pick("HMD_SITE_NAME", file.SiteName, "hold my docs (hmd)"),
@@ -138,7 +141,7 @@ func LoadConfig() (Config, error) {
 		MaxUploadBytes:  pickInt64("HMD_MAX_UPLOAD_BYTES", file.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:      pickInt("HMD_SYNC_POLL_MS", file.SyncPollMs, 10000),
 		ShowTagsSidebar: pickBool("HMD_SHOW_TAGS_SIDEBAR", file.ShowTagsSidebar, true),
-		SyncMode:       pick("HMD_SYNC_MODE", file.SyncMode, "push"),
+		SyncMode:        pick("HMD_SYNC_MODE", file.SyncMode, "push"),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
 	}
@@ -161,6 +164,9 @@ func LoadConfig() (Config, error) {
 	}
 	if file.GitToken != "" && os.Getenv("HMD_GIT_TOKEN") != "" {
 		log.Printf("Warning: HMD_GIT_TOKEN overriding config file value")
+	}
+	if file.GitAuthor != "" && os.Getenv("HMD_GIT_AUTHOR") != "" {
+		log.Printf("Warning: HMD_GIT_AUTHOR overriding config file value")
 	}
 	if file.AdminUser != "" && os.Getenv("HMD_ADMIN_USER") != "" {
 		log.Printf("Warning: HMD_ADMIN_USER overriding config file value")
@@ -207,6 +213,26 @@ func LoadConfig() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// parseAuthor splits a git author string in the standard "Name <email>" form
+// into name and email. If no <email> is present, email falls back to
+// "<fallbackName>@hmd.local". An empty string yields the fallback identity.
+func parseAuthor(s, fallbackName string) (name, email string) {
+	s = strings.TrimSpace(s)
+	if lt := strings.LastIndex(s, "<"); lt != -1 && strings.HasSuffix(s, ">") {
+		email = strings.TrimSpace(s[lt+1 : len(s)-1])
+		name = strings.TrimSpace(s[:lt])
+	} else {
+		name = s
+	}
+	if name == "" {
+		name = fallbackName
+	}
+	if email == "" {
+		email = fallbackName + "@hmd.local"
+	}
+	return name, email
 }
 
 // LoadFileConfig reads and parses a YAML config file into a fileConfig.

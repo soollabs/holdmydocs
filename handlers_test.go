@@ -79,10 +79,10 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	// Tests exercise pages/handlers, not the setup flow itself — simulate a
 	// completed setup so home.md/.help.md fixtures exist as before, since
 	// OpenStore no longer auto-seeds anything without consent.
-	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: defaultHomeMD}.Encode(), "Add home.md", cfg.GitUser); err != nil {
+	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: defaultHomeMD}.Encode(), "Add home.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
 		t.Fatalf("seeding home.md: %v", err)
 	}
-	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser); err != nil {
+	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
 		t.Fatalf("seeding .help.md: %v", err)
 	}
 	store.NeedsSetup.Store(false)
@@ -1098,7 +1098,7 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
-		"sync_mode":          {"push"},
+		"sync_mode":         {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1147,7 +1147,7 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
-		"sync_mode":          {"push"},
+		"sync_mode":         {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1276,7 +1276,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		"max_upload_bytes":  {"10485760"},
 		"sync_poll_ms":      {"10000"},
 		"show_tags_sidebar": {"on"},
-		"sync_mode":          {"push"},
+		"sync_mode":         {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

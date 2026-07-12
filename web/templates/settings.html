@@ -66,6 +66,13 @@
 				{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
 			{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
 		</div>
+		<div class="settings-row">
+			<label for="git_author">git author (default)</label>
+			<input type="text" id="git_author" name="git_author" value="{{.Settings.Fields.GitAuthor.Value}}"
+				placeholder="Name &lt;email@example.com&gt;"
+				{{if not .Settings.Fields.GitAuthor.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.GitAuthor.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitAuthor.EnvVar}}</span>{{end}}
+		</div>
 	<div class="settings-row">
 		<label for="git_token">git token</label>
 		<input type="password" id="git_token" name="git_token"
@@ -177,6 +184,20 @@
 	{{end}}
 
 </form>
+
+<fieldset class="settings-section">
+	<legend>your git author</legend>
+	<form method="POST" action="/settings/author" class="settings-form">
+		<div class="settings-row">
+			<label for="user_git_author">git author</label>
+			<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}"
+				placeholder="Name &lt;email@example.com&gt; (blank = use default)">
+		</div>
+		<div class="settings-actions">
+			<button type="submit" class="primary">save author</button>
+		</div>
+	</form>
+</fieldset>
 
 <fieldset class="settings-section">
 	<legend>wiki setup</legend>

@@ -164,12 +164,12 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	}
 
 	// Save twice
-	hash1, err := store.Save("test.md", []byte("v1"), "first", "alice")
+	hash1, err := store.Save("test.md", []byte("v1"), "first", "alice", "alice@hmd.local")
 	if err != nil {
 		t.Fatalf("Save v1 failed: %v", err)
 	}
 
-	hash2, err := store.Save("test.md", []byte("v2"), "second", "alice")
+	hash2, err := store.Save("test.md", []byte("v2"), "second", "alice", "alice@hmd.local")
 	if err != nil {
 		t.Fatalf("Save v2 failed: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	}
 
 	// Revert: save v1 again
-	_, err = store.Save("test.md", []byte("v1"), "revert", "alice")
+	_, err = store.Save("test.md", []byte("v1"), "revert", "alice", "alice@hmd.local")
 	if err != nil {
 		t.Fatalf("Revert save failed: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestPushToLocalBareRemote(t *testing.T) {
 	}
 
 	// Save a page
-	_, err = store.Save("page.md", []byte("content"), "add page", "bob")
+	_, err = store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local")
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 	os.RemoveAll(bareDir)
 
 	// Save should still succeed
-	_, err = store.Save("page.md", []byte("content"), "add page", "bob")
+	_, err = store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local")
 	if err != nil {
 		t.Errorf("Save should succeed even if push fails: %v", err)
 	}
@@ -479,7 +479,7 @@ func TestFetchAndFFBehind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
 	}
-	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
 	waitForSync(storeA, 2*time.Second)
@@ -491,7 +491,7 @@ func TestFetchAndFFBehind(t *testing.T) {
 		t.Fatalf("OpenStore B: %v", err)
 	}
 
-	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice"); err != nil {
+	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A 2: %v", err)
 	}
 	waitForSync(storeA, 2*time.Second)
@@ -529,7 +529,7 @@ func TestFetchAndFFEqual(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
 	}
-	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
 	waitForSync(storeA, 2*time.Second)
@@ -565,7 +565,7 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
 	}
-	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice"); err != nil {
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
 	waitForSync(storeA, 2*time.Second)
@@ -577,12 +577,12 @@ func TestFetchAndFFDivergent(t *testing.T) {
 		t.Fatalf("OpenStore B: %v", err)
 	}
 
-	if _, err := storeA.Save("page2.md", []byte("from A"), "add page2", "alice"); err != nil {
+	if _, err := storeA.Save("page2.md", []byte("from A"), "add page2", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A 2: %v", err)
 	}
 	waitForSync(storeA, 2*time.Second)
 
-	if _, err := storeB.Save("page3.md", []byte("from B"), "add page3", "bob"); err != nil {
+	if _, err := storeB.Save("page3.md", []byte("from B"), "add page3", "bob", "bob@hmd.local"); err != nil {
 		t.Fatalf("save B: %v", err)
 	}
 	waitForSync(storeB, 2*time.Second)
