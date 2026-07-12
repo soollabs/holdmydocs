@@ -1,0 +1,84 @@
+# hmd configuration file.
+#
+# Copy this to a real path and point HMD_CONFIG_FILE at it, e.g.:
+#   HMD_CONFIG_FILE=/etc/hmd/config.yaml ./hmd
+#
+# Every key here maps 1:1 to a HMD_* environment variable (see README.md).
+# Precedence, highest first: environment variable, then this file, then
+# built-in defaults. Unknown keys are rejected at startup — a typo fails
+# loudly instead of being silently ignored.
+#
+# All keys are optional; omit anything you want left at its default.
+
+# --- Server ---
+bind: ":8080"
+repo_dir: /data/repo
+app_dir: /data/app
+
+# --- Git remote ---
+# HTTPS only (git@ SSH remotes are not yet supported).
+remote_url: https://git.example.com/you/wiki.git
+git_user: you
+
+# Prefer git_token_file over git_token — it keeps the PAT out of this file
+# and out of `docker inspect`/process listings. Pick one, not both.
+git_token_file: /run/secrets/git_token
+# git_token: pat_xyz
+
+# --- Bootstrap admin user ---
+# Only takes effect on first run (creates the user if it doesn't exist yet).
+# Manage users afterwards with `hmd adduser <name>`, not this file.
+admin_user: admin
+admin_password: change-me
+
+# --- Site / shell-prompt appearance ---
+site_name: Homelab Wiki
+hostname: homelab
+path_label: ~/wiki
+# user_label: alice   # overrides the logged-in username in the sidebar prompt
+
+# --- Behaviour ---
+max_upload_bytes: 10485760   # 10 MiB
+sync_poll_ms: 10000
+show_tags_sidebar: true
+
+# --- Theme ---
+# All 17 CSS colour variables, separately for dark/light. Uncomment and
+# override only the ones you want to change — anything omitted keeps the
+# built-in default. Also editable from /settings once the app is running.
+# theme_dark:
+#   bg: "#0b0f14"
+#   panel: "#0e141b"
+#   panel-2: "#121924"
+#   border: "#1d2733"
+#   border-2: "#2a3644"
+#   fg: "#c6d0da"
+#   fg-bright: "#e6edf3"
+#   fg-muted: "#8b98a5"
+#   fg-faint: "#71818f"
+#   green: "#56d364"
+#   green-dim: "#2e5b3a"
+#   blue: "#79b8ff"
+#   amber: "#e3b341"
+#   amber-bg: "#3a3113"
+#   red: "#f47067"
+#   red-dim: "#6e3a3f"
+#   red-bg: "#2c1618"
+# theme_light:
+#   bg: "#f7f8f6"
+#   panel: "#eef1ec"
+#   panel-2: "#e6eae4"
+#   border: "#d8ded6"
+#   border-2: "#c4cdc6"
+#   fg: "#2d3438"
+#   fg-bright: "#1c2226"
+#   fg-muted: "#5c6a70"
+#   fg-faint: "#647177"
+#   green: "#1a7f37"
+#   green-dim: "#a4c7ab"
+#   blue: "#316dca"
+#   amber: "#9a6700"
+#   amber-bg: "#fff0c2"
+#   red: "#cf222e"
+#   red-dim: "#e0a9ad"
+#   red-bg: "#fbe9e9"

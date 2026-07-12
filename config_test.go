@@ -1,0 +1,261 @@
+package main
+
+import (
+	"os"
+	"testing"
+)
+
+func TestLoadConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupEnv    func(t *testing.T)
+		wantBind    string
+		wantRepo    string
+		wantApp     string
+		wantGitUser string
+		wantToken   string
+	}{
+		{
+			name:        "defaults",
+			setupEnv:    func(t *testing.T) {},
+			wantBind:    ":8080",
+			wantRepo:    "/data/repo",
+			wantApp:     "/data/app",
+			wantGitUser: "hmd",
+		},
+		{
+			name: "all env set",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("HMD_BIND", ":9000")
+				t.Setenv("HMD_REPO_DIR", "/custom/repo")
+				t.Setenv("HMD_APP_DIR", "/custom/app")
+				t.Setenv("HMD_GIT_USER", "alice")
+				t.Setenv("HMD_GIT_TOKEN", "env-token")
+			},
+			wantBind:    ":9000",
+			wantRepo:    "/custom/repo",
+			wantApp:     "/custom/app",
+			wantGitUser: "alice",
+			wantToken:   "env-token",
+		},
+		{
+			name: "token from file overrides env",
+			setupEnv: func(t *testing.T) {
+				tmpFile := t.TempDir() + "/token.txt"
+				err := os.WriteFile(tmpFile, []byte("file-token\n"), 0644)
+				if err != nil {
+					t.Fatalf("failed to write token file: %v", err)
+				}
+				t.Setenv("HMD_GIT_TOKEN_FILE", tmpFile)
+				t.Setenv("HMD_GIT_TOKEN", "env-token")
+			},
+			wantBind:    ":8080",
+			wantRepo:    "/data/repo",
+			wantApp:     "/data/app",
+			wantGitUser: "hmd",
+			wantToken:   "file-token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupEnv(t)
+			runLoadConfigCase(t, tt.wantBind, tt.wantRepo, tt.wantApp, tt.wantGitUser, tt.wantToken)
+		})
+	}
+}
+
+func runLoadConfigCase(t *testing.T, wantBind, wantRepo, wantApp, wantGitUser, wantToken string) {
+	t.Helper()
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Bind != wantBind {
+		t.Errorf("Bind = %q, want %q", cfg.Bind, wantBind)
+	}
+	if cfg.RepoDir != wantRepo {
+		t.Errorf("RepoDir = %q, want %q", cfg.RepoDir, wantRepo)
+	}
+	if cfg.AppDir != wantApp {
+		t.Errorf("AppDir = %q, want %q", cfg.AppDir, wantApp)
+	}
+	if cfg.GitUser != wantGitUser {
+		t.Errorf("GitUser = %q, want %q", cfg.GitUser, wantGitUser)
+	}
+	if wantToken != "" && cfg.GitToken != wantToken {
+		t.Errorf("GitToken = %q, want %q", cfg.GitToken, wantToken)
+	}
+}
+
+func TestLoadConfigYAMLFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/config.yaml"
+	yaml := "# hmd configuration\nbind: \":7000\"\nrepo_dir: /yaml/repo\ngit_user: yaml-user\nsite_name: My Wiki\n"
+	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	t.Setenv("HMD_CONFIG_FILE", cfgFile)
+
+	t.Run("file values used with defaults for the rest", func(t *testing.T) {
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.Bind != ":7000" {
+			t.Errorf("Bind = %q, want %q", cfg.Bind, ":7000")
+		}
+		if cfg.RepoDir != "/yaml/repo" {
+			t.Errorf("RepoDir = %q, want %q", cfg.RepoDir, "/yaml/repo")
+		}
+		if cfg.GitUser != "yaml-user" {
+			t.Errorf("GitUser = %q, want %q", cfg.GitUser, "yaml-user")
+		}
+		if cfg.SiteName != "My Wiki" {
+			t.Errorf("SiteName = %q, want %q", cfg.SiteName, "My Wiki")
+		}
+		if cfg.AppDir != "/data/app" {
+			t.Errorf("AppDir = %q, want default %q", cfg.AppDir, "/data/app")
+		}
+	})
+
+	t.Run("environment overrides file", func(t *testing.T) {
+		t.Setenv("HMD_BIND", ":9999")
+		t.Setenv("HMD_SITE_NAME", "Env Wiki")
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if cfg.Bind != ":9999" {
+			t.Errorf("Bind = %q, want %q", cfg.Bind, ":9999")
+		}
+		if cfg.SiteName != "Env Wiki" {
+			t.Errorf("SiteName = %q, want %q", cfg.SiteName, "Env Wiki")
+		}
+	})
+
+	t.Run("unknown key is an error", func(t *testing.T) {
+		bad := dir + "/typo.yaml"
+		if err := os.WriteFile(bad, []byte("site_nmae: Oops\n"), 0644); err != nil {
+			t.Fatalf("failed to write config file: %v", err)
+		}
+		t.Setenv("HMD_CONFIG_FILE", bad)
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig succeeded, want error for unknown key")
+		}
+	})
+
+	t.Run("malformed file is an error", func(t *testing.T) {
+		bad := dir + "/bad.yaml"
+		if err := os.WriteFile(bad, []byte("just a bare line\n"), 0644); err != nil {
+			t.Fatalf("failed to write config file: %v", err)
+		}
+		t.Setenv("HMD_CONFIG_FILE", bad)
+		if _, err := LoadConfig(); err == nil {
+			t.Error("LoadConfig succeeded, want error for malformed file")
+		}
+	})
+}
+
+func TestLoadConfigEnvConflictWarning(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/config.yaml"
+	yamlContent := "bind: \":7000\"\nsite_name: YAML Wiki\ngit_user: yaml-user\n"
+	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	t.Setenv("HMD_CONFIG_FILE", cfgFile)
+	t.Setenv("HMD_BIND", ":9999")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Bind != ":9999" {
+		t.Errorf("Bind = %q, want %q (env should win)", cfg.Bind, ":9999")
+	}
+	if cfg.SiteName != "YAML Wiki" {
+		t.Errorf("SiteName = %q, want %q", cfg.SiteName, "YAML Wiki")
+	}
+	if cfg.GitUser != "yaml-user" {
+		t.Errorf("GitUser = %q, want %q", cfg.GitUser, "yaml-user")
+	}
+}
+
+func TestSaveAndLoadFileConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+
+	fc := fileConfig{
+		Bind:      ":7000",
+		RepoDir:   "/custom/repo",
+		AppDir:    "/custom/app",
+		RemoteURL: "https://example.com/repo.git",
+		GitUser:   "alice",
+		GitToken:  "secret-token",
+		AdminUser: "admin",
+		AdminPass: "adminpass",
+		SiteName:  "My Wiki",
+	}
+
+	if err := SaveFileConfig(path, fc); err != nil {
+		t.Fatalf("SaveFileConfig failed: %v", err)
+	}
+
+	loaded, err := LoadFileConfig(path)
+	if err != nil {
+		t.Fatalf("LoadFileConfig failed: %v", err)
+	}
+
+	if loaded.Bind != fc.Bind {
+		t.Errorf("Bind = %q, want %q", loaded.Bind, fc.Bind)
+	}
+	if loaded.RepoDir != fc.RepoDir {
+		t.Errorf("RepoDir = %q, want %q", loaded.RepoDir, fc.RepoDir)
+	}
+	if loaded.RemoteURL != fc.RemoteURL {
+		t.Errorf("RemoteURL = %q, want %q", loaded.RemoteURL, fc.RemoteURL)
+	}
+	if loaded.GitToken != fc.GitToken {
+		t.Errorf("GitToken = %q, want %q", loaded.GitToken, fc.GitToken)
+	}
+	if loaded.SiteName != fc.SiteName {
+		t.Errorf("SiteName = %q, want %q", loaded.SiteName, fc.SiteName)
+	}
+	if loaded.GitTokenFile != "" {
+		t.Errorf("GitTokenFile = %q, want empty", loaded.GitTokenFile)
+	}
+}
+
+func TestLoadFileConfigMissingFile(t *testing.T) {
+	_, err := LoadFileConfig("/nonexistent/path/config.yaml")
+	if err == nil {
+		t.Error("LoadFileConfig succeeded on missing file, want error")
+	}
+}
+
+func TestSaveFileConfigOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+
+	fc1 := fileConfig{Bind: ":7000", SiteName: "First"}
+	if err := SaveFileConfig(path, fc1); err != nil {
+		t.Fatalf("first SaveFileConfig failed: %v", err)
+	}
+
+	fc2 := fileConfig{Bind: ":8000", SiteName: "Second"}
+	if err := SaveFileConfig(path, fc2); err != nil {
+		t.Fatalf("second SaveFileConfig failed: %v", err)
+	}
+
+	loaded, err := LoadFileConfig(path)
+	if err != nil {
+		t.Fatalf("LoadFileConfig failed: %v", err)
+	}
+	if loaded.Bind != ":8000" {
+		t.Errorf("Bind = %q, want %q", loaded.Bind, ":8000")
+	}
+	if loaded.SiteName != "Second" {
+		t.Errorf("SiteName = %q, want %q", loaded.SiteName, "Second")
+	}
+}

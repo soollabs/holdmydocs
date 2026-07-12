@@ -1,0 +1,27 @@
+{{define "content"}}
+<div class="content-col">
+{{if .TagName}}
+<h1>Tag: {{.TagName}}</h1>
+{{if .TagPages}}
+<ul>
+	{{range .TagPages}}
+	<li><a href="/page/{{.Slug}}">{{.Title}}</a></li>
+	{{end}}
+</ul>
+{{else}}
+<p>No pages with this tag.</p>
+{{end}}
+{{else}}
+<h1>Tags</h1>
+{{if .AllTags}}
+<ul>
+	{{range .AllTags}}
+	<li><a href="/tags/{{.Slug}}">{{.Tag}}</a> ({{.Count}})</li>
+	{{end}}
+</ul>
+{{else}}
+<p>No tags yet.</p>
+{{end}}
+{{end}}
+</div>
+{{end}}

@@ -1,0 +1,21 @@
+{{define "content"}}
+<div class="content-col">
+<div class="search-results">
+	<div class="search-header">
+		<div class="query-line"><span class="slash">/</span> <span class="query-text">{{.Query}}</span></div>
+		{{if .Query}}<div class="search-stats">{{.SearchHits}} match{{if ne .SearchHits 1}}es{{end}} across {{.SearchPages}} page{{if ne .SearchPages 1}}s{{end}} &middot; {{.SearchElapsed}}</div>{{end}}
+	</div>
+	{{if .SearchResults}}
+		{{range .SearchResults}}
+		<div class="search-hit">
+			<a href="/page/{{.Slug}}" class="hit-title">{{.Title}}</a>
+			{{if .Tags}}<span class="hit-tags">{{range .Tags}}#{{.}} {{end}}</span>{{end}}
+			{{if .Snippet}}<div class="hit-snippet">{{.Snippet}}</div>{{end}}
+		</div>
+		{{end}}
+	{{else if .Query}}
+		<p>No results found.</p>
+	{{end}}
+</div>
+</div>
+{{end}}

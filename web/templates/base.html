@@ -1,0 +1,167 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
+	<link rel="stylesheet" href="/static/style.css">
+	<link rel="icon" href="data:,">
+	{{if .ThemeStyle}}<style>{{.ThemeStyle}}</style>{{end}}
+	<script>
+		window.hmdSyncPollMs = {{.SyncPollMs}};
+		(function() {
+			var saved = localStorage.getItem('hmd-theme');
+			if (saved === 'light') {
+				document.documentElement.setAttribute('data-theme', 'light');
+			}
+		})();
+	</script>
+</head>
+<body class="{{if .Authed}}shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
+	{{if .Authed}}
+	<div class="mobile-topbar">
+		<button type="button" id="sidebar-toggle" aria-label="Toggle sidebar">&equiv;</button>
+		<span class="crumb">~/wiki</span>
+		<button type="button" id="mobile-search" aria-label="Search">/ search</button>
+	</div>
+	<nav class="sidebar" id="sidebar">
+		<div class="prompt">
+			<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>$
+		</div>
+		<div class="sidebar-section">
+			<h2>Recent</h2>
+			<ul class="sidebar-list" id="recent-list"></ul>
+		</div>
+		{{if and .ShowTagsSidebar .AllTags}}
+		<div class="sidebar-section">
+			<h2>Tags</h2>
+			<ul class="sidebar-tags">
+				{{range .AllTags}}
+				<li><a href="/tags/{{.Slug}}">#{{.Tag}}<span class="count">{{.Count}}</span></a></li>
+				{{end}}
+			</ul>
+		</div>
+		{{end}}
+		<div class="sidebar-hints">
+			<div class="hint-row"><a href="/settings">settings</a> · <a href="/hidden/help">? help</a></div>
+			<div class="hint-row"><kbd>ctrl k</kbd> jump to page</div>
+			<div class="hint-row"><kbd>ctrl e</kbd> edit</div>
+		</div>
+	</nav>
+	{{end}}
+	<main>
+		{{if .Authed}}
+		<div class="main-header">
+			<span class="main-header-site">{{.SiteName}}</span>
+			<button type="button" id="new-doc-btn" class="ghost-btn">+ New Document</button>
+		</div>
+		{{end}}
+		{{template "content" .}}
+	</main>
+	{{if .Authed}}
+	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}">
+		<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
+		<div class="seg seg-title" id="status-title">{{.Title}}{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
+		<div class="seg-spacer"></div>
+		<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
+		<div class="seg seg-sync" id="status-sync" data-state="{{.SyncState}}">{{if eq .SyncState "no remote"}}local only{{else}}⇡ {{.SyncState}}{{end}}</div>
+		{{if eq .StatusMode "edit"}}<button class="seg seg-save" type="submit" form="edit-form" id="save-btn">SAVE ctrl-s</button>{{end}}
+		<div class="seg seg-right seg-user">{{.Username}}</div>
+		<div class="seg seg-right">
+			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
+		</div>
+		<div class="seg seg-right">
+			<form method="POST" action="/logout" style="display:contents">
+				<button type="submit" class="link-btn">logout</button>
+			</form>
+		</div>
+	</div>
+	<div class="palette-backdrop" id="palette-backdrop">
+		<div class="palette" id="palette">
+			<div class="palette-input-row">
+				<span class="prefix">/</span>
+				<input type="text" id="palette-input" placeholder="jump to a page…" autocomplete="off">
+				<span class="match-count" id="palette-count"></span>
+			</div>
+			<div class="palette-results" id="palette-results"></div>
+			<div class="palette-footer">&uarr;&darr; navigate &middot; &crarr; open &middot; ctrl-&crarr; edit &middot; esc close</div>
+		</div>
+	</div>
+	{{end}}
+	{{if .NeedsSetup}}
+	<div class="setup-modal-backdrop">
+		<div class="setup-modal">
+			<h1><span class="h">#</span> Set up wiki</h1>
+			<p>Nothing is written until you choose. Both are editable later.</p>
+
+			<form method="POST" action="/setup">
+
+			{{if .NeedsHomeSetup}}
+			<div class="setup-item">
+				<div class="setup-item-head">
+					<label class="setup-item-title"><input type="checkbox" name="add_home" {{if not .HomeFileExists}}checked{{end}}> Home page</label>
+					<code class="setup-item-file">home.md</code>
+					{{if .HomeFileExists}}<span class="setup-badge">exists</span>{{end}}
+				</div>
+				<p class="setup-item-desc">The welcome page served at <code>/</code>. Lists every page in the wiki via a table-of-contents token.{{if .HomeFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
+				<details class="setup-preview">
+					<summary>Preview content</summary>
+					<div class="setup-preview-body">{{.SetupHomePreview}}</div>
+				</details>
+			</div>
+			{{end}}
+
+			{{if .NeedsHelpSetup}}
+			<div class="setup-item">
+				<div class="setup-item-head">
+					<label class="setup-item-title"><input type="checkbox" name="add_help" {{if not .HelpFileExists}}checked{{end}}> Help guide</label>
+					<code class="setup-item-file">.help.md</code>
+					<span class="setup-badge">hidden</span>
+					{{if .HelpFileExists}}<span class="setup-badge">exists</span>{{end}}
+				</div>
+				<p class="setup-item-desc">UI usage plus markdown/frontmatter conventions, useful for new users and AI agents. Hidden pages are excluded from the page list, search, tags, and backlinks, and live at <code>/hidden</code>.{{if .HelpFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
+				<details class="setup-preview">
+					<summary>Preview content</summary>
+					<div class="setup-preview-body">{{.SetupHelpPreview}}</div>
+				</details>
+			</div>
+			{{end}}
+
+				<div class="setup-actions">
+					<button type="submit" name="action" value="add" class="primary">Add selected</button>
+					<button type="submit" name="action" value="skip" class="ghost-btn">Skip</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	{{end}}
+	<script>
+		var themeToggle = document.getElementById('theme-toggle');
+		if (themeToggle) {
+			themeToggle.addEventListener('click', function() {
+				var current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+				var next = current === 'dark' ? 'light' : 'dark';
+				if (next === 'dark') {
+					document.documentElement.removeAttribute('data-theme');
+				} else {
+					document.documentElement.setAttribute('data-theme', 'light');
+				}
+				localStorage.setItem('hmd-theme', next);
+				if (window.HMDSetMermaidTheme) window.HMDSetMermaidTheme(next);
+			});
+		}
+	</script>
+	{{if .MermaidNeeded}}
+	<script src="/static/mermaid.min.js"></script>
+	<script>
+		window.HMDSetMermaidTheme = function(theme) {
+			if (window.mermaid) mermaid.initialize({startOnLoad:false, theme: theme === 'light' ? 'default' : 'dark'});
+		};
+		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+	</script>
+	{{end}}
+	<script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}

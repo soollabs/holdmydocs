@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="editor-col">
+<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}/save" class="edit-form" id="edit-form">
+	<div class="edit-topbar">
+		<div class="edit-field">
+			<label for="title">title:</label>
+			<input type="text" id="title" name="title" value="{{.Title}}" required>
+		</div>
+		<div class="edit-field tags">
+			<label for="tags">tags:</label>
+			<input type="text" id="tags" name="tags" value="{{.TagsInput}}">
+		</div>
+		<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
+			<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
+		</label>
+		<a href="{{.RoutePrefix}}/{{.Slug}}" class="cancel-link">cancel</a>
+	</div>
+
+	<div class="toolbar" role="toolbar" aria-label="Formatting">
+		<button type="button" class="ghost-btn" data-action="bold" title="Bold (Ctrl/Cmd+B)"><strong>B</strong></button>
+		<button type="button" class="ghost-btn" data-action="italic" title="Italic (Ctrl/Cmd+I)"><em>I</em></button>
+		<button type="button" class="ghost-btn" data-action="header" title="Header">H</button>
+		<button type="button" class="ghost-btn" data-action="link" title="Link (Ctrl/Cmd+Shift+K)">[[link]]</button>
+		<button type="button" class="ghost-btn" data-action="code" title="Code">`code`</button>
+		<button type="button" class="ghost-btn" data-action="table" title="Table">table</button>
+		<button type="button" class="ghost-btn" data-action="image" title="Image">img</button>
+		<button type="button" class="ghost-btn" data-action="toc" title="Table of contents">toc</button>
+		<button type="button" class="ghost-btn" id="toggle-preview-btn" title="Hide preview for more writing space">preview</button>
+		<div class="zen-toolbar">
+			<button type="button" data-zen="manuscript" title="Full screen (Ctrl+Shift+F)">Full</button>
+			<button type="button" data-zen="typewriter" title="Typewriter scroll (Ctrl+Shift+T)">Type</button>
+			<button type="button" data-zen="focus" title="Focus mode (Ctrl+Shift+D)">Focus</button>
+		</div>
+	</div>
+
+	<div class="split">
+		<div id="cm-host" data-slug="{{.Slug}}"></div>
+		<div id="preview" class="split-pane"></div>
+	</div>
+
+	<textarea name="body" id="editor-src" rows="16" style="display:none">{{.Body}}</textarea>
+	<input type="hidden" name="basehash" value="{{.BaseHash}}">
+</form>
+
+<div class="zen-status" id="zen-status">
+	<span class="zen-status-info" id="zen-save-status">0 words</span>
+	<button type="button" class="zen-exit" id="zen-exit" title="Exit full screen (Esc)">Exit</button>
+</div>
+
+<noscript>
+	<style>#cm-host, #preview, .zen-status { display: none !important; }</style>
+	<textarea name="body" rows="16" style="display:block">{{.Body}}</textarea>
+</noscript>
+
+<script src="/static/editor.js"></script>
+</div>
+{{end}}

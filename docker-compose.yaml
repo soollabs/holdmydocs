@@ -1,0 +1,26 @@
+services:
+  hmd:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      HMD_REMOTE_URL: "https://git.example.com/you/wiki.git"
+      HMD_GIT_USER: "you"
+      HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
+      HMD_ADMIN_USER: "admin"
+      HMD_ADMIN_PASSWORD: "change-me"
+    volumes:
+      # Content repository — safe on NFS-backed storage, git only.
+      - repo:/data/repo
+      # App state (users.json) — MUST be local disk, never NFS.
+      - app:/data/app
+    secrets:
+      - git_token
+
+secrets:
+  git_token:
+    file: ./git_token.txt
+
+volumes:
+  repo:
+  app:

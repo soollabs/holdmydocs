@@ -1,0 +1,29 @@
+{{define "content"}}
+<div class="content-col">
+<div class="conflict-card">
+	<div class="conflict-banner">!! CONFLICT &mdash; {{.Slug}}.md changed while you were editing</div>
+	{{if .HeadShortHash}}
+	<div class="conflict-row theirs">
+		<span class="label">theirs</span>
+		<span>{{.HeadShortHash}} &middot; {{.HeadAuthor}} &middot; {{.HeadWhen}}</span>
+	</div>
+	{{end}}
+	<div class="conflict-row yours">
+		<span class="label">yours</span>
+		<span>unsaved draft &middot; based on {{if .BaseHash}}{{.BaseHash}}{{else}}(new){{end}}</span>
+	</div>
+	<div class="conflict-actions">
+		<a href="{{.RoutePrefix}}/{{.Slug}}" target="_blank" class="ghost-btn">view newer version</a>
+		<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}/save" style="display:contents">
+			<input type="hidden" name="title" value="{{.Title}}">
+			<input type="hidden" name="body" value="{{.Body}}">
+			<input type="hidden" name="tags" value="{{.TagsInput}}">
+			<input type="hidden" name="basehash" value="{{.BaseHash}}">
+			{{if .IsHidden}}<input type="hidden" name="hidden" value="on">{{end}}
+			<button type="submit" class="btn-danger">overwrite with mine</button>
+		</form>
+	</div>
+	<p class="conflict-reassurance">nothing is lost either way &mdash; every save is a commit, revert anytime from history</p>
+</div>
+</div>
+{{end}}

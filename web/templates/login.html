@@ -1,0 +1,22 @@
+{{define "content"}}
+<div class="login-card">
+	<div class="login-intro">
+		hold my docs (hmd) {{.Version}} &middot; homelab wiki
+		{{if .RemoteHost}}<br>git remote: {{.RemoteHost}}{{end}}
+	</div>
+	<form method="POST" action="/login" class="login-form">
+		{{if .Error}}
+			<div class="error">{{.Error}}</div>
+		{{end}}
+		<div class="edit-field">
+			<label for="username">login:</label>
+			<input type="text" id="username" name="username" required autofocus>
+		</div>
+		<div class="edit-field">
+			<label for="password">password:</label>
+			<input type="password" id="password" name="password" required>
+		</div>
+		<button type="submit">login &crarr;</button>
+	</form>
+</div>
+{{end}}

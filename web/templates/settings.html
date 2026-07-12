@@ -1,0 +1,180 @@
+{{define "content"}}
+<div class="content-col">
+<h1 class="page-title"><span class="h">#</span> settings</h1>
+
+{{if .Settings}}
+	{{if .Settings.NoConfigFile}}
+	<div class="settings-banner">
+		Config file not set. Set <code>HMD_CONFIG_FILE</code> to enable editing from the UI.
+		Current values are shown read-only below.
+	</div>
+	{{end}}
+
+	{{if .Settings.Flash}}
+	<div class="settings-flash">{{.Settings.Flash}}</div>
+	{{end}}
+
+	{{if .Settings.HelpDrifted}}
+	<div class="settings-banner">
+		<code>.help.md</code> differs from hmd's built-in help text for this version.
+		It may have been edited, or written by an older version of hmd.
+		<form method="POST" action="/settings/help/reset" style="display:contents">
+			<button type="submit" class="ghost-btn">Reset to built-in</button>
+		</form>
+	</div>
+	{{end}}
+
+<form method="POST" action="/settings" class="settings-form">
+
+	<fieldset class="settings-section">
+		<legend>server</legend>
+		<div class="settings-row">
+			<label for="bind">bind</label>
+			<input type="text" id="bind" name="bind" value="{{.Settings.Fields.Bind.Value}}"
+				{{if not .Settings.Fields.Bind.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.Bind.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Bind.EnvVar}}</span>{{end}}
+			{{if .Settings.Fields.Bind.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="repo_dir">repo dir</label>
+			<input type="text" id="repo_dir" name="repo_dir" value="{{.Settings.Fields.RepoDir.Value}}"
+				{{if not .Settings.Fields.RepoDir.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.RepoDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RepoDir.EnvVar}}</span>{{end}}
+			{{if .Settings.Fields.RepoDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="app_dir">app dir</label>
+			<input type="text" id="app_dir" name="app_dir" value="{{.Settings.Fields.AppDir.Value}}"
+				{{if not .Settings.Fields.AppDir.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{end}}
+			{{if .Settings.Fields.AppDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>git</legend>
+		<div class="settings-row">
+			<label for="remote_url">remote url</label>
+			<input type="text" id="remote_url" name="remote_url" value="{{.Settings.Fields.RemoteURL.Value}}"
+				placeholder="https://example.com/repo.git"
+				{{if not .Settings.Fields.RemoteURL.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.RemoteURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RemoteURL.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="git_user">git user</label>
+			<input type="text" id="git_user" name="git_user" value="{{.Settings.Fields.GitUser.Value}}"
+				{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="git_token">git token</label>
+			<input type="password" id="git_token" name="git_token"
+				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
+				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>site</legend>
+		<div class="settings-row">
+			<label for="site_name">site name</label>
+			<input type="text" id="site_name" name="site_name" value="{{.Settings.Fields.SiteName.Value}}"
+				{{if not .Settings.Fields.SiteName.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.SiteName.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SiteName.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="hostname">hostname</label>
+			<input type="text" id="hostname" name="hostname" value="{{.Settings.Fields.Hostname.Value}}"
+				{{if not .Settings.Fields.Hostname.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.Hostname.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Hostname.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="path_label">path label</label>
+			<input type="text" id="path_label" name="path_label" value="{{.Settings.Fields.PathLabel.Value}}"
+				{{if not .Settings.Fields.PathLabel.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.PathLabel.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.PathLabel.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="user_label">user label</label>
+			<input type="text" id="user_label" name="user_label" value="{{.Settings.Fields.UserLabel.Value}}"
+				placeholder="(use logged-in username)" {{if not .Settings.Fields.UserLabel.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.UserLabel.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.UserLabel.EnvVar}}</span>{{end}}
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>appearance &mdash; dark theme</legend>
+		<div class="theme-colours">
+			{{range $name, $hex := .Settings.ThemeDark}}
+			<label class="colour-pick">
+				<span class="colour-name">{{$name}}</span>
+				<input type="color" name="theme_dark_{{$name}}" value="{{$hex}}">
+			</label>
+			{{end}}
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>appearance &mdash; light theme</legend>
+		<div class="theme-colours">
+			{{range $name, $hex := .Settings.ThemeLight}}
+			<label class="colour-pick">
+				<span class="colour-name">{{$name}}</span>
+				<input type="color" name="theme_light_{{$name}}" value="{{$hex}}">
+			</label>
+			{{end}}
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>behaviour</legend>
+		<div class="settings-row">
+			<label for="max_upload_bytes">max upload (bytes)</label>
+			<input type="number" id="max_upload_bytes" name="max_upload_bytes" value="{{.Settings.MaxUploadBytes}}" min="1">
+		</div>
+		<div class="settings-row">
+			<label for="sync_poll_ms">sync poll (ms)</label>
+			<input type="number" id="sync_poll_ms" name="sync_poll_ms" value="{{.Settings.SyncPollMs}}" min="100">
+		</div>
+		<div class="settings-row">
+			<label for="show_tags_sidebar">show tags in sidebar</label>
+			<input type="checkbox" id="show_tags_sidebar" name="show_tags_sidebar" {{if .Settings.ShowTagsSidebar}}checked{{end}}>
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
+		<legend>users (read-only)</legend>
+		<div class="settings-row">
+			<label>admin user</label>
+			<input type="text" value="{{.Settings.Fields.AdminUser.Value}}" readonly>
+			<span class="badge-bootstrap">bootstrap only &mdash; use <code>hmd adduser</code></span>
+		</div>
+		<div class="settings-row">
+			<label>admin pass</label>
+			<input type="password" value="&bull;&bull;&bull;&bull;" readonly>
+			<span class="badge-bootstrap">bootstrap only</span>
+		</div>
+	</fieldset>
+
+	{{if not .Settings.NoConfigFile}}
+	<div class="settings-actions">
+		<button type="submit" class="primary">save</button>
+		<a href="/page/index" class="ghost-btn">cancel</a>
+	</div>
+	{{end}}
+
+</form>
+
+<fieldset class="settings-section">
+	<legend>wiki setup</legend>
+	<div class="settings-row">
+		<label>home page</label>
+		<form method="POST" action="/settings/setup" style="display:contents">
+			<button type="submit" class="ghost-btn">Re-run setup</button>
+		</form>
+	</div>
+</fieldset>
+{{end}}
+</div>
+{{end}}
