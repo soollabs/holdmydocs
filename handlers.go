@@ -559,7 +559,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	if action == "add" {
 		if r.FormValue("add_home") == "on" {
-			content := Page{Slug: "home", Title: "Home", Body: defaultHomeMD}.Encode()
+			content := Page{Slug: "home", Title: "home", Body: defaultHomeMD}.Encode()
 			if _, err := app.Store.Save("home.md", content, "Add home.md", authorName, authorEmail); err != nil {
 				http.Error(w, "Failed to seed home page", http.StatusInternalServerError)
 				return
