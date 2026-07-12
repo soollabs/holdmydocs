@@ -50,6 +50,7 @@ show_tags_sidebar: true
 # (fetch + fast-forward pull on every sync poll and before each save,
 # so changes pushed by other writers appear in the UI automatically)
 # sync_mode: bidirectional
+# default_branch: main   # branch name used when initialising a fresh local repo
 
 # --- Theme ---
 # All 17 CSS colour variables, separately for dark/light. Uncomment and

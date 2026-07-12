@@ -260,7 +260,15 @@ func OpenStore(cfg Config) (*Store, error) {
 
 	// Initialize repo without remote
 init_empty_remote:
-	repo, err = git.PlainInit(cfg.RepoDir, false)
+	defaultBranch := cfg.DefaultBranch
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+	repo, err = git.PlainInitWithOptions(cfg.RepoDir, &git.PlainInitOptions{
+		InitOptions: git.InitOptions{
+			DefaultBranch: plumbing.NewBranchReferenceName(defaultBranch),
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("initializing repo: %w", err)
 	}

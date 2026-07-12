@@ -28,6 +28,7 @@ type Config struct {
 	SyncPollMs      int
 	ShowTagsSidebar bool
 	SyncMode        string
+	DefaultBranch   string
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 }
@@ -53,6 +54,7 @@ type fileConfig struct {
 	SyncPollMs      int               `yaml:"sync_poll_ms"`
 	ShowTagsSidebar *bool             `yaml:"show_tags_sidebar"`
 	SyncMode        string            `yaml:"sync_mode"`
+	DefaultBranch   string            `yaml:"default_branch"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
 }
@@ -142,6 +144,7 @@ func LoadConfig() (Config, error) {
 		SyncPollMs:      pickInt("HMD_SYNC_POLL_MS", file.SyncPollMs, 10000),
 		ShowTagsSidebar: pickBool("HMD_SHOW_TAGS_SIDEBAR", file.ShowTagsSidebar, true),
 		SyncMode:        pick("HMD_SYNC_MODE", file.SyncMode, "push"),
+		DefaultBranch:   pick("HMD_DEFAULT_BRANCH", file.DefaultBranch, "main"),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
 	}
@@ -197,6 +200,9 @@ func LoadConfig() (Config, error) {
 	}
 	if file.SyncMode != "" && os.Getenv("HMD_SYNC_MODE") != "" {
 		log.Printf("Warning: HMD_SYNC_MODE overriding config file value")
+	}
+	if file.DefaultBranch != "" && os.Getenv("HMD_DEFAULT_BRANCH") != "" {
+		log.Printf("Warning: HMD_DEFAULT_BRANCH overriding config file value")
 	}
 
 	// Token file overrides the token value, whichever source named it.

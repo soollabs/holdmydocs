@@ -62,6 +62,7 @@ Defaults shown:
 | `HMD_SYNC_POLL_MS` | `10000` | Sync state poll interval in milliseconds |
 | `HMD_SHOW_TAGS_SIDEBAR` | `true` | Show the Tags section in the sidebar |
 | `HMD_SYNC_MODE` | `push` | Sync mode: `push` (local→remote only) or `bidirectional` (fetch + ff pull) |
+| `HMD_DEFAULT_BRANCH` | `main` | Branch name used when initialising a fresh local repo (no effect on an existing repo) |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file
@@ -86,6 +87,7 @@ max_upload_bytes: 10485760
 sync_poll_ms: 10000
 show_tags_sidebar: true
 # sync_mode: bidirectional  # default: push (local→remote only)
+# default_branch: main  # branch name used when initialising a fresh local repo
 # Theme overrides: 17 CSS colour variables per theme (see config.yaml.example
 # for the full list with defaults)
 # theme_dark:

@@ -7,8 +7,18 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
+
+func initBareRepo(dir string) (*git.Repository, error) {
+	return git.PlainInitWithOptions(dir, &git.PlainInitOptions{
+		Bare: true,
+		InitOptions: git.InitOptions{
+			DefaultBranch: plumbing.NewBranchReferenceName("main"),
+		},
+	})
+}
 
 func TestInitNoRemote(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -242,7 +252,7 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 func TestPushToLocalBareRemote(t *testing.T) {
 	// Create a bare remote repo
 	bareDir := t.TempDir()
-	_, err := git.PlainInit(bareDir, true)
+	_, err := initBareRepo(bareDir)
 	if err != nil {
 		t.Fatalf("Failed to init bare repo: %v", err)
 	}
@@ -306,7 +316,7 @@ func TestPushToLocalBareRemote(t *testing.T) {
 func TestPushFailureDoesNotBlockSave(t *testing.T) {
 	// Create a bare remote repo
 	bareDir := t.TempDir()
-	_, err := git.PlainInit(bareDir, true)
+	_, err := initBareRepo(bareDir)
 	if err != nil {
 		t.Fatalf("Failed to init bare repo: %v", err)
 	}
@@ -469,7 +479,7 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 
 func TestFetchAndFFBehind(t *testing.T) {
 	bareDir := t.TempDir()
-	if _, err := git.PlainInit(bareDir, true); err != nil {
+	if _, err := initBareRepo(bareDir); err != nil {
 		t.Fatalf("init bare: %v", err)
 	}
 
@@ -519,7 +529,7 @@ func TestFetchAndFFBehind(t *testing.T) {
 
 func TestFetchAndFFEqual(t *testing.T) {
 	bareDir := t.TempDir()
-	if _, err := git.PlainInit(bareDir, true); err != nil {
+	if _, err := initBareRepo(bareDir); err != nil {
 		t.Fatalf("init bare: %v", err)
 	}
 
@@ -555,7 +565,7 @@ func TestFetchAndFFEqual(t *testing.T) {
 
 func TestFetchAndFFDivergent(t *testing.T) {
 	bareDir := t.TempDir()
-	if _, err := git.PlainInit(bareDir, true); err != nil {
+	if _, err := initBareRepo(bareDir); err != nil {
 		t.Fatalf("init bare: %v", err)
 	}
 
