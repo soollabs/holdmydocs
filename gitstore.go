@@ -130,7 +130,6 @@ Every page starts with a frontmatter block:
 ## Body
 
 - Use ` + "`#`" + ` for the title only; start sections at ` + "`##`" + ` (h2), subsections at ` + "`###`" + ` (h3).
-- Wrap lines at a comfortable width; prefer one sentence per line for clean diffs.
 - Link other pages with wiki-links: ` + "`[[Page Title]]`" + ` resolves to the matching slug.
 
 ## Table of contents
