@@ -23,9 +23,10 @@ func initBareRepo(dir string) (*git.Repository, error) {
 func TestInitNoRemote(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
-		RepoDir: tmpDir,
-		AppDir:  t.TempDir(),
-		GitUser: "test",
+		RepoDir:      tmpDir,
+		AppDir:       t.TempDir(),
+		GitUser:      "test",
+		HomeFilename: "readme.md",
 	}
 
 	store, err := OpenStore(cfg)
@@ -34,12 +35,12 @@ func TestInitNoRemote(t *testing.T) {
 	}
 
 	// Nothing is written without consent — a fresh repo flags for setup,
-	// it does not auto-seed home.md or .help.md.
+	// it does not auto-seed readme.md or .help.md.
 	if !store.NeedsSetup.Load() {
 		t.Errorf("NeedsSetup should be true for a fresh repo — nothing is auto-seeded")
 	}
-	if _, err := os.Stat(filepath.Join(tmpDir, "home.md")); err == nil {
-		t.Errorf("home.md should not be auto-seeded")
+	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
+		t.Errorf("readme.md should not be auto-seeded")
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, ".help.md")); err == nil {
 		t.Errorf(".help.md should not be auto-seeded")
@@ -55,15 +56,16 @@ func TestInitNoRemote(t *testing.T) {
 func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
-		RepoDir: tmpDir,
-		AppDir:  t.TempDir(),
-		GitUser: "test",
+		RepoDir:      tmpDir,
+		AppDir:       t.TempDir(),
+		GitUser:      "test",
+		HomeFilename: "readme.md",
 	}
 
-	homePath := filepath.Join(tmpDir, "home.md")
+	homePath := filepath.Join(tmpDir, "readme.md")
 	custom := []byte("---\ntitle: Home\ntags: \n---\n\n# My custom home\n")
 	if err := os.WriteFile(homePath, custom, 0644); err != nil {
-		t.Fatalf("writing custom home.md: %v", err)
+		t.Fatalf("writing custom readme.md: %v", err)
 	}
 	helpPath := filepath.Join(tmpDir, ".help.md")
 	if err := os.WriteFile(helpPath, []byte("---\ntitle: Help\n---\n\n# My custom help\n"), 0644); err != nil {
@@ -76,19 +78,19 @@ func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	}
 
 	if store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be false when both home.md and .help.md already exist")
+		t.Errorf("NeedsSetup should be false when both readme.md and .help.md already exist")
 	}
 	after, err := os.ReadFile(homePath)
 	if err != nil {
-		t.Fatalf("reading home.md after open: %v", err)
+		t.Fatalf("reading readme.md after open: %v", err)
 	}
 	if string(after) != string(custom) {
-		t.Error("home.md was overwritten on open; existing files must not be touched")
+		t.Error("readme.md was overwritten on open; existing files must not be touched")
 	}
 }
 
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
-	// Pre-create a git repo with a commit (content but no home.md).
+	// Pre-create a git repo with a commit (content but no readme.md).
 	tmpDir := t.TempDir()
 	repo, err := git.PlainInit(tmpDir, false)
 	if err != nil {
@@ -109,9 +111,10 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	})
 
 	cfg := Config{
-		RepoDir: tmpDir,
-		AppDir:  t.TempDir(),
-		GitUser: "test",
+		RepoDir:      tmpDir,
+		AppDir:       t.TempDir(),
+		GitUser:      "test",
+		HomeFilename: "readme.md",
 	}
 
 	store, err := OpenStore(cfg)
@@ -119,14 +122,14 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Existing repo with content but no home.md should flag for setup.
+	// Existing repo with content but no readme.md should flag for setup.
 	if !store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be true for existing repo missing home.md")
+		t.Errorf("NeedsSetup should be true for existing repo missing readme.md")
 	}
 
-	// home.md and .help.md must NOT have been auto-seeded.
-	if _, err := os.Stat(filepath.Join(tmpDir, "home.md")); err == nil {
-		t.Errorf("home.md should not be auto-seeded on existing repo with content")
+	// readme.md and .help.md must NOT have been auto-seeded.
+	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
+		t.Errorf("readme.md should not be auto-seeded on existing repo with content")
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, ".help.md")); err == nil {
 		t.Errorf(".help.md should not be auto-seeded on existing repo with content")
@@ -141,9 +144,10 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 	}
 
 	cfg := Config{
-		RepoDir: tmpDir,
-		AppDir:  t.TempDir(),
-		GitUser: "test",
+		RepoDir:      tmpDir,
+		AppDir:       t.TempDir(),
+		GitUser:      "test",
+		HomeFilename: "readme.md",
 	}
 
 	store, err := OpenStore(cfg)
@@ -155,8 +159,8 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 	if !store.NeedsSetup.Load() {
 		t.Errorf("NeedsSetup should be true for empty repo — nothing is auto-seeded")
 	}
-	if _, err := os.Stat(filepath.Join(tmpDir, "home.md")); err == nil {
-		t.Errorf("home.md should not be auto-seeded on empty repo")
+	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
+		t.Errorf("readme.md should not be auto-seeded on empty repo")
 	}
 }
 

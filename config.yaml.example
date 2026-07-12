@@ -51,6 +51,9 @@ show_tags_sidebar: true
 # so changes pushed by other writers appear in the UI automatically)
 # sync_mode: bidirectional
 # default_branch: main   # branch name used when initialising a fresh local repo
+# Home page file. Must end in .md, no path separators, not dot-prefixed.
+# Default readme.md renders on the git host front page (GitHub, git, Gitea).
+# home_filename: readme.md
 
 # --- Theme ---
 # All 17 CSS colour variables, separately for dark/light. Uncomment and

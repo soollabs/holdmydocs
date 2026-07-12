@@ -203,6 +203,11 @@
 	<legend>wiki setup</legend>
 	<div class="settings-row">
 		<label>home page</label>
+		<input type="text" value="{{.Settings.HomeFilename}}" readonly>
+		{{if .Settings.HomeFilenameEnv}}<span class="badge-env">set via {{.Settings.HomeFilenameEnv}}</span>{{else}}<span class="badge-restart">restart reqd</span>{{end}}
+	</div>
+	<div class="settings-row">
+		<label>re-seed setup</label>
 		<form method="POST" action="/settings/setup" style="display:contents">
 			<button type="submit" class="ghost-btn">Re-run setup</button>
 		</form>

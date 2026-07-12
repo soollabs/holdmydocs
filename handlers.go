@@ -114,6 +114,7 @@ type TemplateData struct {
 	NeedsHelpSetup   bool
 	HomeFileExists   bool
 	HelpFileExists   bool
+	HomeFilename     string
 	RoutePrefix      string
 	IsHidden         bool
 }
@@ -142,6 +143,8 @@ type SettingsData struct {
 	ThemeLight      map[string]string
 	HelpDrifted     bool
 	UserGitAuthor   string // current user's per-user git author override
+	HomeFilename    string // read-only display; restart required to change
+	HomeFilenameEnv string // env var name if it overrides the file, else ""
 }
 
 // relativeTime renders t as a short "N units ago" string, falling back to
@@ -269,6 +272,8 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 		SyncMode:        cfg.SyncMode,
 		ThemeDark:       mergeTheme(defaultDark, cfg.ThemeDark),
 		ThemeLight:      mergeTheme(defaultLight, cfg.ThemeLight),
+		HomeFilename:    cfg.HomeFilename,
+		HomeFilenameEnv: envLocked("HMD_HOME_FILENAME"),
 	}
 }
 
@@ -302,10 +307,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		data.ThemeStyle = buildThemeStyle(cfg)
+		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
 
-			_, homeErr := os.Stat(filepath.Join(app.config().RepoDir, "home.md"))
+			_, homeErr := os.Stat(filepath.Join(cfg.RepoDir, cfg.HomeFilename))
 			homeMissing := homeErr != nil
 			if homeMissing || forced {
 				data.NeedsHomeSetup = true
@@ -376,12 +382,12 @@ func (app *App) gitAuthor(username string) (name, email string) {
 var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 
 // injectTOC replaces hmd:toc tokens in body with markdown bullet lists of
-// pages. With no tag list, all pages are listed (excluding "home"). With a
-// comma-separated tag list, only pages matching ANY tag are included (OR).
-// Results are sorted alphabetically by title; "home" is always excluded.
-// The list is built as [[wiki-links]] so the existing wiki-link preprocessor
-// renders the anchors.
-func injectTOC(body string, ix *Index) string {
+// pages. With no tag list, all pages are listed (excluding the home page).
+// With a comma-separated tag list, only pages matching ANY tag are included
+// (OR). Results are sorted alphabetically by title; the home page is always
+// excluded. The list is built as [[wiki-links]] so the existing wiki-link
+// preprocessor renders the anchors.
+func injectTOC(body string, ix *Index, homeSlug string) string {
 	if !strings.Contains(body, "hmd:toc") {
 		return body
 	}
@@ -394,14 +400,14 @@ func injectTOC(body string, ix *Index) string {
 		var slugs []string
 		if tagList == "" {
 			for slug := range titles {
-				if slug != "home" {
+				if slug != homeSlug {
 					slugs = append(slugs, slug)
 				}
 			}
 		} else {
 			tagSlugs := strings.Split(tagList, ",")
 			for _, s := range ix.PagesForTags(tagSlugs) {
-				if s != "home" {
+				if s != homeSlug {
 					slugs = append(slugs, s)
 				}
 			}
@@ -429,12 +435,12 @@ func injectTOC(body string, ix *Index) string {
 func (app *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Root: redirect to home page
+	// Root: redirect to home page (named by HMD_HOME_FILENAME, default README.md)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/page/home", http.StatusSeeOther)
+		http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
 	})
 
-	// Setup endpoint: seeds home.md, clears the setup flag
+	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
 	mux.HandleFunc("POST /setup", app.handleSetup)
 
 	// Static files. embed.FS carries no real mtime/ETag, so browsers have
@@ -526,7 +532,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
-	http.Redirect(w, r, "/page/home", http.StatusSeeOther)
+	http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
 }
 
 func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -548,7 +554,7 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSetup processes the setup form. Nothing is seeded without explicit
-// consent: action=="add" seeds whichever of home.md / .help.md the user
+// consent: action=="add" seeds whichever of the home file / .help.md the user
 // ticked (offered when missing, or always when the modal was forced open
 // via "re-run setup" — ticking an existing file overwrites it); action==
 // "skip" seeds nothing. Either way NeedsSetup/ForceSetup are cleared.
@@ -559,12 +565,13 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	if action == "add" {
 		if r.FormValue("add_home") == "on" {
-			content := Page{Slug: "home", Title: "home", Body: defaultHomeMD}.Encode()
-			if _, err := app.Store.Save("home.md", content, "Add home.md", authorName, authorEmail); err != nil {
+			homeSlug := cfg.HomeSlug()
+			content := Page{Slug: homeSlug, Title: homeSlug, Body: defaultHomeMD}.Encode()
+			if _, err := app.Store.Save(cfg.HomeFilename, content, "Add "+cfg.HomeFilename, authorName, authorEmail); err != nil {
 				http.Error(w, "Failed to seed home page", http.StatusInternalServerError)
 				return
 			}
-			app.Index.Update(ParsePage("home", content))
+			app.Index.Update(ParsePage(homeSlug, content))
 		}
 		if r.FormValue("add_help") == "on" {
 			content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
@@ -577,7 +584,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	app.Store.NeedsSetup.Store(false)
 	app.Store.ForceSetup.Store(false)
-	http.Redirect(w, r, refererPath(r, "/page/home"), http.StatusSeeOther)
+	http.Redirect(w, r, refererPath(r, "/page/"+cfg.HomeSlug()), http.StatusSeeOther)
 }
 
 // refererPath returns the path+query of the request's Referer header, so
@@ -600,7 +607,7 @@ func refererPath(r *http.Request, fallback string) string {
 }
 
 // handleRerunSetup reopens the setup modal on demand, showing both items
-// even if home.md/.help.md already exist (unlike the automatic NeedsSetup
+// even if the home file/.help.md already exist (unlike the automatic NeedsSetup
 // flag, which only shows items that are actually missing). Nothing is
 // written until the form is submitted — checking an existing file's box
 // overwrites it.
@@ -650,7 +657,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	page.Body = injectTOC(page.Body, app.Index)
+	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug())
 	renderedBody, err := app.Render.Render(page.Body)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -1132,7 +1139,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	page.Body = injectTOC(page.Body, app.Index)
+	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug())
 	renderedBody, err := app.Render.Render(page.Body)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

@@ -24,11 +24,12 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	appDir := t.TempDir()
 
 	cfg := Config{
-		RepoDir:   repoDir,
-		AppDir:    appDir,
-		GitUser:   "test",
-		AdminUser: "admin",
-		AdminPass: "test",
+		RepoDir:      repoDir,
+		AppDir:       appDir,
+		GitUser:      "test",
+		AdminUser:    "admin",
+		AdminPass:    "test",
+		HomeFilename: "readme.md",
 	}
 
 	// When a config file is configured, overlay its values so the settings
@@ -77,10 +78,10 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	}
 
 	// Tests exercise pages/handlers, not the setup flow itself — simulate a
-	// completed setup so home.md/.help.md fixtures exist as before, since
+	// completed setup so readme.md/.help.md fixtures exist as before, since
 	// OpenStore no longer auto-seeds anything without consent.
-	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: defaultHomeMD}.Encode(), "Add home.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
-		t.Fatalf("seeding home.md: %v", err)
+	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+		t.Fatalf("seeding readme.md: %v", err)
 	}
 	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
 		t.Fatalf("seeding .help.md: %v", err)
@@ -139,7 +140,7 @@ func TestViewHome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/home")
+	resp, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
@@ -304,7 +305,7 @@ func TestUnauthenticatedRedirect(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Get(server.URL + "/page/home")
+	resp, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
@@ -573,7 +574,7 @@ func TestPageChrome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/home")
+	resp, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -596,13 +597,13 @@ func TestPageChrome(t *testing.T) {
 		t.Error("Mermaid script loaded on page without mermaid content")
 	}
 
-	// The <!-- hmd:toc --> token in the seeded index.md must be replaced
+	// The <!-- hmd:toc --> token in the seeded readme.md must be replaced
 	// server-side, never reach the rendered HTML.
 	if bytes.Contains(body, []byte("hmd:toc")) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
 
-	resp, err = client.Get(server.URL + "/page/home/edit")
+	resp, err = client.Get(server.URL + "/page/readme/edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -611,7 +612,7 @@ func TestPageChrome(t *testing.T) {
 
 	for _, want := range []string{
 		`id="cm-host"`,
-		`data-slug="home"`,
+		`data-slug="readme"`,
 		`src="/static/editor.js"`,
 		`id="preview"`,
 		`data-action="toc"`,
@@ -1184,7 +1185,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// newTestApp already seeds home.md and .help.md, so under normal
+	// newTestApp already seeds readme.md and .help.md, so under normal
 	// (non-forced) NeedsSetup logic, neither would be missing and the
 	// modal would have nothing to show.
 	resp, err := client.Get(server.URL + "/settings")
@@ -1219,7 +1220,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("re-run modal should offer both home and help items, body: %s", body3)
 	}
 	if bytes.Contains(body3, []byte(`name="add_home" checked`)) {
-		t.Errorf("home checkbox should default unchecked since home.md already exists, body: %s", body3)
+		t.Errorf("home checkbox should default unchecked since readme.md already exists, body: %s", body3)
 	}
 
 	// Skipping should clear ForceSetup so the modal doesn't keep reappearing.
@@ -1320,7 +1321,7 @@ func TestInjectTOC(t *testing.T) {
 	ix, _ := BuildIndex(pages)
 
 	t.Run("all pages token excludes_home", func(t *testing.T) {
-		out := injectTOC("head\n\n<!-- hmd:toc -->\ntail", ix)
+		out := injectTOC("head\n\n<!-- hmd:toc -->\ntail", ix, "home")
 		want := "head\n\n- [[Alpha]]\n- [[Beta]]\n- [[Delta]]\n- [[Epsilon]]\n- [[Gamma]]\n\ntail"
 		if out != want {
 			t.Errorf("injectTOC all = %q, want %q", out, want)
@@ -1328,7 +1329,7 @@ func TestInjectTOC(t *testing.T) {
 	})
 
 	t.Run("tag filter OR semantics", func(t *testing.T) {
-		out := injectTOC("<!-- hmd:toc:meta,guide -->", ix)
+		out := injectTOC("<!-- hmd:toc:meta,guide -->", ix, "home")
 		// meta: gamma, delta; guide: epsilon. Sorted by slug: delta, epsilon, gamma.
 		want := "- [[Delta]]\n- [[Epsilon]]\n- [[Gamma]]\n"
 		if out != want {
@@ -1338,13 +1339,13 @@ func TestInjectTOC(t *testing.T) {
 
 	t.Run("no token unchanged", func(t *testing.T) {
 		body := "just some markdown, no token here"
-		if got := injectTOC(body, ix); got != body {
+		if got := injectTOC(body, ix, "home"); got != body {
 			t.Errorf("injectTOC should be a no-op when no token present, got %q", got)
 		}
 	})
 
 	t.Run("multiple tokens", func(t *testing.T) {
-		out := injectTOC("A: <!-- hmd:toc:meta -->\nB: <!-- hmd:toc:guide -->", ix)
+		out := injectTOC("A: <!-- hmd:toc:meta -->\nB: <!-- hmd:toc:guide -->", ix, "home")
 		want := "A: - [[Delta]]\n- [[Gamma]]\n\nB: - [[Epsilon]]\n"
 		if out != want {
 			t.Errorf("injectTOC multiple = %q, want %q", out, want)
@@ -1353,7 +1354,7 @@ func TestInjectTOC(t *testing.T) {
 
 	t.Run("empty index", func(t *testing.T) {
 		empty, _ := BuildIndex(nil)
-		out := injectTOC("<!-- hmd:toc -->", empty)
+		out := injectTOC("<!-- hmd:toc -->", empty, "home")
 		if out != "" {
 			t.Errorf("injectTOC on empty index = %q, want empty", out)
 		}
@@ -1378,9 +1379,9 @@ func TestTOCRenderedOnHome(t *testing.T) {
 
 	// View the index page: the seeded <!-- hmd:toc --> token must be
 	// replaced with a rendered wiki-link to the new page.
-	resp, err = client.Get(server.URL + "/page/home")
+	resp, err = client.Get(server.URL + "/page/readme")
 	if err != nil {
-		t.Fatalf("GET /page/home failed: %v", err)
+		t.Fatalf("GET /page/readme failed: %v", err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -1489,7 +1490,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
 
-	// Create a git repo with content but no home.md.
+	// Create a git repo with content but no readme.md.
 	repo, err := git.PlainInit(repoDir, false)
 	if err != nil {
 		t.Fatalf("git init failed: %v", err)
@@ -1508,11 +1509,12 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	})
 
 	cfg := Config{
-		RepoDir:   repoDir,
-		AppDir:    appDir,
-		GitUser:   "test",
-		AdminUser: "admin",
-		AdminPass: "test",
+		RepoDir:      repoDir,
+		AppDir:       appDir,
+		GitUser:      "test",
+		AdminUser:    "admin",
+		AdminPass:    "test",
+		HomeFilename: "readme.md",
 	}
 
 	store, err := OpenStore(cfg)
@@ -1556,7 +1558,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	client.Do(req)
 
-	// Root should redirect to /page/home (not a standalone setup page).
+	// Root should redirect to /page/readme (not a standalone setup page).
 	resp, err := client.Get(server.URL + "/")
 	if err != nil {
 		t.Fatalf("GET / failed: %v", err)
@@ -1567,9 +1569,9 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// Setup modal should appear on any authed page when NeedsSetup.
-	resp2, err := client.Get(server.URL + "/page/home")
+	resp2, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
-		t.Fatalf("GET /page/home failed: %v", err)
+		t.Fatalf("GET /page/readme failed: %v", err)
 	}
 	defer resp2.Body.Close()
 	body2, _ := io.ReadAll(resp2.Body)
@@ -1577,7 +1579,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup modal should appear when NeedsSetup, body: %s", body2)
 	}
 
-	// POST setup with action=add, add_home=on to seed home.md.
+	// POST setup with action=add, add_home=on to seed readme.md.
 	resp3, err := client.PostForm(server.URL+"/setup", url.Values{"action": {"add"}, "add_home": {"on"}})
 	if err != nil {
 		t.Fatalf("POST /setup failed: %v", err)
@@ -1587,10 +1589,10 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup status = %d, want 303", resp3.StatusCode)
 	}
 
-	// home.md should now exist and be viewable.
-	resp4, err := client.Get(server.URL + "/page/home")
+	// readme.md should now exist and be viewable.
+	resp4, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
-		t.Fatalf("GET /page/home failed: %v", err)
+		t.Fatalf("GET /page/readme failed: %v", err)
 	}
 	defer resp4.Body.Close()
 	if resp4.StatusCode != http.StatusOK {
@@ -1602,13 +1604,146 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// Modal should no longer appear after setup.
-	resp5, err := client.Get(server.URL + "/page/home")
+	resp5, err := client.Get(server.URL + "/page/readme")
 	if err != nil {
-		t.Fatalf("GET /page/home after setup failed: %v", err)
+		t.Fatalf("GET /page/readme after setup failed: %v", err)
 	}
 	defer resp5.Body.Close()
 	body5, _ := io.ReadAll(resp5.Body)
 	if bytes.Contains(body5, []byte("setup-modal-backdrop")) {
 		t.Errorf("setup modal should not appear after setup, body: %s", body5)
+	}
+}
+
+// TestCustomHomeFilename exercises HMD_HOME_FILENAME end-to-end: the seed
+// writes the configured file, / redirects to /page/<slug>, the page is
+// viewable there, and the TOC token on a sibling page excludes it.
+func TestCustomHomeFilename(t *testing.T) {
+	repoDir := t.TempDir()
+	appDir := t.TempDir()
+
+	cfg := Config{
+		RepoDir:      repoDir,
+		AppDir:       appDir,
+		GitUser:      "test",
+		AdminUser:    "admin",
+		AdminPass:    "test",
+		HomeFilename: "index.md",
+	}
+
+	store, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	if _, err := store.Save("index.md", Page{Slug: "index", Title: "index", Body: defaultHomeMD}.Encode(), "Add index.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+		t.Fatalf("seeding index.md: %v", err)
+	}
+	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+		t.Fatalf("seeding .help.md: %v", err)
+	}
+	store.NeedsSetup.Store(false)
+
+	// Also add a second page so the TOC has something to list.
+	if _, err := store.Save("alpha.md", Page{Slug: "alpha", Title: "Alpha", Body: "Alpha body"}.Encode(), "Add alpha", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+		t.Fatalf("seeding alpha: %v", err)
+	}
+
+	pages, _ := store.List()
+	var pageObjs []Page
+	for _, p := range pages {
+		content, _, _ := store.Read(p)
+		pageObjs = append(pageObjs, ParsePage(p[:len(p)-3], content))
+	}
+	index, _ := BuildIndex(pageObjs)
+	auth, _ := OpenAuth(cfg)
+	renderer := NewRenderer(index.Exists)
+	tmpl, err := parseTemplates()
+	if err != nil {
+		t.Fatalf("parseTemplates failed: %v", err)
+	}
+	app := &App{Store: store, Auth: auth, Index: index, Render: renderer, Tmpl: tmpl}
+	app.SetConfig(cfg)
+
+	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
+	defer server.Close()
+
+	jar, _ := cookiejar.New(&cookiejar.Options{})
+	client := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
+	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client.Do(req)
+
+	// Root redirects to /page/index (slug derived from index.md).
+	resp, err := client.Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if loc := resp.Header.Get("Location"); loc != "/page/index" {
+		t.Errorf("root redirect = %q, want /page/index", loc)
+	}
+
+	// The home page is viewable at /page/index.
+	resp2, err := client.Get(server.URL + "/page/index")
+	if err != nil {
+		t.Fatalf("GET /page/index failed: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("GET /page/index status = %d, want 200", resp2.StatusCode)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	if !bytes.Contains(body2, []byte("Welcome")) {
+		t.Errorf("home page should contain 'Welcome', body: %s", body2)
+	}
+
+	// TOC on the home page lists alpha but must not list the home slug itself.
+	if !bytes.Contains(body2, []byte(`href="/page/alpha"`)) {
+		t.Errorf("home page TOC should link alpha, body: %s", body2)
+	}
+	if bytes.Contains(body2, []byte(`href="/page/index"`)) {
+		t.Errorf("home page TOC must not link the home page itself, body: %s", body2)
+	}
+
+	// A custom filename like home.md must NOT be treated as home: create a
+	// page named home.md and confirm it appears in TOC listings (it's an
+	// ordinary page now that index.md is the configured home file).
+	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: "<!-- hmd:toc -->\n"}.Encode(), "Add home", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+		t.Fatalf("seeding home.md: %v", err)
+	}
+	app.Index.Update(ParsePage("home", []byte("---\ntitle: Home\n---\n\n<!-- hmd:toc -->\n")))
+
+	resp3, err := client.Get(server.URL + "/page/home")
+	if err != nil {
+		t.Fatalf("GET /page/home failed: %v", err)
+	}
+	defer resp3.Body.Close()
+	body3, _ := io.ReadAll(resp3.Body)
+	// "home" is an ordinary page, NOT the home slug, so it should appear in
+	// the TOC of the index page (home slug "index" is the one excluded).
+	resp4, err := client.Get(server.URL + "/page/index")
+	if err != nil {
+		t.Fatalf("GET /page/index failed: %v", err)
+	}
+	defer resp4.Body.Close()
+	body4, _ := io.ReadAll(resp4.Body)
+	if !bytes.Contains(body4, []byte(`href="/page/home"`)) {
+		t.Errorf("index page TOC should list the ordinary 'home' page, body: %s", body4)
+	}
+	if bytes.Contains(body4, []byte(`href="/page/index"`)) {
+		t.Errorf("index page TOC must not list the home page itself, body: %s", body4)
+	}
+	// And the 'home' page's own TOC should list alpha but not the home slug.
+	if !bytes.Contains(body3, []byte(`href="/page/alpha"`)) {
+		t.Errorf("home page TOC should list alpha, body: %s", body3)
+	}
+	if bytes.Contains(body3, []byte(`href="/page/index"`)) {
+		t.Errorf("home page TOC must not list the home slug 'index', body: %s", body3)
 	}
 }

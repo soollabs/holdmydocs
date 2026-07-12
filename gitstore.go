@@ -49,13 +49,16 @@ type Store struct {
 	knownHead  plumbing.Hash
 	NeedsSetup atomic.Bool
 	// ForceSetup is set by the "re-run setup" button in settings — it shows
-	// the modal even when home.md/.help.md already exist, unlike NeedsSetup
+	// the modal even when the home file/.help.md already exist, unlike NeedsSetup
 	// which only reflects files actually missing.
 	ForceSetup atomic.Bool
 }
 
 // defaultHomeMD is the clean welcome page seeded into any repo that does not
-// already contain a home.md. It has a TOC token listing all pages.
+// already contain the configured home file (HMD_HOME_FILENAME, default
+// readme.md). It has a TOC token listing all pages. Seeding readme.md rather
+// than home.md means the same file shows up rendered on the git host's front
+// page (GitHub, git, etc. all render readme.md case-insensitively).
 const defaultHomeMD = `# Welcome to hold my docs (hmd)
 
 This wiki is plain markdown files in a git repository. Every save is a commit
@@ -68,7 +71,7 @@ linked with ` + "`[[Page Title]]`" + ` wiki-links.
 `
 
 // defaultHelpMD is the built-in "how hold my docs (hmd) works" guide seeded as a hidden
-// dot-file (.help.md). Unlike home.md, this is not a user choice during
+// dot-file (.help.md). Unlike the home file, this is not a user choice during
 // setup — it's app documentation, seeded unconditionally. Covers both UI
 // usage and the on-disk markdown conventions, for humans and agents alike.
 const defaultHelpMD = `# Help
@@ -126,7 +129,7 @@ failed, since every save is an auto-pushed commit.
 ## File names
 
 - One page per Markdown file, lowercase, hyphenated: ` + "`running-the-app.md`" + `.
-- The slug is the filename without the ` + "`.md`" + ` suffix. The home page is ` + "`home.md`" + `.
+- The slug is the filename without the ` + "`.md`" + ` suffix. The home page is ` + "`readme.md`" + ` (configurable via ` + "`HMD_HOME_FILENAME`" + `).
 - Attachments live under ` + "`attachments/<slug>/<file>`" + `.
 
 ## Frontmatter
@@ -186,11 +189,12 @@ func HelpDrifted(store *Store) bool {
 }
 
 // seedOrFlagSetup never writes anything without consent: it only sets the
-// NeedsSetup flag when home.md and/or .help.md is missing, on any repo —
-// fresh, cloned, or existing. The setup modal decides what actually gets
-// seeded, based on what the user selects.
+// NeedsSetup flag when the configured home file and/or .help.md is missing,
+// on any repo — fresh, cloned, or existing. The setup modal decides what
+// actually gets seeded, based on what the user selects. The home file is
+// named by HMD_HOME_FILENAME (default README.md); .help.md is fixed.
 func seedOrFlagSetup(store *Store, cfg Config) {
-	_, homeErr := os.Stat(filepath.Join(store.dir, "home.md"))
+	_, homeErr := os.Stat(filepath.Join(store.dir, cfg.HomeFilename))
 	_, helpErr := os.Stat(filepath.Join(store.dir, ".help.md"))
 	if homeErr != nil || helpErr != nil {
 		store.NeedsSetup.Store(true)

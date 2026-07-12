@@ -29,6 +29,7 @@ type Config struct {
 	ShowTagsSidebar bool
 	SyncMode        string
 	DefaultBranch   string
+	HomeFilename    string
 	Debug           bool
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
@@ -56,6 +57,7 @@ type fileConfig struct {
 	ShowTagsSidebar *bool             `yaml:"show_tags_sidebar"`
 	SyncMode        string            `yaml:"sync_mode"`
 	DefaultBranch   string            `yaml:"default_branch"`
+	HomeFilename    string            `yaml:"home_filename"`
 	Debug           *bool             `yaml:"debug"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
@@ -147,6 +149,7 @@ func LoadConfig() (Config, error) {
 		ShowTagsSidebar: pickBool("HMD_SHOW_TAGS_SIDEBAR", file.ShowTagsSidebar, true),
 		SyncMode:        pick("HMD_SYNC_MODE", file.SyncMode, "push"),
 		DefaultBranch:   pick("HMD_DEFAULT_BRANCH", file.DefaultBranch, "main"),
+		HomeFilename:    pick("HMD_HOME_FILENAME", file.HomeFilename, "readme.md"),
 		Debug:           pickBool("HMD_DEBUG", file.Debug, false),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
@@ -207,6 +210,9 @@ func LoadConfig() (Config, error) {
 	if file.DefaultBranch != "" && os.Getenv("HMD_DEFAULT_BRANCH") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_DEFAULT_BRANCH")
 	}
+	if file.HomeFilename != "" && os.Getenv("HMD_HOME_FILENAME") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_HOME_FILENAME")
+	}
 	if file.Debug != nil && os.Getenv("HMD_DEBUG") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_DEBUG")
 	}
@@ -224,7 +230,37 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("invalid HMD_SYNC_MODE %q: must be push or bidirectional", cfg.SyncMode)
 	}
 
+	if err := cfg.validateHomeFilename(); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+// validateHomeFilename enforces the constraints on HMD_HOME_FILENAME:
+// must end in .md, contain no path separators, and not be dot-prefixed
+// (dot-prefixed files are the hidden-page namespace). The home page is
+// special-cased throughout the app, so a malformed value fails loudly at
+// startup rather than producing surprising behaviour later.
+func (c Config) validateHomeFilename() error {
+	f := c.HomeFilename
+	if !strings.HasSuffix(f, ".md") {
+		return fmt.Errorf("invalid HMD_HOME_FILENAME %q: must end in .md", f)
+	}
+	if strings.ContainsAny(f, "/\\") {
+		return fmt.Errorf("invalid HMD_HOME_FILENAME %q: must not contain a path separator", f)
+	}
+	if strings.HasPrefix(f, ".") {
+		return fmt.Errorf("invalid HMD_HOME_FILENAME %q: must not be dot-prefixed (reserved for hidden pages)", f)
+	}
+	return nil
+}
+
+// HomeSlug returns the page slug derived from HomeFilename (the filename
+// without its .md suffix, lowercased). The home page is excluded from TOC
+// listings and served at /page/<HomeSlug>.
+func (c Config) HomeSlug() string {
+	return strings.ToLower(strings.TrimSuffix(c.HomeFilename, ".md"))
 }
 
 // parseAuthor splits a git author string in the standard "Name <email>" form

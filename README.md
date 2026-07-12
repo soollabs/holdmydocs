@@ -63,6 +63,7 @@ Defaults shown:
 | `HMD_SHOW_TAGS_SIDEBAR` | `true` | Show the Tags section in the sidebar |
 | `HMD_SYNC_MODE` | `push` | Sync mode: `push` (local→remote only) or `bidirectional` (fetch + ff pull) |
 | `HMD_DEFAULT_BRANCH` | `main` | Branch name used when initialising a fresh local repo (no effect on an existing repo) |
+| `HMD_HOME_FILENAME` | `readme.md` | Filename for the home page (the page served at `/`). Must end in `.md`, contain no path separators, and not be dot-prefixed. Defaults to `readme.md` so the home page renders on the git host's front page (GitHub, git, Gitea all render `readme.md` case-insensitively). Restart required to change. |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file
@@ -88,6 +89,7 @@ sync_poll_ms: 10000
 show_tags_sidebar: true
 # sync_mode: bidirectional  # default: push (local→remote only)
 # default_branch: main  # branch name used when initialising a fresh local repo
+# home_filename: readme.md  # home page file; default readme.md renders on git host front page
 # Theme overrides: 17 CSS colour variables per theme (see config.yaml.example
 # for the full list with defaults)
 # theme_dark:
@@ -224,21 +226,22 @@ Env-set values are read-only in the UI.
 ## First Run Behaviour
 
 Nothing is written to the repo without consent. Every case below just flags
-a setup modal (shown on any authed page) if `home.md` and/or `.help.md` is
+a setup modal (shown on any authed page) if the home file (`HMD_HOME_FILENAME`,
+default `readme.md`) and/or `.help.md` is
 missing. The modal lists only the files that are actually missing, with a
 checkbox per file (checked by default) and "Add selected" / "Skip" buttons.
 
-- **Any repo state** (fresh init, cloned, empty, or existing with other content) that's missing `home.md` and/or `.help.md`: shows the setup modal, no auto-seeding, ever
+- **Any repo state** (fresh init, cloned, empty, or existing with other content) that's missing the home file (`HMD_HOME_FILENAME`, default `readme.md`) and/or `.help.md`: shows the setup modal, no auto-seeding, ever
 - **Bootstrap users:** if `HMD_ADMIN_USER` and `HMD_ADMIN_PASSWORD` are set, creates that user on startup
 
-The home page (`home.md`) is a clean welcome with a `<!-- hmd:toc -->` token that auto-generates a list of all pages. The help guide lives in `.help.md`, a hidden dot-file, editable via the UI at `/hidden/help` or directly via git. Settings shows a warning if it drifts from the binary's built-in version (e.g. after upgrading hmd), with a button to reset it. Settings also has a "re-run setup" button to reopen the modal if either file is deleted later.
+The home page (`readme.md` by default) is a clean welcome with a `<!-- hmd:toc -->` token that auto-generates a list of all pages. The help guide lives in `.help.md`, a hidden dot-file, editable via the UI at `/hidden/help` or directly via git. Settings shows a warning if it drifts from the binary's built-in version (e.g. after upgrading hmd), with a button to reset it. Settings also has a "re-run setup" button to reopen the modal if either file is deleted later.
 
 ## Storage Layout & NFS
 
 ```
 /data/
   repo/              ← git repository (safe on NFS)
-    home.md
+    readme.md
     .help.md
     some-page.md
     attachments/

@@ -102,10 +102,10 @@
 			<div class="setup-item">
 				<div class="setup-item-head">
 					<label class="setup-item-title"><input type="checkbox" name="add_home" {{if not .HomeFileExists}}checked{{end}}> Home page</label>
-					<code class="setup-item-file">home.md</code>
+					<code class="setup-item-file">{{.HomeFilename}}</code>
 					{{if .HomeFileExists}}<span class="setup-badge">exists</span>{{end}}
 				</div>
-				<p class="setup-item-desc">The welcome page served at <code>/</code>. Lists every page in the wiki via a table-of-contents token.{{if .HomeFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
+				<p class="setup-item-desc">The welcome page served at <code>/</code>. Lists every page in the wiki via a table-of-contents token. Filename is set by <code>HMD_HOME_FILENAME</code> and can be changed (restart required).{{if .HomeFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
 				<details class="setup-preview">
 					<summary>Preview content</summary>
 					<div class="setup-preview-body">{{.SetupHomePreview}}</div>

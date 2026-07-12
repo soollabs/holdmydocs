@@ -288,3 +288,47 @@ func TestSyncModeInvalid(t *testing.T) {
 		t.Fatal("LoadConfig should reject invalid sync_mode")
 	}
 }
+
+func TestHomeFilenameDefault(t *testing.T) {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.HomeFilename != "readme.md" {
+		t.Errorf("HomeFilename = %q, want readme.md", cfg.HomeFilename)
+	}
+	if slug := cfg.HomeSlug(); slug != "readme" {
+		t.Errorf("HomeSlug = %q, want readme", slug)
+	}
+}
+
+func TestHomeFilenameCustom(t *testing.T) {
+	t.Setenv("HMD_HOME_FILENAME", "index.md")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.HomeFilename != "index.md" {
+		t.Errorf("HomeFilename = %q, want index.md", cfg.HomeFilename)
+	}
+	if slug := cfg.HomeSlug(); slug != "index" {
+		t.Errorf("HomeSlug = %q, want index", slug)
+	}
+}
+
+func TestHomeFilenameInvalid(t *testing.T) {
+	for _, bad := range []string{
+		"home",       // no .md suffix
+		"home.txt",   // wrong suffix
+		"a/b.md",     // path separator
+		".hidden.md", // dot-prefixed
+	} {
+		t.Run(bad, func(t *testing.T) {
+			t.Setenv("HMD_HOME_FILENAME", bad)
+			_, err := LoadConfig()
+			if err == nil {
+				t.Fatalf("LoadConfig should reject %q", bad)
+			}
+		})
+	}
+}
