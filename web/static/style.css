@@ -419,7 +419,7 @@ main {
 	font-weight: 700;
 	border: none;
 	cursor: pointer;
-	padding: 0 16px;
+	padding: 6px 16px;
 }
 
 /* Mobile top bar (< 900px), hidden on desktop */
@@ -1443,7 +1443,7 @@ body.zen-manuscript .zen-status.visible {
 	border-bottom: 1px solid var(--border-2);
 	border-radius: 0;
 	color: var(--fg-bright);
-	padding: 4px 0;
+	padding: 4px 6px;
 }
 
 /* ---------------------------------------------------------------
