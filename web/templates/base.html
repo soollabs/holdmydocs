@@ -63,10 +63,12 @@
 	{{if .Authed}}
 	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}">
 		<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
-		<div class="seg seg-title" id="status-title">{{.Title}}{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
-		<div class="seg-spacer"></div>
+		<div class="seg seg-title" id="status-title">{{.Slug}}.md{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
+		<button type="button" class="seg" id="new-btn" style="background: none; border: none; cursor: pointer; color: var(--fg-muted); padding: 0 0.5rem;">+ new</button>
 		<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
-		<div class="seg seg-sync" id="status-sync" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</div>
+		{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
+		<div class="seg-spacer"></div>
+		<div class="seg seg-sync" id="status-sync" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="0">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</div>
 		{{if eq .StatusMode "edit"}}<button class="seg seg-save" type="submit" form="edit-form" id="save-btn">SAVE ctrl-s</button>{{end}}
 		<div class="seg seg-right seg-user">{{.Username}}</div>
 		<div class="seg seg-right">
@@ -86,7 +88,7 @@
 				<span class="match-count" id="palette-count"></span>
 			</div>
 			<div class="palette-results" id="palette-results"></div>
-			<div class="palette-footer">&uarr;&darr; navigate &middot; &crarr; open &middot; ctrl-&crarr; edit &middot; esc close</div>
+			<div class="palette-footer">type to jump to a page · > for verbs · ↑↓ navigate · ↵ run · esc close</div>
 		</div>
 	</div>
 	{{end}}

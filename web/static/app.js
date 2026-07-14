@@ -77,6 +77,15 @@
     }
   }
 
+  // ---- Word count for view mode ----
+  const wordCountSeg = $('#word-count');
+  if (pageContent && wordCountSeg) {
+    const text = pageContent.textContent || '';
+    const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const readingTime = Math.max(1, Math.ceil(words / 200));
+    wordCountSeg.textContent = words + 'w · ' + readingTime + ' min';
+  }
+
   // ---- Sync polling ----
   const syncSeg = $('#status-sync');
   if (syncSeg) {
@@ -84,11 +93,35 @@
     const bidi = window.hmdSyncMode === 'bidirectional';
     let pollTimer;
     let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
+    let lastSuccessUnix = parseInt(syncSeg.dataset.lastSuccess || '0');
+    let syncAgeTimer;
 
-    function updateSyncSeg(state) {
-      const arrow = bidi ? '⇣⇡' : '⇡';
-      syncSeg.setAttribute('data-state', state);
-      syncSeg.textContent = state === 'no remote' ? 'local only' : arrow + ' ' + state;
+    function relativeAge(unixSeconds) {
+      const now = Math.floor(Date.now() / 1000);
+      const diff = now - unixSeconds;
+      if (diff < 60) return 'now';
+      if (diff < 3600) return Math.floor(diff / 60) + 's ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return Math.floor(diff / 86400) + 'd ago';
+    }
+
+    function updateSyncAge() {
+      if (lastSuccessUnix > 0) {
+        const arrow = bidi ? '⇣⇡' : '⇡';
+        const state = syncSeg.dataset.state || 'unknown';
+        if (state === 'no remote') {
+          syncSeg.textContent = 'local only';
+        } else {
+          const age = relativeAge(lastSuccessUnix);
+          syncSeg.textContent = arrow + ' ' + state + ' · ' + age;
+        }
+      }
+    }
+
+    function updateSyncSeg(syncData) {
+      lastSuccessUnix = syncData.last_success_unix || 0;
+      syncSeg.setAttribute('data-last-success', lastSuccessUnix);
+      updateSyncAge();
     }
 
     function refreshViewedPage() {
@@ -119,7 +152,7 @@
 
     function pollSync() {
       fetch('/api/sync').then(r => r.json()).then(s => {
-        updateSyncSeg(s.state);
+        updateSyncSeg(s);
         if (s.pagesChanged && s.pagesChanged.length > 0 && pageContent) {
           const slug = document.body.dataset.slug || '';
           const routePrefix = document.body.dataset.routePrefix || '/page';
@@ -139,6 +172,15 @@
       });
     }
     if (syncSeg.dataset.state === 'pending' || bidi) pollSync();
+
+    // Tick sync age every second
+    syncAgeTimer = setInterval(updateSyncAge, 1000);
+  }
+
+  // ---- "+ new" button in statusline ----
+  const newBtn = $('#new-btn');
+  if (newBtn) {
+    newBtn.addEventListener('click', () => openPalette(true));
   }
 
   // ---- Mobile sidebar drawer ----
