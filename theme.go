@@ -37,6 +37,10 @@ var (
 
 var themeHexRe = regexp.MustCompile(`--([\w-]+):\s*(#[0-9a-fA-F]{3,8})\s*;`)
 
+// validThemeColour matches the hex colour syntax the <input type="color">
+// widgets submit. Anything else is rejected rather than written into CSS.
+var validThemeColour = regexp.MustCompile(`^#[0-9a-fA-F]{3,8}$`)
+
 // loadThemeDefaults reads the embedded style.css and populates
 // defaultDark/defaultLight. Safe to call more than once.
 func loadThemeDefaults() {
@@ -117,11 +121,12 @@ func snapshotTheme(submitted, defaults map[string]string) map[string]string {
 }
 
 // collectTheme pulls theme_dark_<name> / theme_light_<name> form values
-// into a map keyed by the bare variable name.
+// into a map keyed by the bare variable name. Values that aren't valid hex
+// colours are dropped rather than trusted into the CSS output.
 func collectTheme(r map[string][]string, prefix string) map[string]string {
 	m := make(map[string]string, len(themeVarNames))
 	for _, n := range themeVarNames {
-		if vals, ok := r[prefix+n]; ok && len(vals) > 0 {
+		if vals, ok := r[prefix+n]; ok && len(vals) > 0 && validThemeColour.MatchString(vals[0]) {
 			m[n] = vals[0]
 		}
 	}

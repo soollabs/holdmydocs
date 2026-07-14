@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +21,11 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
+// gitNetworkTimeout bounds push/fetch network calls, which run with s.mu
+// held — without a cap, a stalled remote would block every save and read.
+// A var (not const) so tests can shrink it to exercise the timeout path.
+var gitNetworkTimeout = 30 * time.Second
+
 type CommitInfo struct {
 	Hash    string
 	Message string
@@ -31,7 +38,7 @@ type Store struct {
 	dir        string
 	remote     string
 	auth       *githttp.BasicAuth
-	mu         sync.Mutex
+	mu         sync.RWMutex
 	syncState  string
 	syncErr    string
 	// historyCache holds History() results keyed by path, protected by mu.
@@ -239,7 +246,9 @@ func OpenStore(cfg Config) (*Store, error) {
 			Auth: auth,
 		}
 
-		repo, err := git.PlainClone(cfg.RepoDir, false, cloneOpts)
+		cloneCtx, cloneCancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+		repo, err := git.PlainCloneContext(cloneCtx, cfg.RepoDir, false, cloneOpts)
+		cloneCancel()
 		if err != nil {
 			// Check if this is an empty remote repo error
 			if err == transport.ErrEmptyRemoteRepository {
@@ -309,7 +318,13 @@ init_empty_remote:
 	return store, nil
 }
 
+// Read reads path's content and blob hash. Takes a read lock so it can't
+// observe a Save() mid-write (os.WriteFile is open/truncate/write, not
+// atomic) or a FetchAndFF() mid fast-forward checkout.
 func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	fullPath := filepath.Join(s.dir, path)
 	content, err = os.ReadFile(fullPath)
 	if err != nil {
@@ -320,10 +335,67 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 	return content, hash.String(), nil
 }
 
-func (s *Store) Save(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+// readHashLocked returns path's current blob hash, or "" if the file
+// doesn't exist. Callers must hold s.mu.
+func (s *Store) readHashLocked(path string) (string, error) {
+	fullPath := filepath.Join(s.dir, path)
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	hash := plumbing.ComputeHash(plumbing.BlobObject, content)
+	return hash.String(), nil
+}
+
+// ErrConflict is returned by SaveChecked when the file's current blob hash
+// doesn't match the caller's expected hash.
+var ErrConflict = errors.New("optimistic lock conflict")
+
+// SaveChecked performs an optimistic-lock-protected save: the check against
+// oldPath's current blob hash and the write (with an optional move to
+// newPath) happen as one operation under s.mu, so two concurrent saves
+// against the same basehash can't both succeed the way they could with a
+// separate unlocked Read() followed by Save(). Returns ErrConflict if
+// oldPath's current hash doesn't match expectedHash.
+//
+// On a move (oldPath != newPath), newPath is written before oldPath is
+// removed, so a failure partway through leaves the content reachable at
+// both paths rather than lost entirely.
+func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	currentHash, err := s.readHashLocked(oldPath)
+	if err != nil {
+		return "", err
+	}
+	if currentHash != expectedHash {
+		return "", ErrConflict
+	}
+
+	blobHash, err = s.saveLocked(newPath, content, message, authorName, authorEmail)
+	if err != nil {
+		return "", err
+	}
+	if oldPath != newPath {
+		if err := s.removeLocked(oldPath, message, authorName, authorEmail); err != nil {
+			return blobHash, err
+		}
+	}
+	return blobHash, nil
+}
+
+func (s *Store) Save(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saveLocked(path, content, message, authorName, authorEmail)
+}
+
+// saveLocked is Save's body. Callers must hold s.mu.
+func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	fullPath := filepath.Join(s.dir, path)
 
 	// Skip the write and commit entirely if the content is unchanged, so an
@@ -392,7 +464,11 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.removeLocked(path, message, authorName, authorEmail)
+}
 
+// removeLocked is Remove's body. Callers must hold s.mu.
+func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
 	fullPath := filepath.Join(s.dir, path)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return nil
@@ -446,7 +522,12 @@ func (s *Store) push() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	err := s.repo.Push(&git.PushOptions{
+	// Bound how long a stalled remote can hold s.mu — every save, read, and
+	// sync-status check serializes on this lock while a push is in flight.
+	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+	defer cancel()
+
+	err := s.repo.PushContext(ctx, &git.PushOptions{
 		RemoteName: "origin",
 		Auth:       s.auth,
 	})
@@ -467,6 +548,9 @@ func (s *Store) push() {
 }
 
 func (s *Store) List() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, fmt.Errorf("reading directory: %w", err)
@@ -485,6 +569,9 @@ func (s *Store) List() ([]string, error) {
 
 // ListHidden returns dot-prefixed .md files (hidden pages).
 func (s *Store) ListHidden() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, fmt.Errorf("reading directory: %w", err)
@@ -571,6 +658,9 @@ func (s *Store) DropHistoryOnExternalCommit() {
 }
 
 func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	hash := plumbing.NewHash(commitHash)
 	commit, err := s.repo.CommitObject(hash)
 	if err != nil {
@@ -671,7 +761,10 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		return FetchResult{}, nil
 	}
 
-	err := s.repo.Fetch(&git.FetchOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+	defer cancel()
+
+	err := s.repo.FetchContext(ctx, &git.FetchOptions{
 		RemoteName: "origin",
 		Auth:       s.auth,
 	})

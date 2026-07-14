@@ -30,7 +30,7 @@
       }
       const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
       recentList.innerHTML = recent.map(e =>
-        `<li><a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${e.title}</a></li>`
+        `<li><a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`
       ).join('');
     } catch (e) { /* ignore */ }
   }
@@ -238,10 +238,12 @@
       return;
     }
     const rowsHtml = paletteRows.map((r, i) => {
-      const tags = r.tags && r.tags.length ? ' <span class="hit-tags">#' + r.tags.join(' #') + '</span>' : '';
+      const tags = r.tags && r.tags.length ? ' <span class="hit-tags">#' + r.tags.map(escapeHtml).join(' #') + '</span>' : '';
+      // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
+      // the surrounding text and only adds trusted <mark> tags around matches.
       return `<a href="/page/${r.slug}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
         <span class="filetype">md</span>
-        <span class="title">${r.title}</span>
+        <span class="title">${escapeHtml(r.title)}</span>
         <span class="snippet">${r.snippet || ''}</span>${tags}
       </a>`;
     }).join('');

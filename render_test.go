@@ -39,6 +39,20 @@ func TestRender(t *testing.T) {
 			input:        "go to [[Nowhere]]",
 			wantContains: []string{"class=\"missing wiki\"", "href=\"/page/nowhere\"", "<span class=\"missing-suffix\">+</span>"},
 		},
+		{
+			name:            "wiki link title is escaped",
+			exists:          func(s string) bool { return false },
+			input:           `[[<img src=x onerror=alert(1)>]]`,
+			wantContains:    []string{"&lt;img src=x onerror=alert(1)&gt;"},
+			wantNotContains: []string{"<img src=x onerror=alert(1)>"},
+		},
+		{
+			name:            "mermaid block content stays escaped",
+			exists:          func(s string) bool { return false },
+			input:           "```mermaid\n<script>alert(1)</script>\n```",
+			wantContains:    []string{"&lt;script&gt;alert(1)&lt;/script&gt;"},
+			wantNotContains: []string{"<script>alert(1)</script>"},
+		},
 	}
 
 	for _, tt := range tests {

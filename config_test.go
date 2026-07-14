@@ -157,6 +157,27 @@ func TestLoadConfigYAMLFile(t *testing.T) {
 	})
 }
 
+func TestLoadConfigYAMLZeroValuesAreHonoured(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/config.yaml"
+	yaml := "sync_poll_ms: 0\nmax_upload_bytes: 0\n"
+	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	t.Setenv("HMD_CONFIG_FILE", cfgFile)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.SyncPollMs != 0 {
+		t.Errorf("SyncPollMs = %d, want 0 (explicit file value, not the default)", cfg.SyncPollMs)
+	}
+	if cfg.MaxUploadBytes != 0 {
+		t.Errorf("MaxUploadBytes = %d, want 0 (explicit file value, not the default)", cfg.MaxUploadBytes)
+	}
+}
+
 func TestLoadConfigEnvConflictWarning(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"

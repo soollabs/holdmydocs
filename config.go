@@ -52,8 +52,8 @@ type fileConfig struct {
 	Hostname        string            `yaml:"hostname"`
 	PathLabel       string            `yaml:"path_label"`
 	UserLabel       string            `yaml:"user_label"`
-	MaxUploadBytes  int64             `yaml:"max_upload_bytes"`
-	SyncPollMs      int               `yaml:"sync_poll_ms"`
+	MaxUploadBytes  *int64            `yaml:"max_upload_bytes"`
+	SyncPollMs      *int              `yaml:"sync_poll_ms"`
 	ShowTagsSidebar *bool             `yaml:"show_tags_sidebar"`
 	SyncMode        string            `yaml:"sync_mode"`
 	DefaultBranch   string            `yaml:"default_branch"`
@@ -96,25 +96,25 @@ func LoadConfig() (Config, error) {
 		}
 		return def
 	}
-	pickInt := func(envKey string, fileVal, def int) int {
+	pickInt := func(envKey string, fileVal *int, def int) int {
 		if v := os.Getenv(envKey); v != "" {
 			if n, err := strconv.Atoi(v); err == nil {
 				return n
 			}
 		}
-		if fileVal != 0 {
-			return fileVal
+		if fileVal != nil {
+			return *fileVal
 		}
 		return def
 	}
-	pickInt64 := func(envKey string, fileVal, def int64) int64 {
+	pickInt64 := func(envKey string, fileVal *int64, def int64) int64 {
 		if v := os.Getenv(envKey); v != "" {
 			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 				return n
 			}
 		}
-		if fileVal != 0 {
-			return fileVal
+		if fileVal != nil {
+			return *fileVal
 		}
 		return def
 	}
@@ -195,10 +195,10 @@ func LoadConfig() (Config, error) {
 	if file.UserLabel != "" && os.Getenv("HMD_USER_LABEL") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_USER_LABEL")
 	}
-	if file.MaxUploadBytes != 0 && os.Getenv("HMD_MAX_UPLOAD_BYTES") != "" {
+	if file.MaxUploadBytes != nil && os.Getenv("HMD_MAX_UPLOAD_BYTES") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_MAX_UPLOAD_BYTES")
 	}
-	if file.SyncPollMs != 0 && os.Getenv("HMD_SYNC_POLL_MS") != "" {
+	if file.SyncPollMs != nil && os.Getenv("HMD_SYNC_POLL_MS") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_SYNC_POLL_MS")
 	}
 	if file.ShowTagsSidebar != nil && os.Getenv("HMD_SHOW_TAGS_SIDEBAR") != "" {
@@ -300,6 +300,16 @@ func LoadFileConfig(path string) (fileConfig, error) {
 // boolPtr returns a pointer to b, used when writing fileConfig.ShowTagsSidebar.
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+// int64Ptr returns a pointer to n, used when writing fileConfig.MaxUploadBytes.
+func int64Ptr(n int64) *int64 {
+	return &n
+}
+
+// intPtr returns a pointer to n, used when writing fileConfig.SyncPollMs.
+func intPtr(n int) *int {
+	return &n
 }
 
 // SaveFileConfig marshals fc to YAML and writes it to path atomically

@@ -1,8 +1,13 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -253,6 +258,61 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	}
 }
 
+// TestSaveCheckedConcurrentSameBasehash reproduces the race the old
+// handleSave had: two writers both read the same starting hash, then both
+// try to save against it. Only one may win; the other must see ErrConflict,
+// never a silent overwrite.
+func TestSaveCheckedConcurrentSameBasehash(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := Config{
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		GitUser: "test",
+	}
+
+	store, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	baseHash, err := store.Save("test.md", []byte("v0"), "create", "alice", "alice@hmd.local")
+	if err != nil {
+		t.Fatalf("initial Save failed: %v", err)
+	}
+
+	const writers = 8
+	var wg sync.WaitGroup
+	results := make([]error, writers)
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := store.SaveChecked("test.md", "test.md", baseHash,
+				[]byte(fmt.Sprintf("v-from-%d", i)), "concurrent update", "alice", "alice@hmd.local")
+			results[i] = err
+		}(i)
+	}
+	wg.Wait()
+
+	successes, conflicts := 0, 0
+	for _, err := range results {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrConflict):
+			conflicts++
+		default:
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if successes != 1 {
+		t.Errorf("successes = %d, want exactly 1", successes)
+	}
+	if conflicts != writers-1 {
+		t.Errorf("conflicts = %d, want %d", conflicts, writers-1)
+	}
+}
+
 func TestPushToLocalBareRemote(t *testing.T) {
 	// Create a bare remote repo
 	bareDir := t.TempDir()
@@ -372,6 +432,105 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 	state, detail := store.SyncState()
 	if state != "failed" {
 		t.Errorf("SyncState should eventually report failed, got %q (detail: %s)", state, detail)
+	}
+}
+
+// TestPushTimeoutReleasesLock reproduces the "app freezes" scenario: a
+// remote that accepts the connection but never responds. Without a bounded
+// context, push() would hold s.mu until the OS-level TCP timeout (minutes),
+// blocking every other Store operation. SyncState() itself needs s.mu, so
+// polling it here also proves the lock gets released.
+func TestPushTimeoutReleasesLock(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+	defer srv.Close()
+	// Unblock the handler before srv.Close() (deferred above, so it runs
+	// first) waits for it to return — defers execute in LIFO order.
+	defer close(block)
+
+	origTimeout := gitNetworkTimeout
+	gitNetworkTimeout = 200 * time.Millisecond
+	defer func() { gitNetworkTimeout = origTimeout }()
+
+	// Open without a remote so OpenStore itself doesn't try to clone from
+	// the (hung) server; attach the remote afterwards via UpdateRemote,
+	// which is purely local (no network call).
+	repoDir := t.TempDir()
+	cfg := Config{
+		RepoDir: repoDir,
+		AppDir:  t.TempDir(),
+		GitUser: "test",
+	}
+
+	store, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	cfg.RemoteURL = srv.URL + "/repo.git"
+	if err := store.UpdateRemote(cfg); err != nil {
+		t.Fatalf("UpdateRemote failed: %v", err)
+	}
+
+	start := time.Now()
+	if _, err := store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local"); err != nil {
+		t.Fatalf("Save should succeed even though the async push will stall: %v", err)
+	}
+
+	// SyncState() blocks on s.mu, so this loop only returns once push()
+	// (which is holding the lock during its network call) releases it.
+	deadline := time.Now().Add(3 * time.Second)
+	var state string
+	for time.Now().Before(deadline) {
+		state, _ = store.SyncState()
+		if state == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	elapsed := time.Since(start)
+
+	if state != "failed" {
+		t.Fatalf("SyncState = %q, want %q — push should have timed out", state, "failed")
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("push held s.mu for %v, want it bounded by gitNetworkTimeout (%v)", elapsed, gitNetworkTimeout)
+	}
+}
+
+// TestOpenStoreCloneTimeout covers the same "accepts connection, never
+// responds" scenario during initial clone. Without a bounded context this
+// would hang app startup indefinitely, before any Store even exists.
+func TestOpenStoreCloneTimeout(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+	defer srv.Close()
+	defer close(block)
+
+	origTimeout := gitNetworkTimeout
+	gitNetworkTimeout = 200 * time.Millisecond
+	defer func() { gitNetworkTimeout = origTimeout }()
+
+	cfg := Config{
+		RepoDir:   t.TempDir(),
+		AppDir:    t.TempDir(),
+		RemoteURL: srv.URL + "/repo.git",
+		GitUser:   "test",
+	}
+
+	start := time.Now()
+	_, err := OpenStore(cfg)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("OpenStore should fail when the clone stalls past gitNetworkTimeout")
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("OpenStore blocked for %v, want it bounded by gitNetworkTimeout (%v)", elapsed, gitNetworkTimeout)
 	}
 }
 

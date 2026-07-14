@@ -57,11 +57,11 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 			if fc.UserLabel != "" {
 				cfg.UserLabel = fc.UserLabel
 			}
-			if fc.MaxUploadBytes != 0 {
-				cfg.MaxUploadBytes = fc.MaxUploadBytes
+			if fc.MaxUploadBytes != nil {
+				cfg.MaxUploadBytes = *fc.MaxUploadBytes
 			}
-			if fc.SyncPollMs != 0 {
-				cfg.SyncPollMs = fc.SyncPollMs
+			if fc.SyncPollMs != nil {
+				cfg.SyncPollMs = *fc.SyncPollMs
 			}
 			if fc.ShowTagsSidebar != nil {
 				cfg.ShowTagsSidebar = *fc.ShowTagsSidebar
@@ -404,6 +404,46 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Bad extension status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	pngData := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+		0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41,
+		0x54, 0x08, 0x99, 0x63, 0xf8, 0x0f, 0x00, 0x00,
+		0x01, 0x01, 0x01, 0x00, 0x18, 0xdd, 0x8d, 0xb4,
+		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
+		0xae, 0x42, 0x60, 0x82,
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "escape.png")
+	io.Copy(part, bytes.NewReader(pngData))
+	writer.Close()
+
+	// Percent-encoded ".." as the {slug} path segment: net/http's ServeMux
+	// redirects literal ".." segments before routing, but %2e%2e reaches
+	// PathValue("slug") as ".." unmolested, so this is the exploitable form.
+	// It would otherwise resolve to a path outside attachments/ once joined
+	// with the repo dir.
+	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/%2e%2e", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST upload failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Path traversal slug status = %d, want 400", resp.StatusCode)
 	}
 }
 

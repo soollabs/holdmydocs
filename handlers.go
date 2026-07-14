@@ -755,13 +755,27 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	// Check optimistic lock against the file's current location.
-	_, currentHash, err := app.Store.Read(oldFile)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body}
+
+	message := "Update " + title
+	if basehash == "" {
+		message = "Create " + title
 	}
-	if basehash != currentHash {
+	if oldFile != newFile {
+		message = "Move " + title
+	}
+
+	// SaveChecked verifies basehash against oldFile's current hash and
+	// performs the write atomically under the store lock, so two concurrent
+	// saves against the same basehash can't both succeed.
+	authorName, authorEmail := app.gitAuthor(username)
+	_, err := app.Store.SaveChecked(oldFile, newFile, basehash, page.Encode(), message, authorName, authorEmail)
+	if errors.Is(err, ErrConflict) {
+		_, currentHash, readErr := app.Store.Read(oldFile)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		oldPrefix := "/page"
 		if oldFile == hiddenFile(slug) {
 			oldPrefix = "/hidden"
@@ -788,25 +802,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		})
 		return
 	}
-
-	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body}
-
-	message := "Update " + title
-	if basehash == "" {
-		message = "Create " + title
-	}
-	if oldFile != newFile {
-		message = "Move " + title
-	}
-
-	authorName, authorEmail := app.gitAuthor(username)
-	if oldFile != newFile {
-		if err := app.Store.Remove(oldFile, message, authorName, authorEmail); err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-	}
-	if _, err := app.Store.Save(newFile, page.Encode(), message, authorName, authorEmail); err != nil {
+	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -889,6 +885,17 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	filename = name + ext
 	path := "attachments/" + slug + "/" + filename
+
+	// Verify the cleaned path stays under attachments/ (same check as
+	// handleServeAttachment) — slug is a raw URL path segment and could be "..".
+	repoPath := filepath.Join(app.config().RepoDir, path)
+	absRepo := filepath.Join(app.config().RepoDir, "attachments")
+	absPath, _ := filepath.Abs(repoPath)
+	absRepoAbs, _ := filepath.Abs(absRepo)
+	if !strings.HasPrefix(absPath, absRepoAbs+string(filepath.Separator)) {
+		http.Error(w, "Invalid slug", http.StatusBadRequest)
+		return
+	}
 
 	// Read file content
 	content, err := io.ReadAll(file)
@@ -1405,8 +1412,8 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.Hostname = hostname
 	fc.PathLabel = pathLabel
 	fc.UserLabel = userLabel
-	fc.MaxUploadBytes = maxUploadBytes
-	fc.SyncPollMs = syncPollMs
+	fc.MaxUploadBytes = int64Ptr(maxUploadBytes)
+	fc.SyncPollMs = intPtr(syncPollMs)
 	fc.ShowTagsSidebar = boolPtr(showTagsSidebar)
 	fc.SyncMode = syncMode
 

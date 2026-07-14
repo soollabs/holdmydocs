@@ -97,6 +97,20 @@ func TestSnapshotThemeWithEmpty(t *testing.T) {
 	}
 }
 
+func TestCollectThemeRejectsNonHexValues(t *testing.T) {
+	form := map[string][]string{
+		"theme_dark_bg":    {`red}</style><script>alert(1)</script><style>{`},
+		"theme_dark_panel": {"#222222"},
+	}
+	m := collectTheme(form, "theme_dark_")
+	if _, ok := m["bg"]; ok {
+		t.Error("expected non-hex bg value to be dropped, got it in the map")
+	}
+	if m["panel"] != "#222222" {
+		t.Errorf("panel = %q, want #222222", m["panel"])
+	}
+}
+
 func TestBuildThemeStyle(t *testing.T) {
 	cfg := Config{
 		ThemeDark: map[string]string{

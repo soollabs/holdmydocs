@@ -57,11 +57,12 @@ func (r *Renderer) processWikiLinks(body string) string {
 		// Extract the title from [[...]]
 		title := match[2 : len(match)-2]
 		slug := Slugify(title)
+		escaped := html.EscapeString(title)
 
 		if r.exists(slug) {
-			return fmt.Sprintf(`<a class="wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, title)
+			return fmt.Sprintf(`<a class="wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
 		}
-		return fmt.Sprintf(`<a class="missing wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, title)
+		return fmt.Sprintf(`<a class="missing wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
 	})
 }
 
@@ -73,9 +74,10 @@ func (r *Renderer) processMermaidBlocks(htmlStr string) string {
 		// Use regex to extract the content
 		matches := re.FindStringSubmatch(match)
 		if len(matches) > 1 {
+			// Keep goldmark's HTML-escaping intact: mermaid.js reads
+			// textContent, which the browser decodes for us, so
+			// re-embedding raw here would only reopen it to injection.
 			content := matches[1]
-			// HTML-unescape the content
-			content = html.UnescapeString(content)
 			return fmt.Sprintf(`<pre class="mermaid">%s</pre>`, content)
 		}
 		return match
