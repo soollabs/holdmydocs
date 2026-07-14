@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -480,6 +481,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /page/{slug}/rev/{hash}", app.handleViewRev)
 	mux.HandleFunc("GET /page/{slug}/diff", app.handlePageDiff)
 	mux.HandleFunc("POST /page/{slug}/revert", app.handleRevert)
+	mux.HandleFunc("GET /health-report", app.handleHealthReport)
 
 	// Hidden page handlers (dot-prefixed files, separate route namespace)
 	mux.HandleFunc("GET /hidden", app.handleHiddenIndex)
@@ -490,6 +492,7 @@ func (app *App) Routes() http.Handler {
 	// API endpoints
 	mux.HandleFunc("GET /api/search", app.handleSearchAPI)
 	mux.HandleFunc("GET /api/sync", app.handleSyncAPI)
+	mux.HandleFunc("POST /api/sync/push-now", app.handleSyncPushNow)
 	mux.HandleFunc("GET /api/preview/{slug}", app.handleAPIPreview)
 	mux.HandleFunc("POST /api/preview", app.handlePreview)
 	mux.HandleFunc("POST /api/attachments/{slug}", app.handleUploadAttachment)
@@ -1054,6 +1057,10 @@ type SyncCommit struct {
 	When      string `json:"when"`
 }
 
+func htmlEscape(s string) string {
+	return html.EscapeString(s)
+}
+
 func extractSnippet(body string, wordCount int) string {
 	words := strings.Fields(body)
 	if len(words) > wordCount {
@@ -1126,6 +1133,103 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
+	state, _ := app.Store.SyncState()
+	lastSuccess := app.Store.LastSyncUnix()
+
+	resp := map[string]interface{}{
+		"ok":                 true,
+		"state":              state,
+		"last_success_unix":  lastSuccess,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
+	// Get all pages and analyze links
+	pages, _ := app.Store.List()
+	titles := app.Index.Titles()
+
+	// Collect all outgoing links from forward index
+	allLinked := make(map[string]bool)
+	titleMap := make(map[string]string)
+	for _, p := range pages {
+		titleMap[p] = titles[p]
+		backlinks := app.Index.Backlinks(p)
+		for _, b := range backlinks {
+			allLinked[b] = true
+		}
+	}
+
+	// Find missing pages: linked but don't exist
+	var missing []string
+	for link := range allLinked {
+		if titleMap[link] == "" && !app.Index.Exists(link) {
+			missing = append(missing, link)
+		}
+	}
+
+	// Find orphans: exist but have no backlinks
+	homeSlug := app.config().HomeSlug()
+	var orphans []string
+	for _, slug := range pages {
+		if slug == homeSlug {
+			continue
+		}
+		backlinks := app.Index.Backlinks(slug)
+		if len(backlinks) == 0 {
+			orphans = append(orphans, slug)
+		}
+	}
+
+	// Sort for consistent output
+	sort.Strings(missing)
+	sort.Strings(orphans)
+
+	// Build response
+	data := TemplateData{
+		Authed:       true,
+		Title:        "Wiki Health",
+		StatusMode:   "view",
+	}
+
+	// Create health report HTML
+	var html string
+	html = `<div class="content-col"><h1 class="page-title"><span class="h">#</span> Wiki Health</h1>`
+
+	if len(missing) > 0 {
+		html += fmt.Sprintf(`<section><h2>Missing Pages (%d)</h2><p>Linked but not yet created:</p><ul>`, len(missing))
+		for _, m := range missing {
+			html += fmt.Sprintf(`<li><a href="/page/%s/edit">%s</a></li>`, m, htmlEscape(m))
+		}
+		html += `</ul></section>`
+	}
+
+	if len(orphans) > 0 {
+		html += fmt.Sprintf(`<section><h2>Orphaned Pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(orphans))
+		for _, o := range orphans {
+			title := titleMap[o]
+			if title == "" {
+				title = o
+			}
+			html += fmt.Sprintf(`<li><a href="/page/%s">%s</a></li>`, o, htmlEscape(title))
+		}
+		html += `</ul></section>`
+	}
+
+	if len(missing) == 0 && len(orphans) == 0 {
+		html += `<p>✓ Your wiki is healthy!</p>`
+	}
+
+	html += `</div>`
+	data.Content = template.HTML(html)
+	data.StatusContext = fmt.Sprintf("%d orphans · %d missing", len(orphans), len(missing))
+
+	app.render(w, r, http.StatusOK, "page", data)
 }
 
 func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
