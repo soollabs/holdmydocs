@@ -901,4 +901,75 @@
       startMousemoveListener();
     }
   }
+
+  // ---- History page: checkbox and diff viewer ----
+  const revCheckboxes = $$('.rev-checkbox');
+  const diffPanel = $('#diff-panel');
+  const diffStatus = $('#diff-status');
+  const diffHeader = $('#diff-header');
+  const diffBody = $('#diff-body');
+  if (revCheckboxes.length > 0 && diffPanel) {
+    let checked = [];
+
+    revCheckboxes.forEach(cb => {
+      cb.addEventListener('change', e => {
+        if (e.target.checked) {
+          if (checked.length >= 2) {
+            const oldest = checked.shift();
+            oldest.checked = false;
+          }
+          checked.push(e.target);
+        } else {
+          checked = checked.filter(c => c !== e.target);
+        }
+        updateDiffDisplay();
+      });
+    });
+
+    function updateDiffDisplay() {
+      if (checked.length === 0) {
+        diffPanel.style.display = 'none';
+        diffStatus.textContent = '';
+        return;
+      }
+
+      if (checked.length === 1) {
+        diffPanel.style.display = 'none';
+        diffStatus.textContent = checked[0].value.slice(0, 7) + ' selected';
+        return;
+      }
+
+      // Two checked: show diff
+      const hashA = checked[0].value;
+      const hashB = checked[1].value;
+      diffStatus.textContent = hashA.slice(0, 7) + ' ↔ ' + hashB.slice(0, 7) + ' selected';
+
+      const slug = document.body.dataset.slug;
+      fetch(`/page/${slug}/diff?a=${hashA}&b=${hashB}`)
+        .then(r => r.text())
+        .then(diff => {
+          diffHeader.textContent = `diff ${hashA.slice(0, 7)}..${hashB.slice(0, 7)}`;
+          renderDiff(diff);
+          diffPanel.style.display = 'block';
+        })
+        .catch(() => {});
+    }
+
+    function renderDiff(unifiedDiff) {
+      const lines = unifiedDiff.split('\n');
+      const html = lines.map(line => {
+        let cls = 'diff-context';
+        let prefix = ' ';
+        if (line.startsWith('+++') || line.startsWith('---')) return '';
+        if (line.startsWith('@@')) return `<div class="diff-line">${escapeHtml(line)}</div>`;
+        if (line.startsWith('+')) {
+          cls = 'diff-add';
+        } else if (line.startsWith('-')) {
+          cls = 'diff-delete';
+        }
+        return `<div class="diff-line ${cls}">${escapeHtml(line)}</div>`;
+      }).join('');
+      diffBody.innerHTML = `<pre>${html}</pre>`;
+    }
+  }
 })();

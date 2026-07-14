@@ -3,19 +3,37 @@
 <div class="history-view">
 	<h1 class="history-title"><span class="dollar">$</span> git log <span class="dashes">--</span> {{.Slug}}.md</h1>
 	<div class="history-sub">{{.TotalHistory}} revision{{if ne .TotalHistory 1}}s{{end}} &middot; <a href="/page/{{.Slug}}">back to page</a></div>
+
+	<div class="diff-selector" id="diff-selector">
+		<p>Select two revisions to diff. <span id="diff-status"></span></p>
+	</div>
+
+	<div class="history-rows" id="history-rows">
 	{{range .HistoryEntries}}
-	<div class="history-row{{if .Current}} current{{end}}">
+	<div class="history-row{{if .Current}} current{{end}}" data-hash="{{.Hash}}" data-short="{{.ShortHash}}">
+		<input type="checkbox" class="rev-checkbox" value="{{.Hash}}">
 		<span class="hash">{{.ShortHash}}</span>
 		<span class="message">{{.Message}}</span>
-		<span class="author">{{.Author}}</span>
-		<span class="date">{{.When}}</span>
-		{{if .Current}}<span class="current-marker">&bull; current</span>{{else}}<a href="/page/{{$.Slug}}/rev/{{.Hash}}" class="view-link">view</a>{{end}}
+		{{if not .Current}}
+		<a href="/page/{{$.Slug}}/rev/{{.Hash}}" class="view-link">view</a>
 		<form method="POST" action="/page/{{$.Slug}}/revert" style="display:contents">
 			<input type="hidden" name="hash" value="{{.Hash}}">
 			<button type="submit" class="revert-link">revert</button>
 		</form>
+		{{else}}
+		<span class="current-marker">&bullet; current</span>
+		{{end}}
+		<span class="author">{{.Author}}</span>
+		<span class="date">{{.When}}</span>
 	</div>
 	{{end}}
+	</div>
+
+	<div class="diff-panel" id="diff-panel" style="display: none;">
+		<div class="diff-header" id="diff-header"></div>
+		<div class="diff-body" id="diff-body"></div>
+	</div>
+
 	{{if gt .TotalHistory 50}}
 	<p class="snippet">Showing 50 of {{.TotalHistory}} revisions.</p>
 	{{end}}
