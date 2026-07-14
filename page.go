@@ -108,14 +108,16 @@ func ParsePage(slug string, raw []byte) Page {
 }
 
 func (p Page) Encode() []byte {
+	// Browsers submit textarea content with CRLF; normalise so files are stored with LF
+	body := strings.ReplaceAll(p.Body, "\r\n", "\n")
 	result := "---\n"
 	result += "title: " + p.Title + "\n"
 	if len(p.Tags) > 0 {
 		result += "tags: " + strings.Join(p.Tags, ", ") + "\n"
 	}
 	result += "---\n\n"
-	result += p.Body
-	if !strings.HasSuffix(p.Body, "\n") {
+	result += body
+	if !strings.HasSuffix(body, "\n") {
 		result += "\n"
 	}
 	return []byte(result)

@@ -108,6 +108,14 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 			t.Errorf("Body = %q, want %q", parsed.Body, "Body text")
 		}
 	})
+
+	// Encode must store LF even when the body arrives with CRLF (browser form submission)
+	t.Run("Encode normalises CRLF body", func(t *testing.T) {
+		encoded := Page{Slug: "p", Title: "p", Body: "line one\r\nline two"}.Encode()
+		if strings.Contains(string(encoded), "\r") {
+			t.Errorf("Encode() output contains CR: %q", encoded)
+		}
+	})
 }
 
 func TestParseTags(t *testing.T) {
