@@ -60,7 +60,8 @@ func ParseTags(s string) []string {
 
 func ParsePage(slug string, raw []byte) Page {
 	page := Page{Slug: slug, Title: slug}
-	content := string(raw)
+	// Normalise CRLF so frontmatter parsing works regardless of line endings
+	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
 
 	// Check if starts with frontmatter
 	if !strings.HasPrefix(content, "---\n") {

@@ -94,6 +94,20 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 			t.Errorf("Title = %q, want %q", parsed.Title, "my-page")
 		}
 	})
+
+	// CRLF line endings must not break frontmatter parsing
+	t.Run("CRLF frontmatter parses", func(t *testing.T) {
+		parsed := ParsePage("crlf", []byte("---\r\ntitle: CRLF Page\r\ntags: a, b\r\n---\r\n\r\nBody text"))
+		if parsed.Title != "CRLF Page" {
+			t.Errorf("Title = %q, want %q", parsed.Title, "CRLF Page")
+		}
+		if len(parsed.Tags) != 2 {
+			t.Errorf("Tags = %v, want 2 tags", parsed.Tags)
+		}
+		if parsed.Body != "Body text" {
+			t.Errorf("Body = %q, want %q", parsed.Body, "Body text")
+		}
+	})
 }
 
 func TestParseTags(t *testing.T) {
