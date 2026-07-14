@@ -58,7 +58,8 @@ type Store struct {
 	// ForceSetup is set by the "re-run setup" button in settings — it shows
 	// the modal even when the home file/.help.md already exist, unlike NeedsSetup
 	// which only reflects files actually missing.
-	ForceSetup atomic.Bool
+	ForceSetup     atomic.Bool
+	lastSuccessUnix atomic.Int64
 }
 
 // defaultHomeMD is the clean welcome page seeded into any repo that does not
@@ -230,6 +231,7 @@ func OpenStore(cfg Config) (*Store, error) {
 			auth:      auth,
 			syncState: "ok",
 		}
+		store.lastSuccessUnix.Store(time.Now().Unix())
 		seedOrFlagSetup(store, cfg)
 		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
 		return store, nil
@@ -265,6 +267,7 @@ func OpenStore(cfg Config) (*Store, error) {
 			auth:      auth,
 			syncState: "ok",
 		}
+		store.lastSuccessUnix.Store(time.Now().Unix())
 
 		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.RemoteURL)
 
@@ -295,6 +298,7 @@ init_empty_remote:
 		remote:    "",
 		syncState: "no remote",
 	}
+	store.lastSuccessUnix.Store(time.Now().Unix())
 
 	slog.Info("initialised new repo", "dir", cfg.RepoDir, "branch", defaultBranch)
 
@@ -535,6 +539,7 @@ func (s *Store) push() {
 	if err == git.NoErrAlreadyUpToDate || err == nil {
 		s.syncState = "ok"
 		s.syncErr = ""
+		s.lastSuccessUnix.Store(time.Now().Unix())
 		if err == nil {
 			slog.Info("pushed", "remote", s.remote)
 		} else {
@@ -684,6 +689,11 @@ func (s *Store) SyncState() (state, detail string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.syncState, s.syncErr
+}
+
+// LastSyncUnix returns the Unix timestamp of the last successful sync.
+func (s *Store) LastSyncUnix() int64 {
+	return s.lastSuccessUnix.Load()
 }
 
 // UpdateRemote reconfigures the store's remote URL and auth credentials

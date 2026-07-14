@@ -1036,11 +1036,12 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 type SyncStatus struct {
-	State        string       `json:"state"`
-	Detail       string       `json:"detail"`
-	At           string       `json:"at"`
-	PagesChanged []string     `json:"pagesChanged,omitempty"`
-	Commits      []SyncCommit `json:"commits,omitempty"`
+	State           string       `json:"state"`
+	Detail          string       `json:"detail"`
+	At              string       `json:"at"`
+	PagesChanged    []string     `json:"pagesChanged,omitempty"`
+	Commits         []SyncCommit `json:"commits,omitempty"`
+	LastSuccessUnix int64        `json:"last_success_unix"`
 }
 
 type SyncCommit struct {
@@ -1054,9 +1055,10 @@ type SyncCommit struct {
 func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 	state, detail := app.Store.SyncState()
 	resp := SyncStatus{
-		State:  state,
-		Detail: detail,
-		At:     time.Now().Format("15:04"),
+		State:           state,
+		Detail:          detail,
+		At:              time.Now().Format("15:04"),
+		LastSuccessUnix: app.Store.LastSyncUnix(),
 	}
 
 	cfg := app.config()
