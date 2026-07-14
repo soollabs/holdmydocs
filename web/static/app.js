@@ -35,6 +35,49 @@
     } catch (e) { /* ignore */ }
   }
 
+  // ---- Preview cards for wiki-link hover ----
+  const previewCard = document.createElement('div');
+  previewCard.className = 'preview-card';
+  previewCard.style.display = 'none';
+  document.body.appendChild(previewCard);
+
+  if (pageContent) {
+    const wikiLinks = pageContent.querySelectorAll('a');
+    let previewTimer;
+
+    wikiLinks.forEach(link => {
+      link.addEventListener('mouseenter', () => {
+        if (link.classList.contains('missing')) return;
+
+        previewTimer = setTimeout(() => {
+          const href = link.getAttribute('href');
+          if (!href || !href.startsWith('/page/')) return;
+
+          const slug = href.replace(/^\/page\//, '').replace(/\/$/, '');
+          fetch('/api/preview/' + encodeURIComponent(slug))
+            .then(r => r.json())
+            .then(data => {
+              const rect = link.getBoundingClientRect();
+              previewCard.innerHTML = `
+                <h3>${escapeHtml(data.title)}</h3>
+                <div class="snippet">${escapeHtml(data.snippet.slice(0, 100))}</div>
+                <div class="meta">${escapeHtml(data.age)}</div>
+              `;
+              previewCard.style.top = (rect.bottom + 10 + window.scrollY) + 'px';
+              previewCard.style.left = (rect.left) + 'px';
+              previewCard.style.display = 'block';
+            })
+            .catch(() => {});
+        }, 300);
+      });
+
+      link.addEventListener('mouseleave', () => {
+        clearTimeout(previewTimer);
+        previewCard.style.display = 'none';
+      });
+    });
+  }
+
   // ---- TOC rail (page view, ≥ 1200px via CSS) ----
   const tocList = $('#toc-list');
   const tocRail = $('#toc-rail');
