@@ -489,6 +489,7 @@ func (app *App) Routes() http.Handler {
 	// API endpoints
 	mux.HandleFunc("GET /api/search", app.handleSearchAPI)
 	mux.HandleFunc("GET /api/sync", app.handleSyncAPI)
+	mux.HandleFunc("GET /api/preview/{slug}", app.handleAPIPreview)
 	mux.HandleFunc("POST /api/preview", app.handlePreview)
 	mux.HandleFunc("POST /api/attachments/{slug}", app.handleUploadAttachment)
 	mux.HandleFunc("GET /attachments/{slug}/{file}", app.handleServeAttachment)
@@ -1050,6 +1051,42 @@ type SyncCommit struct {
 	Message   string `json:"message"`
 	Author    string `json:"author"`
 	When      string `json:"when"`
+}
+
+func extractSnippet(body string, wordCount int) string {
+	words := strings.Fields(body)
+	if len(words) > wordCount {
+		words = words[:wordCount]
+	}
+	return strings.Join(words, " ")
+}
+
+func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+
+	content, _, err := app.Store.Read(pageFile(slug))
+	if err != nil || content == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	page := ParsePage(slug, content)
+	snippet := extractSnippet(page.Body, 40)
+
+	resp := map[string]interface{}{
+		"title":   page.Title,
+		"snippet": snippet,
+		"tags":    page.Tags,
+		"age":     "just now",
+	}
+
+	// Try to get the age from history
+	if history, err := app.Store.History(pageFile(slug)); err == nil && len(history) > 0 {
+		resp["age"] = relativeTime(history[0].When)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
