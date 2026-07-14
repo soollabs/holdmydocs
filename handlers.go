@@ -478,6 +478,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /page/{slug}/save", app.handleSavePage)
 	mux.HandleFunc("GET /page/{slug}/history", app.handleHistory)
 	mux.HandleFunc("GET /page/{slug}/rev/{hash}", app.handleViewRev)
+	mux.HandleFunc("GET /page/{slug}/diff", app.handlePageDiff)
 	mux.HandleFunc("POST /page/{slug}/revert", app.handleRevert)
 
 	// Hidden page handlers (dot-prefixed files, separate route namespace)
@@ -1125,6 +1126,26 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	hashA := r.URL.Query().Get("a")
+	hashB := r.URL.Query().Get("b")
+
+	if hashA == "" || hashB == "" {
+		http.Error(w, "missing hashes", http.StatusBadRequest)
+		return
+	}
+
+	diff, err := app.Store.Diff(pageFile(slug), hashA, hashB)
+	if err != nil {
+		http.Error(w, "diff failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(diff))
 }
 
 func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {

@@ -896,6 +896,30 @@ func (s *Store) isAncestor(ancestor, descendant plumbing.Hash) (bool, error) {
 	return false, nil
 }
 
+// Diff returns the unified diff for a specific file between two commits.
+// If either hash cannot be resolved, returns an error.
+func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	commitA, err := s.repo.CommitObject(plumbing.NewHash(hashA))
+	if err != nil {
+		return "", fmt.Errorf("resolving commit A: %w", err)
+	}
+	commitB, err := s.repo.CommitObject(plumbing.NewHash(hashB))
+	if err != nil {
+		return "", fmt.Errorf("resolving commit B: %w", err)
+	}
+
+	patch, err := commitA.Patch(commitB)
+	if err != nil {
+		return "", fmt.Errorf("creating patch: %w", err)
+	}
+
+	// Return the entire patch as unified diff
+	return patch.String(), nil
+}
+
 // diffCommits computes changed file paths and commit list between oldHash and
 // newHash (exclusive of oldHash, inclusive of newHash).
 func (s *Store) diffCommits(oldHash, newHash plumbing.Hash) (FetchResult, error) {
