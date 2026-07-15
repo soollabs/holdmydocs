@@ -1,5 +1,10 @@
 {{define "content"}}
 <div class="content-col">
+<div class="breadcrumb">
+	<a href="/">~/wiki</a>
+	<span class="sep">/</span>
+	<span class="current">settings</span>
+</div>
 <h1 class="page-title"><span class="h">#</span> settings</h1>
 
 {{if .Settings}}
@@ -91,6 +96,9 @@
 		<input type="text" id="sync_mode" name="sync_mode" value="{{.Settings.SyncMode}}" readonly>
 		{{end}}
 		{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
+	</div>
+	<div class="settings-status" id="sync-status" style="font-size: 12px; color: var(--fg-faint); margin-top: 1rem;">
+		<span>last push: — · — · last fetch: n/a</span>
 	</div>
 	</fieldset>
 
