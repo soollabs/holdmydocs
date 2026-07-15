@@ -226,6 +226,9 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
+  // ---- Render pinned section on load (Task 13) ----
+  renderPinnedSection();
+
   // ---- Mobile sidebar drawer ----
   const sidebarToggle = $('#sidebar-toggle');
   const sidebar = $('#sidebar');
@@ -352,7 +355,30 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  const verbs = [
+    { name: 'rename', desc: 'rename this page', action: 'rename' },
+    { name: 'tag', desc: 'edit tags', action: 'tag' },
+    { name: 'hist', desc: 'view history', action: 'hist' },
+    { name: 'daily', desc: 'today note', action: 'daily' },
+    { name: 'health', desc: 'wiki health', action: 'health' },
+    { name: 'sync', desc: 'push now', action: 'sync' },
+    { name: 'pin', desc: 'pin this page', action: 'pin' },
+  ];
+
   function searchPalette(q) {
+    const isVerbMode = q.startsWith('>');
+
+    if (isVerbMode) {
+      const verbQuery = q.slice(1).toLowerCase();
+      paletteRows = verbs
+        .filter(v => v.name.includes(verbQuery))
+        .map(v => ({ slug: v.action, title: '>' + v.name, snippet: v.desc, tags: [], create: false }));
+      paletteSelected = 0;
+      paletteCount.textContent = paletteRows.length + ' verbs';
+      renderPaletteRows(q);
+      return;
+    }
+
     if (!q) { showRecent(); return; }
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
@@ -378,7 +404,69 @@
     if (sel) sel.scrollIntoView({block: 'nearest'});
   }
 
+  function executeVerb(action) {
+    const slug = document.body.dataset.slug || '';
+    closePalette();
+    switch (action) {
+      case 'hist':
+        window.location.href = `/page/${slug}/history`;
+        break;
+      case 'daily':
+        const today = new Date().toISOString().split('T')[0];
+        window.location.href = `/page/daily/${today}/edit`;
+        break;
+      case 'health':
+        window.location.href = '/health-report';
+        break;
+      case 'sync':
+        fetch('/api/sync/push-now', { method: 'POST' }).catch(() => {});
+        break;
+      case 'pin':
+        togglePin(slug);
+        break;
+      case 'rename':
+      case 'tag':
+        window.location.href = `/page/${slug}/edit`;
+        break;
+    }
+  }
+
+  function togglePin(slug) {
+    let pinned = [];
+    try { pinned = JSON.parse(localStorage.getItem('hmd-pinned') || '[]'); } catch (e) {}
+    if (pinned.includes(slug)) {
+      pinned = pinned.filter(s => s !== slug);
+    } else {
+      pinned.push(slug);
+    }
+    localStorage.setItem('hmd-pinned', JSON.stringify(pinned));
+    renderPinnedSection();
+  }
+
+  function renderPinnedSection() {
+    const pinnedSection = $('#sidebar-pinned');
+    if (!pinnedSection) return;
+    let pinned = [];
+    try { pinned = JSON.parse(localStorage.getItem('hmd-pinned') || '[]'); } catch (e) {}
+    const pinnedList = pinnedSection.querySelector('ul');
+    if (pinnedList) {
+      pinnedList.innerHTML = pinned.map(slug => {
+        const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
+        const entry = recent.find(r => r.slug === slug);
+        const title = entry?.title || slug;
+        return `<li><a href="/page/${slug}">${escapeHtml(title)}</a></li>`;
+      }).join('');
+    }
+  }
+
   function paletteOpenSelected(editMode) {
+    const isVerbMode = paletteInput.value.startsWith('>');
+    if (isVerbMode) {
+      const row = paletteRows[paletteSelected];
+      if (row) executeVerb(row.slug);
+      return;
+    }
+
     const isHidden = !paletteCreateMode && paletteSelected === paletteRows.length;
     const isSettings = !paletteCreateMode && paletteSelected === paletteRows.length + 1;
     const isCreate = paletteSelected === paletteRows.length + builtinCount() && paletteInput.value;
