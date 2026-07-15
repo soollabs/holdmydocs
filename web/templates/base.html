@@ -64,11 +64,13 @@
 				<div class="log-entry"><a href="/page/{{$.Slug}}/history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
 				{{end}}
 			</div>
-			<div class="health-line" id="health-line">health: <a href="/health-report"><span class="missing">{{.HealthMissing}} missing</span></a> · <a href="/health-report"><span class="orphans">{{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}</span></a></div>
 		</div>
 		{{end}}
 		<div class="sidebar-hints">
-			<div class="hint-row"><a href="/settings">settings</a> · <a href="/hidden/help">? help</a></div>
+			<div class="hint-row">
+				<a href="/settings">settings</a> · <a href="/hidden/help">? help</a> ·
+				<a href="/health-report" id="health-line" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}" title="{{.HealthMissing}} missing · {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}">health</a>
+			</div>
 			<div class="hint-row"><kbd>ctrl j</kbd> daily · <kbd>ctrl k</kbd> jump / >verbs</div>
 		</div>
 	</nav>

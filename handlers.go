@@ -307,6 +307,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed && data.AllTags == nil {
 		data.AllTags = app.Index.Tags()
 	}
+	if data.Authed {
+		missing, orphans := app.Index.Health(app.config().HomeSlug())
+		data.HealthMissing = len(missing)
+		data.HealthOrphans = len(orphans)
+	}
 	if data.Authed && data.StatusMode == "" {
 		data.StatusMode = "view"
 	}
@@ -726,8 +731,6 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	missing, orphans := app.Index.Health(app.config().HomeSlug())
-
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:        true,
 		Title:         page.Title,
@@ -741,8 +744,6 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		BlobHash:      blobHash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
 		RecentCommits: recentCommits,
-		HealthMissing: len(missing),
-		HealthOrphans: len(orphans),
 	})
 }
 

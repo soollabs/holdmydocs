@@ -2015,25 +2015,13 @@ body.zen-manuscript .zen-status.visible {
 	font-weight: 700;
 }
 
-/* Health line in sidebar */
-.health-line {
-	font-size: 12px;
-	margin-top: 0.5rem;
-	color: var(--fg-faint);
-	display: flex;
-	gap: 1rem;
-}
-
-.health-line a {
-	color: inherit;
-	text-decoration: none;
-}
-
-.health-line .missing {
+/* Health link in sidebar hints — fixed-width label, colour signals status,
+   full missing/orphan breakdown is in the title tooltip. */
+.health-hint.has-missing {
 	color: var(--red);
 }
 
-.health-line .orphans {
+.health-hint.has-orphans {
 	color: var(--amber);
 }
 
