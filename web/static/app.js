@@ -53,31 +53,45 @@
     mermaid.run({querySelector: '#page-content pre.mermaid'});
   }
 
-  // ---- Recent pages sidebar (client-side, localStorage) ----
+  // ---- Pages sidebar: merged pinned + recent (client-side, localStorage) ----
   // Only /page/<slug> routes are tracked — other views (e.g. /health-report)
   // share the "page" template and a .page-title, but aren't real page
   // routes and have no /page/<slug> URL to link back to.
   const recentList = $('#recent-list');
+  const currentSlugMatch = window.location.pathname.match(/^\/page\/([^/]+)/);
+  const currentSlug = currentSlugMatch ? currentSlugMatch[1] : '';
+
   if (recentList) {
     try {
-      const pathMatch = window.location.pathname.match(/^\/page\/([^/]+)/);
-      const slug = pathMatch ? pathMatch[1] : '';
       const titleEl = $('.page-title');
-      if (slug && titleEl) {
-        const title = titleEl.dataset.title || titleEl.textContent.trim() || slug;
+      if (currentSlug && titleEl) {
+        const title = titleEl.dataset.title || titleEl.textContent.trim() || currentSlug;
         let recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
-        recent = recent.filter(e => e.slug !== slug);
-        recent.unshift({slug, title});
+        recent = recent.filter(e => e.slug !== currentSlug);
+        recent.unshift({slug: currentSlug, title});
         recent = recent.slice(0, 8);
         localStorage.setItem('hmd-recent', JSON.stringify(recent));
       }
-      const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
-      recentList.innerHTML = recent.map(e => {
-        const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
-        const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
-        return `<li>${dot}<a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
-      }).join('');
     } catch (e) { /* ignore */ }
+    renderSidebarPages();
+  }
+
+  function renderSidebarPages() {
+    if (!recentList) return;
+    let pinned = [];
+    try { pinned = JSON.parse(localStorage.getItem('hmd-pinned') || '[]'); } catch (e) {}
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]'); } catch (e) {}
+    const recentBySlug = new Map(recent.map(e => [e.slug, e]));
+    const pinnedEntries = pinned.map(slug => ({slug, title: (recentBySlug.get(slug) || {}).title || slug, pinned: true}));
+    const recentEntries = recent.filter(e => !pinned.includes(e.slug)).map(e => ({slug: e.slug, title: e.title, pinned: false}));
+    const entries = pinnedEntries.concat(recentEntries);
+    recentList.innerHTML = entries.map(e => {
+      const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
+      const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
+      const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '<span class="recent-glyph">·</span>';
+      return `<li>${glyph}${dot}<a href="/page/${e.slug}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+    }).join('');
   }
 
   // ---- Preview cards for wiki-link hover ----
@@ -124,27 +138,32 @@
     });
   }
 
-  // ---- TOC rail (page view, ≥ 1200px via CSS) ----
+  // ---- TOC rail (page view, ≥ 1200px via CSS; inline disclosure 900–1199px) ----
   const tocList = $('#toc-list');
   const tocRail = $('#toc-rail');
+  const tocInline = $('#toc-inline');
+  const tocListInline = $('#toc-list-inline');
   if (tocList && tocRail && pageContent) {
     const headings = $$('h2, h3', pageContent);
     if (headings.length > 1) {
       tocRail.classList.add('has-headings');
-      tocList.innerHTML = headings.map((h, i) => {
+      if (tocInline) tocInline.classList.add('has-headings');
+      const tocHtml = headings.map((h, i) => {
         if (!h.id) {
           h.id = 'h-' + i + '-' + (h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 's');
         }
         const cls = h.tagName === 'H3' ? 'h3' : '';
         return `<a href="#${h.id}" class="${cls}">${h.textContent}</a>`;
       }).join('');
-      const links = $$('a', tocList);
+      tocList.innerHTML = tocHtml;
+      if (tocListInline) tocListInline.innerHTML = tocHtml;
+      const links = $$('a', tocList).concat(tocListInline ? $$('a', tocListInline) : []);
       const observer = new IntersectionObserver(entries => {
         entries.forEach(en => {
           if (en.isIntersecting) {
             links.forEach(a => a.classList.remove('active'));
-            const active = links.find(a => a.getAttribute('href') === '#' + en.target.id);
-            if (active) active.classList.add('active');
+            links.filter(a => a.getAttribute('href') === '#' + en.target.id)
+              .forEach(a => a.classList.add('active'));
           }
         });
       }, {rootMargin: '0px 0px -70% 0px'});
@@ -183,16 +202,21 @@
     let pollTimer;
     let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
     let syncAgeTimer;
+    const syncText = $('#sync-text', syncSeg) || syncSeg;
 
     function updateSyncAge() {
       const state = syncSeg.dataset.state || 'unknown';
+      const last = parseInt(syncSeg.dataset.lastSuccess || '0');
       if (state === 'no remote') {
-        syncSeg.textContent = 'local only';
+        syncText.textContent = 'local only';
+        return;
+      }
+      if (state === 'ok' && last > 0) {
+        syncText.textContent = 'synced ' + relativeAge(last);
         return;
       }
       const arrow = bidi ? '⇣⇡' : '⇡';
-      const last = parseInt(syncSeg.dataset.lastSuccess || '0');
-      syncSeg.textContent = arrow + ' ' + state + (last > 0 ? ' · ' + relativeAge(last) : '');
+      syncText.textContent = arrow + ' ' + state + (last > 0 ? ' · ' + relativeAge(last) : '');
     }
 
     function updateSyncSeg(syncData) {
@@ -251,7 +275,7 @@
     if (syncSeg.dataset.state === 'pending' || bidi) pollSync();
 
     // Tick sync age every second
-    syncAgeTimer = setInterval(updateSyncAge, 1000);
+    syncAgeTimer = setInterval(updateSyncAge, 30000);
   }
 
   // ---- "+ new" button in statusline ----
@@ -259,9 +283,6 @@
   if (newBtn) {
     newBtn.addEventListener('click', () => openPalette(true));
   }
-
-  // ---- Render pinned section on load ----
-  renderPinnedSection();
 
   // ---- Daily note shortcut (ctrl-j) ----
   document.addEventListener('keydown', e => {
@@ -285,6 +306,67 @@
       if (sidebar) sidebar.classList.remove('open');
       openPalette();
     });
+  }
+
+  // ---- Desktop sidebar: icon-rail collapse mode ----
+  const sidebarCollapseToggle = $('#sidebar-collapse-toggle');
+  if (sidebarCollapseToggle && sidebar) {
+    const COLLAPSE_KEY = 'hmd-sidebar-collapsed';
+    if (localStorage.getItem(COLLAPSE_KEY) === '1') {
+      document.body.classList.add('sidebar-collapsed');
+    }
+    sidebarCollapseToggle.addEventListener('click', () => {
+      const collapsed = document.body.classList.toggle('sidebar-collapsed');
+      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+      sidebar.classList.remove('sidebar-expanded');
+    });
+    sidebar.addEventListener('mouseenter', () => {
+      if (document.body.classList.contains('sidebar-collapsed')) sidebar.classList.add('sidebar-expanded');
+    });
+    sidebar.addEventListener('mouseleave', () => sidebar.classList.remove('sidebar-expanded'));
+    sidebar.addEventListener('focusout', e => {
+      if (!sidebar.contains(e.relatedTarget)) sidebar.classList.remove('sidebar-expanded');
+    });
+  }
+
+  // ---- Sidebar: collapsible LOG section, remembers open/closed state ----
+  const logDetails = $('#log-details');
+  if (logDetails) {
+    const savedLogOpen = localStorage.getItem('hmd-log-open');
+    if (savedLogOpen !== null) logDetails.open = savedLogOpen === '1';
+    logDetails.addEventListener('toggle', () => {
+      localStorage.setItem('hmd-log-open', logDetails.open ? '1' : '0');
+    });
+  }
+
+  // ---- Statusline: scroll-progress fill + mobile top bar auto-hide ----
+  const mainEl = $('main');
+  if (mainEl) {
+    const topbarMq = window.matchMedia('(max-width: 899px)');
+    let lastScrollTop = 0;
+    let scrollRaf = null;
+
+    function onMainScroll() {
+      scrollRaf = null;
+      const max = mainEl.scrollHeight - mainEl.clientHeight;
+      const pct = max > 0 ? (mainEl.scrollTop / max) * 100 : 0;
+      document.documentElement.style.setProperty('--scroll-pct', pct + '%');
+
+      if (topbarMq.matches) {
+        const st = mainEl.scrollTop;
+        if (st <= 10 || st < lastScrollTop) {
+          document.body.classList.remove('topbar-hidden');
+        } else if (st > lastScrollTop) {
+          document.body.classList.add('topbar-hidden');
+        }
+        lastScrollTop = st;
+      }
+    }
+    mainEl.addEventListener('scroll', () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(onMainScroll);
+    });
+    onMainScroll();
   }
 
   // ---- editor: toggle preview pane for more writing space ----
@@ -563,24 +645,7 @@
       pinned.push(slug);
     }
     localStorage.setItem('hmd-pinned', JSON.stringify(pinned));
-    renderPinnedSection();
-  }
-
-  function renderPinnedSection() {
-    const pinnedSection = $('#sidebar-pinned');
-    if (!pinnedSection) return;
-    let pinned = [];
-    try { pinned = JSON.parse(localStorage.getItem('hmd-pinned') || '[]'); } catch (e) {}
-    const pinnedList = pinnedSection.querySelector('ul');
-    if (pinnedList) {
-      const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
-      pinnedList.innerHTML = pinned.map(slug => {
-        const entry = recent.find(r => r.slug === slug);
-        const title = entry?.title || slug;
-        return `<li><a href="/page/${slug}">${escapeHtml(title)}</a></li>`;
-      }).join('');
-    }
-    pinnedSection.classList.toggle('has-pins', pinned.length > 0);
+    renderSidebarPages();
   }
 
   function paletteOpenSelected(editMode) {
@@ -767,28 +832,48 @@
       }
     }
 
+    // Word wrap — on by default, toggle persisted
+    let wrapEnabled = localStorage.getItem('hmd-wrap') !== '0';
+
     // Create editor — zenState defined before listener references it
-    const editor = new HMD.EditorView({
-      doc: textarea.value,
-      extensions: [
-        HMD.basicSetup,
-        HMD.markdown(),
-        HMD.EditorView.updateListener.of(update => {
-          if (update.docChanged) {
-            textarea.value = update.state.doc.toString();
-            dirty = true;
-            markDirty();
-            schedulePreview();
-            updateWordCount();
-            scheduleDraft();
-          }
-          if (update.selectionSet) {
-            if (zenState.typewriter) scrollCursorToCenter();
-          }
-        })
-      ],
-      parent: cmHost
-    });
+    function mountEditor() {
+      return new HMD.EditorView({
+        doc: textarea.value,
+        extensions: [
+          HMD.basicSetup,
+          HMD.markdown(),
+          ...(wrapEnabled ? [HMD.EditorView.lineWrapping] : []),
+          HMD.EditorView.updateListener.of(update => {
+            if (update.docChanged) {
+              textarea.value = update.state.doc.toString();
+              dirty = true;
+              markDirty();
+              schedulePreview();
+              updateWordCount();
+              scheduleDraft();
+            }
+            if (update.selectionSet) {
+              if (zenState.typewriter) scrollCursorToCenter();
+            }
+          })
+        ],
+        parent: cmHost
+      });
+    }
+    let editor = mountEditor();
+
+    const toggleWrapBtn = $('#toggle-wrap-btn');
+    if (toggleWrapBtn) {
+      toggleWrapBtn.classList.toggle('active', wrapEnabled);
+      toggleWrapBtn.addEventListener('click', () => {
+        wrapEnabled = !wrapEnabled;
+        localStorage.setItem('hmd-wrap', wrapEnabled ? '1' : '0');
+        toggleWrapBtn.classList.toggle('active', wrapEnabled);
+        editor.destroy();
+        editor = mountEditor();
+        editor.focus();
+      });
+    }
 
     // Preview scheduling with error handling and loading indicator
     function schedulePreview() {

@@ -18,6 +18,7 @@
 		<span class="sep">/</span>
 		{{if .PageTags}}{{with index .PageTags 0}}<a href="/tags/{{.Slug}}" class="tag">#{{.Tag}}</a>{{end}}<span class="sep">/</span>{{end}}
 		<span class="current">{{.Slug}}.md</span>
+		{{if and (not .RevHash) .RevisionCount}}<span class="sep breadcrumb-history">/</span><a href="{{.RoutePrefix}}/{{.Slug}}/history" class="breadcrumb-history">history</a>{{end}}
 	</div>
 	<h1 class="page-title" data-title="{{.Title}}"><span class="h">#</span> {{.Title}}</h1>
 	<div class="page-meta">
@@ -25,15 +26,16 @@
 		{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
 		{{if .RevisionCount}}<span>&middot; <a href="{{.RoutePrefix}}/{{.Slug}}/history">history({{.RevisionCount}})</a></span>{{end}}
 	</div>
+	<details class="toc-inline" id="toc-inline">
+		<summary>On this page</summary>
+		<div id="toc-list-inline"></div>
+	</details>
 	<article id="page-content" data-blob-hash="{{.BlobHash}}">
 		{{.Content}}
 	</article>
 
 	{{if not .RevHash}}
-	<nav class="page-actions-mobile">
-		<a href="{{.RoutePrefix}}/{{.Slug}}/edit" class="primary">Edit</a>
-		<a href="{{.RoutePrefix}}/{{.Slug}}/history" class="ghost">History</a>
-	</nav>
+	<a href="{{.RoutePrefix}}/{{.Slug}}/edit" class="mobile-fab" aria-label="Edit page">✎</a>
 	{{end}}
 
 	{{if .Backlinks}}

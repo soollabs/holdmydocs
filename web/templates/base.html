@@ -32,21 +32,18 @@
 		<button type="button" id="mobile-search" aria-label="Search">/ search</button>
 	</div>
 	<nav class="sidebar" id="sidebar">
+		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar">«</button>
 		<div class="prompt">
 			<a href="/" class="prompt-link">
 				<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>$
 			</a>
 		</div>
-		<div class="sidebar-pinned" id="sidebar-pinned">
-			<h2>PINNED ★</h2>
-			<ul class="sidebar-list"></ul>
-		</div>
-		<div class="sidebar-section">
-			<h2>Recent</h2>
+		<div class="sidebar-section sidebar-pages">
+			<h2>PAGES</h2>
 			<ul class="sidebar-list" id="recent-list"></ul>
 		</div>
 		{{if and .ShowTagsSidebar .AllTags}}
-		<div class="sidebar-section">
+		<div class="sidebar-section sidebar-tags-section">
 			<h2>TAGS</h2>
 			<ul class="tag-chips">
 				{{range .AllTags}}
@@ -58,15 +55,18 @@
 		{{end}}
 		{{if .RecentCommits}}
 		<div class="sidebar-log" id="sidebar-log">
-			<h2>LOG</h2>
-			<div id="log-entries">
-				{{range .RecentCommits}}
-				<div class="log-entry"><a href="/page/{{$.Slug}}/history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
-				{{end}}
-			</div>
+			<details id="log-details" open>
+				<summary>LOG</summary>
+				<div id="log-entries">
+					{{range .RecentCommits}}
+					<div class="log-entry"><a href="/page/{{$.Slug}}/history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
+					{{end}}
+				</div>
+			</details>
 		</div>
 		{{end}}
 		<div class="sidebar-hints">
+			<a href="/settings" class="collapsed-gear" aria-label="Settings">⚙</a>
 			<div class="hint-row">
 				<a href="/settings">settings</a> · <a href="/hidden/help">? help</a> ·
 				<a href="/health-report" id="health-line" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}" title="{{.HealthMissing}} missing · {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}">health</a>
@@ -80,13 +80,14 @@
 	</main>
 	{{if .Authed}}
 	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}">
+		<div class="seg-progress-fill" id="seg-progress-fill"></div>
 		<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
 		<div class="seg seg-title" id="status-title">{{.Slug}}.md{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
 		<button type="button" class="seg seg-new" id="new-btn">+ new</button>
 		<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
 		{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
 		<div class="seg-spacer"></div>
-		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</div>
+		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}"><span class="sync-dot"></span><span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span></div>
 		<div class="seg seg-right seg-user">{{.Username}}</div>
 		<div class="seg seg-right">
 			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
