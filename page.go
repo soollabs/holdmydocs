@@ -123,15 +123,21 @@ func (p Page) Encode() []byte {
 	return []byte(result)
 }
 
+// wikiLinkOrCodeRe matches a fenced code block, an inline code span, or a
+// [[wiki-link]] title. Code alternatives have no capturing group, so a
+// [[...]] used as a markdown syntax example inside code is matched but not
+// captured — WikiLinks and processWikiLinks (render.go) both treat an empty
+// capture group as "this was code, not a real link".
+var wikiLinkOrCodeRe = regexp.MustCompile("(?s)```.*?```|`[^`\n]*`|\\[\\[([^\\[\\]]+)\\]\\]")
+
 func WikiLinks(body string) []string {
-	re := regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
-	matches := re.FindAllStringSubmatch(body, -1)
+	matches := wikiLinkOrCodeRe.FindAllStringSubmatch(body, -1)
 
 	seen := make(map[string]bool)
 	var links []string
 
 	for _, match := range matches {
-		if len(match) > 1 {
+		if len(match) > 1 && match[1] != "" {
 			link := match[1]
 			if !seen[link] {
 				links = append(links, link)

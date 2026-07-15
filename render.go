@@ -6,6 +6,7 @@ import (
 	"html"
 	htmltemplate "html/template"
 	"regexp"
+	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -52,9 +53,10 @@ func (r *Renderer) Render(body string) (htmltemplate.HTML, error) {
 }
 
 func (r *Renderer) processWikiLinks(body string) string {
-	re := regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
-	return re.ReplaceAllStringFunc(body, func(match string) string {
-		// Extract the title from [[...]]
+	return wikiLinkOrCodeRe.ReplaceAllStringFunc(body, func(match string) string {
+		if !strings.HasPrefix(match, "[[") {
+			return match // fenced/inline code — leave untouched, not a real link
+		}
 		title := match[2 : len(match)-2]
 		slug := Slugify(title)
 		escaped := html.EscapeString(title)
