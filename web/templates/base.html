@@ -7,10 +7,15 @@
 	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
 	<link rel="stylesheet" href="/static/style.css">
 	<link rel="icon" href="data:,">
+	<link rel="manifest" href="/static/manifest.json">
+	<meta name="theme-color" content="#111111">
 	{{if .ThemeStyle}}<style>{{.ThemeStyle}}</style>{{end}}
 	<script>
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
+		if ('serviceWorker' in navigator) {
+			window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js'));
+		}
 		(function() {
 			var saved = localStorage.getItem('hmd-theme');
 			if (saved === 'light') {
