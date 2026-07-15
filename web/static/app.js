@@ -29,9 +29,11 @@
         localStorage.setItem('hmd-recent', JSON.stringify(recent));
       }
       const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
-      recentList.innerHTML = recent.map(e =>
-        `<li><a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`
-      ).join('');
+      recentList.innerHTML = recent.map(e => {
+        const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
+        const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
+        return `<li style="display: flex; gap: 6px; align-items: center;">${dot}<a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+      }).join('');
     } catch (e) { /* ignore */ }
   }
 
