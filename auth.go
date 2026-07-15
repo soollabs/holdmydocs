@@ -22,10 +22,11 @@ type userRecord struct {
 }
 
 type Auth struct {
-	usersFile string
-	users     map[string]userRecord // username -> record
-	sessions  map[string]string     // token -> username
-	mu        sync.RWMutex
+	usersFile    string
+	sessionsFile string
+	users        map[string]userRecord // username -> record
+	sessions     map[string]string     // token -> username
+	mu           sync.RWMutex
 }
 
 func OpenAuth(cfg Config) (*Auth, error) {
@@ -37,9 +38,10 @@ func OpenAuth(cfg Config) (*Auth, error) {
 
 	usersFile := filepath.Join(cfg.AppDir, "users.json")
 	auth := &Auth{
-		usersFile: usersFile,
-		users:     make(map[string]userRecord),
-		sessions:  make(map[string]string),
+		usersFile:    usersFile,
+		sessionsFile: filepath.Join(cfg.AppDir, "sessions.json"),
+		users:        make(map[string]userRecord),
+		sessions:     make(map[string]string),
 	}
 
 	// Try to load existing users file
@@ -65,6 +67,12 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		}
 	} else {
 		return nil, fmt.Errorf("reading users file: %w", err)
+	}
+
+	// Sessions persisting is best-effort: a missing/corrupt file just means
+	// everyone logs in again, so ignore errors rather than fail startup.
+	if data, err := os.ReadFile(auth.sessionsFile); err == nil {
+		_ = json.Unmarshal(data, &auth.sessions)
 	}
 
 	return auth, nil
@@ -126,6 +134,20 @@ func (a *Auth) save() error {
 	return nil
 }
 
+// saveSessions writes the sessions map atomically. Caller must hold a.mu.
+func (a *Auth) saveSessions() error {
+	data, err := json.Marshal(a.sessions)
+	if err != nil {
+		return fmt.Errorf("marshalling sessions: %w", err)
+	}
+
+	tmpFile := a.sessionsFile + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+		return fmt.Errorf("writing tmp file: %w", err)
+	}
+	return os.Rename(tmpFile, a.sessionsFile)
+}
+
 func (a *Auth) Login(name, password string) (token string, ok bool) {
 	a.mu.RLock()
 	rec, exists := a.users[name]
@@ -151,7 +173,11 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 	// Store session
 	a.mu.Lock()
 	a.sessions[token] = name
+	err = a.saveSessions()
 	a.mu.Unlock()
+	if err != nil {
+		slog.Warn("saving sessions", "error", err)
+	}
 
 	return token, true
 }
@@ -159,7 +185,11 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 func (a *Auth) Logout(token string) {
 	a.mu.Lock()
 	delete(a.sessions, token)
+	err := a.saveSessions()
 	a.mu.Unlock()
+	if err != nil {
+		slog.Warn("saving sessions", "error", err)
+	}
 }
 
 func (a *Auth) UserFor(token string) (username string, ok bool) {

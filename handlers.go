@@ -553,14 +553,18 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("login", "username", username, "remote", r.RemoteAddr)
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "hmd_session",
 		Value:    token,
 		HttpOnly: true,
 		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-	})
+	}
+	if r.FormValue("remember") != "" {
+		cookie.MaxAge = 30 * 24 * 60 * 60 // 30 days
+	}
+	http.SetCookie(w, cookie)
 
 	http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
 }
