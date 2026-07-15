@@ -1,5 +1,10 @@
 {{define "content"}}
 <div class="editor-col">
+<div class="breadcrumb">
+	<a href="/">~/wiki</a>
+	<span class="sep">/</span>
+	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
+</div>
 <div id="remote-changed-banner" class="remote-changed-banner" style="display:none">
 	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
 </div>

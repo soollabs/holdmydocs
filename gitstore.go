@@ -696,6 +696,21 @@ func (s *Store) LastSyncUnix() int64 {
 	return s.lastSuccessUnix.Load()
 }
 
+// PushNow performs an immediate synchronous push (the ">sync" palette verb)
+// and returns the resulting sync state.
+func (s *Store) PushNow() (state, detail string) {
+	s.mu.Lock()
+	noRemote := s.remote == ""
+	if !noRemote {
+		s.syncState = "pending"
+	}
+	s.mu.Unlock()
+	if !noRemote {
+		s.push()
+	}
+	return s.SyncState()
+}
+
 // UpdateRemote reconfigures the store's remote URL and auth credentials
 // on the live repository. If cfg.RemoteURL is empty, the remote is removed.
 // If non-empty, the origin remote is created or updated with set-url.
@@ -911,12 +926,32 @@ func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
 		return "", fmt.Errorf("resolving commit B: %w", err)
 	}
 
-	patch, err := commitA.Patch(commitB)
+	treeA, err := commitA.Tree()
+	if err != nil {
+		return "", fmt.Errorf("resolving tree A: %w", err)
+	}
+	treeB, err := commitB.Tree()
+	if err != nil {
+		return "", fmt.Errorf("resolving tree B: %w", err)
+	}
+
+	changes, err := object.DiffTree(treeA, treeB)
+	if err != nil {
+		return "", fmt.Errorf("diffing trees: %w", err)
+	}
+
+	// Only the requested file — the two commits may touch other pages too.
+	var fileChanges object.Changes
+	for _, c := range changes {
+		if c.From.Name == filename || c.To.Name == filename {
+			fileChanges = append(fileChanges, c)
+		}
+	}
+
+	patch, err := fileChanges.Patch()
 	if err != nil {
 		return "", fmt.Errorf("creating patch: %w", err)
 	}
-
-	// Return the entire patch as unified diff
 	return patch.String(), nil
 }
 

@@ -97,8 +97,8 @@
 		{{end}}
 		{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
 	</div>
-	<div class="settings-status" id="sync-status" style="font-size: 12px; color: var(--fg-faint); margin-top: 1rem;">
-		<span>last push: — · — · last fetch: n/a</span>
+	<div class="settings-status" id="sync-status">
+		last push: <span class="state-{{.SyncState}}">{{if eq .SyncState "no remote"}}n/a{{else}}{{.SyncState}}{{end}}</span> · {{.SyncAge}} · last fetch: {{if eq .SyncMode "bidirectional"}}{{.SyncAge}}{{else}}n/a (push mode){{end}}
 	</div>
 	</fieldset>
 

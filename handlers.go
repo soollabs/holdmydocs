@@ -118,6 +118,17 @@ type TemplateData struct {
 	HomeFilename     string
 	RoutePrefix      string
 	IsHidden         bool
+	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
+	HealthMissing    int
+	HealthOrphans    int
+	SyncAge          string // relative age of the last successful sync, e.g. "12 seconds ago"
+	SyncLastUnix     int64  // raw timestamp for the client-side sync-age ticker
+}
+
+// LogEntry is one row in the sidebar LOG section.
+type LogEntry struct {
+	Age     string
+	Message string
 }
 
 // FieldState describes one config field's display state for the settings page.
@@ -298,6 +309,18 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	if data.Authed && data.StatusMode == "" {
 		data.StatusMode = "view"
+	}
+	if data.Authed {
+		data.SyncLastUnix = app.Store.LastSyncUnix()
+		if ts := data.SyncLastUnix; ts > 0 {
+			if d := time.Since(time.Unix(ts, 0)); d < time.Minute {
+				data.SyncAge = fmt.Sprintf("%ds ago", int(d.Seconds()))
+			} else {
+				data.SyncAge = relativeTime(time.Unix(ts, 0))
+			}
+		} else {
+			data.SyncAge = "—"
+		}
 	}
 	if data.Authed {
 		cfg := app.config()
@@ -481,6 +504,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /page/{slug}/rev/{hash}", app.handleViewRev)
 	mux.HandleFunc("GET /page/{slug}/diff", app.handlePageDiff)
 	mux.HandleFunc("POST /page/{slug}/revert", app.handleRevert)
+	mux.HandleFunc("POST /page/{slug}/rename", app.handleRenamePage)
+	mux.HandleFunc("POST /page/{slug}/tags", app.handleSetTags)
 	mux.HandleFunc("GET /health-report", app.handleHealthReport)
 
 	// Hidden page handlers (dot-prefixed files, separate route namespace)
@@ -682,13 +707,22 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 
 	revisionCount := 0
 	headAuthor, headWhen := "", ""
+	var recentCommits []LogEntry
 	if history, err := app.Store.History(pageFile(slug)); err == nil {
 		revisionCount = len(history)
 		if len(history) > 0 {
 			headAuthor = history[0].Author
 			headWhen = relativeTime(history[0].When)
 		}
+		for _, c := range history[:min(3, len(history))] {
+			recentCommits = append(recentCommits, LogEntry{
+				Age:     relativeTime(c.When),
+				Message: strings.TrimSpace(c.Message),
+			})
+		}
 	}
+
+	missing, orphans := app.Index.Health(app.config().HomeSlug())
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:        true,
@@ -702,6 +736,9 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		HeadWhen:      headWhen,
 		BlobHash:      blobHash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
+		RecentCommits: recentCommits,
+		HealthMissing: len(missing),
+		HealthOrphans: len(orphans),
 	})
 }
 
@@ -1136,100 +1173,164 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
-	state, _ := app.Store.SyncState()
-	lastSuccess := app.Store.LastSyncUnix()
+	state, detail := app.Store.PushNow()
 
 	resp := map[string]interface{}{
-		"ok":                 true,
-		"state":              state,
-		"last_success_unix":  lastSuccess,
+		"ok":                state == "ok",
+		"state":             state,
+		"detail":            detail,
+		"last_success_unix": app.Store.LastSyncUnix(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
-	// Get all pages and analyze links
-	pages, _ := app.Store.List()
-	titles := app.Index.Titles()
+var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
 
-	// Collect all outgoing links from forward index
-	allLinked := make(map[string]bool)
-	titleMap := make(map[string]string)
-	for _, p := range pages {
-		titleMap[p] = titles[p]
-		backlinks := app.Index.Backlinks(p)
-		for _, b := range backlinks {
-			allLinked[b] = true
-		}
+// handleRenamePage changes a page's title and slug (the ">rename" palette
+// verb), moving the file and rewriting wiki-links in every referencing page.
+func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	newTitle := strings.TrimSpace(r.FormValue("title"))
+	if newTitle == "" {
+		http.Error(w, "missing title", http.StatusBadRequest)
+		return
+	}
+	newSlug := Slugify(newTitle)
+	if newSlug == "" {
+		http.Error(w, "invalid title", http.StatusBadRequest)
+		return
 	}
 
-	// Find missing pages: linked but don't exist
-	var missing []string
-	for link := range allLinked {
-		if titleMap[link] == "" && !app.Index.Exists(link) {
-			missing = append(missing, link)
-		}
+	content, hash, err := app.Store.Read(pageFile(slug))
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if newSlug != slug && app.Index.Exists(newSlug) {
+		http.Error(w, "a page with that title already exists", http.StatusConflict)
+		return
 	}
 
-	// Find orphans: exist but have no backlinks
-	homeSlug := app.config().HomeSlug()
-	var orphans []string
-	for _, slug := range pages {
-		if slug == homeSlug {
+	// Capture backlinks before touching the index — Index.Remove drops them.
+	sources := app.Index.Backlinks(slug)
+
+	page := ParsePage(slug, content)
+	oldTitle := page.Title
+	page.Title = newTitle
+	page.Slug = newSlug
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	message := fmt.Sprintf("Rename %s to %s", oldTitle, newTitle)
+	if _, err := app.Store.SaveChecked(pageFile(slug), pageFile(newSlug), hash, page.Encode(), message, authorName, authorEmail); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if newSlug != slug {
+		app.Index.Remove(slug)
+	}
+	app.Index.Update(page)
+
+	// Rewrite [[wiki-links]] that resolved to the old slug.
+	for _, src := range sources {
+		srcContent, srcHash, err := app.Store.Read(pageFile(src))
+		if err != nil {
 			continue
 		}
-		backlinks := app.Index.Backlinks(slug)
-		if len(backlinks) == 0 {
-			orphans = append(orphans, slug)
+		srcPage := ParsePage(src, srcContent)
+		updated := wikiLinkRe.ReplaceAllStringFunc(srcPage.Body, func(m string) string {
+			if Slugify(m[2:len(m)-2]) == slug {
+				return "[[" + newTitle + "]]"
+			}
+			return m
+		})
+		if updated == srcPage.Body {
+			continue
+		}
+		srcPage.Body = updated
+		if _, err := app.Store.SaveChecked(pageFile(src), pageFile(src), srcHash, srcPage.Encode(), "Update links after rename of "+oldTitle, authorName, authorEmail); err == nil {
+			app.Index.Update(srcPage)
 		}
 	}
 
-	// Sort for consistent output
-	sort.Strings(missing)
-	sort.Strings(orphans)
+	slog.Info("renamed", "from", slug, "to", newSlug, "links", len(sources))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": newSlug})
+}
 
-	// Build response
-	data := TemplateData{
-		Authed:       true,
-		Title:        "Wiki Health",
-		StatusMode:   "view",
+// handleSetTags replaces a page's tags (the ">tag" palette verb).
+func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	content, hash, err := app.Store.Read(pageFile(slug))
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
 	}
+	page := ParsePage(slug, content)
+	page.Tags = ParseTags(r.FormValue("tags"))
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	if _, err := app.Store.SaveChecked(pageFile(slug), pageFile(slug), hash, page.Encode(), "Update tags for "+page.Title, authorName, authorEmail); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	app.Index.Update(page)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": slug})
+}
 
-	// Create health report HTML
-	var html string
-	html = `<div class="content-col"><h1 class="page-title"><span class="h">#</span> Wiki Health</h1>`
+func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
+	titles := app.Index.Titles()
+	missing, orphans := app.Index.Health(app.config().HomeSlug())
 
-	if len(missing) > 0 {
-		html += fmt.Sprintf(`<section><h2>Missing Pages (%d)</h2><p>Linked but not yet created:</p><ul>`, len(missing))
-		for _, m := range missing {
-			html += fmt.Sprintf(`<li><a href="/page/%s/edit">%s</a></li>`, m, htmlEscape(m))
+	missingSlugs := make([]string, 0, len(missing))
+	for slug := range missing {
+		missingSlugs = append(missingSlugs, slug)
+	}
+	sort.Strings(missingSlugs)
+
+	var b strings.Builder
+	if len(missingSlugs) > 0 {
+		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(missingSlugs))
+		for _, m := range missingSlugs {
+			fmt.Fprintf(&b, `<li><a href="/page/%s/edit" class="missing">%s</a> — linked from `, m, htmlEscape(m))
+			for i, src := range missing[m] {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				title := titles[src]
+				if title == "" {
+					title = src
+				}
+				fmt.Fprintf(&b, `<a href="/page/%s">%s</a>`, src, htmlEscape(title))
+			}
+			b.WriteString(`</li>`)
 		}
-		html += `</ul></section>`
+		b.WriteString(`</ul></section>`)
 	}
 
 	if len(orphans) > 0 {
-		html += fmt.Sprintf(`<section><h2>Orphaned Pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(orphans))
+		fmt.Fprintf(&b, `<section><h2>Orphaned pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(orphans))
 		for _, o := range orphans {
-			title := titleMap[o]
+			title := titles[o]
 			if title == "" {
 				title = o
 			}
-			html += fmt.Sprintf(`<li><a href="/page/%s">%s</a></li>`, o, htmlEscape(title))
+			fmt.Fprintf(&b, `<li><a href="/page/%s">%s</a></li>`, o, htmlEscape(title))
 		}
-		html += `</ul></section>`
+		b.WriteString(`</ul></section>`)
 	}
 
-	if len(missing) == 0 && len(orphans) == 0 {
-		html += `<p>✓ Your wiki is healthy!</p>`
+	if len(missingSlugs) == 0 && len(orphans) == 0 {
+		b.WriteString(`<p>✓ Your wiki is healthy!</p>`)
 	}
 
-	html += `</div>`
-	data.Content = template.HTML(html)
-	data.StatusContext = fmt.Sprintf("%d orphans · %d missing", len(orphans), len(missing))
-
-	app.render(w, r, http.StatusOK, "page", data)
+	app.render(w, r, http.StatusOK, "page", TemplateData{
+		Authed:        true,
+		Title:         "wiki health",
+		Slug:          "health-report",
+		Content:       template.HTML(b.String()),
+		StatusContext: fmt.Sprintf("%d missing · %d orphan%s", len(missingSlugs), len(orphans), plural(len(orphans))),
+	})
 }
 
 func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {

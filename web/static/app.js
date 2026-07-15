@@ -32,7 +32,7 @@
       recentList.innerHTML = recent.map(e => {
         const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
         const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
-        return `<li style="display: flex; gap: 6px; align-items: center;">${dot}<a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+        return `<li>${dot}<a href="/page/${e.slug}"${e.slug === slug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
       }).join('');
     } catch (e) { /* ignore */ }
   }
@@ -60,10 +60,11 @@
             .then(r => r.json())
             .then(data => {
               const rect = link.getBoundingClientRect();
+              const tags = (data.tags || []).map(t => '#' + escapeHtml(t)).join(' ');
               previewCard.innerHTML = `
-                <h3>${escapeHtml(data.title)}</h3>
-                <div class="snippet">${escapeHtml(data.snippet.slice(0, 100))}</div>
-                <div class="meta">${escapeHtml(data.age)}</div>
+                <h3><span class="h">#</span> ${escapeHtml(data.title)}</h3>
+                <div class="snippet">${escapeHtml(data.snippet)}</div>
+                <div class="meta">${tags ? tags + ' · ' : ''}edited ${escapeHtml(data.age)}</div>
               `;
               previewCard.style.top = (rect.bottom + 10 + window.scrollY) + 'px';
               previewCard.style.left = (rect.left) + 'px';
@@ -138,34 +139,22 @@
     const bidi = window.hmdSyncMode === 'bidirectional';
     let pollTimer;
     let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
-    let lastSuccessUnix = parseInt(syncSeg.dataset.lastSuccess || '0');
     let syncAgeTimer;
 
-    function relativeAge(unixSeconds) {
-      const now = Math.floor(Date.now() / 1000);
-      const diff = now - unixSeconds;
-      if (diff < 60) return 'now';
-      if (diff < 3600) return Math.floor(diff / 60) + 's ago';
-      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-      return Math.floor(diff / 86400) + 'd ago';
-    }
-
     function updateSyncAge() {
-      if (lastSuccessUnix > 0) {
-        const arrow = bidi ? '⇣⇡' : '⇡';
-        const state = syncSeg.dataset.state || 'unknown';
-        if (state === 'no remote') {
-          syncSeg.textContent = 'local only';
-        } else {
-          const age = relativeAge(lastSuccessUnix);
-          syncSeg.textContent = arrow + ' ' + state + ' · ' + age;
-        }
+      const state = syncSeg.dataset.state || 'unknown';
+      if (state === 'no remote') {
+        syncSeg.textContent = 'local only';
+        return;
       }
+      const arrow = bidi ? '⇣⇡' : '⇡';
+      const last = parseInt(syncSeg.dataset.lastSuccess || '0');
+      syncSeg.textContent = arrow + ' ' + state + (last > 0 ? ' · ' + relativeAge(last) : '');
     }
 
     function updateSyncSeg(syncData) {
-      lastSuccessUnix = syncData.last_success_unix || 0;
-      syncSeg.setAttribute('data-last-success', lastSuccessUnix);
+      syncSeg.setAttribute('data-state', syncData.state);
+      syncSeg.setAttribute('data-last-success', syncData.last_success_unix || 0);
       updateSyncAge();
     }
 
@@ -228,14 +217,8 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
-  // ---- Render pinned section on load (Task 13) ----
+  // ---- Render pinned section on load ----
   renderPinnedSection();
-
-  // Show pinned section if not empty
-  const pinnedSection = $('#sidebar-pinned');
-  if (pinnedSection && pinnedSection.querySelector('ul').innerHTML.trim()) {
-    pinnedSection.style.display = 'block';
-  }
 
   // ---- Daily note shortcut (ctrl-j) ----
   document.addEventListener('keydown', e => {
@@ -287,12 +270,16 @@
   let paletteRows = [];
   let paletteSelected = 0;
   let paletteCreateMode = false;
+  let paletteVerbMode = false;  // input starts with ">" — rows are verbs
+  let paletteVerbInput = null;  // a verb ('rename'|'tag') is awaiting its argument
   let searchTimer;
 
   function openPalette(createMode) {
     if (!paletteBackdrop) return;
     paletteOpen = true;
     paletteCreateMode = !!createMode;
+    paletteVerbMode = false;
+    paletteVerbInput = null;
     paletteBackdrop.classList.add('open');
     paletteInput.value = '';
     paletteInput.placeholder = paletteCreateMode ? 'title for new document…' : 'jump to a page…';
@@ -310,6 +297,8 @@
   function closePalette() {
     if (!paletteBackdrop) return;
     paletteOpen = false;
+    paletteVerbMode = false;
+    paletteVerbInput = null;
     paletteBackdrop.classList.remove('open');
   }
 
@@ -328,7 +317,7 @@
   // :hidden: and settings are generic navigation shortcuts — out of place
   // when the palette was opened specifically to create a new document.
   function builtinCount() {
-    return paletteCreateMode ? 0 : 2;
+    return (paletteCreateMode || paletteVerbMode) ? 0 : 2;
   }
 
   function renderPaletteRows(query) {
@@ -340,6 +329,12 @@
       return;
     }
     const rowsHtml = paletteRows.map((r, i) => {
+      if (r.verb) {
+        return `<div class="palette-row palette-verb${i === paletteSelected ? ' selected' : ''}" data-action="${r.slug}">
+          <span class="title">${escapeHtml(r.title)}</span>
+          <span class="verb-desc">${escapeHtml(r.snippet)}</span>
+        </div>`;
+      }
       const tags = r.tags && r.tags.length ? ' <span class="hit-tags">#' + r.tags.map(escapeHtml).join(' #') + '</span>' : '';
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
@@ -349,14 +344,16 @@
         <span class="snippet">${r.snippet || ''}</span>${tags}
       </a>`;
     }).join('');
-    const builtinHtml = paletteCreateMode ? '' :
+    const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
       `<a href="/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
       `<a href="/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
-    const createRow = query
+    const createRow = (query && !paletteVerbMode)
       ? `<a href="/page/${slugifyQuery(query)}/edit" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}"</a>`
       : '';
     paletteResults.innerHTML = rowsHtml + builtinHtml + createRow;
-    paletteCount.textContent = paletteRows.length > 0 ? paletteRows.length + (query ? ' matches' : ' recent') : '';
+    if (!paletteVerbMode) {
+      paletteCount.textContent = paletteRows.length > 0 ? paletteRows.length + (query ? ' matches' : ' recent') : '';
+    }
   }
 
   function slugifyQuery(q) {
@@ -369,6 +366,14 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function relativeAge(unixSeconds) {
+    const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
   const verbs = [
     { name: 'rename', desc: 'rename this page', action: 'rename' },
     { name: 'tag', desc: 'edit tags', action: 'tag' },
@@ -379,17 +384,24 @@
     { name: 'pin', desc: 'pin this page', action: 'pin' },
   ];
 
-  function searchPalette(q) {
-    const isVerbMode = q.startsWith('>');
+  function syncVerbDesc() {
+    const seg = $('#status-sync');
+    const last = seg ? parseInt(seg.dataset.lastSuccess || '0') : 0;
+    if (!last) return 'push now';
+    return `push now · last push ${relativeAge(last)} (${seg.dataset.state || 'unknown'})`;
+  }
 
-    if (isVerbMode) {
+  function searchPalette(q) {
+    paletteVerbMode = q.startsWith('>');
+
+    if (paletteVerbMode) {
       const verbQuery = q.slice(1).toLowerCase();
       paletteRows = verbs
         .filter(v => v.name.includes(verbQuery))
-        .map(v => ({ slug: v.action, title: '>' + v.name, snippet: v.desc, tags: [], create: false }));
+        .map(v => ({ slug: v.action, title: '>' + v.name, snippet: v.action === 'sync' ? syncVerbDesc() : v.desc, verb: true }));
       paletteSelected = 0;
-      paletteCount.textContent = paletteRows.length + ' verbs';
       renderPaletteRows(q);
+      paletteCount.textContent = paletteRows.length + ' verb' + (paletteRows.length === 1 ? '' : 's');
       return;
     }
 
@@ -410,7 +422,7 @@
   }
 
   function paletteNavigate(dir) {
-    const max = paletteRows.length + builtinCount() + (paletteInput.value ? 1 : 0);
+    const max = paletteRows.length + builtinCount() + (paletteInput.value && !paletteVerbMode ? 1 : 0);
     if (max === 0) return;
     paletteSelected = (paletteSelected + dir + max) % max;
     renderPaletteRows(paletteInput.value);
@@ -420,28 +432,82 @@
 
   function executeVerb(action) {
     const slug = document.body.dataset.slug || '';
-    closePalette();
     switch (action) {
       case 'hist':
+        closePalette();
         window.location.href = `/page/${slug}/history`;
         break;
-      case 'daily':
+      case 'daily': {
+        closePalette();
         const today = new Date().toISOString().split('T')[0];
         window.location.href = `/page/daily/${today}/edit`;
         break;
+      }
       case 'health':
+        closePalette();
         window.location.href = '/health-report';
         break;
       case 'sync':
-        fetch('/api/sync/push-now', { method: 'POST' }).catch(() => {});
+        closePalette();
+        fetch('/api/sync/push-now', { method: 'POST' })
+          .then(r => r.json())
+          .then(d => {
+            const seg = $('#status-sync');
+            if (seg) {
+              seg.setAttribute('data-state', d.state);
+              seg.setAttribute('data-last-success', d.last_success_unix || 0);
+            }
+          })
+          .catch(() => {});
         break;
       case 'pin':
+        closePalette();
         togglePin(slug);
         break;
       case 'rename':
       case 'tag':
-        window.location.href = `/page/${slug}/edit`;
+        enterVerbInput(action);
         break;
+    }
+  }
+
+  // rename/tag take an argument: reuse the palette input as an inline prompt.
+  function enterVerbInput(action) {
+    const slug = document.body.dataset.slug || '';
+    if (!slug) { closePalette(); return; }
+    paletteVerbInput = action;
+    paletteVerbMode = false;
+    paletteRows = [];
+    paletteResults.innerHTML = '';
+    if (action === 'rename') {
+      const titleEl = document.querySelector('.page-title');
+      paletteInput.value = (titleEl && titleEl.dataset.title) || '';
+      paletteInput.placeholder = 'new title…';
+    } else {
+      paletteInput.value = [...document.querySelectorAll('.page-meta .meta-tag')]
+        .map(a => a.textContent.replace(/^#/, '')).join(', ');
+      paletteInput.placeholder = 'tags, comma separated…';
+    }
+    paletteCount.textContent = '>' + action;
+    paletteInput.focus();
+    paletteInput.select();
+  }
+
+  function submitVerbInput() {
+    const slug = document.body.dataset.slug || '';
+    const value = paletteInput.value.trim();
+    const action = paletteVerbInput;
+    paletteVerbInput = null;
+    if (action === 'rename') {
+      if (!value) { closePalette(); return; }
+      fetch(`/page/${slug}/rename`, { method: 'POST', body: new URLSearchParams({ title: value }) })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => { window.location.href = '/page/' + d.slug; })
+        .catch(() => closePalette());
+    } else {
+      fetch(`/page/${slug}/tags`, { method: 'POST', body: new URLSearchParams({ tags: value }) })
+        .then(() => window.location.reload())
+        .catch(() => closePalette());
     }
   }
 
@@ -464,18 +530,18 @@
     try { pinned = JSON.parse(localStorage.getItem('hmd-pinned') || '[]'); } catch (e) {}
     const pinnedList = pinnedSection.querySelector('ul');
     if (pinnedList) {
+      const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
       pinnedList.innerHTML = pinned.map(slug => {
-        const recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
         const entry = recent.find(r => r.slug === slug);
         const title = entry?.title || slug;
         return `<li><a href="/page/${slug}">${escapeHtml(title)}</a></li>`;
       }).join('');
     }
+    pinnedSection.classList.toggle('has-pins', pinned.length > 0);
   }
 
   function paletteOpenSelected(editMode) {
-    const isVerbMode = paletteInput.value.startsWith('>');
-    if (isVerbMode) {
+    if (paletteVerbMode) {
       const row = paletteRows[paletteSelected];
       if (row) executeVerb(row.slug);
       return;
@@ -507,15 +573,25 @@
     });
   }
   if (paletteInput) {
-    paletteInput.addEventListener('input', () => searchPalette(paletteInput.value));
+    paletteInput.addEventListener('input', () => {
+      if (paletteVerbInput) return; // inline verb argument, not a search
+      searchPalette(paletteInput.value);
+    });
     paletteInput.addEventListener('keydown', e => {
       if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
       else if (e.key === 'ArrowDown') { e.preventDefault(); paletteNavigate(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); paletteNavigate(-1); }
       else if (e.key === 'Enter') {
         e.preventDefault();
+        if (paletteVerbInput) { submitVerbInput(); return; }
         paletteOpenSelected(e.ctrlKey || e.metaKey);
       }
+    });
+  }
+  if (paletteResults) {
+    paletteResults.addEventListener('click', e => {
+      const verbRow = e.target.closest('.palette-verb');
+      if (verbRow) executeVerb(verbRow.dataset.action);
     });
   }
 
@@ -600,9 +676,12 @@
       if (zenStatus) zenStatus.textContent = words + ' words';
     }
 
+    const breadcrumbDirty = $('#breadcrumb-dirty');
+
     function markDirty() {
       dirty = true;
       if (dirtyMark) dirtyMark.style.display = 'inline';
+      if (breadcrumbDirty) breadcrumbDirty.hidden = false;
     }
 
     // Typewriter scroll — keep cursor vertically centred (instant, not smooth)

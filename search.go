@@ -333,6 +333,48 @@ func (ix *Index) PagesForTags(tagSlugs []string) []string {
 	return slugs
 }
 
+// Health reports wiki-link problems: missing maps each wiki-linked slug that
+// has no page to the sorted list of pages linking to it; orphans lists pages
+// with no backlinks, excluding homeSlug (hidden pages are never indexed).
+func (ix *Index) Health(homeSlug string) (missing map[string][]string, orphans []string) {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+
+	sources := make(map[string]map[string]bool)
+	for src, links := range ix.forward {
+		for _, link := range links {
+			target := Slugify(link)
+			if _, exists := ix.titles[target]; exists {
+				continue
+			}
+			if sources[target] == nil {
+				sources[target] = make(map[string]bool)
+			}
+			sources[target][src] = true
+		}
+	}
+	missing = make(map[string][]string, len(sources))
+	for target, srcs := range sources {
+		list := make([]string, 0, len(srcs))
+		for s := range srcs {
+			list = append(list, s)
+		}
+		sort.Strings(list)
+		missing[target] = list
+	}
+
+	for slug := range ix.titles {
+		if slug == homeSlug {
+			continue
+		}
+		if len(ix.backward[slug]) == 0 {
+			orphans = append(orphans, slug)
+		}
+	}
+	sort.Strings(orphans)
+	return missing, orphans
+}
+
 func (ix *Index) TagName(tagSlug string) string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
