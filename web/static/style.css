@@ -413,15 +413,6 @@ main {
 	color: var(--fg-bright);
 }
 
-.statusline .seg-save {
-	background: var(--green);
-	color: var(--bg);
-	font-weight: 700;
-	border: none;
-	cursor: pointer;
-	padding: 6px 16px;
-}
-
 /* Mobile top bar (< 900px), hidden on desktop */
 
 .mobile-topbar {
@@ -1200,8 +1191,18 @@ body.zen-manuscript .zen-status.visible {
 	width: auto;
 }
 
-.edit-topbar .cancel-link {
+.edit-topbar .save-btn {
 	margin-left: auto;
+	background: var(--green);
+	color: var(--bg);
+	font-weight: 700;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	padding: 6px 16px;
+}
+
+.edit-topbar .cancel-link {
 	color: var(--fg-faint);
 }
 

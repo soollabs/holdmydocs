@@ -21,6 +21,7 @@
 		<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
 			<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
 		</label>
+		<button type="submit" form="edit-form" id="save-btn" class="save-btn">SAVE ctrl-s</button>
 		<a href="{{.RoutePrefix}}/{{.Slug}}" class="cancel-link">cancel</a>
 	</div>
 

@@ -85,7 +85,6 @@
 		{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
 		<div class="seg-spacer"></div>
 		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</div>
-		{{if eq .StatusMode "edit"}}<button class="seg seg-save" type="submit" form="edit-form" id="save-btn">SAVE ctrl-s</button>{{end}}
 		<div class="seg seg-right seg-user">{{.Username}}</div>
 		<div class="seg seg-right">
 			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
