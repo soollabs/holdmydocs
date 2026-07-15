@@ -28,7 +28,13 @@
 	</div>
 	<nav class="sidebar" id="sidebar">
 		<div class="prompt">
-			<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>$
+			<a href="/" style="color: inherit; text-decoration: none;">
+				<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>$
+			</a>
+		</div>
+		<div class="sidebar-pinned" id="sidebar-pinned" style="display: none;">
+			<h2>PINNED ★</h2>
+			<ul class="sidebar-list"></ul>
 		</div>
 		<div class="sidebar-section">
 			<h2>Recent</h2>
@@ -36,28 +42,27 @@
 		</div>
 		{{if and .ShowTagsSidebar .AllTags}}
 		<div class="sidebar-section">
-			<h2>Tags</h2>
-			<ul class="sidebar-tags">
+			<h2>TAGS</h2>
+			<ul class="tag-chips">
 				{{range .AllTags}}
 				<li><a href="/tags/{{.Slug}}">#{{.Tag}}<span class="count">{{.Count}}</span></a></li>
 				{{end}}
+				<li><a href="/tags" class="all-link">▸ all</a></li>
 			</ul>
 		</div>
 		{{end}}
+		<div class="sidebar-log" id="sidebar-log" style="display: none;">
+			<h2>LOG</h2>
+			<div id="log-entries"></div>
+			<div class="health-line" id="health-line"></div>
+		</div>
 		<div class="sidebar-hints">
 			<div class="hint-row"><a href="/settings">settings</a> · <a href="/hidden/help">? help</a></div>
-			<div class="hint-row"><kbd>ctrl k</kbd> jump to page</div>
-			<div class="hint-row"><kbd>ctrl e</kbd> edit</div>
+			<div class="hint-row"><kbd>ctrl j</kbd> daily · <kbd>ctrl k</kbd> jump / >verbs</div>
 		</div>
 	</nav>
 	{{end}}
 	<main>
-		{{if .Authed}}
-		<div class="main-header">
-			<span class="main-header-site">{{.SiteName}}</span>
-			<button type="button" id="new-doc-btn" class="ghost-btn">+ New Document</button>
-		</div>
-		{{end}}
 		{{template "content" .}}
 	</main>
 	{{if .Authed}}

@@ -231,6 +231,22 @@
   // ---- Render pinned section on load (Task 13) ----
   renderPinnedSection();
 
+  // Show pinned section if not empty
+  const pinnedSection = $('#sidebar-pinned');
+  if (pinnedSection && pinnedSection.querySelector('ul').innerHTML.trim()) {
+    pinnedSection.style.display = 'block';
+  }
+
+  // ---- Daily note shortcut (ctrl-j) ----
+  document.addEventListener('keydown', e => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === 'j' || e.key === 'J')) {
+      e.preventDefault();
+      const today = new Date().toISOString().split('T')[0];
+      window.location.href = `/page/daily/${today}/edit`;
+    }
+  });
+
   // ---- Mobile sidebar drawer ----
   const sidebarToggle = $('#sidebar-toggle');
   const sidebar = $('#sidebar');
@@ -243,10 +259,6 @@
       if (sidebar) sidebar.classList.remove('open');
       openPalette();
     });
-  }
-  const newDocBtn = $('#new-doc-btn');
-  if (newDocBtn) {
-    newDocBtn.addEventListener('click', () => openPalette(true));
   }
 
   // ---- editor: toggle preview pane for more writing space ----
