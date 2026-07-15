@@ -6,7 +6,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/goccy/go-yaml v1.19.2
-	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark v1.8.4
 	golang.org/x/crypto v0.54.0
 )
 
