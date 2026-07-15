@@ -54,15 +54,16 @@
   }
 
   // ---- Recent pages sidebar (client-side, localStorage) ----
-  // Hidden pages (/hidden/<slug>) are excluded — they're not real /page/
-  // routes, and the sidebar list always links to /page/.
+  // Only /page/<slug> routes are tracked — other views (e.g. /health-report)
+  // share the "page" template and a .page-title, but aren't real page
+  // routes and have no /page/<slug> URL to link back to.
   const recentList = $('#recent-list');
   if (recentList) {
     try {
-      const slug = document.body.dataset.slug || '';
-      const isHidden = document.body.dataset.routePrefix === '/hidden';
+      const pathMatch = window.location.pathname.match(/^\/page\/([^/]+)/);
+      const slug = pathMatch ? pathMatch[1] : '';
       const titleEl = $('.page-title');
-      if (slug && titleEl && !isHidden) {
+      if (slug && titleEl) {
         const title = titleEl.dataset.title || titleEl.textContent.trim() || slug;
         let recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
         recent = recent.filter(e => e.slug !== slug);
