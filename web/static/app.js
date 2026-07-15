@@ -5,6 +5,48 @@
   const $ = (s, p) => (p || document).querySelector(s);
   const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
 
+  // ---- Offline edit queue: queue form POSTs made while offline, flush on reconnect ----
+  const OFFLINE_QUEUE_KEY = 'hmd-offline-queue';
+
+  function loadQueue() {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)) || []; }
+    catch (e) { return []; }
+  }
+
+  function saveQueue(queue) {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  }
+
+  function queueFormSubmit(form) {
+    const queue = loadQueue();
+    queue.push({
+      url: form.action,
+      entries: Array.from(new FormData(form).entries()),
+      ts: Date.now()
+    });
+    saveQueue(queue);
+  }
+
+  // sequential, stops at the first failure so a stale basehash
+  // conflict doesn't clobber later queued edits out of order.
+  async function flushOfflineQueue() {
+    const queue = loadQueue();
+    while (queue.length) {
+      const item = queue[0];
+      try {
+        const res = await fetch(item.url, { method: 'POST', body: new URLSearchParams(item.entries) });
+        if (!res.ok) break;
+      } catch (e) {
+        break; // still offline (or server unreachable) — retry next 'online' event
+      }
+      queue.shift();
+      saveQueue(queue);
+    }
+  }
+
+  window.addEventListener('online', flushOfflineQueue);
+  if (navigator.onLine) flushOfflineQueue();
+
   // ---- Page view: render mermaid diagrams if present ----
   const pageContent = $('#page-content');
   if (pageContent && window.mermaid) {
@@ -808,8 +850,16 @@
     // Exit manuscript mode on save (so form submits correctly)
     const editForm = $('#edit-form');
     if (editForm) {
-      editForm.addEventListener('submit', () => {
+      editForm.addEventListener('submit', e => {
         if (zenState.manuscript) toggleZen('manuscript');
+        if (!navigator.onLine) {
+          e.preventDefault();
+          queueFormSubmit(editForm);
+          dirty = false;
+          localStorage.removeItem(draftKey);
+          if (statusContext) statusContext.textContent = 'offline — save queued, will sync when back online';
+          return;
+        }
         dirty = false;
         localStorage.removeItem(draftKey);
       });
