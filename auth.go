@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"golang.org/x/crypto/bcrypt"
@@ -153,7 +154,10 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 	rec, exists := a.users[name]
 	a.mu.RUnlock()
 
-	if !exists {
+	// Empty hash marks an SSO-provisioned user: password login must always
+	// fail for those records, so guard before bcrypt (which would error on
+	// an empty hash anyway, but that is too subtle to rely on).
+	if !exists || rec.Hash == "" {
 		return "", false
 	}
 
@@ -162,24 +166,45 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 		return "", false
 	}
 
-	// Generate token
+	return a.newSession(name)
+}
+
+// newSession mints a session token for name and persists it.
+func (a *Auth) newSession(name string) (token string, ok bool) {
 	b := make([]byte, 16)
-	_, err = rand.Read(b)
-	if err != nil {
+	if _, err := rand.Read(b); err != nil {
 		return "", false
 	}
 	token = hex.EncodeToString(b)
 
-	// Store session
 	a.mu.Lock()
 	a.sessions[token] = name
-	err = a.saveSessions()
+	err := a.saveSessions()
 	a.mu.Unlock()
 	if err != nil {
 		slog.Warn("saving sessions", "error", err)
 	}
 
 	return token, true
+}
+
+// EnsureOIDCUser provisions name on first SSO login: a record with an empty
+// hash (password login impossible). gitAuthor ("Name <email>") is stored only
+// when the record has none, so a user's own override is never clobbered.
+func (a *Auth) EnsureOIDCUser(name, gitAuthor string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	rec, exists := a.users[name]
+	if exists && (rec.GitAuthor != "" || gitAuthor == "") {
+		return nil
+	}
+	rec.GitAuthor = gitAuthor
+	a.users[name] = rec
+	if !exists {
+		slog.Info("provisioned OIDC user", "user", name)
+	}
+	return a.save()
 }
 
 func (a *Auth) Logout(token string) {
@@ -201,8 +226,8 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow /login and /static/ without authentication
-		if r.URL.Path == "/login" || (len(r.URL.Path) > 8 && r.URL.Path[:8] == "/static/") {
+		// Allow /login, the OIDC flow and /static/ without authentication
+		if r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/static/") {
 			next.ServeHTTP(w, r)
 			return
 		}

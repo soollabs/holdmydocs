@@ -4,10 +4,11 @@
 		hold my docs (hmd) {{.Version}} &middot; homelab wiki
 		{{if .RemoteHost}}<br>git remote: {{.RemoteHost}}{{end}}
 	</div>
+	{{if .Error}}
+		<div class="error">{{.Error}}</div>
+	{{end}}
+	{{if .OIDCLocalLogin}}
 	<form method="POST" action="/login" class="login-form">
-		{{if .Error}}
-			<div class="error">{{.Error}}</div>
-		{{end}}
 		<div class="edit-field">
 			<label for="username">login:</label>
 			<input type="text" id="username" name="username" required autofocus>
@@ -21,5 +22,11 @@
 		</div>
 		<button type="submit">login &crarr;</button>
 	</form>
+	{{end}}
+	{{if .OIDCEnabled}}
+		<div class="login-form">
+			<a href="/auth/oidc/login"><button type="button">{{if .OIDCIcon}}<img class="sso-icon" src="/auth/oidc/icon" alt="">{{end}}{{.OIDCButtonText}}</button></a>
+		</div>
+	{{end}}
 </div>
 {{end}}

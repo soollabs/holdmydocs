@@ -64,6 +64,13 @@ Defaults shown:
 | `HMD_SYNC_MODE` | `push` | Sync mode: `push` (local→remote only) or `bidirectional` (fetch + ff pull) |
 | `HMD_DEFAULT_BRANCH` | `main` | Branch name used when initialising a fresh local repo (no effect on an existing repo) |
 | `HMD_HOME_FILENAME` | `readme.md` | Filename for the home page (the page served at `/`). Must end in `.md`, contain no path separators, and not be dot-prefixed. Defaults to `readme.md` so the home page renders on the git host's front page (GitHub, git, Gitea all render `readme.md` case-insensitively). Restart required to change. |
+| `HMD_OIDC_ISSUER` | (none) | OIDC issuer URL (e.g. https://auth.example.com). Setting it enables SSO login; restart required. Register the redirect URI `<HMD_BASE_URL>/auth/oidc/callback` with your provider — e.g. `https://wiki.example.com/auth/oidc/callback` |
+| `HMD_OIDC_CLIENT_ID` | (none) | OIDC client ID (required when the issuer is set) |
+| `HMD_OIDC_CLIENT_SECRET` | (none) | OIDC client secret (required when the issuer is set; prefer env over YAML) |
+| `HMD_OIDC_LOCAL_LOGIN` | `true` | Keep the password form on the login page alongside SSO; `false` hides it |
+| `HMD_OIDC_BUTTON_TEXT` | `Sign in with SSO` | Label for the SSO login button (e.g. `Login with Authelia`) |
+| `HMD_OIDC_ICON` | (none) | Icon shown on the SSO button. Either a [Dashboard Icons](https://dashboardicons.com/) name (e.g. `authelia`, fetched once at startup and served locally) or a path to an SVG file. Must be square (equal viewBox or width/height), max 256 KiB |
+| `HMD_BASE_URL` | (none) | Public base URL of this instance (e.g. `https://wiki.example.com`, no trailing slash needed). The OIDC redirect URI is built from it as `<HMD_BASE_URL>/auth/oidc/callback` |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file
@@ -90,6 +97,16 @@ show_tags_sidebar: true
 # sync_mode: bidirectional  # default: push (local→remote only)
 # default_branch: main  # branch name used when initialising a fresh local repo
 # home_filename: readme.md  # home page file; default readme.md renders on git host front page
+# OIDC SSO. Register the redirect URI <base_url>/auth/oidc/callback with your
+# provider — with the base_url below that is:
+#   https://wiki.example.com/auth/oidc/callback
+# oidc_issuer: https://auth.example.com
+# oidc_client_id: hmd
+# oidc_client_secret: change-me  # prefer HMD_OIDC_CLIENT_SECRET (env)
+# oidc_local_login: true  # false hides the password form
+# oidc_button_text: Login with Authelia
+# oidc_icon: authelia  # Dashboard Icons name, or a path to a square SVG
+# base_url: https://wiki.example.com
 # Theme overrides: 17 CSS colour variables per theme (see config.yaml.example
 # for the full list with defaults)
 # theme_dark:

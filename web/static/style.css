@@ -584,6 +584,13 @@ label {
 	padding: 0.6rem;
 }
 
+.sso-icon {
+	height: 1.1em;
+	width: 1.1em;
+	vertical-align: -0.2em;
+	margin-right: 0.45em;
+}
+
 /* Page view */
 
 article nav {

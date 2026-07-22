@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
@@ -134,6 +135,16 @@ func main() {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+
+	// OIDC: run discovery at startup when configured; fail loudly if the
+	// issuer is unreachable rather than serving a broken SSO button.
+	if cfg.OIDCIssuer != "" {
+		app.OIDC, err = NewOIDCAuth(context.Background(), cfg)
+		if err != nil {
+			log.Fatalf("OIDC setup failed: %v", err)
+		}
+		slog.Info("OIDC enabled", "issuer", cfg.OIDCIssuer)
+	}
 
 	slog.Info("listening", "bind", cfg.Bind)
 	log.Fatal(http.ListenAndServe(cfg.Bind, auth.Middleware(app.Routes())))

@@ -33,6 +33,16 @@ type Config struct {
 	Debug           bool
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
+
+	// OIDC single sign-on. Empty OIDCIssuer means OIDC is disabled.
+	// All restart-required, not editable from the settings UI.
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCLocalLogin   bool   // allow the password form alongside SSO
+	OIDCButtonText   string // login button label, e.g. "Login with Authelia"
+	OIDCIcon         string // button icon: Dashboard Icons name (e.g. "authelia") or path to a square SVG
+	BaseURL          string // public base URL, used to build the OIDC redirect URI
 }
 
 // fileConfig mirrors Config with the YAML keys accepted in the file
@@ -61,6 +71,14 @@ type fileConfig struct {
 	Debug           *bool             `yaml:"debug"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
+
+	OIDCIssuer       string `yaml:"oidc_issuer"`
+	OIDCClientID     string `yaml:"oidc_client_id"`
+	OIDCClientSecret string `yaml:"oidc_client_secret"`
+	OIDCLocalLogin   *bool  `yaml:"oidc_local_login"`
+	OIDCButtonText   string `yaml:"oidc_button_text"`
+	OIDCIcon         string `yaml:"oidc_icon"`
+	BaseURL          string `yaml:"base_url"`
 }
 
 func envOr(key, def string) string {
@@ -153,6 +171,14 @@ func LoadConfig() (Config, error) {
 		Debug:           pickBool("HMD_DEBUG", file.Debug, false),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
+
+		OIDCIssuer:       pick("HMD_OIDC_ISSUER", file.OIDCIssuer, ""),
+		OIDCClientID:     pick("HMD_OIDC_CLIENT_ID", file.OIDCClientID, ""),
+		OIDCClientSecret: pick("HMD_OIDC_CLIENT_SECRET", file.OIDCClientSecret, ""),
+		OIDCLocalLogin:   pickBool("HMD_OIDC_LOCAL_LOGIN", file.OIDCLocalLogin, true),
+		OIDCButtonText:   pick("HMD_OIDC_BUTTON_TEXT", file.OIDCButtonText, "Sign in with SSO"),
+		OIDCIcon:         pick("HMD_OIDC_ICON", file.OIDCIcon, ""),
+		BaseURL:          pick("HMD_BASE_URL", file.BaseURL, ""),
 	}
 
 	// Warn when an env var overrides a non-empty YAML value.
@@ -216,6 +242,27 @@ func LoadConfig() (Config, error) {
 	if file.Debug != nil && os.Getenv("HMD_DEBUG") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_DEBUG")
 	}
+	if file.OIDCIssuer != "" && os.Getenv("HMD_OIDC_ISSUER") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_ISSUER")
+	}
+	if file.OIDCClientID != "" && os.Getenv("HMD_OIDC_CLIENT_ID") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_CLIENT_ID")
+	}
+	if file.OIDCClientSecret != "" && os.Getenv("HMD_OIDC_CLIENT_SECRET") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_CLIENT_SECRET")
+	}
+	if file.OIDCLocalLogin != nil && os.Getenv("HMD_OIDC_LOCAL_LOGIN") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_LOCAL_LOGIN")
+	}
+	if file.OIDCButtonText != "" && os.Getenv("HMD_OIDC_BUTTON_TEXT") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_BUTTON_TEXT")
+	}
+	if file.OIDCIcon != "" && os.Getenv("HMD_OIDC_ICON") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_OIDC_ICON")
+	}
+	if file.BaseURL != "" && os.Getenv("HMD_BASE_URL") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_BASE_URL")
+	}
 
 	// Token file overrides the token value, whichever source named it.
 	if f := pick("HMD_GIT_TOKEN_FILE", file.GitTokenFile, ""); f != "" {
@@ -232,6 +279,15 @@ func LoadConfig() (Config, error) {
 
 	if err := cfg.validateHomeFilename(); err != nil {
 		return Config{}, err
+	}
+
+	if cfg.OIDCIssuer != "" {
+		if cfg.OIDCClientID == "" || cfg.OIDCClientSecret == "" {
+			return Config{}, fmt.Errorf("HMD_OIDC_ISSUER is set but HMD_OIDC_CLIENT_ID/HMD_OIDC_CLIENT_SECRET are not")
+		}
+		if cfg.BaseURL == "" {
+			return Config{}, fmt.Errorf("HMD_OIDC_ISSUER is set but HMD_BASE_URL is not (needed for the redirect URI)")
+		}
 	}
 
 	return cfg, nil

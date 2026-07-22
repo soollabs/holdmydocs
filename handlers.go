@@ -32,6 +32,7 @@ type App struct {
 	Index  *Index
 	Render *Renderer
 	Tmpl   map[string]*template.Template
+	OIDC   *OIDCAuth // nil when OIDC is disabled
 }
 
 // config returns the current configuration value.
@@ -96,6 +97,10 @@ type TemplateData struct {
 	StatusContext    string // right-aligned context: revision count / word counts
 	Version          string // shown on login intro
 	RemoteHost       string // host of the git remote, for login intro (empty if none)
+	OIDCEnabled      bool   // show the SSO button on the login page
+	OIDCButtonText   string // SSO button label
+	OIDCLocalLogin   bool   // show the password form alongside SSO
+	OIDCIcon         bool   // show the icon (served at /auth/oidc/icon) on the SSO button
 	SearchElapsed    string // search timing, e.g. "3ms"
 	SearchPages      int    // total pages, for search stats
 	SearchHits       int    // match count, for search stats
@@ -486,6 +491,9 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /login", app.handleLoginGet)
 	mux.HandleFunc("POST /login", app.handleLoginPost)
 	mux.HandleFunc("POST /logout", app.handleLogout)
+	mux.HandleFunc("GET /auth/oidc/login", app.handleOIDCLogin)
+	mux.HandleFunc("GET /auth/oidc/callback", app.handleOIDCCallback)
+	mux.HandleFunc("GET /auth/oidc/icon", app.handleOIDCIcon)
 
 	// Tags
 	mux.HandleFunc("GET /tags", app.handleTagsIndex)
@@ -539,8 +547,21 @@ func isSecureRequest(r *http.Request) bool {
 	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
+// loginData builds the login page TemplateData, including OIDC display state.
+func (app *App) loginData(errMsg string) TemplateData {
+	cfg := app.config()
+	return TemplateData{
+		Title:          "Login",
+		Error:          errMsg,
+		OIDCEnabled:    cfg.OIDCIssuer != "",
+		OIDCButtonText: cfg.OIDCButtonText,
+		OIDCLocalLogin: cfg.OIDCIssuer == "" || cfg.OIDCLocalLogin,
+		OIDCIcon:       app.OIDC != nil && app.OIDC.icon != nil,
+	}
+}
+
 func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
-	app.render(w, r, http.StatusOK, "login", TemplateData{Title: "Login"})
+	app.render(w, r, http.StatusOK, "login", app.loginData(""))
 }
 
 func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
@@ -549,10 +570,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	token, ok := app.Auth.Login(username, r.FormValue("password"))
 	if !ok {
 		slog.Warn("login failed", "username", username, "remote", r.RemoteAddr)
-		app.render(w, r, http.StatusUnauthorized, "login", TemplateData{
-			Title: "Login",
-			Error: "Invalid username or password",
-		})
+		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password"))
 		return
 	}
 
