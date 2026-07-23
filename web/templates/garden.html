@@ -1,0 +1,38 @@
+{{define "garden-head"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<link rel="alternate" type="application/rss+xml" title="{{.GardenTitle}}" href="/garden/feed.xml">
+<style>
+body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.6; }
+img { max-width: 100%; }
+pre { overflow-x: auto; }
+small { color: #666; }
+</style>
+</head>
+<body>
+{{end}}
+{{define "garden-index"}}{{template "garden-head" .}}
+<h1>{{.GardenTitle}}</h1>
+<ul>
+{{range .Entries}}<li>
+<a href="/garden/{{.Slug}}">{{.Title}}</a> {{if .Updated}}<small>{{.Updated}}</small>{{end}}
+{{if .Snippet}}<p>{{.Snippet}}</p>{{end}}
+</li>
+{{end}}</ul>
+</body>
+</html>
+{{end}}
+{{define "garden-page"}}{{template "garden-head" .}}
+<p><a href="/garden">{{.GardenTitle}}</a></p>
+<article>
+<h1>{{.Title}}</h1>
+{{if .Updated}}<p><small>Updated {{.Updated}}</small></p>{{end}}
+{{.Content}}
+{{if .Tags}}<p><small>{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}</small></p>{{end}}
+</article>
+</body>
+</html>
+{{end}}

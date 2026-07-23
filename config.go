@@ -33,6 +33,8 @@ type Config struct {
 	Debug           bool
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
+	GardenEnabled   bool   // serve public pages unauthenticated under /garden/ (restart-required)
+	GardenTitle     string // heading for the garden index/feed; defaults to SiteName
 
 	// OIDC single sign-on. Empty OIDCIssuer means OIDC is disabled.
 	// All restart-required, not editable from the settings UI.
@@ -71,6 +73,8 @@ type fileConfig struct {
 	Debug           *bool             `yaml:"debug"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
+	GardenEnabled   *bool             `yaml:"garden_enabled"`
+	GardenTitle     string            `yaml:"garden_title"`
 
 	OIDCIssuer       string `yaml:"oidc_issuer"`
 	OIDCClientID     string `yaml:"oidc_client_id"`
@@ -171,6 +175,8 @@ func LoadConfig() (Config, error) {
 		Debug:           pickBool("HMD_DEBUG", file.Debug, false),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
+		GardenEnabled:   pickBool("HMD_GARDEN_ENABLED", file.GardenEnabled, false),
+		GardenTitle:     pick("HMD_GARDEN_TITLE", file.GardenTitle, ""),
 
 		OIDCIssuer:       pick("HMD_OIDC_ISSUER", file.OIDCIssuer, ""),
 		OIDCClientID:     pick("HMD_OIDC_CLIENT_ID", file.OIDCClientID, ""),
@@ -242,6 +248,12 @@ func LoadConfig() (Config, error) {
 	if file.Debug != nil && os.Getenv("HMD_DEBUG") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_DEBUG")
 	}
+	if file.GardenEnabled != nil && os.Getenv("HMD_GARDEN_ENABLED") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_GARDEN_ENABLED")
+	}
+	if file.GardenTitle != "" && os.Getenv("HMD_GARDEN_TITLE") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_GARDEN_TITLE")
+	}
 	if file.OIDCIssuer != "" && os.Getenv("HMD_OIDC_ISSUER") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_OIDC_ISSUER")
 	}
@@ -271,6 +283,10 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("reading git token file: %w", err)
 		}
 		cfg.GitToken = strings.TrimSpace(string(b))
+	}
+
+	if cfg.GardenTitle == "" {
+		cfg.GardenTitle = cfg.SiteName
 	}
 
 	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {

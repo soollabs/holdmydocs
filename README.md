@@ -71,6 +71,8 @@ Defaults shown:
 | `HMD_OIDC_BUTTON_TEXT` | `Sign in with SSO` | Label for the SSO login button (e.g. `Login with Authelia`) |
 | `HMD_OIDC_ICON` | (none) | Icon shown on the SSO button. Either a [Dashboard Icons](https://dashboardicons.com/) name (e.g. `authelia`, fetched once at startup and served locally) or a path to an SVG file. Must be square (equal viewBox or width/height), max 256 KiB |
 | `HMD_BASE_URL` | (none) | Public base URL of this instance (e.g. `https://wiki.example.com`, no trailing slash needed). The OIDC redirect URI is built from it as `<HMD_BASE_URL>/auth/oidc/callback` |
+| `HMD_GARDEN_ENABLED` | `false` | Serve pages with `public: true` frontmatter read-only and unauthenticated under `/garden/` (index, pages, RSS at `/garden/feed.xml`). Restart required. **Note:** markdown bodies may contain raw HTML, so publishing a page publishes its raw HTML too |
+| `HMD_GARDEN_TITLE` | (site name) | Heading for the garden index and RSS feed |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file

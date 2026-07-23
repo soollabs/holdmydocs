@@ -72,6 +72,14 @@ show_tags_sidebar: true
 # oidc_icon: authelia
 # oidc_icon: /etc/hmd/sso-icon.svg
 
+# --- Digital garden ---
+# Serve pages with `public: true` frontmatter read-only and unauthenticated
+# under /garden/ (index, pages, RSS at /garden/feed.xml). Restart required.
+# Note: markdown bodies may contain raw HTML, so publishing a page publishes
+# its raw HTML too.
+# garden_enabled: true
+# garden_title: My Garden   # defaults to site_name
+
 # --- Theme ---
 # All 17 CSS colour variables, separately for dark/light. Uncomment and
 # override only the ones you want to change — anything omitted keeps the

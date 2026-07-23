@@ -27,6 +27,7 @@ type Auth struct {
 	sessionsFile string
 	users        map[string]userRecord // username -> record
 	sessions     map[string]string     // token -> username
+	garden       bool // allow /garden/ through unauthenticated (restart-required flag)
 	mu           sync.RWMutex
 }
 
@@ -43,6 +44,7 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		sessionsFile: filepath.Join(cfg.AppDir, "sessions.json"),
 		users:        make(map[string]userRecord),
 		sessions:     make(map[string]string),
+		garden:       cfg.GardenEnabled,
 	}
 
 	// Try to load existing users file
@@ -228,6 +230,13 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow /login, the OIDC flow and /static/ without authentication
 		if r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// The public garden namespace, only when enabled — disabled means
+		// /garden/ stays behind the login redirect like everything else
+		if a.garden && (r.URL.Path == "/garden" || strings.HasPrefix(r.URL.Path, "/garden/")) {
 			next.ServeHTTP(w, r)
 			return
 		}

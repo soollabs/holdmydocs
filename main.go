@@ -28,6 +28,13 @@ func parseTemplates() (map[string]*template.Template, error) {
 		}
 		tmpl[name] = t
 	}
+	// The garden template is deliberately standalone (not on base.html) so
+	// nothing internal can leak into the public pages.
+	t, err := template.ParseFS(webFS, "web/templates/garden.html")
+	if err != nil {
+		return nil, fmt.Errorf("parsing garden: %w", err)
+	}
+	tmpl["garden"] = t
 	return tmpl, nil
 }
 

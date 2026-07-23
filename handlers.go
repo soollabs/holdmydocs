@@ -123,6 +123,7 @@ type TemplateData struct {
 	HomeFilename     string
 	RoutePrefix      string
 	IsHidden         bool
+	IsPublic         bool // frontmatter public flag, drives the editor checkbox
 	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
 	HealthMissing    int
 	HealthOrphans    int
@@ -527,6 +528,13 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /hidden/{slug}/edit", app.handleEditHidden)
 	mux.HandleFunc("POST /hidden/{slug}/save", app.handleSaveHidden)
 
+	// Digital garden: public read-only namespace. 404s unless
+	// HMD_GARDEN_ENABLED (and stays behind the auth redirect when disabled).
+	mux.HandleFunc("GET /garden", app.handleGardenIndex)
+	mux.HandleFunc("GET /garden/{slug}", app.handleGardenPage)
+	mux.HandleFunc("GET /garden/feed.xml", app.handleGardenFeed)
+	mux.HandleFunc("GET /garden/attachments/{slug}/{file}", app.handleGardenAttachment)
+
 	// API endpoints
 	mux.HandleFunc("GET /api/search", app.handleSearchAPI)
 	mux.HandleFunc("GET /api/sync", app.handleSyncAPI)
@@ -786,6 +794,7 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 		TagsInput:  strings.Join(page.Tags, ", "),
 		StatusMode: "edit",
 		IsHidden:   false,
+		IsPublic:   page.Public,
 	})
 }
 
@@ -804,6 +813,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	tagsInput := r.FormValue("tags")
 	basehash := r.FormValue("basehash")
 	hidden := r.FormValue("hidden") == "on"
+	public := r.FormValue("public") == "on"
 	username := app.currentUser(r)
 
 	newFile := pageFile(slug)
@@ -820,7 +830,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body}
+	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body, Public: public}
 
 	message := "Update " + title
 	if basehash == "" {
@@ -864,6 +874,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 			StatusMode:    "conflict",
 			RoutePrefix:   oldPrefix,
 			IsHidden:      hidden,
+			IsPublic:      public,
 		})
 		return
 	}
@@ -1574,6 +1585,7 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 		StatusMode:  "edit",
 		RoutePrefix: "/hidden",
 		IsHidden:    true,
+		IsPublic:    page.Public,
 	})
 }
 
