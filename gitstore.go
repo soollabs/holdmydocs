@@ -17,6 +17,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 )
@@ -34,13 +35,13 @@ type CommitInfo struct {
 }
 
 type Store struct {
-	repo       *git.Repository
-	dir        string
-	remote     string
-	auth       *githttp.BasicAuth
-	mu         sync.RWMutex
-	syncState  string
-	syncErr    string
+	repo      *git.Repository
+	dir       string
+	remote    string
+	auth      *githttp.BasicAuth
+	mu        sync.RWMutex
+	syncState string
+	syncErr   string
 	// historyCache holds History() results keyed by path, protected by mu.
 	// Save/Remove update it incrementally (O(1)); FetchAndFF drops it
 	// wholesale since a pull can touch any path. Without this, every page
@@ -58,7 +59,7 @@ type Store struct {
 	// ForceSetup is set by the "re-run setup" button in settings — it shows
 	// the modal even when the home file/.help.md already exist, unlike NeedsSetup
 	// which only reflects files actually missing.
-	ForceSetup     atomic.Bool
+	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
 }
 
@@ -626,6 +627,54 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	}
 	s.historyCache[path] = commits
 
+	return commits, nil
+}
+
+// CommitDetail is CommitInfo plus the files the commit touched, for the MCP
+// recent_changes tool.
+type CommitDetail struct {
+	Hash    string
+	Message string
+	Author  string
+	When    time.Time
+	Files   []string
+}
+
+// RecentCommits walks the log head-first and returns the newest n commits
+// with the files each touched.
+func (s *Store) RecentCommits(n int) ([]CommitDetail, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	iter, err := s.repo.Log(&git.LogOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("getting log: %w", err)
+	}
+
+	var commits []CommitDetail
+	err = iter.ForEach(func(c *object.Commit) error {
+		if len(commits) >= n {
+			return storer.ErrStop
+		}
+		var files []string
+		// Stats diffs each commit against its parent; fine for a bounded n
+		if stats, statErr := c.Stats(); statErr == nil {
+			for _, st := range stats {
+				files = append(files, st.Name)
+			}
+		}
+		commits = append(commits, CommitDetail{
+			Hash:    c.Hash.String(),
+			Message: strings.TrimSpace(c.Message),
+			Author:  c.Author.Name,
+			When:    c.Author.When,
+			Files:   files,
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 	return commits, nil
 }
 

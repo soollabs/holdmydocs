@@ -241,6 +241,13 @@ func (ix *Index) Titles() map[string]string {
 	return result
 }
 
+// TagsFor returns slug's tags as stored in the index.
+func (ix *Index) TagsFor(slug string) []string {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+	return ix.pageTags[slug]
+}
+
 func (ix *Index) Search(q string) ([]SearchHit, error) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()

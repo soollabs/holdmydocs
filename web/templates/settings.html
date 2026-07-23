@@ -208,6 +208,47 @@
 </fieldset>
 
 <fieldset class="settings-section">
+	<legend>access tokens</legend>
+	{{if .Settings.NewToken}}
+	<div class="settings-row">
+		<label>new token</label>
+		<input type="text" value="{{.Settings.NewToken}}" readonly onclick="this.select()">
+	</div>
+	<p class="settings-note">Copy it now — it will not be shown again.</p>
+	{{end}}
+	{{if .Settings.TokenError}}
+	<p class="settings-error">{{.Settings.TokenError}}</p>
+	{{end}}
+	{{range .Settings.Tokens}}
+	<div class="settings-row">
+		<label>{{.Name}}</label>
+		<span class="token-meta">created {{.Created}} &middot; expires {{.Expires}}</span>
+		<form method="POST" action="/settings/tokens/revoke" style="display:contents">
+			<input type="hidden" name="label" value="{{.Name}}">
+			<button type="submit" class="ghost-btn">revoke</button>
+		</form>
+	</div>
+	{{end}}
+	<form method="POST" action="/settings/tokens" class="settings-form">
+		<div class="settings-row">
+			<label for="token_label">new token name</label>
+			<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">
+			<select name="expiry">
+				<option value="1d">1 day</option>
+				<option value="7d">7 days</option>
+				<option value="30d" selected>30 days</option>
+				<option value="1y">1 year</option>
+				<option value="never">never</option>
+			</select>
+		</div>
+		<div class="settings-actions">
+			<button type="submit" class="primary">create token</button>
+		</div>
+	</form>
+	<p class="settings-note">Bearer tokens for the API and the MCP endpoint (<code>Authorization: Bearer hmd_...</code>).</p>
+</fieldset>
+
+<fieldset class="settings-section">
 	<legend>wiki setup</legend>
 	<div class="settings-row">
 		<label>home page</label>

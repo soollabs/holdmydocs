@@ -73,6 +73,7 @@ Defaults shown:
 | `HMD_BASE_URL` | (none) | Public base URL of this instance (e.g. `https://wiki.example.com`, no trailing slash needed). The OIDC redirect URI is built from it as `<HMD_BASE_URL>/auth/oidc/callback` |
 | `HMD_GARDEN_ENABLED` | `false` | Serve pages with `public: true` frontmatter read-only and unauthenticated under `/garden/` (index, pages, RSS at `/garden/feed.xml`). Restart required. **Note:** markdown bodies may contain raw HTML, so publishing a page publishes its raw HTML too |
 | `HMD_GARDEN_TITLE` | (site name) | Heading for the garden index and RSS feed |
+| `HMD_MCP_ENABLED` | `false` | Expose the wiki to AI agents over MCP (streamable HTTP at `/mcp`, Bearer token auth). Restart required. See [MCP server](#mcp-server) |
 | `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
 
 ### Configuration file
@@ -291,6 +292,19 @@ docker compose exec hmd /hmd adduser alice
 ```
 
 (Note: distroless images have no shell, so the form above invokes the binary directly.)
+
+### Personal access tokens
+API and MCP clients authenticate with a Bearer token instead of the session cookie. Create tokens under **access tokens** on `/settings`: name the token, pick an expiry (1 day, 7 days, 30 days — the default — 1 year, or never) and copy the value when it is shown — that's the only time it appears. Only a hash is stored. Revoke from the same page; revocation takes effect immediately.
+
+## MCP server
+
+Set `HMD_MCP_ENABLED=true` (restart required) to serve the wiki over the [Model Context Protocol](https://modelcontextprotocol.io/) at `/mcp` (streamable HTTP). MCP clients can then read and write pages directly — every save is a git commit attributed to the token's owner.
+
+Create a token on `/settings` (see [Personal access tokens](#personal-access-tokens)), then configure your MCP client to send it as a Bearer token.
+
+Tools: `list_pages`, `read_page`, `save_page`, `delete_page`, `search`, `backlinks`, `recent_changes`. Saves use the same optimistic locking as the web editor: `save_page` requires the `hash` returned by `read_page`, and a stale hash returns a conflict carrying the current content so the agent can merge and retry.
+
+This makes hmd usable as a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): point your agent's instructions at the wiki conventions you want, and let it compile knowledge into interlinked pages.
 
 ## Writing Pages
 

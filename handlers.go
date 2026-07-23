@@ -123,7 +123,7 @@ type TemplateData struct {
 	HomeFilename     string
 	RoutePrefix      string
 	IsHidden         bool
-	IsPublic         bool // frontmatter public flag, drives the editor checkbox
+	IsPublic         bool       // frontmatter public flag, drives the editor checkbox
 	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
 	HealthMissing    int
 	HealthOrphans    int
@@ -160,9 +160,19 @@ type SettingsData struct {
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
 	HelpDrifted     bool
-	UserGitAuthor   string // current user's per-user git author override
-	HomeFilename    string // read-only display; restart required to change
-	HomeFilenameEnv string // env var name if it overrides the file, else ""
+	UserGitAuthor   string      // current user's per-user git author override
+	HomeFilename    string      // read-only display; restart required to change
+	HomeFilenameEnv string      // env var name if it overrides the file, else ""
+	Tokens          []TokenView // current user's personal access tokens
+	NewToken        string      // freshly minted token value, shown exactly once
+	TokenError      string      // token create/revoke validation error
+}
+
+// TokenView is a PAT as listed on the settings page (metadata only).
+type TokenView struct {
+	Name    string
+	Created string
+	Expires string // "never", a date, or "expired"
 }
 
 // relativeTime renders t as a short "N units ago" string, falling back to
@@ -395,6 +405,10 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 }
 
 func (app *App) currentUser(r *http.Request) string {
+	// Bearer-authenticated requests carry the username in the context.
+	if user, ok := r.Context().Value(ctxUserKey{}).(string); ok {
+		return user
+	}
 	cookie, err := r.Cookie("hmd_session")
 	if err != nil {
 		return ""
@@ -504,6 +518,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /settings", app.handleSettingsGet)
 	mux.HandleFunc("POST /settings", app.handleSettingsPost)
 	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
+	mux.HandleFunc("POST /settings/tokens", app.handleCreateToken)
+	mux.HandleFunc("POST /settings/tokens/revoke", app.handleRevokeToken)
 	mux.HandleFunc("POST /settings/setup", app.handleRerunSetup)
 	mux.HandleFunc("POST /settings/help/reset", app.handleResetHelp)
 
@@ -534,6 +550,12 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /garden/{slug}", app.handleGardenPage)
 	mux.HandleFunc("GET /garden/feed.xml", app.handleGardenFeed)
 	mux.HandleFunc("GET /garden/attachments/{slug}/{file}", app.handleGardenAttachment)
+
+	// MCP server (opt-in, restart-required): agents read and write the wiki
+	// over streamable HTTP. Same middleware as /api/ — Bearer PAT, 401 JSON.
+	if app.config().MCPEnabled {
+		mux.Handle("/mcp", app.mcpHandler())
+	}
 
 	// API endpoints
 	mux.HandleFunc("GET /api/search", app.handleSearchAPI)
@@ -1593,7 +1615,10 @@ func (app *App) handleSaveHidden(w http.ResponseWriter, r *http.Request) {
 	app.handleSave(w, r, hiddenFile(r.PathValue("slug")))
 }
 
-func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
+// settingsData assembles the SettingsData for the current user, shared by
+// the GET handler and the token handlers (which re-render rather than
+// redirect, so a freshly minted token can be shown exactly once).
+func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
 
 	configPath := os.Getenv("HMD_CONFIG_FILE")
@@ -1606,12 +1631,32 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 
 	sd := buildSettingsData(cfg, fc, configPath, hasConfigFile)
 	sd.HelpDrifted = HelpDrifted(app.Store)
-	sd.UserGitAuthor = app.Auth.AuthorFor(app.currentUser(r))
-
-	if q := r.URL.Query().Get("saved"); q == "1" {
-		sd.Flash = "Settings saved"
+	user := app.currentUser(r)
+	sd.UserGitAuthor = app.Auth.AuthorFor(user)
+	for _, t := range app.Auth.TokensFor(user) {
+		expires := "never"
+		switch {
+		case t.expired():
+			expires = "expired"
+		case !t.Expires.IsZero():
+			expires = t.Expires.Format("2006-01-02")
+		}
+		sd.Tokens = append(sd.Tokens, TokenView{Name: t.Name, Created: relativeTime(t.Created), Expires: expires})
 	}
+	return sd
+}
 
+// tokenTTLs maps the expiry select options to durations; zero means never.
+// 30 days is the form's default.
+var tokenTTLs = map[string]time.Duration{
+	"1d":    24 * time.Hour,
+	"7d":    7 * 24 * time.Hour,
+	"30d":   30 * 24 * time.Hour,
+	"1y":    365 * 24 * time.Hour,
+	"never": 0,
+}
+
+func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd SettingsData) {
 	app.render(w, r, http.StatusOK, "settings", TemplateData{
 		Authed:        true,
 		Title:         "Settings",
@@ -1619,6 +1664,60 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 		StatusContext: "config",
 		Settings:      &sd,
 	})
+}
+
+func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
+	sd := app.settingsData(r)
+	if q := r.URL.Query().Get("saved"); q == "1" {
+		sd.Flash = "Settings saved"
+	}
+	app.renderSettings(w, r, sd)
+}
+
+// handleCreateToken mints a PAT for the current user and re-renders the
+// settings page with the value — the only time it is ever displayed.
+func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
+	label := strings.TrimSpace(r.FormValue("label"))
+	if label == "" {
+		sd := app.settingsData(r)
+		sd.TokenError = "Token needs a name"
+		app.renderSettings(w, r, sd)
+		return
+	}
+	ttl, ok := tokenTTLs[r.FormValue("expiry")]
+	if !ok {
+		ttl = tokenTTLs["30d"]
+	}
+	var expires time.Time
+	if ttl > 0 {
+		expires = time.Now().Add(ttl)
+	}
+	user := app.currentUser(r)
+	token, err := app.Auth.AddToken(user, label, expires)
+	if err != nil {
+		sd := app.settingsData(r)
+		sd.TokenError = err.Error()
+		app.renderSettings(w, r, sd)
+		return
+	}
+	slog.Info("token created", "user", user, "label", label)
+	sd := app.settingsData(r)
+	sd.NewToken = token
+	app.renderSettings(w, r, sd)
+}
+
+// handleRevokeToken revokes the current user's token named by the form.
+func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
+	user := app.currentUser(r)
+	label := r.FormValue("label")
+	if err := app.Auth.RemoveToken(user, label); err != nil {
+		sd := app.settingsData(r)
+		sd.TokenError = err.Error()
+		app.renderSettings(w, r, sd)
+		return
+	}
+	slog.Info("token revoked", "user", user, "label", label)
+	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {

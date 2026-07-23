@@ -1732,6 +1732,37 @@ body.zen-manuscript .zen-status.visible {
 	font-size: 0.9rem;
 }
 
+.settings-note {
+	color: var(--fg-muted);
+	font-size: 0.85rem;
+	margin: 0.25rem 0 0.75rem;
+}
+
+.settings-error {
+	background: color-mix(in srgb, var(--red) 15%, var(--bg));
+	color: var(--red);
+	padding: 0.5rem 0.75rem;
+	border-radius: 6px;
+	margin-bottom: 1rem;
+	font-size: 0.9rem;
+}
+
+.settings-row select {
+	background: var(--bg);
+	border: 1px solid var(--border-2);
+	color: var(--fg-bright);
+	border-radius: 4px;
+	padding: 2px 4px;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.settings-row .token-meta {
+	color: var(--fg-muted);
+	font-size: 0.85rem;
+	flex: 1;
+}
+
 .settings-form {
 	max-width: 48rem;
 }

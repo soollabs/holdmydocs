@@ -35,6 +35,7 @@ type Config struct {
 	ThemeLight      map[string]string
 	GardenEnabled   bool   // serve public pages unauthenticated under /garden/ (restart-required)
 	GardenTitle     string // heading for the garden index/feed; defaults to SiteName
+	MCPEnabled      bool   // serve the MCP endpoint at /mcp (restart-required, Bearer PAT auth)
 
 	// OIDC single sign-on. Empty OIDCIssuer means OIDC is disabled.
 	// All restart-required, not editable from the settings UI.
@@ -75,6 +76,7 @@ type fileConfig struct {
 	ThemeLight      map[string]string `yaml:"theme_light"`
 	GardenEnabled   *bool             `yaml:"garden_enabled"`
 	GardenTitle     string            `yaml:"garden_title"`
+	MCPEnabled      *bool             `yaml:"mcp_enabled"`
 
 	OIDCIssuer       string `yaml:"oidc_issuer"`
 	OIDCClientID     string `yaml:"oidc_client_id"`
@@ -177,6 +179,7 @@ func LoadConfig() (Config, error) {
 		ThemeLight:      file.ThemeLight,
 		GardenEnabled:   pickBool("HMD_GARDEN_ENABLED", file.GardenEnabled, false),
 		GardenTitle:     pick("HMD_GARDEN_TITLE", file.GardenTitle, ""),
+		MCPEnabled:      pickBool("HMD_MCP_ENABLED", file.MCPEnabled, false),
 
 		OIDCIssuer:       pick("HMD_OIDC_ISSUER", file.OIDCIssuer, ""),
 		OIDCClientID:     pick("HMD_OIDC_CLIENT_ID", file.OIDCClientID, ""),
@@ -253,6 +256,9 @@ func LoadConfig() (Config, error) {
 	}
 	if file.GardenTitle != "" && os.Getenv("HMD_GARDEN_TITLE") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_GARDEN_TITLE")
+	}
+	if file.MCPEnabled != nil && os.Getenv("HMD_MCP_ENABLED") != "" {
+		slog.Warn("env overriding config file value", "var", "HMD_MCP_ENABLED")
 	}
 	if file.OIDCIssuer != "" && os.Getenv("HMD_OIDC_ISSUER") != "" {
 		slog.Warn("env overriding config file value", "var", "HMD_OIDC_ISSUER")

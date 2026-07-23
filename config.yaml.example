@@ -80,6 +80,12 @@ show_tags_sidebar: true
 # garden_enabled: true
 # garden_title: My Garden   # defaults to site_name
 
+# --- MCP server ---
+# Expose the wiki to AI agents over MCP (streamable HTTP at /mcp).
+# Requires a personal access token, created under /settings.
+# Restart required.
+# mcp_enabled: true
+
 # --- Theme ---
 # All 17 CSS colour variables, separately for dark/light. Uncomment and
 # override only the ones you want to change — anything omitted keeps the
