@@ -148,24 +148,32 @@ type FieldState struct {
 
 // SettingsData is passed to the settings template.
 type SettingsData struct {
-	Fields          map[string]FieldState
-	NoConfigFile    bool
-	ConfigPath      string
-	Flash           string // success message after a save
-	Error           string // validation error
-	MaxUploadBytes  int64
-	SyncPollMs      int
-	ShowTagsSidebar bool
-	SyncMode        string
-	ThemeDark       map[string]string
-	ThemeLight      map[string]string
-	HelpDrifted     bool
-	UserGitAuthor   string      // current user's per-user git author override
-	HomeFilename    string      // read-only display; restart required to change
-	HomeFilenameEnv string      // env var name if it overrides the file, else ""
-	Tokens          []TokenView // current user's personal access tokens
-	NewToken        string      // freshly minted token value, shown exactly once
-	TokenError      string      // token create/revoke validation error
+	Fields           map[string]FieldState
+	NoConfigFile     bool
+	ConfigPath       string
+	Flash            string // success message after a save
+	Error            string // validation error
+	MaxUploadBytes   int64
+	SyncPollMs       int
+	ShowTagsSidebar  bool
+	SyncMode         string
+	ThemeDark        map[string]string
+	ThemeLight       map[string]string
+	ThemePresetNames []string
+	ThemePresets     map[string]themePreset // JSON-encoded into the settings page script
+	FontUI           string
+	FontMono         string
+	FontsMono        []string // option groups for the font selects
+	FontsSans        []string
+	FontsSerif       []string
+	FontStacks       map[string]string // JSON-encoded for the live font preview
+	HelpDrifted      bool
+	UserGitAuthor    string      // current user's per-user git author override
+	HomeFilename     string      // read-only display; restart required to change
+	HomeFilenameEnv  string      // env var name if it overrides the file, else ""
+	Tokens           []TokenView // current user's personal access tokens
+	NewToken         string      // freshly minted token value, shown exactly once
+	TokenError       string      // token create/revoke validation error
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -291,17 +299,25 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 	fields["SyncMode"] = mkField(cfg.SyncMode, "HMD_SYNC_MODE", false, false)
 
 	return SettingsData{
-		Fields:          fields,
-		NoConfigFile:    !hasConfigFile,
-		ConfigPath:      configPath,
-		MaxUploadBytes:  cfg.MaxUploadBytes,
-		SyncPollMs:      cfg.SyncPollMs,
-		ShowTagsSidebar: cfg.ShowTagsSidebar,
-		SyncMode:        cfg.SyncMode,
-		ThemeDark:       mergeTheme(defaultDark, cfg.ThemeDark),
-		ThemeLight:      mergeTheme(defaultLight, cfg.ThemeLight),
-		HomeFilename:    cfg.HomeFilename,
-		HomeFilenameEnv: envLocked("HMD_HOME_FILENAME"),
+		Fields:           fields,
+		NoConfigFile:     !hasConfigFile,
+		ConfigPath:       configPath,
+		MaxUploadBytes:   cfg.MaxUploadBytes,
+		SyncPollMs:       cfg.SyncPollMs,
+		ShowTagsSidebar:  cfg.ShowTagsSidebar,
+		SyncMode:         cfg.SyncMode,
+		ThemeDark:        mergeTheme(defaultDark, cfg.ThemeDark),
+		ThemeLight:       mergeTheme(defaultLight, cfg.ThemeLight),
+		ThemePresetNames: themePresetNames,
+		ThemePresets:     themePresets,
+		FontUI:           cfg.FontUI,
+		FontMono:         cfg.FontMono,
+		FontsMono:        fontsMono,
+		FontsSans:        fontsSans,
+		FontsSerif:       fontsSerif,
+		FontStacks:       fontStacks,
+		HomeFilename:     cfg.HomeFilename,
+		HomeFilenameEnv:  envLocked("HMD_HOME_FILENAME"),
 	}
 }
 
@@ -1747,6 +1763,8 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	syncPollStr := r.FormValue("sync_poll_ms")
 	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
 	syncMode := r.FormValue("sync_mode")
+	fontUI := r.FormValue("font_ui")
+	fontMono := r.FormValue("font_mono")
 
 	if bind == "" {
 		http.Error(w, "Bind cannot be empty", http.StatusBadRequest)
@@ -1782,6 +1800,14 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if syncMode != "push" && syncMode != "bidirectional" {
 		http.Error(w, "Sync mode must be push or bidirectional", http.StatusBadRequest)
+		return
+	}
+	if _, ok := fontStacks[fontUI]; fontUI != "" && !ok {
+		http.Error(w, "Unknown UI font", http.StatusBadRequest)
+		return
+	}
+	if _, ok := fontStacks[fontMono]; fontMono != "" && !ok {
+		http.Error(w, "Unknown monospace font", http.StatusBadRequest)
 		return
 	}
 
@@ -1820,6 +1846,8 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 		fc.GitToken = gitToken
 	}
 
+	fc.FontUI = fontUI
+	fc.FontMono = fontMono
 	fc.ThemeDark = snapshotTheme(collectTheme(r.PostForm, "theme_dark_"), defaultDark)
 	fc.ThemeLight = snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
 

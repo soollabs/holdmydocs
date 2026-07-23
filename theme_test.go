@@ -153,3 +153,66 @@ func TestBuildThemeStyleLightOnly(t *testing.T) {
 		t.Error("expected light selector in CSS")
 	}
 }
+
+func TestThemePresetsValidAndComplete(t *testing.T) {
+	loadThemeDefaults()
+	if len(defaultDark) == 0 || len(defaultLight) == 0 {
+		t.Fatal("no theme defaults parsed from embedded style.css")
+	}
+	for _, name := range themePresetNames {
+		p, ok := themePresets[name]
+		if !ok {
+			t.Fatalf("preset %q listed in themePresetNames but not defined", name)
+		}
+		for mode, vars := range map[string]map[string]string{"dark": p.Dark, "light": p.Light} {
+			defaults := defaultDark
+			if mode == "light" {
+				defaults = defaultLight
+			}
+			for k := range defaults {
+				if !validThemeColour.MatchString(vars[k]) {
+					t.Errorf("preset %s %s: variable %q missing or invalid (%q)", name, mode, k, vars[k])
+				}
+			}
+			for k := range vars {
+				if _, ok := defaults[k]; !ok {
+					t.Errorf("preset %s %s: unknown variable %q", name, mode, k)
+				}
+			}
+		}
+	}
+	if len(themePresetNames) != len(themePresets) {
+		t.Errorf("themePresetNames has %d entries, themePresets has %d", len(themePresetNames), len(themePresets))
+	}
+}
+
+func TestFontStacksMatchGroups(t *testing.T) {
+	grouped := map[string]bool{}
+	for _, g := range [][]string{fontsMono, fontsSans, fontsSerif} {
+		for _, n := range g {
+			if grouped[n] {
+				t.Errorf("font %q listed in more than one group", n)
+			}
+			grouped[n] = true
+			if _, ok := fontStacks[n]; !ok {
+				t.Errorf("font %q grouped but has no stack", n)
+			}
+		}
+	}
+	for n := range fontStacks {
+		if !grouped[n] {
+			t.Errorf("font %q has a stack but is in no group", n)
+		}
+	}
+}
+
+func TestBuildThemeStyleFonts(t *testing.T) {
+	css := string(buildThemeStyle(Config{FontUI: "georgia", FontMono: "system mono"}))
+	if !strings.Contains(css, `--font-ui:Georgia, "Times New Roman", serif;`) ||
+		!strings.Contains(css, `--font-mono:ui-monospace,`) {
+		t.Errorf("font overrides missing from style: %q", css)
+	}
+	if got := buildThemeStyle(Config{FontUI: "nope"}); got != "" {
+		t.Errorf("unknown font name should emit nothing, got %q", got)
+	}
+}

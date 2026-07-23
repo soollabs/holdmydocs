@@ -133,6 +133,28 @@ func collectTheme(r map[string][]string, prefix string) map[string]string {
 	return m
 }
 
+// Font options for the settings UI. Values are fixed CSS stacks looked up
+// by name — only these strings ever reach the inline <style> block, so no
+// user-supplied CSS is emitted. Empty config = the style.css default
+// (bundled JetBrains Mono for both roles).
+var (
+	fontsMono  = []string{"jetbrains mono", "system mono", "courier"}
+	fontsSans  = []string{"system sans", "helvetica", "verdana"}
+	fontsSerif = []string{"georgia", "palatino", "charter"}
+)
+
+var fontStacks = map[string]string{
+	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,
+	"system mono":    `ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+	"courier":        `"Courier New", Courier, monospace`,
+	"system sans":    `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`,
+	"helvetica":      `"Helvetica Neue", Helvetica, Arial, sans-serif`,
+	"verdana":        `Verdana, Geneva, sans-serif`,
+	"georgia":        `Georgia, "Times New Roman", serif`,
+	"palatino":       `Palatino, "Palatino Linotype", "Book Antiqua", serif`,
+	"charter":        `Charter, "Bitstream Charter", Cambria, serif`,
+}
+
 // buildThemeStyle renders an inline CSS override block for any theme that
 // has a non-empty map in cfg. The block is injected after style.css so it
 // overrides the defaults. Returns "" when no overrides are configured.
@@ -147,6 +169,16 @@ func buildThemeStyle(cfg Config) template.CSS {
 		b.WriteString(`:root[data-theme="light"]{`)
 		writeThemeVars(&b, cfg.ThemeLight)
 		b.WriteString("}")
+	}
+	var fonts strings.Builder
+	if s, ok := fontStacks[cfg.FontUI]; ok {
+		fonts.WriteString("--font-ui:" + s + ";")
+	}
+	if s, ok := fontStacks[cfg.FontMono]; ok {
+		fonts.WriteString("--font-mono:" + s + ";")
+	}
+	if fonts.Len() > 0 {
+		b.WriteString(":root{" + fonts.String() + "}")
 	}
 	return template.CSS(b.String())
 }

@@ -131,7 +131,48 @@
 	</fieldset>
 
 	<fieldset class="settings-section">
+		<legend>appearance &mdash; fonts</legend>
+		<div class="settings-row">
+			<label for="font_ui">ui font</label>
+			<select id="font_ui" name="font_ui">
+				<option value="">(default — jetbrains mono)</option>
+				<optgroup label="sans serif">
+					{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+				<optgroup label="serif">
+					{{range .Settings.FontsSerif}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+				<optgroup label="monospace">
+					{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+			</select>
+		</div>
+		<div class="settings-row">
+			<label for="font_mono">code &amp; editor font</label>
+			<select id="font_mono" name="font_mono">
+				<option value="">(default — jetbrains mono)</option>
+				<optgroup label="sans serif">
+					{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+				<optgroup label="serif">
+					{{range .Settings.FontsSerif}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+				<optgroup label="monospace">
+					{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
+				</optgroup>
+			</select>
+		</div>
+	</fieldset>
+
+	<fieldset class="settings-section">
 		<legend>appearance &mdash; dark theme</legend>
+		<div class="settings-row">
+			<label for="preset_dark">preset</label>
+			<select id="preset_dark" class="theme-preset" data-mode="dark" data-prefix="theme_dark_">
+				<option value="">(choose a preset)</option>
+				{{range .Settings.ThemePresetNames}}<option value="{{.}}">{{.}}</option>{{end}}
+			</select>
+		</div>
 		<div class="theme-colours">
 			{{range $name, $hex := .Settings.ThemeDark}}
 			<label class="colour-pick">
@@ -144,6 +185,13 @@
 
 	<fieldset class="settings-section">
 		<legend>appearance &mdash; light theme</legend>
+		<div class="settings-row">
+			<label for="preset_light">preset</label>
+			<select id="preset_light" class="theme-preset" data-mode="light" data-prefix="theme_light_">
+				<option value="">(choose a preset)</option>
+				{{range .Settings.ThemePresetNames}}<option value="{{.}}">{{.}}</option>{{end}}
+			</select>
+		</div>
 		<div class="theme-colours">
 			{{range $name, $hex := .Settings.ThemeLight}}
 			<label class="colour-pick">
@@ -264,4 +312,54 @@
 </fieldset>
 {{end}}
 </div>
+<script>
+// Selecting a preset fills the colour inputs for that mode; the user still
+// reviews/tweaks and saves through the normal settings form. Colour, preset
+// and font changes also preview live via inline CSS vars on <html> — purely
+// cosmetic until saved; navigating away reverts.
+(function () {
+	var presets = {{.Settings.ThemePresets}};
+	var fontStacks = {{.Settings.FontStacks}};
+	var root = document.documentElement;
+
+	function activeMode() {
+		return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+	}
+
+	function preview(mode, name, value) {
+		if (mode === activeMode()) root.style.setProperty('--' + name, value);
+	}
+
+	document.querySelectorAll('.theme-colours input[type="color"]').forEach(function (input) {
+		var m = input.name.match(/^theme_(dark|light)_(.+)$/);
+		if (!m) return;
+		input.addEventListener('input', function () {
+			preview(m[1], m[2], input.value);
+		});
+	});
+
+	document.querySelectorAll('.theme-preset').forEach(function (sel) {
+		sel.addEventListener('change', function () {
+			var p = presets[sel.value];
+			if (!p) return;
+			var vars = p[sel.dataset.mode] || {};
+			Object.keys(vars).forEach(function (name) {
+				var input = document.querySelector('input[name="' + sel.dataset.prefix + name + '"]');
+				if (input) input.value = vars[name];
+				preview(sel.dataset.mode, name, vars[name]);
+			});
+		});
+	});
+
+	[['font_ui', '--font-ui'], ['font_mono', '--font-mono']].forEach(function (pair) {
+		var sel = document.getElementById(pair[0]);
+		if (!sel) return;
+		sel.addEventListener('change', function () {
+			var stack = fontStacks[sel.value];
+			if (stack) root.style.setProperty(pair[1], stack);
+			else root.style.removeProperty(pair[1]);
+		});
+	});
+})();
+</script>
 {{end}}

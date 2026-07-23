@@ -33,6 +33,8 @@ type Config struct {
 	Debug           bool
 	ThemeDark       map[string]string
 	ThemeLight      map[string]string
+	FontUI          string // named stack from fontStacks; "" = style.css default
+	FontMono        string
 	GardenEnabled   bool   // serve public pages unauthenticated under /garden/ (restart-required)
 	GardenTitle     string // heading for the garden index/feed; defaults to SiteName
 	MCPEnabled      bool   // serve the MCP endpoint at /mcp (restart-required, Bearer PAT auth)
@@ -74,6 +76,8 @@ type fileConfig struct {
 	Debug           *bool             `yaml:"debug"`
 	ThemeDark       map[string]string `yaml:"theme_dark"`
 	ThemeLight      map[string]string `yaml:"theme_light"`
+	FontUI          string            `yaml:"font_ui"`
+	FontMono        string            `yaml:"font_mono"`
 	GardenEnabled   *bool             `yaml:"garden_enabled"`
 	GardenTitle     string            `yaml:"garden_title"`
 	MCPEnabled      *bool             `yaml:"mcp_enabled"`
@@ -177,6 +181,8 @@ func LoadConfig() (Config, error) {
 		Debug:           pickBool("HMD_DEBUG", file.Debug, false),
 		ThemeDark:       file.ThemeDark,
 		ThemeLight:      file.ThemeLight,
+		FontUI:          file.FontUI,
+		FontMono:        file.FontMono,
 		GardenEnabled:   pickBool("HMD_GARDEN_ENABLED", file.GardenEnabled, false),
 		GardenTitle:     pick("HMD_GARDEN_TITLE", file.GardenTitle, ""),
 		MCPEnabled:      pickBool("HMD_MCP_ENABLED", file.MCPEnabled, false),

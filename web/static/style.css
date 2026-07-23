@@ -20,6 +20,11 @@
 	font-display: swap;
 }
 
+:root {
+	--font-ui: "JetBrains Mono", ui-monospace, monospace;
+	--font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
 :root, :root[data-theme="dark"] {
 	color-scheme: dark;
 	--bg:        #0b0f14;
@@ -76,11 +81,15 @@
 }
 
 body {
-	font-family: "JetBrains Mono", ui-monospace, monospace;
+	font-family: var(--font-ui);
 	font-size: 15px;
 	line-height: 1.75;
 	background: var(--bg);
 	color: var(--fg);
+}
+
+pre, code, kbd, textarea {
+	font-family: var(--font-mono);
 }
 
 main {
@@ -2352,7 +2361,7 @@ body.zen-manuscript .zen-status.visible {
 
 .diff-selector span {
 	color: var(--fg-bright);
-	font-family: "JetBrains Mono", monospace;
+	font-family: var(--font-mono);
 }
 
 .diff-panel {
