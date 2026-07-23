@@ -149,7 +149,6 @@ type FieldState struct {
 // SettingsData is passed to the settings template.
 type SettingsData struct {
 	Fields           map[string]FieldState
-	NoConfigFile     bool
 	ConfigPath       string
 	Flash            string // success message after a save
 	Error            string // validation error
@@ -174,6 +173,8 @@ type SettingsData struct {
 	Tokens           []TokenView // current user's personal access tokens
 	NewToken         string      // freshly minted token value, shown exactly once
 	TokenError       string      // token create/revoke validation error
+	HasEnvOverrides  bool        // any field currently sourced from an env var — shows the "export to file" action
+	ExportSecretVars []string    // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -235,26 +236,20 @@ func remoteHost(raw string) string {
 
 // buildSettingsData constructs the display state for every config field.
 // hasConfigFile is false when HMD_CONFIG_FILE is unset (whole page read-only).
-func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFile bool) SettingsData {
+// buildSettingsData constructs the display state for every config field.
+// The config file itself is always writable (created on first save if
+// missing) — a field is read-only only when an env var overrides it
+// (cfg.EnvOverrides, keyed by fileConfig field name) or it's bootstrap-only.
+func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields := make(map[string]FieldState)
 
-	// envLocked returns the env var name if set, else "".
-	envLocked := func(envKey string) string {
-		if os.Getenv(envKey) != "" {
-			return envKey
-		}
-		return ""
-	}
-
-	tokenFileLocked := os.Getenv("HMD_GIT_TOKEN_FILE") != "" || fc.GitTokenFile != ""
-
-	// Helper: editable = hasConfigFile && no env var && not bootstrap-only
-	mkField := func(value, envKey string, restartRequired, bootstrapOnly bool) FieldState {
+	// mkField: editable = no env var and not bootstrap-only.
+	mkField := func(value, fieldName string, restartRequired, bootstrapOnly bool) FieldState {
 		envVar := ""
 		if !bootstrapOnly {
-			envVar = envLocked(envKey)
+			envVar = cfg.EnvOverrides[fieldName]
 		}
-		editable := hasConfigFile && envVar == "" && !bootstrapOnly
+		editable := envVar == "" && !bootstrapOnly
 		return FieldState{
 			Value:           value,
 			Editable:        editable,
@@ -264,61 +259,90 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 		}
 	}
 
-	fields["Bind"] = mkField(cfg.Bind, "HMD_BIND", true, false)
-	fields["RepoDir"] = mkField(cfg.RepoDir, "HMD_REPO_DIR", true, false)
-	fields["AppDir"] = mkField(cfg.AppDir, "HMD_APP_DIR", true, false)
-	fields["RemoteURL"] = mkField(cfg.RemoteURL, "HMD_REMOTE_URL", false, false)
-	fields["GitUser"] = mkField(cfg.GitUser, "HMD_GIT_USER", false, false)
-	fields["GitAuthor"] = mkField(cfg.GitAuthor, "HMD_GIT_AUTHOR", false, false)
+	fields["Bind"] = mkField(cfg.Bind, "Bind", true, false)
+	fields["RepoDir"] = mkField(cfg.RepoDir, "RepoDir", true, false)
+	appDirEnv := ""
+	if os.Getenv("HMD_APP_DIR") != "" {
+		appDirEnv = "HMD_APP_DIR"
+	}
+	fields["AppDir"] = FieldState{Value: cfg.AppDir, Editable: false, RestartRequired: true, EnvVar: appDirEnv, BootstrapOnly: true}
+	fields["RemoteURL"] = mkField(cfg.Git.RemoteURL, "Git.RemoteURL", false, false)
+	fields["GitUser"] = mkField(cfg.Git.User, "Git.User", false, false)
+	fields["GitAuthor"] = mkField(cfg.Git.Author, "Git.Author", false, false)
 
 	// Token is special: masked, and locked if a token file is configured.
 	tokenValue := "not set"
-	if cfg.GitToken != "" {
+	if cfg.Git.Token != "" {
 		tokenValue = "set"
 	}
-	tokenEnvVar := envLocked("HMD_GIT_TOKEN")
-	if tokenFileLocked && tokenEnvVar == "" {
-		tokenEnvVar = "HMD_GIT_TOKEN_FILE"
+	tokenEnvVar := cfg.EnvOverrides["Git.Token"]
+	if tokenEnvVar == "" {
+		tokenEnvVar = cfg.EnvOverrides["Git.TokenFile"]
 	}
-	tokenEditable := hasConfigFile && tokenEnvVar == ""
 	fields["GitToken"] = FieldState{
 		Value:           tokenValue,
-		Editable:        tokenEditable,
+		Editable:        tokenEnvVar == "",
 		RestartRequired: false,
 		EnvVar:          tokenEnvVar,
 		BootstrapOnly:   false,
 	}
 
-	fields["SiteName"] = mkField(cfg.SiteName, "HMD_SITE_NAME", false, false)
-	fields["AdminUser"] = mkField(cfg.AdminUser, "HMD_ADMIN_USER", false, true)
-	fields["AdminPass"] = mkField(cfg.AdminPass, "HMD_ADMIN_PASSWORD", false, true)
-	fields["Hostname"] = mkField(cfg.Hostname, "HMD_HOSTNAME", false, false)
-	fields["PathLabel"] = mkField(cfg.PathLabel, "HMD_PATH_LABEL", false, false)
-	fields["UserLabel"] = mkField(cfg.UserLabel, "HMD_USER_LABEL", false, false)
+	fields["SiteName"] = mkField(cfg.SiteName, "SiteName", false, false)
+	adminUserEnv := ""
+	if os.Getenv("HMD_ADMIN_USER") != "" {
+		adminUserEnv = "HMD_ADMIN_USER"
+	}
+	fields["AdminUser"] = FieldState{Value: cfg.AdminUser, Editable: false, EnvVar: adminUserEnv, BootstrapOnly: true}
+	adminPassEnv := ""
+	if os.Getenv("HMD_ADMIN_PASSWORD") != "" {
+		adminPassEnv = "HMD_ADMIN_PASSWORD"
+	}
+	fields["AdminPass"] = FieldState{Value: cfg.AdminPass, Editable: false, EnvVar: adminPassEnv, BootstrapOnly: true}
+	fields["Hostname"] = mkField(cfg.Hostname, "Hostname", false, false)
+	fields["PathLabel"] = mkField(cfg.PathLabel, "PathLabel", false, false)
+	fields["UserLabel"] = mkField(cfg.UserLabel, "UserLabel", false, false)
 
-	fields["SyncMode"] = mkField(cfg.SyncMode, "HMD_SYNC_MODE", false, false)
+	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
+
+	showTagsSidebar := prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
 
 	return SettingsData{
 		Fields:           fields,
-		NoConfigFile:     !hasConfigFile,
-		ConfigPath:       configPath,
+		ConfigPath:       cfg.ConfigFile,
 		MaxUploadBytes:   cfg.MaxUploadBytes,
 		SyncPollMs:       cfg.SyncPollMs,
-		ShowTagsSidebar:  cfg.ShowTagsSidebar,
+		ShowTagsSidebar:  showTagsSidebar,
 		SyncMode:         cfg.SyncMode,
-		ThemeDark:        mergeTheme(defaultDark, cfg.ThemeDark),
-		ThemeLight:       mergeTheme(defaultLight, cfg.ThemeLight),
+		ThemeDark:        mergeTheme(defaultDark, prefs.ThemeDark),
+		ThemeLight:       mergeTheme(defaultLight, prefs.ThemeLight),
 		ThemePresetNames: themePresetNames,
 		ThemePresets:     themePresets,
-		FontUI:           cfg.FontUI,
-		FontMono:         cfg.FontMono,
+		FontUI:           prefs.FontUI,
+		FontMono:         prefs.FontMono,
 		FontsMono:        fontsMono,
 		FontsSans:        fontsSans,
 		FontsSerif:       fontsSerif,
 		FontStacks:       fontStacks,
 		HomeFilename:     cfg.HomeFilename,
-		HomeFilenameEnv:  envLocked("HMD_HOME_FILENAME"),
+		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
+		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
+		ExportSecretVars: exportSecretVars(cfg),
 	}
+}
+
+// exportSecretVars lists the env vars naming secrets that toFileConfig
+// would write into config.yaml in plaintext, for the settings-page warning.
+// Git.TokenFile isn't listed: toFileConfig omits the resolved token when a
+// token file is set, so exporting doesn't touch that secret.
+func exportSecretVars(cfg Config) []string {
+	var vars []string
+	if v := cfg.EnvOverrides["Git.Token"]; v != "" {
+		vars = append(vars, v)
+	}
+	if v := cfg.EnvOverrides["OIDC.ClientSecret"]; v != "" {
+		vars = append(vars, v)
+	}
+	return vars
 }
 
 // render executes the named page template inside the shared layout.
@@ -326,7 +350,7 @@ func buildSettingsData(cfg Config, fc fileConfig, configPath string, hasConfigFi
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
 	data.SiteName = app.config().SiteName
 	data.Version = version
-	data.RemoteHost = remoteHost(app.config().RemoteURL)
+	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
 	if data.RoutePrefix == "" {
 		data.RoutePrefix = "/page"
 	}
@@ -361,13 +385,14 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	if data.Authed {
 		cfg := app.config()
+		prefs := app.Auth.prefs(app.currentUser(r))
 		data.Hostname = cfg.Hostname
 		data.PathLabel = cfg.PathLabel
 		data.UserLabel = cfg.UserLabel
-		data.ShowTagsSidebar = cfg.ShowTagsSidebar
+		data.ShowTagsSidebar = prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
-		data.ThemeStyle = buildThemeStyle(cfg)
+		data.ThemeStyle = buildThemeStyle(prefs)
 		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
@@ -438,7 +463,7 @@ func (app *App) currentUser(r *http.Request) string {
 func (app *App) gitAuthor(username string) (name, email string) {
 	raw := app.Auth.AuthorFor(username)
 	if raw == "" {
-		raw = app.config().GitAuthor
+		raw = app.config().Git.Author
 	}
 	return parseAuthor(raw, username)
 }
@@ -533,6 +558,7 @@ func (app *App) Routes() http.Handler {
 	// Settings
 	mux.HandleFunc("GET /settings", app.handleSettingsGet)
 	mux.HandleFunc("POST /settings", app.handleSettingsPost)
+	mux.HandleFunc("POST /settings/export", app.handleSettingsExport)
 	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
 	mux.HandleFunc("POST /settings/tokens", app.handleCreateToken)
 	mux.HandleFunc("POST /settings/tokens/revoke", app.handleRevokeToken)
@@ -569,7 +595,7 @@ func (app *App) Routes() http.Handler {
 
 	// MCP server (opt-in, restart-required): agents read and write the wiki
 	// over streamable HTTP. Same middleware as /api/ — Bearer PAT, 401 JSON.
-	if app.config().MCPEnabled {
+	if app.config().MCP.Enabled {
 		mux.Handle("/mcp", app.mcpHandler())
 	}
 
@@ -599,9 +625,9 @@ func (app *App) loginData(errMsg string) TemplateData {
 	return TemplateData{
 		Title:          "Login",
 		Error:          errMsg,
-		OIDCEnabled:    cfg.OIDCIssuer != "",
-		OIDCButtonText: cfg.OIDCButtonText,
-		OIDCLocalLogin: cfg.OIDCIssuer == "" || cfg.OIDCLocalLogin,
+		OIDCEnabled:    cfg.OIDC.Issuer != "",
+		OIDCButtonText: cfg.OIDC.ButtonText,
+		OIDCLocalLogin: cfg.OIDC.Issuer == "" || cfg.OIDC.LocalLogin,
 		OIDCIcon:       app.OIDC != nil && app.OIDC.icon != nil,
 	}
 }
@@ -664,7 +690,7 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	cfg := app.config()
-	authorName, authorEmail := app.gitAuthor(cfg.GitUser)
+	authorName, authorEmail := app.gitAuthor(cfg.Git.User)
 
 	if action == "add" {
 		if r.FormValue("add_home") == "on" {
@@ -862,7 +888,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	}
 
 	cfg := app.config()
-	if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
+	if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
 		if _, err := app.Store.FetchAndFF(); err != nil {
 			slog.Warn("save-time fetch", "slug", slug, "err", err)
 		}
@@ -1216,7 +1242,7 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := app.config()
-	if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
+	if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
 		result, err := app.Store.FetchAndFF()
 		if err != nil {
 			state, detail = app.Store.SyncState()
@@ -1636,18 +1662,10 @@ func (app *App) handleSaveHidden(w http.ResponseWriter, r *http.Request) {
 // redirect, so a freshly minted token can be shown exactly once).
 func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
-
-	configPath := os.Getenv("HMD_CONFIG_FILE")
-	hasConfigFile := configPath != ""
-
-	var fc fileConfig
-	if hasConfigFile {
-		fc, _ = LoadFileConfig(configPath)
-	}
-
-	sd := buildSettingsData(cfg, fc, configPath, hasConfigFile)
-	sd.HelpDrifted = HelpDrifted(app.Store)
 	user := app.currentUser(r)
+
+	sd := buildSettingsData(cfg, app.Auth.prefs(user))
+	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
 	for _, t := range app.Auth.TokensFor(user) {
 		expires := "never"
@@ -1686,6 +1704,9 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	sd := app.settingsData(r)
 	if q := r.URL.Query().Get("saved"); q == "1" {
 		sd.Flash = "Settings saved"
+	}
+	if q := r.URL.Query().Get("exported"); q == "1" {
+		sd.Flash = "Config exported to " + sd.ConfigPath
 	}
 	app.renderSettings(w, r, sd)
 }
@@ -1737,11 +1758,7 @@ func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
-	configPath := os.Getenv("HMD_CONFIG_FILE")
-	if configPath == "" {
-		http.Error(w, "No config file configured (set HMD_CONFIG_FILE)", http.StatusForbidden)
-		return
-	}
+	configPath := app.config().ConfigFile
 
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
@@ -1750,7 +1767,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 
 	bind := r.FormValue("bind")
 	repoDir := r.FormValue("repo_dir")
-	appDir := r.FormValue("app_dir")
 	remoteURL := r.FormValue("remote_url")
 	gitUser := r.FormValue("git_user")
 	gitAuthor := r.FormValue("git_author")
@@ -1772,10 +1788,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if repoDir == "" {
 		http.Error(w, "Repo directory cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if appDir == "" {
-		http.Error(w, "App directory cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if gitUser == "" {
@@ -1823,33 +1835,27 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fc, err := LoadFileConfig(configPath)
-	if err != nil {
-		fc = fileConfig{}
+	if err != nil && !os.IsNotExist(err) {
+		http.Error(w, "Failed to read config: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	fc.Bind = bind
 	fc.RepoDir = repoDir
-	fc.AppDir = appDir
-	fc.RemoteURL = remoteURL
-	fc.GitUser = gitUser
-	fc.GitAuthor = gitAuthor
+	fc.Git.RemoteURL = remoteURL
+	fc.Git.User = gitUser
+	fc.Git.Author = gitAuthor
 	fc.SiteName = siteName
 	fc.Hostname = hostname
 	fc.PathLabel = pathLabel
 	fc.UserLabel = userLabel
 	fc.MaxUploadBytes = int64Ptr(maxUploadBytes)
 	fc.SyncPollMs = intPtr(syncPollMs)
-	fc.ShowTagsSidebar = boolPtr(showTagsSidebar)
 	fc.SyncMode = syncMode
 
 	if gitToken != "" {
-		fc.GitToken = gitToken
+		fc.Git.Token = gitToken
 	}
-
-	fc.FontUI = fontUI
-	fc.FontMono = fontMono
-	fc.ThemeDark = snapshotTheme(collectTheme(r.PostForm, "theme_dark_"), defaultDark)
-	fc.ThemeLight = snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
 
 	if err := SaveFileConfig(configPath, fc); err != nil {
 		slog.Error("saving config", "err", err)
@@ -1869,6 +1875,39 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("updating store remote", "err", err)
 	}
 
-	slog.Info("settings updated", "by", app.currentUser(r))
+	user := app.currentUser(r)
+	dark := snapshotTheme(collectTheme(r.PostForm, "theme_dark_"), defaultDark)
+	light := snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
+	if err := app.Auth.SetPrefs(user, dark, light, fontUI, fontMono, showTagsSidebar); err != nil {
+		slog.Warn("saving user prefs", "err", err)
+	}
+
+	slog.Info("settings updated", "by", user)
 	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
+}
+
+// handleSettingsExport snapshots the currently effective config (file
+// values plus any env var overrides) into config.yaml. Lets someone who
+// bootstrapped hmd via HMD_* env vars bake those values into the file in
+// one action, instead of hand-copying each one. The settings page shows a
+// confirmation dialog first — this bakes in the *current* values, which
+// overwrites whatever is already in the file for those keys.
+func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
+	cfg := app.config()
+	if err := SaveFileConfig(cfg.ConfigFile, cfg.toFileConfig()); err != nil {
+		slog.Error("exporting config", "err", err)
+		http.Error(w, "Failed to export config", http.StatusInternalServerError)
+		return
+	}
+
+	newCfg, err := LoadConfig()
+	if err != nil {
+		slog.Error("reloading config after export", "err", err)
+		http.Error(w, "Config exported but reload failed", http.StatusInternalServerError)
+		return
+	}
+	app.SetConfig(newCfg)
+
+	slog.Info("settings exported to config file", "by", app.currentUser(r))
+	http.Redirect(w, r, "/settings?exported=1", http.StatusSeeOther)
 }

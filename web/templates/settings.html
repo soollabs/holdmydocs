@@ -8,13 +8,6 @@
 <h1 class="page-title"><span class="h">#</span> settings</h1>
 
 {{if .Settings}}
-	{{if .Settings.NoConfigFile}}
-	<div class="settings-banner">
-		Config file not set. Set <code>HMD_CONFIG_FILE</code> to enable editing from the UI.
-		Current values are shown read-only below.
-	</div>
-	{{end}}
-
 	{{if .Settings.Flash}}
 	<div class="settings-flash">{{.Settings.Flash}}</div>
 	{{end}}
@@ -49,10 +42,9 @@
 		</div>
 		<div class="settings-row">
 			<label for="app_dir">app dir</label>
-			<input type="text" id="app_dir" name="app_dir" value="{{.Settings.Fields.AppDir.Value}}"
-				{{if not .Settings.Fields.AppDir.Editable}}readonly{{end}}>
-			{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{end}}
-			{{if .Settings.Fields.AppDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+			<input type="text" id="app_dir" value="{{.Settings.Fields.AppDir.Value}}" readonly>
+			{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{else}}<span class="badge-bootstrap">bootstrap only</span>{{end}}
+			<span class="badge-restart">restart reqd</span>
 		</div>
 	</fieldset>
 
@@ -232,14 +224,41 @@
 		</div>
 	</fieldset>
 
-	{{if not .Settings.NoConfigFile}}
 	<div class="settings-actions">
 		<button type="submit" class="primary">save</button>
 		<a href="/page/index" class="ghost-btn">cancel</a>
 	</div>
-	{{end}}
 
 </form>
+
+{{if .Settings.HasEnvOverrides}}
+<fieldset class="settings-section">
+	<legend>environment overrides</legend>
+	<p class="settings-note">
+		Some settings above are set via <code>HMD_*</code> environment variables (marked
+		<span class="badge-env">set via HMD_X</span>) and read-only here. Exporting writes
+		the values currently in effect &mdash; including those env-set ones &mdash; into
+		<code>{{.Settings.ConfigPath}}</code>, so you can drop the env vars and manage
+		everything from this page afterwards.
+	</p>
+	{{if .Settings.ExportSecretVars}}
+	<div class="settings-banner">
+		&#9888; Exporting writes the following secret{{if gt (len .Settings.ExportSecretVars) 1}}s{{end}}
+		into <code>{{.Settings.ConfigPath}}</code> in <strong>plaintext</strong>:
+		<ul>
+			{{range .Settings.ExportSecretVars}}<li><code>{{.}}</code></li>{{end}}
+		</ul>
+		Make sure that file's permissions and backups are treated accordingly, or skip
+		exporting and keep the secret in the environment.
+	</div>
+	{{end}}
+	<form method="POST" action="/settings/export" id="export-config-form">
+		<div class="settings-actions">
+			<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
+		</div>
+	</form>
+</fieldset>
+{{end}}
 
 <fieldset class="settings-section">
 	<legend>your git author</legend>
@@ -360,6 +379,19 @@
 			else root.style.removeProperty(pair[1]);
 		});
 	});
+
+	var exportForm = document.getElementById('export-config-form');
+	if (exportForm) {
+		exportForm.addEventListener('submit', function (e) {
+			var msg = 'This overwrites {{.Settings.ConfigPath}} with the settings currently in effect, including any set via environment variables.';
+			{{if .Settings.ExportSecretVars}}
+			msg += ' This writes the following secret(s) to the file in PLAINTEXT: {{range $i, $v := .Settings.ExportSecretVars}}{{if $i}}, {{end}}{{$v}}{{end}}.';
+			{{end}}
+			if (!confirm(msg + ' Continue?')) {
+				e.preventDefault();
+			}
+		});
+	}
 })();
 </script>
 {{end}}

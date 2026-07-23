@@ -1,40 +1,44 @@
-# hmd configuration file.
+# hmd install-wide configuration file.
 #
-# Copy this to a real path and point HMD_CONFIG_FILE at it, e.g.:
-#   HMD_CONFIG_FILE=/etc/hmd/config.yaml ./hmd
+# hmd looks for this at <HMD_APP_DIR>/config.yaml by default (created
+# automatically the first time you save /settings) — no need to copy this
+# file anywhere or set HMD_CONFIG_FILE unless you want it somewhere else.
 #
-# Every key here maps 1:1 to a HMD_* environment variable (see README.md).
-# Precedence, highest first: environment variable, then this file, then
-# built-in defaults. Unknown keys are rejected at startup — a typo fails
-# loudly instead of being silently ignored.
+# Every key here also has a HMD_<KEY, upper-cased> env var equivalent, with
+# nested keys folding their section into the name (e.g. repo_dir <->
+# HMD_REPO_DIR, git.remote_url <-> HMD_GIT_REMOTE_URL, oidc.client_id <->
+# HMD_OIDC_CLIENT_ID). Env always wins over this file, handy for Docker/k8s
+# deploys. Unknown keys are rejected at startup — a typo fails loudly
+# instead of being silently ignored.
 #
 # All keys are optional; omit anything you want left at its default.
+#
+# Theme colours, fonts, and the tags-sidebar toggle are per-user
+# preferences, set from /settings — not in this file.
 
 # --- Server ---
 bind: ":8080"
 repo_dir: /data/repo
-app_dir: /data/app
 
 # --- Git remote ---
-# HTTPS only (git@ SSH remotes are not yet supported).
-remote_url: https://git.example.com/you/wiki.git
-git_user: you
+git:
+  # HTTPS only (git@ SSH remotes are not yet supported).
+  remote_url: https://git.example.com/you/wiki.git
+  user: you
 
-# Prefer git_token_file over git_token — it keeps the PAT out of this file
-# and out of `docker inspect`/process listings. Pick one, not both.
-git_token_file: /run/secrets/git_token
-# git_token: pat_xyz
+  # Prefer token_file over token — it keeps the PAT out of this file and
+  # out of `docker inspect`/process listings. Pick one, not both.
+  token_file: /run/secrets/git_token
+  # token: pat_xyz
 
-# Default commit author, in "Name <email>" form. Used for every commit unless a
-# user has set their own author on the settings page. Falls back to the
-# logged-in username when unset.
-# git_author: hmd <hmd@example.com>
+  # Default commit author, in "Name <email>" form. Used for every commit
+  # unless a user has set their own author on the settings page. Falls
+  # back to the logged-in username when unset.
+  # author: hmd <hmd@example.com>
 
 # --- Bootstrap admin user ---
-# Only takes effect on first run (creates the user if it doesn't exist yet).
-# Manage users afterwards with `hmd adduser <name>`, not this file.
-admin_user: admin
-admin_password: change-me
+# Set via HMD_ADMIN_USER / HMD_ADMIN_PASSWORD env vars only (first run).
+# Manage users afterwards with `hmd adduser <name>`.
 
 # --- Site / shell-prompt appearance ---
 site_name: Homelab Wiki
@@ -45,7 +49,6 @@ path_label: ~/wiki
 # --- Behaviour ---
 max_upload_bytes: 10485760   # 10 MiB
 sync_poll_ms: 10000
-show_tags_sidebar: true
 # sync_mode: push (default, local → remote only) or bidirectional
 # (fetch + fast-forward pull on every sync poll and before each save,
 # so changes pushed by other writers appear in the UI automatically)
@@ -56,73 +59,35 @@ show_tags_sidebar: true
 # home_filename: readme.md
 
 # --- OIDC single sign-on ---
-# Optional. Setting oidc_issuer enables SSO (restart required). Register hmd
+# Optional. Setting oidc.issuer enables SSO (restart required). Register hmd
 # with your provider (Authentik, Authelia, Pocket ID, ...) as a confidential
-# client with redirect URI <base_url>/auth/oidc/callback.
-# oidc_issuer: https://auth.example.com
-# oidc_client_id: hmd
-# Prefer HMD_OIDC_CLIENT_SECRET (env) over putting the secret in this file.
-# oidc_client_secret: change-me
-# base_url: https://wiki.example.com   # public URL of this hmd instance
-# oidc_local_login: true               # false hides the password form
-# oidc_button_text: Sign in with SSO   # e.g. "Login with Authelia"
-# Icon on the SSO button: a name from https://dashboardicons.com/ (fetched
-# once at startup, then served locally) or a path to an SVG file. The SVG
-# must be square (equal viewBox or width/height) and at most 256 KiB.
-# oidc_icon: authelia
-# oidc_icon: /etc/hmd/sso-icon.svg
+# client with redirect URI <oidc.base_url>/auth/oidc/callback.
+# oidc:
+#   issuer: https://auth.example.com
+#   client_id: hmd
+#   # Prefer HMD_OIDC_CLIENT_SECRET (env) over putting the secret in this file.
+#   client_secret: change-me
+#   base_url: https://wiki.example.com   # public URL of this hmd instance
+#   local_login: true                    # false hides the password form
+#   button_text: Sign in with SSO        # e.g. "Login with Authelia"
+#   # Icon on the SSO button: a name from https://dashboardicons.com/ (fetched
+#   # once at startup, then served locally) or a path to an SVG file. The SVG
+#   # must be square (equal viewBox or width/height) and at most 256 KiB.
+#   icon: authelia
+#   # icon: /etc/hmd/sso-icon.svg
 
 # --- Digital garden ---
 # Serve pages with `public: true` frontmatter read-only and unauthenticated
 # under /garden/ (index, pages, RSS at /garden/feed.xml). Restart required.
 # Note: markdown bodies may contain raw HTML, so publishing a page publishes
 # its raw HTML too.
-# garden_enabled: true
-# garden_title: My Garden   # defaults to site_name
+# garden:
+#   enabled: true
+#   title: My Garden   # defaults to site_name
 
 # --- MCP server ---
 # Expose the wiki to AI agents over MCP (streamable HTTP at /mcp).
 # Requires a personal access token, created under /settings.
 # Restart required.
-# mcp_enabled: true
-
-# --- Theme ---
-# All 17 CSS colour variables, separately for dark/light. Uncomment and
-# override only the ones you want to change — anything omitted keeps the
-# built-in default. Also editable from /settings once the app is running.
-# theme_dark:
-#   bg: "#0b0f14"
-#   panel: "#0e141b"
-#   panel-2: "#121924"
-#   border: "#1d2733"
-#   border-2: "#2a3644"
-#   fg: "#c6d0da"
-#   fg-bright: "#e6edf3"
-#   fg-muted: "#8b98a5"
-#   fg-faint: "#71818f"
-#   green: "#56d364"
-#   green-dim: "#2e5b3a"
-#   blue: "#79b8ff"
-#   amber: "#e3b341"
-#   amber-bg: "#3a3113"
-#   red: "#f47067"
-#   red-dim: "#6e3a3f"
-#   red-bg: "#2c1618"
-# theme_light:
-#   bg: "#f7f8f6"
-#   panel: "#eef1ec"
-#   panel-2: "#e6eae4"
-#   border: "#d8ded6"
-#   border-2: "#c4cdc6"
-#   fg: "#2d3438"
-#   fg-bright: "#1c2226"
-#   fg-muted: "#5c6a70"
-#   fg-faint: "#647177"
-#   green: "#1a7f37"
-#   green-dim: "#a4c7ab"
-#   blue: "#316dca"
-#   amber: "#9a6700"
-#   amber-bg: "#fff0c2"
-#   red: "#cf222e"
-#   red-dim: "#e0a9ad"
-#   red-bg: "#fbe9e9"
+# mcp:
+#   enabled: true

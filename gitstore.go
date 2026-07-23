@@ -216,13 +216,13 @@ func OpenStore(cfg Config) (*Store, error) {
 	if err == nil {
 		// Repo exists
 		remote := ""
-		if cfg.RemoteURL != "" {
+		if cfg.Git.RemoteURL != "" {
 			remote = "origin"
 		}
 
 		var auth *githttp.BasicAuth
-		if cfg.RemoteURL != "" && cfg.GitToken != "" {
-			auth = &githttp.BasicAuth{Username: cfg.GitUser, Password: cfg.GitToken}
+		if cfg.Git.RemoteURL != "" && cfg.Git.Token != "" {
+			auth = &githttp.BasicAuth{Username: cfg.Git.User, Password: cfg.Git.Token}
 		}
 
 		store := &Store{
@@ -238,14 +238,14 @@ func OpenStore(cfg Config) (*Store, error) {
 		return store, nil
 	}
 	// Try to clone if remote is set
-	if cfg.RemoteURL != "" {
+	if cfg.Git.RemoteURL != "" {
 		var auth *githttp.BasicAuth
-		if cfg.GitToken != "" {
-			auth = &githttp.BasicAuth{Username: cfg.GitUser, Password: cfg.GitToken}
+		if cfg.Git.Token != "" {
+			auth = &githttp.BasicAuth{Username: cfg.Git.User, Password: cfg.Git.Token}
 		}
 
 		cloneOpts := &git.CloneOptions{
-			URL:  cfg.RemoteURL,
+			URL:  cfg.Git.RemoteURL,
 			Auth: auth,
 		}
 
@@ -270,7 +270,7 @@ func OpenStore(cfg Config) (*Store, error) {
 		}
 		store.lastSuccessUnix.Store(time.Now().Unix())
 
-		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.RemoteURL)
+		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.Git.RemoteURL)
 
 		// Seed if the cloned repo is fresh or missing pages
 		seedOrFlagSetup(store, cfg)
@@ -304,16 +304,16 @@ init_empty_remote:
 	slog.Info("initialised new repo", "dir", cfg.RepoDir, "branch", defaultBranch)
 
 	// Create index.md for local-only repos, or for empty remote case
-	if cfg.RemoteURL != "" {
+	if cfg.Git.RemoteURL != "" {
 		// Empty remote case: add remote and push
-		_, err := repo.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{cfg.RemoteURL}})
+		_, err := repo.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{cfg.Git.RemoteURL}})
 		if err != nil {
 			return nil, fmt.Errorf("creating remote: %w", err)
 		}
 
 		store.remote = "origin"
-		if cfg.GitToken != "" {
-			store.auth = &githttp.BasicAuth{Username: cfg.GitUser, Password: cfg.GitToken}
+		if cfg.Git.Token != "" {
+			store.auth = &githttp.BasicAuth{Username: cfg.Git.User, Password: cfg.Git.Token}
 		}
 	}
 
@@ -761,13 +761,13 @@ func (s *Store) PushNow() (state, detail string) {
 }
 
 // UpdateRemote reconfigures the store's remote URL and auth credentials
-// on the live repository. If cfg.RemoteURL is empty, the remote is removed.
+// on the live repository. If cfg.Git.RemoteURL is empty, the remote is removed.
 // If non-empty, the origin remote is created or updated with set-url.
 func (s *Store) UpdateRemote(cfg Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if cfg.RemoteURL == "" {
+	if cfg.Git.RemoteURL == "" {
 		if s.remote != "" {
 			if err := s.repo.DeleteRemote("origin"); err != nil {
 				// not fatal — may already be gone
@@ -784,7 +784,7 @@ func (s *Store) UpdateRemote(cfg Config) error {
 	if s.remote == "" {
 		_, err := s.repo.CreateRemote(&config.RemoteConfig{
 			Name: "origin",
-			URLs: []string{cfg.RemoteURL},
+			URLs: []string{cfg.Git.RemoteURL},
 		})
 		if err != nil {
 			return fmt.Errorf("creating remote: %w", err)
@@ -796,7 +796,7 @@ func (s *Store) UpdateRemote(cfg Config) error {
 		}
 		_, err = s.repo.CreateRemote(&config.RemoteConfig{
 			Name: "origin",
-			URLs: []string{cfg.RemoteURL},
+			URLs: []string{cfg.Git.RemoteURL},
 		})
 		if err != nil {
 			return fmt.Errorf("recreating remote: %w", err)
@@ -804,16 +804,16 @@ func (s *Store) UpdateRemote(cfg Config) error {
 	}
 
 	s.remote = "origin"
-	if cfg.GitToken != "" {
+	if cfg.Git.Token != "" {
 		s.auth = &githttp.BasicAuth{
-			Username: cfg.GitUser,
-			Password: cfg.GitToken,
+			Username: cfg.Git.User,
+			Password: cfg.Git.Token,
 		}
 	} else {
 		s.auth = nil
 	}
 	s.syncState = "ok"
-	slog.Info("remote configured", "url", cfg.RemoteURL)
+	slog.Info("remote configured", "url", cfg.Git.RemoteURL)
 	return nil
 }
 

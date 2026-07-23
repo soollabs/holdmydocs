@@ -32,116 +32,96 @@ bare-metal or a home server unless you actually have `/data` set up.
 
 ## Configuration
 
-hmd has two equal configuration methods: **environment variables** and a
-**YAML file** (named by `HMD_CONFIG_FILE`). Both cover the same keys; pick
-one or mix them. Precedence, highest first: environment variable, then file
-value, then built-in default. Env-overridden values are read-only in the
-in-app settings page (`/settings`).
+Install-wide settings live in a **YAML file**, `config.yaml`, next to
+`users.json` in `HMD_APP_DIR` (default `/data/app/config.yaml`) — created
+automatically the first time you save `/settings`, so there's nothing to
+provision by hand. It's editable both by hand and from `/settings`.
 
-### Environment variables
+Two things are env-only out of necessity — they say *where* the config
+file lives, so they can't come from the file itself:
 
-Defaults shown:
+| Variable | Meaning |
+|----------|---------|
+| `HMD_APP_DIR` | Where app state (`users.json`, `sessions.json`, `config.yaml`) lives. **Local disk only, never NFS.** Default `/data/app`. Restart required. |
+| `HMD_CONFIG_FILE` | Overrides the config file path (default: `config.yaml` inside `HMD_APP_DIR`). Restart required. |
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `HMD_BIND` | `:8080` | HTTP listen address |
-| `HMD_REPO_DIR` | `/data/repo` | Path to git repository (may be NFS) |
-| `HMD_APP_DIR` | `/data/app` | Path to app state (**local disk only, never NFS**) |
-| `HMD_REMOTE_URL` | (none) | HTTPS remote URL (e.g. https://git.example.com/user/wiki.git) |
-| `HMD_GIT_USER` | `hmd` | Username for HTTPS authentication |
-| `HMD_GIT_TOKEN` | (none) | PAT for HTTPS authentication (env var) |
-| `HMD_GIT_TOKEN_FILE` | (none) | Read PAT from file instead of env var (takes precedence) |
-| `HMD_GIT_AUTHOR` | (none) | Default commit author as `Name <email>`; per-user overrides on the settings page take precedence, else the logged-in username is used |
-| `HMD_ADMIN_USER` | (none) | Bootstrap admin username on first run |
-| `HMD_ADMIN_PASSWORD` | (none) | Bootstrap admin password on first run |
-| `HMD_SITE_NAME` | `hold my docs (hmd)` | Site name shown in the header and page titles |
-| `HMD_HOSTNAME` | `homelab` | Shell prompt host segment (sidebar) |
-| `HMD_PATH_LABEL` | `~/wiki` | Shell prompt path segment (sidebar) |
-| `HMD_USER_LABEL` | (none) | Overrides the logged-in username in the sidebar prompt (empty → username) |
-| `HMD_MAX_UPLOAD_BYTES` | `10485760` | Max image upload size in bytes (default 10 MiB) |
-| `HMD_SYNC_POLL_MS` | `10000` | Sync state poll interval in milliseconds |
-| `HMD_SHOW_TAGS_SIDEBAR` | `true` | Show the Tags section in the sidebar |
-| `HMD_SYNC_MODE` | `push` | Sync mode: `push` (local→remote only) or `bidirectional` (fetch + ff pull) |
-| `HMD_DEFAULT_BRANCH` | `main` | Branch name used when initialising a fresh local repo (no effect on an existing repo) |
-| `HMD_HOME_FILENAME` | `readme.md` | Filename for the home page (the page served at `/`). Must end in `.md`, contain no path separators, and not be dot-prefixed. Defaults to `readme.md` so the home page renders on the git host's front page (GitHub, git, Gitea all render `readme.md` case-insensitively). Restart required to change. |
-| `HMD_OIDC_ISSUER` | (none) | OIDC issuer URL (e.g. https://auth.example.com). Setting it enables SSO login; restart required. Register the redirect URI `<HMD_BASE_URL>/auth/oidc/callback` with your provider — e.g. `https://wiki.example.com/auth/oidc/callback` |
-| `HMD_OIDC_CLIENT_ID` | (none) | OIDC client ID (required when the issuer is set) |
-| `HMD_OIDC_CLIENT_SECRET` | (none) | OIDC client secret (required when the issuer is set; prefer env over YAML) |
-| `HMD_OIDC_LOCAL_LOGIN` | `true` | Keep the password form on the login page alongside SSO; `false` hides it |
-| `HMD_OIDC_BUTTON_TEXT` | `Sign in with SSO` | Label for the SSO login button (e.g. `Login with Authelia`) |
-| `HMD_OIDC_ICON` | (none) | Icon shown on the SSO button. Either a [Dashboard Icons](https://dashboardicons.com/) name (e.g. `authelia`, fetched once at startup and served locally) or a path to an SVG file. Must be square (equal viewBox or width/height), max 256 KiB |
-| `HMD_BASE_URL` | (none) | Public base URL of this instance (e.g. `https://wiki.example.com`, no trailing slash needed). The OIDC redirect URI is built from it as `<HMD_BASE_URL>/auth/oidc/callback` |
-| `HMD_GARDEN_ENABLED` | `false` | Serve pages with `public: true` frontmatter read-only and unauthenticated under `/garden/` (index, pages, RSS at `/garden/feed.xml`). Restart required. **Note:** markdown bodies may contain raw HTML, so publishing a page publishes its raw HTML too |
-| `HMD_GARDEN_TITLE` | (site name) | Heading for the garden index and RSS feed |
-| `HMD_MCP_ENABLED` | `false` | Expose the wiki to AI agents over MCP (streamable HTTP at `/mcp`, Bearer token auth). Restart required. See [MCP server](#mcp-server) |
-| `HMD_CONFIG_FILE` | (none) | Path to a YAML configuration file (see below) |
+A couple more are env-only by choice rather than necessity — bootstrap
+credentials that felt better left to deploy tooling than a file the app
+itself writes to:
+
+| Variable | Meaning |
+|----------|---------|
+| `HMD_ADMIN_USER` / `HMD_ADMIN_PASSWORD` | Bootstrap admin credentials, used only on first run (creates the user if `users.json` doesn't exist yet). Manage users afterwards with `hmd adduser`. |
+
+Everything else, including secrets like the git token and OIDC client
+secret, is a normal field in `config.yaml` (`git.token`, `oidc.client_secret`)
+— the `HMD_GIT_TOKEN(_FILE)` / `HMD_OIDC_CLIENT_SECRET` env vars are just an
+*optional* override on top, for anyone who'd rather inject secrets via
+Docker/k8s secrets than put them in a file next to the app data.
 
 ### Configuration file
 
-The same keys above can live in a YAML file named by `HMD_CONFIG_FILE`.
-See [`config.yaml.example`](config.yaml.example) for a fully-commented copy.
+Every other setting is a key in `config.yaml`, with git, garden, MCP, and
+OIDC settings grouped under their own section. See
+[`config.yaml.example`](config.yaml.example) for a fully-commented copy.
 
 ```yaml
-# /etc/hmd/config.yaml
+# /data/app/config.yaml
 site_name: Homelab Wiki
 bind: ":8080"
 repo_dir: /data/repo
-app_dir: /data/app
-remote_url: https://git.example.com/you/wiki.git
-git_user: you
-git_token_file: /run/secrets/git_token
-admin_user: admin
-admin_password: change-me
 hostname: homelab
 path_label: ~/wiki
 max_upload_bytes: 10485760
 sync_poll_ms: 10000
-show_tags_sidebar: true
 # sync_mode: bidirectional  # default: push (local→remote only)
 # default_branch: main  # branch name used when initialising a fresh local repo
 # home_filename: readme.md  # home page file; default readme.md renders on git host front page
+
+git:
+  remote_url: https://git.example.com/you/wiki.git
+  user: you
+  token_file: /run/secrets/git_token
+
 # OIDC SSO. Register the redirect URI <base_url>/auth/oidc/callback with your
 # provider — with the base_url below that is:
 #   https://wiki.example.com/auth/oidc/callback
-# oidc_issuer: https://auth.example.com
-# oidc_client_id: hmd
-# oidc_client_secret: change-me  # prefer HMD_OIDC_CLIENT_SECRET (env)
-# oidc_local_login: true  # false hides the password form
-# oidc_button_text: Login with Authelia
-# oidc_icon: authelia  # Dashboard Icons name, or a path to a square SVG
-# base_url: https://wiki.example.com
-# Theme overrides: 17 CSS colour variables per theme (see config.yaml.example
-# for the full list with defaults)
-# theme_dark:
-#   bg: "#0b0f14"
-#   fg: "#c6d0da"
-# theme_light:
-#   bg: "#f7f8f6"
-#   fg: "#2d3438"
+# oidc:
+#   issuer: https://auth.example.com
+#   client_id: hmd
+#   client_secret: change-me  # prefer HMD_OIDC_CLIENT_SECRET (env)
+#   local_login: true         # false hides the password form
+#   button_text: Login with Authelia
+#   icon: authelia             # Dashboard Icons name, or a path to a square SVG
+#   base_url: https://wiki.example.com
 ```
 
-The keys above are the complete set, each maps to the matching `HMD_*`
-variable. Unknown keys are rejected at startup, so a typo fails loudly
-instead of being silently ignored.
+Every key here also has a `HMD_<KEY, upper-cased>` environment variable
+equivalent, with nested keys folding their section into the name — e.g.
+`repo_dir` ↔ `HMD_REPO_DIR`, `git.remote_url` ↔ `HMD_GIT_REMOTE_URL`,
+`oidc.client_id` ↔ `HMD_OIDC_CLIENT_ID`. Handy for Docker/k8s deploys that
+inject config via env rather than a mounted file. Env values always win
+over the file and are shown read-only in `/settings` with a `set via
+HMD_X` badge. Unknown keys in the file are rejected at startup, so a typo
+fails loudly instead of being silently ignored.
+
+Theme colours, fonts, and the tags-sidebar toggle are **per-user**
+preferences, not install-wide config — see below.
 
 ### In-app settings page (`/settings`)
 
-Every field above is also editable from the UI, without restarting the
-process for most of them:
+Every install-wide field above is editable from the UI, without restarting
+the process for most of them:
 
-- **Requires `HMD_CONFIG_FILE`.** Without it the whole page is read-only
-  (there's nowhere to persist a change) and shows a banner saying so.
-- **Env-overridden fields are read-only in the UI** with a `set via
-  HMD_X` badge. The environment always wins, so editing them there
-  wouldn't do anything.
-- **Live vs restart-required:** `remote_url`, `git_user`, `git_token`,
-  `git_author`, `sync_mode`, `site_name`, `hostname`, `path_label`, `user_label`, theme
-  colours, upload size, sync poll interval, and the tags-sidebar toggle all
-  apply immediately on save. `bind`, `repo_dir`, and `app_dir` are marked
-  "restart required".
-- **Theme:** all 17 CSS colour variables, separately for dark and light, as
-  colour pickers. Saving only writes values that differ from the built-in
-  defaults.
+- **Live vs restart-required:** `git.remote_url`, `git.user`, `git.token`,
+  `git.author`, `sync_mode`, `site_name`, `hostname`, `path_label`,
+  `user_label`, upload size, and sync poll interval all apply immediately
+  on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
+  is bootstrap-only (env var or default) and always read-only.
+- **Theme, fonts, tags-sidebar:** per-user, saved to your own `users.json`
+  record — colour pickers for all 17 CSS variables (dark and light), font
+  pickers, and the sidebar toggle. Each user sets their own; nothing here
+  affects other users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
   Manage users with `hmd adduser` instead (see Users, below).
 - **Re-run setup:** a button that reopens the home-page/help-guide setup
@@ -176,7 +156,7 @@ The file approach keeps the token out of environment inspection and docker-compo
 
 ## Remote URL & Sync
 
-`HMD_REMOTE_URL` is an HTTPS git remote (e.g.
+`HMD_GIT_REMOTE_URL` is an HTTPS git remote (e.g.
 `https://git.example.com/you/wiki.git`). Auth is HTTPS BasicAuth:
 `HMD_GIT_USER` as the username, `HMD_GIT_TOKEN` as the PAT. SSH remotes
 are not supported (see Not in v1).
@@ -200,7 +180,7 @@ are not supported (see Not in v1).
 - **Empty remote repo:** falls through to a local init, adds `origin`, pushes
   once seeded.
 - **Repo dir exists:** hmd opens it and attaches `origin` pointing at
-  `HMD_REMOTE_URL` (no fetch, no merge).
+  `HMD_GIT_REMOTE_URL` (no fetch, no merge).
 - **No remote set:** local-only repo, sync state stays `no remote`.
 
 ### Every save
@@ -233,13 +213,13 @@ in `push` mode it's `⇡`. State is in-memory only; it resets on restart.
 
 ### Editing live
 
-`remote_url`, `git_user`, `git_token`, `git_author`, and `sync_mode` are all
+`git.remote_url`, `git.user`, `git.token`, `git.author`, and `sync_mode` are all
 editable from `/settings` and apply immediately (no restart). Clearing
-`remote_url` removes the `origin` remote entirely, switching the instance to
+`git.remote_url` removes the `origin` remote entirely, switching the instance to
 local-only mode.
 
 Each user can also set their own commit author (`Name <email>`) from
-`/settings`; it overrides `git_author` for that user's commits and is stored in
+`/settings`; it overrides `git.author` for that user's commits and is stored in
 `users.json`, not the config file.
 Env-set values are read-only in the UI.
 
@@ -268,7 +248,8 @@ The home page (`readme.md` by default) is a clean welcome with a `<!-- hmd:toc -
       <page-slug>/
         image.png
   app/               ← **LOCAL DISK ONLY** (never NFS)
-    users.json       (bcrypt password hashes)
+    users.json       (bcrypt password hashes, per-user prefs, tokens)
+    config.yaml      (install-wide settings, editable from /settings)
 ```
 
 **Why split?** The `app/` directory contains files requiring POSIX advisory locking (user database). SQLite and similar are unreliable over NFS. The `repo/` directory is pure git, which works fine on NFS.

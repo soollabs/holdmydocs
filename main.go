@@ -145,12 +145,12 @@ func main() {
 
 	// OIDC: run discovery at startup when configured; fail loudly if the
 	// issuer is unreachable rather than serving a broken SSO button.
-	if cfg.OIDCIssuer != "" {
+	if cfg.OIDC.Issuer != "" {
 		app.OIDC, err = NewOIDCAuth(context.Background(), cfg)
 		if err != nil {
 			log.Fatalf("OIDC setup failed: %v", err)
 		}
-		slog.Info("OIDC enabled", "issuer", cfg.OIDCIssuer)
+		slog.Info("OIDC enabled", "issuer", cfg.OIDC.Issuer)
 	}
 
 	slog.Info("listening", "bind", cfg.Bind)

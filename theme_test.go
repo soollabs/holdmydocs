@@ -112,13 +112,13 @@ func TestCollectThemeRejectsNonHexValues(t *testing.T) {
 }
 
 func TestBuildThemeStyle(t *testing.T) {
-	cfg := Config{
+	prefs := userRecord{
 		ThemeDark: map[string]string{
 			"bg":    "#111111",
 			"panel": "#222222",
 		},
 	}
-	css := string(buildThemeStyle(cfg))
+	css := string(buildThemeStyle(prefs))
 	if css == "" {
 		t.Fatal("expected non-empty CSS")
 	}
@@ -134,18 +134,17 @@ func TestBuildThemeStyle(t *testing.T) {
 }
 
 func TestBuildThemeStyleEmpty(t *testing.T) {
-	cfg := Config{}
-	css := buildThemeStyle(cfg)
+	css := buildThemeStyle(userRecord{})
 	if css != "" {
 		t.Errorf("expected empty CSS when no theme overrides, got %q", css)
 	}
 }
 
 func TestBuildThemeStyleLightOnly(t *testing.T) {
-	cfg := Config{
+	prefs := userRecord{
 		ThemeLight: map[string]string{"bg": "#ffffff"},
 	}
-	css := string(buildThemeStyle(cfg))
+	css := string(buildThemeStyle(prefs))
 	if strings.Contains(css, `[data-theme="dark"]`) {
 		t.Error("should not contain dark selector when only light is overridden")
 	}
@@ -207,12 +206,12 @@ func TestFontStacksMatchGroups(t *testing.T) {
 }
 
 func TestBuildThemeStyleFonts(t *testing.T) {
-	css := string(buildThemeStyle(Config{FontUI: "georgia", FontMono: "system mono"}))
+	css := string(buildThemeStyle(userRecord{FontUI: "georgia", FontMono: "system mono"}))
 	if !strings.Contains(css, `--font-ui:Georgia, "Times New Roman", serif;`) ||
 		!strings.Contains(css, `--font-mono:ui-monospace,`) {
 		t.Errorf("font overrides missing from style: %q", css)
 	}
-	if got := buildThemeStyle(Config{FontUI: "nope"}); got != "" {
+	if got := buildThemeStyle(userRecord{FontUI: "nope"}); got != "" {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}
 }

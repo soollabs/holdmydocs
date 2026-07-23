@@ -24,51 +24,26 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	appDir := t.TempDir()
 
 	cfg := Config{
+		ConfigFile:   filepath.Join(appDir, "config.yaml"),
 		RepoDir:      repoDir,
 		AppDir:       appDir,
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		AdminUser:    "admin",
 		AdminPass:    "test",
 		HomeFilename: "readme.md",
 	}
 
 	// When a config file is configured, overlay its values so the settings
-	// handlers see the same cfg a real deployment (env > file > defaults) would.
+	// handlers see the same cfg a real deployment (LoadConfig) would.
 	if path := os.Getenv("HMD_CONFIG_FILE"); path != "" {
-		if fc, err := LoadFileConfig(path); err == nil {
-			if fc.Bind != "" {
-				cfg.Bind = fc.Bind
-			}
-			if fc.RemoteURL != "" {
-				cfg.RemoteURL = fc.RemoteURL
-			}
-			if fc.GitUser != "" {
-				cfg.GitUser = fc.GitUser
-			}
-			if fc.SiteName != "" {
-				cfg.SiteName = fc.SiteName
-			}
-			if fc.Hostname != "" {
-				cfg.Hostname = fc.Hostname
-			}
-			if fc.PathLabel != "" {
-				cfg.PathLabel = fc.PathLabel
-			}
-			if fc.UserLabel != "" {
-				cfg.UserLabel = fc.UserLabel
-			}
-			if fc.MaxUploadBytes != nil {
-				cfg.MaxUploadBytes = *fc.MaxUploadBytes
-			}
-			if fc.SyncPollMs != nil {
-				cfg.SyncPollMs = *fc.SyncPollMs
-			}
-			if fc.ShowTagsSidebar != nil {
-				cfg.ShowTagsSidebar = *fc.ShowTagsSidebar
-			}
-			if fc.SyncMode != "" {
-				cfg.SyncMode = fc.SyncMode
-			}
+		cfg.ConfigFile = path
+		if loaded, err := LoadConfig(); err == nil {
+			loaded.RepoDir = repoDir
+			loaded.AppDir = appDir
+			loaded.AdminUser = "admin"
+			loaded.AdminPass = "test"
+			loaded.HomeFilename = "readme.md"
+			cfg = loaded
 		}
 	}
 
@@ -80,10 +55,10 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	// Tests exercise pages/handlers, not the setup flow itself — simulate a
 	// completed setup so readme.md/.help.md fixtures exist as before, since
 	// OpenStore no longer auto-seeds anything without consent.
-	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding readme.md: %v", err)
 	}
-	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding .help.md: %v", err)
 	}
 	store.NeedsSetup.Store(false)
@@ -904,7 +879,7 @@ func TestSyncAPI(t *testing.T) {
 func TestAppConfigPointer(t *testing.T) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
-	cfg := Config{RepoDir: repoDir, AppDir: appDir, GitUser: "test", SiteName: "TestWiki"}
+	cfg := Config{RepoDir: repoDir, AppDir: appDir, Git: GitConfig{User: "test"}, SiteName: "TestWiki"}
 	store, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
@@ -942,26 +917,16 @@ func TestAppConfigPointer(t *testing.T) {
 
 func TestBuildSettingsDataEditable(t *testing.T) {
 	cfg := Config{
-		Bind:      ":8080",
-		RepoDir:   "/data/repo",
-		AppDir:    "/data/app",
-		RemoteURL: "https://example.com/repo.git",
-		GitUser:   "hmd",
-		GitToken:  "secret",
-		SiteName:  "My Wiki",
-	}
-	fc := fileConfig{
-		Bind:      ":8080",
-		RemoteURL: "https://example.com/repo.git",
-		GitUser:   "hmd",
-		SiteName:  "My Wiki",
+		ConfigFile: "/path/config.yaml",
+		Bind:       ":8080",
+		RepoDir:    "/data/repo",
+		AppDir:     "/data/app",
+		Git:        GitConfig{RemoteURL: "https://example.com/repo.git", User: "hmd", Token: "secret"},
+		SiteName:   "My Wiki",
 	}
 
-	sd := buildSettingsData(cfg, fc, "/path/config.yaml", true)
+	sd := buildSettingsData(cfg, userRecord{})
 
-	if sd.NoConfigFile {
-		t.Error("NoConfigFile = true, want false")
-	}
 	if !sd.Fields["Bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
 	}
@@ -992,22 +957,20 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 }
 
 func TestBuildSettingsDataEnvLocked(t *testing.T) {
-	t.Setenv("HMD_BIND", ":9999")
-	t.Setenv("HMD_SITE_NAME", "Env Wiki")
-
 	cfg := Config{
-		Bind:     ":9999",
-		SiteName: "Env Wiki",
-		RepoDir:  "/data/repo",
-		AppDir:   "/data/app",
-		GitUser:  "hmd",
-	}
-	fc := fileConfig{
-		Bind:     ":7000",
-		SiteName: "YAML Wiki",
+		ConfigFile: "/path/config.yaml",
+		Bind:       ":9999",
+		SiteName:   "Env Wiki",
+		RepoDir:    "/data/repo",
+		AppDir:     "/data/app",
+		Git:        GitConfig{User: "hmd"},
+		EnvOverrides: map[string]string{
+			"Bind":     "HMD_BIND",
+			"SiteName": "HMD_SITE_NAME",
+		},
 	}
 
-	sd := buildSettingsData(cfg, fc, "/path/config.yaml", true)
+	sd := buildSettingsData(cfg, userRecord{})
 
 	if sd.Fields["Bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
@@ -1023,65 +986,24 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 	}
 }
 
-func TestBuildSettingsDataNoConfigFile(t *testing.T) {
-	cfg := Config{
-		Bind:     ":8080",
-		SiteName: "hmd",
-		RepoDir:  "/data/repo",
-		AppDir:   "/data/app",
-		GitUser:  "hmd",
-	}
-
-	sd := buildSettingsData(cfg, fileConfig{}, "", false)
-
-	if !sd.NoConfigFile {
-		t.Error("NoConfigFile = false, want true")
-	}
-	if sd.Fields["Bind"].Editable {
-		t.Error("Bind should be read-only when no config file")
-	}
-	if sd.Fields["SiteName"].Editable {
-		t.Error("SiteName should be read-only when no config file")
-	}
-}
-
 func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
-	t.Setenv("HMD_GIT_TOKEN_FILE", "/path/to/token")
-
 	cfg := Config{
-		GitToken: "file-token",
-		RepoDir:  "/data/repo",
-		AppDir:   "/data/app",
-		GitUser:  "hmd",
+		ConfigFile: "/path/config.yaml",
+		Git:        GitConfig{Token: "file-token", User: "hmd"},
+		RepoDir:    "/data/repo",
+		AppDir:     "/data/app",
+		EnvOverrides: map[string]string{
+			"Git.TokenFile": "HMD_GIT_TOKEN_FILE",
+		},
 	}
 
-	sd := buildSettingsData(cfg, fileConfig{}, "/path/config.yaml", true)
+	sd := buildSettingsData(cfg, userRecord{})
 
 	if sd.Fields["GitToken"].Editable {
 		t.Error("GitToken should be read-only when token file is set")
 	}
 	if sd.Fields["GitToken"].EnvVar == "" {
 		t.Error("GitToken EnvVar should be set when token file is configured")
-	}
-}
-
-func TestSettingsGetNoConfigFile(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	resp, err := client.Get(server.URL + "/settings")
-	if err != nil {
-		t.Fatalf("GET /settings failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Status = %d, want 200", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("HMD_CONFIG_FILE")) {
-		t.Errorf("Body should contain the no-config-file banner")
 	}
 }
 
@@ -1129,7 +1051,6 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"site_name":         {"New Name"},
 		"bind":              {":7000"},
 		"repo_dir":          {"/data/repo"},
-		"app_dir":           {"/data/app"},
 		"remote_url":        {""},
 		"git_user":          {"test"},
 		"git_token":         {""},
@@ -1178,7 +1099,6 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"site_name":         {"New Name"},
 		"bind":              {""},
 		"repo_dir":          {"/data/repo"},
-		"app_dir":           {"/data/app"},
 		"remote_url":        {""},
 		"git_user":          {"test"},
 		"git_token":         {""},
@@ -1200,24 +1120,6 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
-	}
-}
-
-func TestSettingsPostNoConfigFile(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	form := url.Values{"site_name": {"New Name"}}
-	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("POST /settings failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("Status = %d, want 403", resp.StatusCode)
 	}
 }
 
@@ -1284,7 +1186,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 func TestSettingsFullFlow(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "site_name: Original\nbind: \":7000\"\ngit_user: test\n"
+	yamlContent := "site_name: Original\nbind: \":7000\"\ngit:\n  user: test\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -1307,7 +1209,6 @@ func TestSettingsFullFlow(t *testing.T) {
 		"site_name":         {"Updated Wiki"},
 		"bind":              {":7000"},
 		"repo_dir":          {"/data/repo"},
-		"app_dir":           {"/data/app"},
 		"remote_url":        {""},
 		"git_user":          {"test"},
 		"git_token":         {""},
@@ -1346,6 +1247,64 @@ func TestSettingsFullFlow(t *testing.T) {
 	}
 	if loaded.SiteName != "Updated Wiki" {
 		t.Errorf("File SiteName = %q, want %q", loaded.SiteName, "Updated Wiki")
+	}
+}
+
+func TestSettingsExportBakesInEnvValues(t *testing.T) {
+	dir := t.TempDir()
+	appDir := dir + "/app"
+	cfgFile := appDir + "/config.yaml"
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatalf("mkdir appDir: %v", err)
+	}
+	yamlContent := "site_name: Original\n"
+	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	t.Setenv("HMD_CONFIG_FILE", cfgFile)
+	t.Setenv("HMD_HOSTNAME", "env-host")
+
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	resp, err := client.PostForm(server.URL+"/settings/export", url.Values{})
+	if err != nil {
+		t.Fatalf("POST /settings/export failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	}
+
+	loaded, err := LoadFileConfig(cfgFile)
+	if err != nil {
+		t.Fatalf("LoadFileConfig failed: %v", err)
+	}
+	if loaded.Hostname != "env-host" {
+		t.Errorf("Hostname in file = %q, want %q (exported from HMD_HOSTNAME)", loaded.Hostname, "env-host")
+	}
+	if loaded.SiteName != "Original" {
+		t.Errorf("SiteName in file = %q, want %q (untouched field preserved)", loaded.SiteName, "Original")
+	}
+}
+
+func TestConfigExportOmitsResolvedTokenWhenTokenFileSet(t *testing.T) {
+	dir := t.TempDir()
+	tokenFile := dir + "/token.txt"
+	if err := os.WriteFile(tokenFile, []byte("secret-from-file\n"), 0644); err != nil {
+		t.Fatalf("failed to write token file: %v", err)
+	}
+
+	cfg := Config{
+		Git: GitConfig{TokenFile: tokenFile, Token: "secret-from-file"},
+	}
+
+	fc := cfg.toFileConfig()
+	if fc.Git.Token != "" {
+		t.Errorf("Git.Token = %q, want empty (resolved-from-file secret should not be exported in plaintext)", fc.Git.Token)
+	}
+	if fc.Git.TokenFile != tokenFile {
+		t.Errorf("Git.TokenFile = %q, want %q", fc.Git.TokenFile, tokenFile)
 	}
 }
 
@@ -1551,7 +1510,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	cfg := Config{
 		RepoDir:      repoDir,
 		AppDir:       appDir,
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		AdminUser:    "admin",
 		AdminPass:    "test",
 		HomeFilename: "readme.md",
@@ -1665,7 +1624,7 @@ func TestCustomHomeFilename(t *testing.T) {
 	cfg := Config{
 		RepoDir:      repoDir,
 		AppDir:       appDir,
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		AdminUser:    "admin",
 		AdminPass:    "test",
 		HomeFilename: "index.md",
@@ -1675,16 +1634,16 @@ func TestCustomHomeFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	if _, err := store.Save("index.md", Page{Slug: "index", Title: "index", Body: defaultHomeMD}.Encode(), "Add index.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save("index.md", Page{Slug: "index", Title: "index", Body: defaultHomeMD}.Encode(), "Add index.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding index.md: %v", err)
 	}
-	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding .help.md: %v", err)
 	}
 	store.NeedsSetup.Store(false)
 
 	// Also add a second page so the TOC has something to list.
-	if _, err := store.Save("alpha.md", Page{Slug: "alpha", Title: "Alpha", Body: "Alpha body"}.Encode(), "Add alpha", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save("alpha.md", Page{Slug: "alpha", Title: "Alpha", Body: "Alpha body"}.Encode(), "Add alpha", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding alpha: %v", err)
 	}
 
@@ -1754,7 +1713,7 @@ func TestCustomHomeFilename(t *testing.T) {
 	// A custom filename like home.md must NOT be treated as home: create a
 	// page named home.md and confirm it appears in TOC listings (it's an
 	// ordinary page now that index.md is the configured home file).
-	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: "<!-- hmd:toc -->\n"}.Encode(), "Add home", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: "<!-- hmd:toc -->\n"}.Encode(), "Add home", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding home.md: %v", err)
 	}
 	app.Index.Update(ParsePage("home", []byte("---\ntitle: Home\n---\n\n<!-- hmd:toc -->\n")))

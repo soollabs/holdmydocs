@@ -17,15 +17,14 @@ func newGardenApp(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	cfg := Config{
-		RepoDir:       t.TempDir(),
-		AppDir:        t.TempDir(),
-		GitUser:       "test",
-		AdminUser:     "admin",
-		AdminPass:     "test",
-		HomeFilename:  "readme.md",
-		SiteName:      "hmd",
-		GardenEnabled: true,
-		GardenTitle:   "My Garden",
+		RepoDir:      t.TempDir(),
+		AppDir:       t.TempDir(),
+		Git:          GitConfig{User: "test"},
+		AdminUser:    "admin",
+		AdminPass:    "test",
+		HomeFilename: "readme.md",
+		SiteName:     "hmd",
+		Garden:       GardenConfig{Enabled: true, Title: "My Garden"},
 	}
 
 	store, err := OpenStore(cfg)

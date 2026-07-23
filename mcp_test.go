@@ -31,18 +31,18 @@ func newMCPTestApp(t *testing.T, mcpEnabled bool) (*httptest.Server, string) {
 	cfg := Config{
 		RepoDir:      t.TempDir(),
 		AppDir:       t.TempDir(),
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		AdminUser:    "admin",
 		AdminPass:    "test",
 		HomeFilename: "readme.md",
-		MCPEnabled:   mcpEnabled,
+		MCP:          MCPConfig{Enabled: mcpEnabled},
 	}
 
 	store, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.GitUser, cfg.GitUser+"@hmd.local"); err != nil {
+	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding readme.md: %v", err)
 	}
 	store.NeedsSetup.Store(false)

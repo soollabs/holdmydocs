@@ -30,7 +30,7 @@ func TestInitNoRemote(t *testing.T) {
 	cfg := Config{
 		RepoDir:      tmpDir,
 		AppDir:       t.TempDir(),
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		HomeFilename: "readme.md",
 	}
 
@@ -63,7 +63,7 @@ func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	cfg := Config{
 		RepoDir:      tmpDir,
 		AppDir:       t.TempDir(),
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		HomeFilename: "readme.md",
 	}
 
@@ -118,7 +118,7 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	cfg := Config{
 		RepoDir:      tmpDir,
 		AppDir:       t.TempDir(),
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		HomeFilename: "readme.md",
 	}
 
@@ -151,7 +151,7 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 	cfg := Config{
 		RepoDir:      tmpDir,
 		AppDir:       t.TempDir(),
-		GitUser:      "test",
+		Git:          GitConfig{User: "test"},
 		HomeFilename: "readme.md",
 	}
 
@@ -174,7 +174,7 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	cfg := Config{
 		RepoDir: tmpDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -267,7 +267,7 @@ func TestSaveCheckedConcurrentSameBasehash(t *testing.T) {
 	cfg := Config{
 		RepoDir: tmpDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -323,10 +323,9 @@ func TestPushToLocalBareRemote(t *testing.T) {
 
 	repoDir := t.TempDir()
 	cfg := Config{
-		RepoDir:   repoDir,
-		AppDir:    t.TempDir(),
-		RemoteURL: bareDir,
-		GitUser:   "test",
+		RepoDir: repoDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{RemoteURL: bareDir, User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -387,10 +386,9 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 
 	repoDir := t.TempDir()
 	cfg := Config{
-		RepoDir:   repoDir,
-		AppDir:    t.TempDir(),
-		RemoteURL: bareDir,
-		GitUser:   "test",
+		RepoDir: repoDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{RemoteURL: bareDir, User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -461,7 +459,7 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 	cfg := Config{
 		RepoDir: repoDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -469,7 +467,7 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	cfg.RemoteURL = srv.URL + "/repo.git"
+	cfg.Git.RemoteURL = srv.URL + "/repo.git"
 	if err := store.UpdateRemote(cfg); err != nil {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
@@ -516,10 +514,9 @@ func TestOpenStoreCloneTimeout(t *testing.T) {
 	defer func() { gitNetworkTimeout = origTimeout }()
 
 	cfg := Config{
-		RepoDir:   t.TempDir(),
-		AppDir:    t.TempDir(),
-		RemoteURL: srv.URL + "/repo.git",
-		GitUser:   "test",
+		RepoDir: t.TempDir(),
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{RemoteURL: srv.URL + "/repo.git", User: "test"},
 	}
 
 	start := time.Now()
@@ -539,7 +536,7 @@ func TestUpdateRemoteNoRemoteToSet(t *testing.T) {
 	cfg := Config{
 		RepoDir: tmpDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -554,8 +551,8 @@ func TestUpdateRemoteNoRemoteToSet(t *testing.T) {
 
 	// Add a remote
 	cfg2 := cfg
-	cfg2.RemoteURL = "https://example.com/repo.git"
-	cfg2.GitToken = "tok123"
+	cfg2.Git.RemoteURL = "https://example.com/repo.git"
+	cfg2.Git.Token = "tok123"
 	if err := store.UpdateRemote(cfg2); err != nil {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
@@ -571,7 +568,7 @@ func TestUpdateRemoteChangeURL(t *testing.T) {
 	cfg := Config{
 		RepoDir: tmpDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -581,16 +578,16 @@ func TestUpdateRemoteChangeURL(t *testing.T) {
 
 	// Add the initial remote via UpdateRemote (no network — config only)
 	cfgAdd := cfg
-	cfgAdd.RemoteURL = "https://example.com/old.git"
-	cfgAdd.GitToken = "old-token"
+	cfgAdd.Git.RemoteURL = "https://example.com/old.git"
+	cfgAdd.Git.Token = "old-token"
 	if err := store.UpdateRemote(cfgAdd); err != nil {
 		t.Fatalf("initial UpdateRemote failed: %v", err)
 	}
 
 	// Change the remote URL and token
 	cfg2 := cfg
-	cfg2.RemoteURL = "https://example.com/new.git"
-	cfg2.GitToken = "new-token"
+	cfg2.Git.RemoteURL = "https://example.com/new.git"
+	cfg2.Git.Token = "new-token"
 	if err := store.UpdateRemote(cfg2); err != nil {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
@@ -611,7 +608,7 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 	cfg := Config{
 		RepoDir: tmpDir,
 		AppDir:  t.TempDir(),
-		GitUser: "test",
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -621,15 +618,15 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 
 	// Add a remote first via UpdateRemote
 	cfgAdd := cfg
-	cfgAdd.RemoteURL = "https://example.com/repo.git"
-	cfgAdd.GitToken = "tok"
+	cfgAdd.Git.RemoteURL = "https://example.com/repo.git"
+	cfgAdd.Git.Token = "tok"
 	if err := store.UpdateRemote(cfgAdd); err != nil {
 		t.Fatalf("initial UpdateRemote failed: %v", err)
 	}
 
 	// Remove the remote
 	cfg2 := cfg
-	cfg2.RemoteURL = ""
+	cfg2.Git.RemoteURL = ""
 	if err := store.UpdateRemote(cfg2); err != nil {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
@@ -647,7 +644,7 @@ func TestFetchAndFFBehind(t *testing.T) {
 	}
 
 	dirA := t.TempDir()
-	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "A"}}
 	storeA, err := OpenStore(cfgA)
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
@@ -658,7 +655,7 @@ func TestFetchAndFFBehind(t *testing.T) {
 	waitForSync(storeA, 2*time.Second)
 
 	dirB := t.TempDir()
-	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
 	storeB, err := OpenStore(cfgB)
 	if err != nil {
 		t.Fatalf("OpenStore B: %v", err)
@@ -697,7 +694,7 @@ func TestFetchAndFFEqual(t *testing.T) {
 	}
 
 	dirA := t.TempDir()
-	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "A"}}
 	storeA, err := OpenStore(cfgA)
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
@@ -708,7 +705,7 @@ func TestFetchAndFFEqual(t *testing.T) {
 	waitForSync(storeA, 2*time.Second)
 
 	dirB := t.TempDir()
-	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
 	storeB, err := OpenStore(cfgB)
 	if err != nil {
 		t.Fatalf("OpenStore B: %v", err)
@@ -733,7 +730,7 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	}
 
 	dirA := t.TempDir()
-	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "A"}
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "A"}}
 	storeA, err := OpenStore(cfgA)
 	if err != nil {
 		t.Fatalf("OpenStore A: %v", err)
@@ -744,7 +741,7 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	waitForSync(storeA, 2*time.Second)
 
 	dirB := t.TempDir()
-	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), RemoteURL: bareDir, GitUser: "B"}
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
 	storeB, err := OpenStore(cfgB)
 	if err != nil {
 		t.Fatalf("OpenStore B: %v", err)
@@ -792,7 +789,7 @@ func waitForSync(store *Store, timeout time.Duration) {
 // (incremental update) and be dropped when a commit lands outside the UI.
 func TestHistoryCacheExternalCommit(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := OpenStore(Config{RepoDir: tmpDir, AppDir: t.TempDir(), GitUser: "test"})
+	store, err := OpenStore(Config{RepoDir: tmpDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}

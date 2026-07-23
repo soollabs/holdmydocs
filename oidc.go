@@ -143,30 +143,30 @@ func (app *App) handleOIDCIcon(w http.ResponseWriter, r *http.Request) {
 	w.Write(app.OIDC.icon)
 }
 
-// NewOIDCAuth runs discovery against cfg.OIDCIssuer and builds the OAuth2
+// NewOIDCAuth runs discovery against cfg.OIDC.Issuer and builds the OAuth2
 // config. Called at startup only when the issuer is set; a failure here is
 // fatal, consistent with other startup errors.
 func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
-	provider, err := oidc.NewProvider(ctx, cfg.OIDCIssuer)
+	provider, err := oidc.NewProvider(ctx, cfg.OIDC.Issuer)
 	if err != nil {
-		return nil, fmt.Errorf("OIDC discovery for %s: %w", cfg.OIDCIssuer, err)
+		return nil, fmt.Errorf("OIDC discovery for %s: %w", cfg.OIDC.Issuer, err)
 	}
 	var icon []byte
-	if cfg.OIDCIcon != "" {
-		if icon, err = loadOIDCIcon(ctx, cfg.OIDCIcon); err != nil {
+	if cfg.OIDC.Icon != "" {
+		if icon, err = loadOIDCIcon(ctx, cfg.OIDC.Icon); err != nil {
 			return nil, err
 		}
 	}
 	return &OIDCAuth{
 		icon: icon,
 		oauth: oauth2.Config{
-			ClientID:     cfg.OIDCClientID,
-			ClientSecret: cfg.OIDCClientSecret,
+			ClientID:     cfg.OIDC.ClientID,
+			ClientSecret: cfg.OIDC.ClientSecret,
 			Endpoint:     provider.Endpoint(),
-			RedirectURL:  strings.TrimSuffix(cfg.BaseURL, "/") + "/auth/oidc/callback",
+			RedirectURL:  strings.TrimSuffix(cfg.OIDC.BaseURL, "/") + "/auth/oidc/callback",
 			Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 		},
-		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.OIDCClientID}),
+		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.OIDC.ClientID}),
 	}, nil
 }
 

@@ -172,7 +172,7 @@ func (app *App) mcpHandler() http.Handler {
 		page := Page{Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body, Public: in.Public}
 
 		cfg := app.config()
-		if cfg.SyncMode == "bidirectional" && cfg.RemoteURL != "" {
+		if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
 			if _, err := app.Store.FetchAndFF(); err != nil {
 				slog.Warn("mcp save-time fetch", "slug", in.Slug, "err", err)
 			}

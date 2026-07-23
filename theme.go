@@ -155,26 +155,27 @@ var fontStacks = map[string]string{
 	"charter":        `Charter, "Bitstream Charter", Cambria, serif`,
 }
 
-// buildThemeStyle renders an inline CSS override block for any theme that
-// has a non-empty map in cfg. The block is injected after style.css so it
-// overrides the defaults. Returns "" when no overrides are configured.
-func buildThemeStyle(cfg Config) template.CSS {
+// buildThemeStyle renders an inline CSS override block from a user's
+// preferences (theme colours, fonts). The block is injected after
+// style.css so it overrides the defaults. Returns "" when the user has no
+// overrides configured.
+func buildThemeStyle(prefs userRecord) template.CSS {
 	var b strings.Builder
-	if len(cfg.ThemeDark) > 0 {
+	if len(prefs.ThemeDark) > 0 {
 		b.WriteString(`:root, :root[data-theme="dark"]{`)
-		writeThemeVars(&b, cfg.ThemeDark)
+		writeThemeVars(&b, prefs.ThemeDark)
 		b.WriteString("}")
 	}
-	if len(cfg.ThemeLight) > 0 {
+	if len(prefs.ThemeLight) > 0 {
 		b.WriteString(`:root[data-theme="light"]{`)
-		writeThemeVars(&b, cfg.ThemeLight)
+		writeThemeVars(&b, prefs.ThemeLight)
 		b.WriteString("}")
 	}
 	var fonts strings.Builder
-	if s, ok := fontStacks[cfg.FontUI]; ok {
+	if s, ok := fontStacks[prefs.FontUI]; ok {
 		fonts.WriteString("--font-ui:" + s + ";")
 	}
-	if s, ok := fontStacks[cfg.FontMono]; ok {
+	if s, ok := fontStacks[prefs.FontMono]; ok {
 		fonts.WriteString("--font-mono:" + s + ";")
 	}
 	if fonts.Len() > 0 {

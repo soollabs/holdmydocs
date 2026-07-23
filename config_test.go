@@ -80,18 +80,18 @@ func runLoadConfigCase(t *testing.T, wantBind, wantRepo, wantApp, wantGitUser, w
 	if cfg.AppDir != wantApp {
 		t.Errorf("AppDir = %q, want %q", cfg.AppDir, wantApp)
 	}
-	if cfg.GitUser != wantGitUser {
-		t.Errorf("GitUser = %q, want %q", cfg.GitUser, wantGitUser)
+	if cfg.Git.User != wantGitUser {
+		t.Errorf("GitUser = %q, want %q", cfg.Git.User, wantGitUser)
 	}
-	if wantToken != "" && cfg.GitToken != wantToken {
-		t.Errorf("GitToken = %q, want %q", cfg.GitToken, wantToken)
+	if wantToken != "" && cfg.Git.Token != wantToken {
+		t.Errorf("GitToken = %q, want %q", cfg.Git.Token, wantToken)
 	}
 }
 
 func TestLoadConfigYAMLFile(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yaml := "# hmd configuration\nbind: \":7000\"\nrepo_dir: /yaml/repo\ngit_user: yaml-user\nsite_name: My Wiki\n"
+	yaml := "# hmd configuration\nbind: \":7000\"\nrepo_dir: /yaml/repo\ngit:\n  user: yaml-user\nsite_name: My Wiki\n"
 	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -108,8 +108,8 @@ func TestLoadConfigYAMLFile(t *testing.T) {
 		if cfg.RepoDir != "/yaml/repo" {
 			t.Errorf("RepoDir = %q, want %q", cfg.RepoDir, "/yaml/repo")
 		}
-		if cfg.GitUser != "yaml-user" {
-			t.Errorf("GitUser = %q, want %q", cfg.GitUser, "yaml-user")
+		if cfg.Git.User != "yaml-user" {
+			t.Errorf("GitUser = %q, want %q", cfg.Git.User, "yaml-user")
 		}
 		if cfg.SiteName != "My Wiki" {
 			t.Errorf("SiteName = %q, want %q", cfg.SiteName, "My Wiki")
@@ -181,7 +181,7 @@ func TestLoadConfigYAMLZeroValuesAreHonoured(t *testing.T) {
 func TestLoadConfigEnvConflictWarning(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "bind: \":7000\"\nsite_name: YAML Wiki\ngit_user: yaml-user\n"
+	yamlContent := "bind: \":7000\"\nsite_name: YAML Wiki\ngit:\n  user: yaml-user\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -198,8 +198,8 @@ func TestLoadConfigEnvConflictWarning(t *testing.T) {
 	if cfg.SiteName != "YAML Wiki" {
 		t.Errorf("SiteName = %q, want %q", cfg.SiteName, "YAML Wiki")
 	}
-	if cfg.GitUser != "yaml-user" {
-		t.Errorf("GitUser = %q, want %q", cfg.GitUser, "yaml-user")
+	if cfg.Git.User != "yaml-user" {
+		t.Errorf("GitUser = %q, want %q", cfg.Git.User, "yaml-user")
 	}
 }
 
@@ -208,15 +208,14 @@ func TestSaveAndLoadFileConfig(t *testing.T) {
 	path := dir + "/config.yaml"
 
 	fc := fileConfig{
-		Bind:      ":7000",
-		RepoDir:   "/custom/repo",
-		AppDir:    "/custom/app",
-		RemoteURL: "https://example.com/repo.git",
-		GitUser:   "alice",
-		GitToken:  "secret-token",
-		AdminUser: "admin",
-		AdminPass: "adminpass",
-		SiteName:  "My Wiki",
+		Bind:     ":7000",
+		RepoDir:  "/custom/repo",
+		SiteName: "My Wiki",
+		Git: GitConfig{
+			RemoteURL: "https://example.com/repo.git",
+			User:      "alice",
+			Token:     "secret-token",
+		},
 	}
 
 	if err := SaveFileConfig(path, fc); err != nil {
@@ -234,17 +233,17 @@ func TestSaveAndLoadFileConfig(t *testing.T) {
 	if loaded.RepoDir != fc.RepoDir {
 		t.Errorf("RepoDir = %q, want %q", loaded.RepoDir, fc.RepoDir)
 	}
-	if loaded.RemoteURL != fc.RemoteURL {
-		t.Errorf("RemoteURL = %q, want %q", loaded.RemoteURL, fc.RemoteURL)
+	if loaded.Git.RemoteURL != fc.Git.RemoteURL {
+		t.Errorf("Git.RemoteURL = %q, want %q", loaded.Git.RemoteURL, fc.Git.RemoteURL)
 	}
-	if loaded.GitToken != fc.GitToken {
-		t.Errorf("GitToken = %q, want %q", loaded.GitToken, fc.GitToken)
+	if loaded.Git.Token != fc.Git.Token {
+		t.Errorf("Git.Token = %q, want %q", loaded.Git.Token, fc.Git.Token)
 	}
 	if loaded.SiteName != fc.SiteName {
 		t.Errorf("SiteName = %q, want %q", loaded.SiteName, fc.SiteName)
 	}
-	if loaded.GitTokenFile != "" {
-		t.Errorf("GitTokenFile = %q, want empty", loaded.GitTokenFile)
+	if loaded.Git.TokenFile != "" {
+		t.Errorf("Git.TokenFile = %q, want empty", loaded.Git.TokenFile)
 	}
 }
 

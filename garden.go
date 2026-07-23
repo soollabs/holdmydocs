@@ -114,7 +114,7 @@ func (app *App) renderGardenTemplate(w http.ResponseWriter, name string, data ga
 }
 
 func (app *App) handleGardenIndex(w http.ResponseWriter, r *http.Request) {
-	if !app.config().GardenEnabled {
+	if !app.config().Garden.Enabled {
 		http.NotFound(w, r)
 		return
 	}
@@ -123,7 +123,7 @@ func (app *App) handleGardenIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	title := app.config().GardenTitle
+	title := app.config().Garden.Title
 	app.renderGardenTemplate(w, "garden-index", gardenData{
 		GardenTitle: title,
 		Title:       title,
@@ -132,7 +132,7 @@ func (app *App) handleGardenIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleGardenPage(w http.ResponseWriter, r *http.Request) {
-	if !app.config().GardenEnabled {
+	if !app.config().Garden.Enabled {
 		http.NotFound(w, r)
 		return
 	}
@@ -158,7 +158,7 @@ func (app *App) handleGardenPage(w http.ResponseWriter, r *http.Request) {
 		updated = h[0].When.Format("2006-01-02")
 	}
 	app.renderGardenTemplate(w, "garden-page", gardenData{
-		GardenTitle: app.config().GardenTitle,
+		GardenTitle: app.config().Garden.Title,
 		Title:       page.Title,
 		Content:     content,
 		Tags:        page.Tags,
@@ -169,7 +169,7 @@ func (app *App) handleGardenPage(w http.ResponseWriter, r *http.Request) {
 // handleGardenAttachment serves an attachment only if its owning page is
 // currently public; otherwise 404, identical to a nonexistent file.
 func (app *App) handleGardenAttachment(w http.ResponseWriter, r *http.Request) {
-	if !app.config().GardenEnabled {
+	if !app.config().Garden.Enabled {
 		http.NotFound(w, r)
 		return
 	}
@@ -223,7 +223,7 @@ type rssItem struct {
 
 func (app *App) handleGardenFeed(w http.ResponseWriter, r *http.Request) {
 	cfg := app.config()
-	if !cfg.GardenEnabled {
+	if !cfg.Garden.Enabled {
 		http.NotFound(w, r)
 		return
 	}
@@ -233,13 +233,13 @@ func (app *App) handleGardenFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := strings.TrimRight(cfg.BaseURL, "/")
+	base := strings.TrimRight(cfg.OIDC.BaseURL, "/")
 	feed := rssFeed{
 		Version: "2.0",
 		Channel: rssChannel{
-			Title:       cfg.GardenTitle,
+			Title:       cfg.Garden.Title,
 			Link:        base + "/garden",
-			Description: cfg.GardenTitle,
+			Description: cfg.Garden.Title,
 		},
 	}
 	for _, e := range app.gardenEntries(public) {
