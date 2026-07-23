@@ -1698,6 +1698,7 @@ body.zen-manuscript .zen-status.visible {
 		box-shadow: 0 6px 16px rgba(0, 0, 0, .4);
 		z-index: 500;
 	}
+
 }
 
 @media (min-width: 900px) {
@@ -1777,6 +1778,36 @@ body.zen-manuscript .zen-status.visible {
 	max-width: 48rem;
 }
 
+.settings-zone {
+	max-width: 48rem;
+	margin-bottom: 2.5rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--border);
+}
+
+.settings-zone:first-of-type {
+	padding-top: 0;
+	border-top: none;
+}
+
+.settings-zone-title {
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--fg-bright);
+	text-transform: lowercase;
+	margin: 0 0 4px;
+}
+
+.settings-zone-title .h {
+	color: var(--green);
+}
+
+.settings-zone-desc {
+	color: var(--fg-muted);
+	font-size: 0.85rem;
+	margin: 0 0 1.25rem;
+}
+
 .settings-section {
 	border: 1px solid var(--border);
 	border-radius: 6px;
@@ -1854,6 +1885,16 @@ body.zen-manuscript .zen-status.visible {
 	margin-top: 0.5rem;
 }
 
+.settings-actions-sticky {
+	position: sticky;
+	bottom: 0;
+	background: var(--bg);
+	padding: 0.75rem 0;
+	margin-top: 0;
+	border-top: 1px solid var(--border);
+	z-index: 1;
+}
+
 .theme-colours {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
@@ -1898,6 +1939,26 @@ body.zen-manuscript .zen-status.visible {
 
 .settings-actions .ghost-btn {
 	padding: 0.3rem 0.8rem;
+}
+
+@media (max-width: 899px) {
+	.settings-row {
+		flex-wrap: wrap;
+	}
+
+	.settings-row label {
+		min-width: 100%;
+	}
+
+	.settings-row input,
+	.settings-row select {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.theme-colours {
+		grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+	}
 }
 
 .setup-page {

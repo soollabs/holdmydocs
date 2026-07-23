@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"reflect"
 	"regexp"
 	"strings"
 )
@@ -131,6 +132,24 @@ func collectTheme(r map[string][]string, prefix string) map[string]string {
 		}
 	}
 	return m
+}
+
+// matchingPreset returns the name of the preset whose palette for mode
+// ("dark" or "light") exactly equals current, or "" if current is the
+// built-in default or has been hand-tweaked away from every preset.
+// Presets aren't stored by name (see themePreset docs) — this just lets the
+// settings page show which preset is still in effect, if any.
+func matchingPreset(current map[string]string, mode string) string {
+	for _, name := range themePresetNames {
+		palette := themePresets[name].Dark
+		if mode == "light" {
+			palette = themePresets[name].Light
+		}
+		if reflect.DeepEqual(current, palette) {
+			return name
+		}
+	}
+	return ""
 }
 
 // Font options for the settings UI. Values are fixed CSS stacks looked up

@@ -215,3 +215,19 @@ func TestBuildThemeStyleFonts(t *testing.T) {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}
 }
+
+func TestMatchingPreset(t *testing.T) {
+	if got := matchingPreset(themePresets["nord"].Dark, "dark"); got != "nord" {
+		t.Errorf("matchingPreset(nord dark) = %q, want nord", got)
+	}
+	if got := matchingPreset(themePresets["nord"].Light, "dark"); got != "" {
+		t.Errorf("light palette shouldn't match under dark mode, got %q", got)
+	}
+	if got := matchingPreset(defaultDark, "dark"); got != "" {
+		t.Errorf("default theme shouldn't match any preset, got %q", got)
+	}
+	tweaked := mergeTheme(themePresets["gruvbox"].Dark, map[string]string{"bg": "#123456"})
+	if got := matchingPreset(tweaked, "dark"); got != "" {
+		t.Errorf("hand-tweaked palette shouldn't match its source preset, got %q", got)
+	}
+}

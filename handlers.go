@@ -148,33 +148,35 @@ type FieldState struct {
 
 // SettingsData is passed to the settings template.
 type SettingsData struct {
-	Fields           map[string]FieldState
-	ConfigPath       string
-	Flash            string // success message after a save
-	Error            string // validation error
-	MaxUploadBytes   int64
-	SyncPollMs       int
-	ShowTagsSidebar  bool
-	SyncMode         string
-	ThemeDark        map[string]string
-	ThemeLight       map[string]string
-	ThemePresetNames []string
-	ThemePresets     map[string]themePreset // JSON-encoded into the settings page script
-	FontUI           string
-	FontMono         string
-	FontsMono        []string // option groups for the font selects
-	FontsSans        []string
-	FontsSerif       []string
-	FontStacks       map[string]string // JSON-encoded for the live font preview
-	HelpDrifted      bool
-	UserGitAuthor    string      // current user's per-user git author override
-	HomeFilename     string      // read-only display; restart required to change
-	HomeFilenameEnv  string      // env var name if it overrides the file, else ""
-	Tokens           []TokenView // current user's personal access tokens
-	NewToken         string      // freshly minted token value, shown exactly once
-	TokenError       string      // token create/revoke validation error
-	HasEnvOverrides  bool        // any field currently sourced from an env var — shows the "export to file" action
-	ExportSecretVars []string    // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
+	Fields            map[string]FieldState
+	ConfigPath        string
+	Flash             string // success message after a save
+	Error             string // validation error
+	MaxUploadBytes    int64
+	SyncPollMs        int
+	ShowTagsSidebar   bool
+	SyncMode          string
+	ThemeDark         map[string]string
+	ThemeLight        map[string]string
+	ThemePresetNames  []string
+	ThemePresets      map[string]themePreset // JSON-encoded into the settings page script
+	ActivePresetDark  string                 // preset name matching ThemeDark exactly, else ""
+	ActivePresetLight string                 // preset name matching ThemeLight exactly, else ""
+	FontUI            string
+	FontMono          string
+	FontsMono         []string // option groups for the font selects
+	FontsSans         []string
+	FontsSerif        []string
+	FontStacks        map[string]string // JSON-encoded for the live font preview
+	HelpDrifted       bool
+	UserGitAuthor     string      // current user's per-user git author override
+	HomeFilename      string      // read-only display; restart required to change
+	HomeFilenameEnv   string      // env var name if it overrides the file, else ""
+	Tokens            []TokenView // current user's personal access tokens
+	NewToken          string      // freshly minted token value, shown exactly once
+	TokenError        string      // token create/revoke validation error
+	HasEnvOverrides   bool        // any field currently sourced from an env var — shows the "export to file" action
+	ExportSecretVars  []string    // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -305,28 +307,32 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
 
 	showTagsSidebar := prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
+	themeDark := mergeTheme(defaultDark, prefs.ThemeDark)
+	themeLight := mergeTheme(defaultLight, prefs.ThemeLight)
 
 	return SettingsData{
-		Fields:           fields,
-		ConfigPath:       cfg.ConfigFile,
-		MaxUploadBytes:   cfg.MaxUploadBytes,
-		SyncPollMs:       cfg.SyncPollMs,
-		ShowTagsSidebar:  showTagsSidebar,
-		SyncMode:         cfg.SyncMode,
-		ThemeDark:        mergeTheme(defaultDark, prefs.ThemeDark),
-		ThemeLight:       mergeTheme(defaultLight, prefs.ThemeLight),
-		ThemePresetNames: themePresetNames,
-		ThemePresets:     themePresets,
-		FontUI:           prefs.FontUI,
-		FontMono:         prefs.FontMono,
-		FontsMono:        fontsMono,
-		FontsSans:        fontsSans,
-		FontsSerif:       fontsSerif,
-		FontStacks:       fontStacks,
-		HomeFilename:     cfg.HomeFilename,
-		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
-		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
-		ExportSecretVars: exportSecretVars(cfg),
+		Fields:            fields,
+		ConfigPath:        cfg.ConfigFile,
+		MaxUploadBytes:    cfg.MaxUploadBytes,
+		SyncPollMs:        cfg.SyncPollMs,
+		ShowTagsSidebar:   showTagsSidebar,
+		SyncMode:          cfg.SyncMode,
+		ThemeDark:         themeDark,
+		ThemeLight:        themeLight,
+		ThemePresetNames:  themePresetNames,
+		ThemePresets:      themePresets,
+		ActivePresetDark:  matchingPreset(themeDark, "dark"),
+		ActivePresetLight: matchingPreset(themeLight, "light"),
+		FontUI:            prefs.FontUI,
+		FontMono:          prefs.FontMono,
+		FontsMono:         fontsMono,
+		FontsSans:         fontsSans,
+		FontsSerif:        fontsSerif,
+		FontStacks:        fontStacks,
+		HomeFilename:      cfg.HomeFilename,
+		HomeFilenameEnv:   cfg.EnvOverrides["HomeFilename"],
+		HasEnvOverrides:   len(cfg.EnvOverrides) > 0,
+		ExportSecretVars:  exportSecretVars(cfg),
 	}
 }
 
@@ -558,6 +564,7 @@ func (app *App) Routes() http.Handler {
 	// Settings
 	mux.HandleFunc("GET /settings", app.handleSettingsGet)
 	mux.HandleFunc("POST /settings", app.handleSettingsPost)
+	mux.HandleFunc("POST /settings/appearance", app.handleSettingsAppearance)
 	mux.HandleFunc("POST /settings/export", app.handleSettingsExport)
 	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
 	mux.HandleFunc("POST /settings/tokens", app.handleCreateToken)
@@ -1777,10 +1784,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	userLabel := r.FormValue("user_label")
 	maxUploadStr := r.FormValue("max_upload_bytes")
 	syncPollStr := r.FormValue("sync_poll_ms")
-	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
 	syncMode := r.FormValue("sync_mode")
-	fontUI := r.FormValue("font_ui")
-	fontMono := r.FormValue("font_mono")
 
 	if bind == "" {
 		http.Error(w, "Bind cannot be empty", http.StatusBadRequest)
@@ -1812,14 +1816,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if syncMode != "push" && syncMode != "bidirectional" {
 		http.Error(w, "Sync mode must be push or bidirectional", http.StatusBadRequest)
-		return
-	}
-	if _, ok := fontStacks[fontUI]; fontUI != "" && !ok {
-		http.Error(w, "Unknown UI font", http.StatusBadRequest)
-		return
-	}
-	if _, ok := fontStacks[fontMono]; fontMono != "" && !ok {
-		http.Error(w, "Unknown monospace font", http.StatusBadRequest)
 		return
 	}
 
@@ -1875,14 +1871,41 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("updating store remote", "err", err)
 	}
 
-	user := app.currentUser(r)
-	dark := snapshotTheme(collectTheme(r.PostForm, "theme_dark_"), defaultDark)
-	light := snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
-	if err := app.Auth.SetPrefs(user, dark, light, fontUI, fontMono, showTagsSidebar); err != nil {
-		slog.Warn("saving user prefs", "err", err)
+	slog.Info("settings updated", "by", app.currentUser(r))
+	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
+}
+
+// handleSettingsAppearance saves the current user's personal preferences —
+// fonts, theme colours, sidebar tags — separately from the system-wide
+// config handled by handleSettingsPost. These live per-user (app.Auth.prefs),
+// never touch config.yaml, and take effect only for the saving user.
+func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
 	}
 
-	slog.Info("settings updated", "by", user)
+	fontUI := r.FormValue("font_ui")
+	fontMono := r.FormValue("font_mono")
+	if _, ok := fontStacks[fontUI]; fontUI != "" && !ok {
+		http.Error(w, "Unknown UI font", http.StatusBadRequest)
+		return
+	}
+	if _, ok := fontStacks[fontMono]; fontMono != "" && !ok {
+		http.Error(w, "Unknown monospace font", http.StatusBadRequest)
+		return
+	}
+	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
+	dark := snapshotTheme(collectTheme(r.PostForm, "theme_dark_"), defaultDark)
+	light := snapshotTheme(collectTheme(r.PostForm, "theme_light_"), defaultLight)
+
+	user := app.currentUser(r)
+	if err := app.Auth.SetPrefs(user, dark, light, fontUI, fontMono, showTagsSidebar); err != nil {
+		http.Error(w, "Failed to save appearance", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("appearance updated", "by", user)
 	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
 }
 

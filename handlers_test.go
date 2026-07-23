@@ -1048,19 +1048,18 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{
-		"site_name":         {"New Name"},
-		"bind":              {":7000"},
-		"repo_dir":          {"/data/repo"},
-		"remote_url":        {""},
-		"git_user":          {"test"},
-		"git_token":         {""},
-		"hostname":          {"homelab"},
-		"path_label":        {"~/wiki"},
-		"user_label":        {""},
-		"max_upload_bytes":  {"10485760"},
-		"sync_poll_ms":      {"10000"},
-		"show_tags_sidebar": {"on"},
-		"sync_mode":         {"push"},
+		"site_name":        {"New Name"},
+		"bind":             {":7000"},
+		"repo_dir":         {"/data/repo"},
+		"remote_url":       {""},
+		"git_user":         {"test"},
+		"git_token":        {""},
+		"hostname":         {"homelab"},
+		"path_label":       {"~/wiki"},
+		"user_label":       {""},
+		"max_upload_bytes": {"10485760"},
+		"sync_poll_ms":     {"10000"},
+		"sync_mode":        {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1096,19 +1095,18 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{
-		"site_name":         {"New Name"},
-		"bind":              {""},
-		"repo_dir":          {"/data/repo"},
-		"remote_url":        {""},
-		"git_user":          {"test"},
-		"git_token":         {""},
-		"hostname":          {"homelab"},
-		"path_label":        {"~/wiki"},
-		"user_label":        {""},
-		"max_upload_bytes":  {"10485760"},
-		"sync_poll_ms":      {"10000"},
-		"show_tags_sidebar": {"on"},
-		"sync_mode":         {"push"},
+		"site_name":        {"New Name"},
+		"bind":             {""},
+		"repo_dir":         {"/data/repo"},
+		"remote_url":       {""},
+		"git_user":         {"test"},
+		"git_token":        {""},
+		"hostname":         {"homelab"},
+		"path_label":       {"~/wiki"},
+		"user_label":       {""},
+		"max_upload_bytes": {"10485760"},
+		"sync_poll_ms":     {"10000"},
+		"sync_mode":        {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1118,6 +1116,57 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.T) {
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	form := url.Values{
+		"font_ui":           {"helvetica"},
+		"font_mono":         {"courier"},
+		"show_tags_sidebar": {"on"},
+	}
+	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /settings/appearance failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	}
+
+	resp2, err := client.Get(server.URL + "/settings")
+	if err != nil {
+		t.Fatalf("GET /settings failed: %v", err)
+	}
+	defer resp2.Body.Close()
+	body, _ := io.ReadAll(resp2.Body)
+	if !bytes.Contains(body, []byte(`value="helvetica" selected`)) {
+		t.Errorf("saved UI font should be selected on reload, body: %s", body)
+	}
+	if !bytes.Contains(body, []byte(`value="courier" selected`)) {
+		t.Errorf("saved mono font should be selected on reload, body: %s", body)
+	}
+}
+
+func TestSettingsAppearancePostRejectsUnknownFont(t *testing.T) {
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	form := url.Values{"font_ui": {"comic-sans"}}
+	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /settings/appearance failed: %v", err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
@@ -1206,19 +1255,18 @@ func TestSettingsFullFlow(t *testing.T) {
 	}
 
 	form := url.Values{
-		"site_name":         {"Updated Wiki"},
-		"bind":              {":7000"},
-		"repo_dir":          {"/data/repo"},
-		"remote_url":        {""},
-		"git_user":          {"test"},
-		"git_token":         {""},
-		"hostname":          {"homelab"},
-		"path_label":        {"~/wiki"},
-		"user_label":        {""},
-		"max_upload_bytes":  {"10485760"},
-		"sync_poll_ms":      {"10000"},
-		"show_tags_sidebar": {"on"},
-		"sync_mode":         {"push"},
+		"site_name":        {"Updated Wiki"},
+		"bind":             {":7000"},
+		"repo_dir":         {"/data/repo"},
+		"remote_url":       {""},
+		"git_user":         {"test"},
+		"git_token":        {""},
+		"hostname":         {"homelab"},
+		"path_label":       {"~/wiki"},
+		"user_label":       {""},
+		"max_upload_bytes": {"10485760"},
+		"sync_poll_ms":     {"10000"},
+		"sync_mode":        {"push"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
