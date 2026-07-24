@@ -57,6 +57,10 @@ sync_poll_ms: 10000
 # Home page file. Must end in .md, no path separators, not dot-prefixed.
 # Default readme.md renders on the git host front page (GitHub, git, Gitea).
 # home_filename: readme.md
+# Install-wide default profile: docs | journal | clipper | research | minimal.
+# A profile is a widget arrangement + default skin, not a storage mode — any
+# user can override their own profile from /settings.
+# profile: docs
 
 # --- OIDC single sign-on ---
 # Optional. Setting oidc.issuer enables SSO (restart required). Register hmd

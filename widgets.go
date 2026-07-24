@@ -32,39 +32,46 @@ var widgets = map[string]widget{
 	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar},
 	"keys":     {ID: "keys", Title: "", Slot: slotSidebar},
 
-	"calendar":       {ID: "calendar", Title: "", Slot: slotSidebar},
-	"writing-stats":  {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar},
-	"inbox":          {ID: "inbox", Title: "INBOX", Slot: slotSidebar},
-	"sources":        {ID: "sources", Title: "SOURCES", Slot: slotSidebar},
+	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar},
+	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar},
+	"inbox":         {ID: "inbox", Title: "INBOX", Slot: slotSidebar},
+	"sources":       {ID: "sources", Title: "SOURCES", Slot: slotSidebar},
 
-	"outline":       {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail},
-	"source-card":   {ID: "source-card", Title: "", Slot: slotPageHead},
-	"page-meta":     {ID: "page-meta", Title: "", Slot: slotPageHead},
-	"backlinks":     {ID: "backlinks", Title: "linked from", Slot: slotPageFoot},
-	"prev-entries":  {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot},
+	"outline":      {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail},
+	"source-card":  {ID: "source-card", Title: "", Slot: slotPageHead},
+	"page-meta":    {ID: "page-meta", Title: "", Slot: slotPageHead},
+	"backlinks":    {ID: "backlinks", Title: "linked from", Slot: slotPageFoot},
+	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot},
 }
 
-// defaultProfile is the set of widgets for each built-in profile.
-// widget implementation builds a no-op profile — profile implementation will add the five profiles.
-var defaultProfile = map[widgetSlot][]string{
-	slotSidebar:    {"identity", "search", "pages", "tags", "log", "health", "keys"},
-	slotRail:       {"outline"},
-	slotPageHead:   {"page-meta"},
-	slotPageFoot:   {"backlinks"},
-	slotStatusline: {}, // populated by statusline widget
-}
+// widgetsForSlot returns the widgets that render in a given slot, in order,
+// with add/remove overrides from the user's own prefs applied. add is
+// appended after the profile's own list (deduplicated); remove drops ids
+// present in the profile list. Removing an id that isn't there is a no-op.
+func widgetsForSlot(slot widgetSlot, p profile, add, remove []string) []*widget {
+	ids := append([]string{}, p.Widgets[slot]...)
+	removeSet := make(map[string]bool, len(remove))
+	for _, id := range remove {
+		removeSet[id] = true
+	}
+	have := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		have[id] = true
+	}
+	for _, id := range add {
+		if _, ok := widgets[id]; ok && !have[id] {
+			ids = append(ids, id)
+			have[id] = true
+		}
+	}
 
-type widgetRow struct {
-	widget *widget
-	slot   widgetSlot
-}
-
-// widgetsForSlot returns the widgets that render in a given slot, in order.
-func widgetsForSlot(slot widgetSlot, profile map[widgetSlot][]string) []*widget {
-	ids := profile[slot]
 	result := make([]*widget, 0, len(ids))
 	for _, id := range ids {
+		if removeSet[id] {
+			continue
+		}
 		if w, ok := widgets[id]; ok {
+			w := w
 			result = append(result, &w)
 		}
 	}

@@ -87,6 +87,7 @@ type Config struct {
 	SyncMode       string
 	DefaultBranch  string
 	HomeFilename   string
+	Profile        string
 	Debug          bool
 
 	Git    GitConfig
@@ -108,6 +109,7 @@ type fileConfig struct {
 	SyncMode       string `yaml:"sync_mode"`
 	DefaultBranch  string `yaml:"default_branch"`
 	HomeFilename   string `yaml:"home_filename"`
+	Profile        string `yaml:"profile"`
 	Debug          bool   `yaml:"debug"`
 
 	Git    GitConfig      `yaml:"git"`
@@ -257,6 +259,7 @@ func LoadConfig() (Config, error) {
 		SyncMode:       or(file.SyncMode, "push"),
 		DefaultBranch:  or(file.DefaultBranch, "main"),
 		HomeFilename:   or(file.HomeFilename, "readme.md"),
+		Profile:        or(file.Profile, "docs"),
 		Debug:          file.Debug,
 
 		Git: GitConfig{
@@ -294,6 +297,10 @@ func LoadConfig() (Config, error) {
 
 	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {
 		return Config{}, fmt.Errorf("invalid sync_mode %q: must be push or bidirectional", cfg.SyncMode)
+	}
+
+	if _, ok := profiles[cfg.Profile]; !ok {
+		return Config{}, fmt.Errorf("invalid profile %q: must be one of %v", cfg.Profile, profileNames)
 	}
 
 	if err := cfg.validateHomeFilename(); err != nil {
@@ -364,6 +371,7 @@ func (c Config) toFileConfig() fileConfig {
 		SyncMode:       c.SyncMode,
 		DefaultBranch:  c.DefaultBranch,
 		HomeFilename:   c.HomeFilename,
+		Profile:        c.Profile,
 		Debug:          c.Debug,
 		Git:            git,
 		Garden:         c.Garden,

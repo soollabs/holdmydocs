@@ -309,6 +309,24 @@ func TestSyncModeInvalid(t *testing.T) {
 	}
 }
 
+func TestProfileDefault(t *testing.T) {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Profile != "docs" {
+		t.Errorf("Profile = %q, want docs", cfg.Profile)
+	}
+}
+
+func TestProfileInvalid(t *testing.T) {
+	t.Setenv("HMD_PROFILE", "bogus")
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("LoadConfig should reject invalid profile")
+	}
+}
+
 func TestHomeFilenameDefault(t *testing.T) {
 	cfg, err := LoadConfig()
 	if err != nil {

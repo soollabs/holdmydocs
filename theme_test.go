@@ -128,4 +128,3 @@ func TestBuildThemeStyleFonts(t *testing.T) {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}
 }
-

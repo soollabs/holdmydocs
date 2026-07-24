@@ -250,7 +250,15 @@
 			<div class="settings-row">
 				<label for="skin">skin</label>
 				<select id="skin" name="skin">
+					<option value="">(profile default)</option>
 					{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}<option value="{{.}}" {{if eq $.Settings.Skin .}}selected{{end}}>{{$s.Label}} — {{$s.Note}}</option>{{end}}
+				</select>
+			</div>
+			<div class="settings-row">
+				<label for="profile">profile</label>
+				<select id="profile" name="profile">
+					<option value="">(site default)</option>
+					{{range .Settings.ProfileNames}}<option value="{{.}}" {{if eq . $.Settings.Profile}}selected{{end}}>{{.}}</option>{{end}}
 				</select>
 			</div>
 		</fieldset>

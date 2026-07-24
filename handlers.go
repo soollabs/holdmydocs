@@ -69,74 +69,75 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
-	SiteName          string
-	Authed            bool
-	Title             string
-	Slug              string
-	Content           template.HTML
-	Body              string
-	BaseHash          string
-	Backlinks         []BacklinkEntry
-	TagsInput         string
-	PageTags          []TagChip
-	AllTags           []TagCount
-	TagName           string
-	TagPages          []BacklinkEntry
-	SyncState         string
-	Error             string
-	Query             string
-	SearchResults     []SearchResult
-	HistoryEntries    []HistoryEntry
-	RevHash           string
-	OldVersionDate    string
-	TotalHistory      int
-	MermaidNeeded     bool
-	RevisionCount     int
-	HeadShortHash     string
-	HeadAuthor        string
-	HeadWhen          string // relative, e.g. "3 hours ago"
-	Username          string
-	StatusMode        string // view|edit|search|log|conflict, drives the statusline mode block
-	StatusContext     string // right-aligned context: revision count / word counts
-	Version           string // shown on login intro
-	RemoteHost        string // host of the git remote, for login intro (empty if none)
-	OIDCEnabled       bool   // show the SSO button on the login page
-	OIDCButtonText    string // SSO button label
-	OIDCLocalLogin    bool   // show the password form alongside SSO
-	OIDCIcon          bool   // show the icon (served at /auth/oidc/icon) on the SSO button
-	SearchElapsed     string // search timing, e.g. "3ms"
-	SearchPages       int    // total pages, for search stats
-	SearchHits        int    // match count, for search stats
-	Hostname          string // shell prompt host segment
-	PathLabel         string // shell prompt path segment
-	UserLabel         string // overrides Username in prompt when non-empty
-	ShowTagsSidebar   bool
-	SyncPollMs        int // injected as a JS global for sync polling
-	SyncMode          string
-	BlobHash          string // current page blob hash, for client-side change detection
-	ThemeStyle        template.CSS
-	Skin              string // structural skin name; empty = default, only ever a known skinNames entry
-	Settings          *SettingsData
-	SetupHomePreview  template.HTML
-	SetupHelpPreview  template.HTML
-	NeedsSetup        bool
-	NeedsHomeSetup    bool
-	NeedsHelpSetup    bool
-	HomeFileExists    bool
-	HelpFileExists    bool
-	HomeFilename      string
-	RoutePrefix       string
-	IsHidden          bool
-	IsPublic          bool       // frontmatter public flag, drives the editor checkbox
-	RecentCommits     []LogEntry // sidebar LOG section: last commits for the current page
-	HealthMissing      int
-	HealthOrphans      int
-	SyncAge           string // relative age of the last successful sync, e.g. "12 seconds ago"
-	SyncLastUnix      int64  // raw timestamp for the client-side sync-age ticker
-	SidebarWidgets    []*widget
-	RailWidgets       []*widget
-	PageHeadWidgets   []*widget
-	PageFootWidgets   []*widget
+	SiteName         string
+	Authed           bool
+	Title            string
+	Slug             string
+	Content          template.HTML
+	Body             string
+	BaseHash         string
+	Backlinks        []BacklinkEntry
+	TagsInput        string
+	PageTags         []TagChip
+	AllTags          []TagCount
+	TagName          string
+	TagPages         []BacklinkEntry
+	SyncState        string
+	Error            string
+	Query            string
+	SearchResults    []SearchResult
+	HistoryEntries   []HistoryEntry
+	RevHash          string
+	OldVersionDate   string
+	TotalHistory     int
+	MermaidNeeded    bool
+	RevisionCount    int
+	HeadShortHash    string
+	HeadAuthor       string
+	HeadWhen         string // relative, e.g. "3 hours ago"
+	Username         string
+	StatusMode       string // view|edit|search|log|conflict, drives the statusline mode block
+	StatusContext    string // right-aligned context: revision count / word counts
+	Version          string // shown on login intro
+	RemoteHost       string // host of the git remote, for login intro (empty if none)
+	OIDCEnabled      bool   // show the SSO button on the login page
+	OIDCButtonText   string // SSO button label
+	OIDCLocalLogin   bool   // show the password form alongside SSO
+	OIDCIcon         bool   // show the icon (served at /auth/oidc/icon) on the SSO button
+	SearchElapsed    string // search timing, e.g. "3ms"
+	SearchPages      int    // total pages, for search stats
+	SearchHits       int    // match count, for search stats
+	Hostname         string // shell prompt host segment
+	PathLabel        string // shell prompt path segment
+	UserLabel        string // overrides Username in prompt when non-empty
+	ShowTagsSidebar  bool
+	SyncPollMs       int // injected as a JS global for sync polling
+	SyncMode         string
+	BlobHash         string // current page blob hash, for client-side change detection
+	ThemeStyle       template.CSS
+	Skin             string // structural skin name; empty = default, only ever a known skinNames entry
+	Settings         *SettingsData
+	SetupHomePreview template.HTML
+	SetupHelpPreview template.HTML
+	NeedsSetup       bool
+	NeedsHomeSetup   bool
+	NeedsHelpSetup   bool
+	HomeFileExists   bool
+	HelpFileExists   bool
+	HomeFilename     string
+	RoutePrefix      string
+	IsHidden         bool
+	IsPublic         bool       // frontmatter public flag, drives the editor checkbox
+	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
+	HealthMissing    int
+	HealthOrphans    int
+	SyncAge          string // relative age of the last successful sync, e.g. "12 seconds ago"
+	SyncLastUnix     int64  // raw timestamp for the client-side sync-age ticker
+	SidebarWidgets   []*widget
+	RailWidgets      []*widget
+	PageHeadWidgets  []*widget
+	PageFootWidgets  []*widget
+	Profile          string // resolved profile name in effect for this request
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -176,6 +177,8 @@ type SettingsData struct {
 	Skin             string
 	SkinNames        []string
 	Skins            map[string]skin
+	Profile          string
+	ProfileNames     []string
 	HelpDrifted      bool
 	UserGitAuthor    string      // current user's per-user git author override
 	HomeFilename     string      // read-only display; restart required to change
@@ -317,28 +320,30 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	showTagsSidebar := prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
 
 	return SettingsData{
-		Fields:          fields,
-		ConfigPath:      cfg.ConfigFile,
-		MaxUploadBytes:  cfg.MaxUploadBytes,
-		SyncPollMs:      cfg.SyncPollMs,
-		ShowTagsSidebar: showTagsSidebar,
-		SyncMode:        cfg.SyncMode,
-		Palette:         prefs.Palette,
-		PaletteNames:    themePresetNames,
-		Palettes:        themePresets,
-		FontUI:          prefs.FontUI,
-		FontMono:        prefs.FontMono,
-		FontsMono:       fontsMono,
-		FontsSans:       fontsSans,
-		FontsSerif:      fontsSerif,
-		FontStacks:      fontStacks,
-		Skin:            prefs.Skin,
-		SkinNames:         skinNames,
-		Skins:             skins,
-		HomeFilename:      cfg.HomeFilename,
-		HomeFilenameEnv:   cfg.EnvOverrides["HomeFilename"],
-		HasEnvOverrides:   len(cfg.EnvOverrides) > 0,
-		ExportSecretVars:  exportSecretVars(cfg),
+		Fields:           fields,
+		ConfigPath:       cfg.ConfigFile,
+		MaxUploadBytes:   cfg.MaxUploadBytes,
+		SyncPollMs:       cfg.SyncPollMs,
+		ShowTagsSidebar:  showTagsSidebar,
+		SyncMode:         cfg.SyncMode,
+		Palette:          prefs.Palette,
+		PaletteNames:     themePresetNames,
+		Palettes:         themePresets,
+		FontUI:           prefs.FontUI,
+		FontMono:         prefs.FontMono,
+		FontsMono:        fontsMono,
+		FontsSans:        fontsSans,
+		FontsSerif:       fontsSerif,
+		FontStacks:       fontStacks,
+		Skin:             prefs.Skin,
+		SkinNames:        skinNames,
+		Skins:            skins,
+		Profile:          prefs.Profile,
+		ProfileNames:     profileNames,
+		HomeFilename:     cfg.HomeFilename,
+		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
+		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
+		ExportSecretVars: exportSecretVars(cfg),
 	}
 }
 
@@ -405,8 +410,16 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		data.ThemeStyle = buildThemeStyle(prefs)
+		profileName := prefs.Profile
+		if profileName == "" {
+			profileName = cfg.Profile
+		}
+		activeProfile := resolveProfile(profileName)
+		data.Profile = activeProfile.Name
 		if _, ok := skins[prefs.Skin]; ok {
 			data.Skin = prefs.Skin
+		} else if prefs.Skin == "" {
+			data.Skin = activeProfile.Skin
 		}
 		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
@@ -432,15 +445,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 
 			data.NeedsSetup = data.NeedsHomeSetup || data.NeedsHelpSetup
 		}
-	}
 
-	// Populate widget arrays for sidebar, rail, page-head, and page-foot slots.
-	// defaultProfile only; profile implementation adds per-user profiles.
-	if data.Authed {
-		data.SidebarWidgets = widgetsForSlot(slotSidebar, defaultProfile)
-		data.RailWidgets = widgetsForSlot(slotRail, defaultProfile)
-		data.PageHeadWidgets = widgetsForSlot(slotPageHead, defaultProfile)
-		data.PageFootWidgets = widgetsForSlot(slotPageFoot, defaultProfile)
+		data.SidebarWidgets = widgetsForSlot(slotSidebar, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.RailWidgets = widgetsForSlot(slotRail, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.PageHeadWidgets = widgetsForSlot(slotPageHead, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.PageFootWidgets = widgetsForSlot(slotPageFoot, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -1924,10 +1933,15 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Unknown skin", http.StatusBadRequest)
 		return
 	}
+	profileName := r.FormValue("profile")
+	if _, ok := profiles[profileName]; profileName != "" && !ok {
+		http.Error(w, "Unknown profile", http.StatusBadRequest)
+		return
+	}
 	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
 
 	user := app.currentUser(r)
-	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, skinName, showTagsSidebar); err != nil {
+	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, skinName, profileName, showTagsSidebar); err != nil {
 		http.Error(w, "Failed to save appearance", http.StatusInternalServerError)
 		return
 	}
