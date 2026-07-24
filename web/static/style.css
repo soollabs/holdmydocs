@@ -23,6 +23,41 @@
 :root {
 	--font-ui: "JetBrains Mono", ui-monospace, monospace;
 	--font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+	/* Skins: structural tokens, orthogonal to the colour palette above.
+	   Defaults reproduce today's look byte-for-byte — see
+	   specs/2026-07-24-skins.md and web/static/skins.css. */
+	--marker-title:  "# ";
+	--marker-h2:     "## ";
+	--marker-h3:     "### ";
+	--marker-h4:     "";
+	--marker-colour: var(--green);
+	--prompt-symbol: "$";
+	--tag-prefix:    "#";
+	--bullet:        "";
+
+	--radius:        4px;
+	--radius-lg:     6px;
+	--border-w:      1px;
+	--rule-style:    solid;
+	--shadow:        none;
+
+	--prose-measure: 720px;
+	--prose-size:    15px;
+	--prose-leading: 1.75;
+	--prose-align:   left;
+	--para-gap:      0.75rem;
+	--para-indent:   0;
+
+	--title-size:      28px;
+	--title-weight:    700;
+	--title-transform: none;
+	--title-tracking:  0;
+	--heading-family:  var(--font-ui);
+
+	--pad:        16px;
+	--pad-tight:  8px;
+	--chrome-border: var(--border);
 }
 
 :root, :root[data-theme="dark"] {
@@ -127,8 +162,8 @@ code {
 
 pre {
 	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	padding: 0.75rem;
 	overflow-x: auto;
 }
@@ -150,7 +185,7 @@ table {
 }
 
 th, td {
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 	padding: 0.4rem 0.6rem;
 	text-align: left;
 }
@@ -194,8 +229,8 @@ body:not(.shell) {
 .sidebar {
 	grid-area: sidebar;
 	background: var(--panel);
-	border-right: 1px solid var(--border);
-	padding: 16px;
+	border-right: var(--border-w) solid var(--chrome-border);
+	padding: var(--pad);
 	display: flex;
 	flex-direction: column;
 	overflow-y: auto;
@@ -282,7 +317,7 @@ body:not(.shell) {
 .sidebar-hints {
 	margin-top: auto;
 	padding-top: 16px;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
@@ -372,7 +407,7 @@ body:not(.shell) {
 }
 
 kbd {
-	border: 1px solid var(--border-2);
+	border: var(--border-w) solid var(--border-2);
 	border-radius: 3px;
 	padding: 1px 5px;
 	font-family: inherit;
@@ -392,7 +427,7 @@ main {
 }
 
 .content-col {
-	max-width: 720px;
+	max-width: var(--prose-measure);
 	width: 100%;
 	padding: 40px 48px;
 }
@@ -453,7 +488,7 @@ main {
 	display: flex;
 	align-items: center;
 	padding: 0 12px;
-	border-right: 1px solid var(--border);
+	border-right: var(--border-w) solid var(--chrome-border);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -535,8 +570,8 @@ input[type="text"], input[type="search"], input[type="password"], textarea {
 	width: 100%;
 	padding: 0.4rem 0.6rem;
 	background: var(--bg);
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 }
 
 button {
@@ -544,7 +579,7 @@ button {
 	background: var(--accent);
 	color: var(--accent-fg);
 	border: none;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	cursor: pointer;
 }
 
@@ -562,7 +597,7 @@ label {
 	background: color-mix(in srgb, var(--danger) 15%, var(--bg));
 	color: var(--danger);
 	padding: 0.75rem;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 1rem;
 }
 
@@ -577,7 +612,7 @@ label {
 	background: var(--surface);
 	padding: 2rem;
 	border-radius: 8px;
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 }
 
 .login-form h2 {
@@ -612,7 +647,7 @@ article nav {
 aside {
 	margin-top: 2rem;
 	padding-top: 1rem;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	color: var(--fg-muted);
 }
 
@@ -623,8 +658,8 @@ aside h2 {
 
 .old-version {
 	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	padding: 0.75rem 1rem;
 	margin-bottom: 1.5rem;
 	display: flex;
@@ -657,8 +692,8 @@ aside h2 {
 }
 
 #cm-host {
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	overflow: hidden;
 }
 
@@ -669,13 +704,13 @@ aside h2 {
 
 #cm-host .cm-gutters {
 	background: var(--surface);
-	border-right: 1px solid var(--border);
+	border-right: var(--border-w) solid var(--chrome-border);
 	color: var(--fg-muted);
 }
 
 #preview {
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	padding: 0.75rem;
 	min-height: 24rem;
 	max-height: 70vh;
@@ -733,7 +768,7 @@ aside h2 {
 
 :root[data-theme="dark"] #cm-host .cm-editor .cm-gutters {
 	background: var(--surface);
-	border-right: 1px solid var(--border);
+	border-right: var(--border-w) solid var(--chrome-border);
 	color: var(--fg-muted);
 }
 
@@ -778,7 +813,7 @@ aside h2 {
 .toolbar button {
 	background: var(--surface);
 	color: var(--fg);
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 	padding: 0.3rem 0.6rem;
 	font-size: 0.9rem;
 }
@@ -799,7 +834,7 @@ aside h2 {
 
 .tag {
 	background: var(--surface);
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 	border-radius: 999px;
 	padding: 0.15rem 0.7rem;
 	font-size: 0.85rem;
@@ -869,11 +904,11 @@ body.zen-manuscript #cm-host .cm-editor {
 .zen-toolbar button {
 	background: var(--surface);
 	color: var(--fg);
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 	padding: 0.25rem 0.5rem;
 	font-size: 0.8rem;
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--radius);
 }
 
 .zen-toolbar button:hover {
@@ -912,8 +947,8 @@ body.zen-typewriter .cm-editor .cm-cursor {
 	bottom: 1rem;
 	right: 1rem;
 	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	padding: 0.4rem 0.8rem;
 	font-size: 0.85rem;
 	color: var(--fg-muted);
@@ -937,7 +972,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--accent);
 	color: var(--accent-fg);
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--radius);
 	padding: 0.2rem 0.6rem;
 	font-size: 0.8rem;
 	cursor: pointer;
@@ -948,14 +983,13 @@ body.zen-manuscript .zen-status.visible {
    --------------------------------------------------------------- */
 
 .page-title {
-	font-size: 28px;
-	font-weight: 700;
+	font-size: var(--title-size);
+	font-weight: var(--title-weight);
+	text-transform: var(--title-transform);
+	letter-spacing: var(--title-tracking);
+	font-family: var(--heading-family);
 	color: var(--fg-bright);
 	margin: 0 0 8px;
-}
-
-.page-title .h {
-	color: var(--green);
 }
 
 .page-meta {
@@ -985,14 +1019,55 @@ body.zen-manuscript .zen-status.visible {
 	text-decoration: underline;
 }
 
+.h::before {
+	content: var(--marker-title);
+	color: var(--marker-colour);
+}
+
+.settings-zone-title .h::before {
+	content: var(--marker-h2);
+}
+
+.prompt-link::after {
+	content: var(--prompt-symbol);
+}
+
+.tag-chips a::before {
+	content: var(--tag-prefix);
+}
+
+.breadcrumb .tag::before {
+	content: var(--tag-prefix);
+}
+
+.page-meta .meta-tag::before {
+	content: var(--tag-prefix);
+}
+
+#page-content, #preview {
+	font-size: var(--prose-size);
+	line-height: var(--prose-leading);
+	text-align: var(--prose-align);
+}
+
+#page-content p, #preview p {
+	margin-bottom: var(--para-gap);
+	text-indent: var(--para-indent);
+}
+
 #page-content h2::before {
-	content: "## ";
-	color: var(--green);
+	content: var(--marker-h2);
+	color: var(--marker-colour);
 }
 
 #page-content h3::before {
-	content: "### ";
-	color: var(--green);
+	content: var(--marker-h3);
+	color: var(--marker-colour);
+}
+
+#page-content h4::before {
+	content: var(--marker-h4);
+	color: var(--marker-colour);
 }
 
 /* Wiki links */
@@ -1027,7 +1102,7 @@ body.zen-manuscript .zen-status.visible {
 
 #page-content th, #page-content td {
 	border: none;
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 	padding: 6px 12px;
 }
 
@@ -1049,7 +1124,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--panel);
 	border: none;
 	border-left: 3px solid var(--green);
-	border-radius: 4px;
+	border-radius: var(--radius);
 	font-size: 13.5px;
 }
 
@@ -1083,7 +1158,7 @@ body.zen-manuscript .zen-status.visible {
 /* TOC rail */
 
 .page-wrap .content-col {
-	max-width: 720px;
+	max-width: var(--prose-measure);
 }
 
 .toc-rail {
@@ -1096,7 +1171,7 @@ body.zen-manuscript .zen-status.visible {
 .toc-rail nav {
 	position: sticky;
 	top: 40px;
-	border-left: 1px solid var(--border);
+	border-left: var(--border-w) solid var(--chrome-border);
 	padding-left: 12px;
 }
 
@@ -1192,7 +1267,7 @@ body.zen-manuscript .zen-status.visible {
 	max-width: 90vw;
 	max-height: 60vh;
 	background: var(--panel);
-	border: 1px solid var(--border-2);
+	border: var(--border-w) solid var(--border-2);
 	border-radius: 8px;
 	display: flex;
 	flex-direction: column;
@@ -1204,7 +1279,7 @@ body.zen-manuscript .zen-status.visible {
 	align-items: center;
 	gap: 8px;
 	padding: 12px 16px;
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 }
 
 .palette-input-row .prefix {
@@ -1276,12 +1351,12 @@ body.zen-manuscript .zen-status.visible {
 }
 
 .palette-create {
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	color: var(--green);
 }
 
 .palette-footer {
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	padding: 6px 16px;
 	font-size: 11px;
 	color: var(--fg-faint);
@@ -1297,7 +1372,7 @@ body.zen-manuscript .zen-status.visible {
 	gap: 24px;
 	padding: 12px 16px;
 	background: var(--panel);
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 	flex-wrap: wrap;
 }
 
@@ -1316,7 +1391,7 @@ body.zen-manuscript .zen-status.visible {
 .edit-field input {
 	background: none;
 	border: none;
-	border-bottom: 1px solid var(--border-2);
+	border-bottom: var(--border-w) solid var(--border-2);
 	color: var(--fg-bright);
 	border-radius: 0;
 	padding: 2px 0;
@@ -1357,7 +1432,7 @@ body.zen-manuscript .zen-status.visible {
 .ghost-btn {
 	background: none;
 	color: var(--fg-muted);
-	border: 1px solid var(--border-2);
+	border: var(--border-w) solid var(--border-2);
 	border-radius: 3px;
 	padding: 0.3rem 0.6rem;
 }
@@ -1524,7 +1599,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--amber-bg);
 	color: var(--amber);
 	padding: 8px 14px;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 12px;
 	font-size: 13.5px;
 }
@@ -1534,7 +1609,7 @@ body.zen-manuscript .zen-status.visible {
 	color: var(--red);
 	font-weight: 700;
 	padding: 12px 16px;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 20px;
 }
 
@@ -1589,7 +1664,7 @@ body.zen-manuscript .zen-status.visible {
 .login-card input {
 	background: none;
 	border: none;
-	border-bottom: 1px solid var(--border-2);
+	border-bottom: var(--border-w) solid var(--border-2);
 	border-radius: 0;
 	color: var(--fg-bright);
 	padding: 4px 6px;
@@ -1631,7 +1706,7 @@ body.zen-manuscript .zen-status.visible {
 		gap: 12px;
 		padding: env(safe-area-inset-top) 12px 0;
 		background: var(--panel);
-		border-bottom: 1px solid var(--border);
+		border-bottom: var(--border-w) solid var(--chrome-border);
 		transition: transform 0.2s ease;
 		will-change: transform;
 	}
@@ -1725,7 +1800,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--amber-bg);
 	color: var(--amber);
 	padding: 0.75rem 1rem;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 1.5rem;
 	font-size: 0.9rem;
 }
@@ -1738,7 +1813,7 @@ body.zen-manuscript .zen-status.visible {
 	background: color-mix(in srgb, var(--green) 15%, var(--bg));
 	color: var(--green);
 	padding: 0.5rem 0.75rem;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 1rem;
 	font-size: 0.9rem;
 }
@@ -1753,16 +1828,16 @@ body.zen-manuscript .zen-status.visible {
 	background: color-mix(in srgb, var(--red) 15%, var(--bg));
 	color: var(--red);
 	padding: 0.5rem 0.75rem;
-	border-radius: 6px;
+	border-radius: var(--radius-lg);
 	margin-bottom: 1rem;
 	font-size: 0.9rem;
 }
 
 .settings-row select {
 	background: var(--bg);
-	border: 1px solid var(--border-2);
+	border: var(--border-w) solid var(--border-2);
 	color: var(--fg-bright);
-	border-radius: 4px;
+	border-radius: var(--radius);
 	padding: 2px 4px;
 	font-family: inherit;
 	font-size: inherit;
@@ -1782,7 +1857,7 @@ body.zen-manuscript .zen-status.visible {
 	max-width: 48rem;
 	margin-bottom: 2.5rem;
 	padding-top: 1.5rem;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 }
 
 .settings-zone:first-of-type {
@@ -1798,10 +1873,6 @@ body.zen-manuscript .zen-status.visible {
 	margin: 0 0 4px;
 }
 
-.settings-zone-title .h {
-	color: var(--green);
-}
-
 .settings-zone-desc {
 	color: var(--fg-muted);
 	font-size: 0.85rem;
@@ -1809,8 +1880,8 @@ body.zen-manuscript .zen-status.visible {
 }
 
 .settings-section {
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	padding: 1rem 1.25rem;
 	margin-bottom: 1.5rem;
 }
@@ -1839,7 +1910,7 @@ body.zen-manuscript .zen-status.visible {
 .settings-row input {
 	background: none;
 	border: none;
-	border-bottom: 1px solid var(--border-2);
+	border-bottom: var(--border-w) solid var(--border-2);
 	color: var(--fg-bright);
 	border-radius: 0;
 	padding: 2px 0;
@@ -1891,7 +1962,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--bg);
 	padding: 0.75rem 0;
 	margin-top: 0;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	z-index: 1;
 }
 
@@ -1916,7 +1987,7 @@ body.zen-manuscript .zen-status.visible {
 .colour-pick input[type="color"] {
 	width: 2.5rem;
 	height: 1.5rem;
-	border: 1px solid var(--border-2);
+	border: var(--border-w) solid var(--border-2);
 	border-radius: 3px;
 	background: none;
 	cursor: pointer;
@@ -1982,8 +2053,8 @@ body.zen-manuscript .zen-status.visible {
 	max-height: 85vh;
 	overflow-y: auto;
 	background: var(--panel);
-	border: 1px solid var(--border-2);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--border-2);
+	border-radius: var(--radius-lg);
 	padding: 2rem;
 }
 
@@ -1994,9 +2065,6 @@ body.zen-manuscript .zen-status.visible {
 	margin-bottom: 0.5rem;
 }
 
-.setup-modal .h {
-	color: var(--green);
-}
 
 .setup-modal > p {
 	font-size: 14px;
@@ -2006,8 +2074,8 @@ body.zen-manuscript .zen-status.visible {
 }
 
 .setup-item {
-	border: 1px solid var(--border);
-	border-radius: 4px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius);
 	background: var(--panel);
 	margin: 0.75rem 0;
 	overflow: hidden;
@@ -2018,7 +2086,7 @@ body.zen-manuscript .zen-status.visible {
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.6rem 1rem;
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 }
 
 .setup-item-title {
@@ -2032,7 +2100,7 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--bg);
 	padding: 1px 6px;
 	border-radius: 3px;
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 }
 
 .setup-badge {
@@ -2059,11 +2127,11 @@ body.zen-manuscript .zen-status.visible {
 	background: var(--bg);
 	padding: 1px 5px;
 	border-radius: 3px;
-	border: 1px solid var(--border);
+	border: var(--border-w) solid var(--chrome-border);
 }
 
 .setup-preview {
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 }
 
 .setup-preview > summary {
@@ -2091,7 +2159,7 @@ body.zen-manuscript .zen-status.visible {
 .setup-preview-body {
 	padding: 0 1rem 1rem;
 	font-size: 14px;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 	padding-top: 0.75rem;
 }
 
@@ -2284,8 +2352,8 @@ body.zen-manuscript .zen-status.visible {
 	position: absolute;
 	width: 340px;
 	background: var(--panel);
-	border: 1px solid var(--border-2);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--border-2);
+	border-radius: var(--radius-lg);
 	padding: 12px 14px;
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 	z-index: 10;
@@ -2316,7 +2384,7 @@ body.zen-manuscript .zen-status.visible {
 .backlinks-footer {
 	margin-top: 48px;
 	padding-top: 16px;
-	border-top: 1px solid var(--border);
+	border-top: var(--border-w) solid var(--chrome-border);
 }
 
 .backlinks-label {
@@ -2346,8 +2414,8 @@ body.zen-manuscript .zen-status.visible {
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	overflow: hidden;
 }
 
@@ -2356,7 +2424,7 @@ body.zen-manuscript .zen-status.visible {
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.75rem;
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 }
 
 .history-row:last-child {
@@ -2427,8 +2495,8 @@ body.zen-manuscript .zen-status.visible {
 
 .diff-panel {
 	background: var(--panel);
-	border: 1px solid var(--border);
-	border-radius: 6px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
 	margin-top: 1rem;
 	overflow: hidden;
 }
@@ -2438,7 +2506,7 @@ body.zen-manuscript .zen-status.visible {
 	padding: 0.5rem;
 	font-size: 12px;
 	color: var(--blue);
-	border-bottom: 1px solid var(--border);
+	border-bottom: var(--border-w) solid var(--chrome-border);
 }
 
 .diff-body {
@@ -2570,10 +2638,6 @@ body.zen-manuscript .zen-status.visible {
 
 .seg-new:hover {
 	color: var(--fg-bright);
-}
-
-.preview-card h3 .h {
-	color: var(--green);
 }
 
 .settings-status {

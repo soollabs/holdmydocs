@@ -9,15 +9,35 @@ type themePreset struct {
 }
 
 // themePresetNames fixes the display order of the preset selector.
+// phosphor (empty value) is the built-in default; it's included here for the
+// UI but not stored when selected — an absent palette key renders phosphor.
 var themePresetNames = []string{
-	"catppuccin", "dracula", "everforest", "gruvbox", "monokai",
+	"phosphor", "catppuccin", "dracula", "everforest", "gruvbox", "monokai",
 	"nord", "one dark", "rosé pine", "solarized", "tokyo night",
 }
 
 // Colour values come from the public palette specs (Catppuccin Mocha/Latte,
 // Gruvbox, Nord, Solarized); the dim/bg accent shades are derived to match
-// the roles the default theme uses them for.
+// the roles the default theme uses them for. phosphor is the built-in default.
 var themePresets = map[string]themePreset{
+	"phosphor": {
+		Dark: map[string]string{
+			"bg": "#0b0f14", "panel": "#0e141b", "panel-2": "#121924",
+			"border": "#1d2733", "border-2": "#2a3644",
+			"fg": "#c6d0da", "fg-bright": "#e6edf3", "fg-muted": "#8b98a5", "fg-faint": "#71818f",
+			"green": "#56d364", "green-dim": "#2e5b3a", "blue": "#79b8ff",
+			"amber": "#e3b341", "amber-bg": "#3a3113",
+			"red": "#f47067", "red-dim": "#6e3a3f", "red-bg": "#2c1618",
+		},
+		Light: map[string]string{
+			"bg": "#f7f8f6", "panel": "#eef1ec", "panel-2": "#e6eae4",
+			"border": "#d8ded6", "border-2": "#c4cdc6",
+			"fg": "#2d3438", "fg-bright": "#1c2226", "fg-muted": "#5c6a70", "fg-faint": "#647177",
+			"green": "#1a7f37", "green-dim": "#a4c7ab", "blue": "#316dca",
+			"amber": "#9a6700", "amber-bg": "#fff0c2",
+			"red": "#cf222e", "red-dim": "#e0a9ad", "red-bg": "#fbe9e9",
+		},
+	},
 	"catppuccin": {
 		Dark: map[string]string{
 			"bg": "#1e1e2e", "panel": "#181825", "panel-2": "#11111b",

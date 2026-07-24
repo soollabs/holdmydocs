@@ -41,18 +41,18 @@ type cachedToken struct {
 
 // userRecord is a stored user. GitAuthor, when set, is that user's commit
 // identity in "Name <email>" form and overrides the global default.
-// ThemeDark/ThemeLight/FontUI/FontMono/ShowTagsSidebar are that user's
+// Palette/FontUI/FontMono/Skin/ShowTagsSidebar are that user's
 // cosmetic preferences, editable from /settings; zero values fall back to
 // the built-in defaults.
 type userRecord struct {
-	Hash            string            `json:"hash"`
-	GitAuthor       string            `json:"git_author,omitempty"`
-	Tokens          []tokenRecord     `json:"tokens,omitempty"`
-	ThemeDark       map[string]string `json:"theme_dark,omitempty"`
-	ThemeLight      map[string]string `json:"theme_light,omitempty"`
-	FontUI          string            `json:"font_ui,omitempty"`
-	FontMono        string            `json:"font_mono,omitempty"`
-	ShowTagsSidebar *bool             `json:"show_tags_sidebar,omitempty"`
+	Hash            string        `json:"hash"`
+	GitAuthor       string        `json:"git_author,omitempty"`
+	Tokens          []tokenRecord `json:"tokens,omitempty"`
+	Palette         string        `json:"palette,omitempty"`
+	FontUI          string        `json:"font_ui,omitempty"`
+	FontMono        string        `json:"font_mono,omitempty"`
+	Skin            string        `json:"skin,omitempty"`
+	ShowTagsSidebar *bool         `json:"show_tags_sidebar,omitempty"`
 }
 
 // prefs is name's display preferences, defaulting ShowTagsSidebar to true
@@ -63,18 +63,18 @@ func (a *Auth) prefs(name string) userRecord {
 	return a.users[name]
 }
 
-// SetPrefs stores name's display preferences (theme, fonts, sidebar).
-func (a *Auth) SetPrefs(name string, dark, light map[string]string, fontUI, fontMono string, showTagsSidebar bool) error {
+// SetPrefs stores name's display preferences (palette, fonts, skin, sidebar).
+func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string, showTagsSidebar bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	rec, ok := a.users[name]
 	if !ok {
 		return fmt.Errorf("unknown user %q", name)
 	}
-	rec.ThemeDark = dark
-	rec.ThemeLight = light
+	rec.Palette = palette
 	rec.FontUI = fontUI
 	rec.FontMono = fontMono
+	rec.Skin = skin
 	rec.ShowTagsSidebar = &showTagsSidebar
 	a.users[name] = rec
 	return a.save()

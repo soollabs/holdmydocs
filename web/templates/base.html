@@ -1,11 +1,12 @@
 {{define "layout"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
 	<link rel="stylesheet" href="/static/style.css">
+	<link rel="stylesheet" href="/static/skins.css">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='%2300ff9c' font-family='monospace'%3E%23%3C/text%3E%3C/svg%3E">
 	<link rel="manifest" href="/static/manifest.json">
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
@@ -38,7 +39,7 @@
 		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar">«</button>
 		<div class="prompt">
 			<a href="/" class="prompt-link">
-				<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>$
+				<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>
 			</a>
 		</div>
 		<div class="sidebar-section sidebar-pages">
@@ -50,7 +51,7 @@
 			<h2>TAGS</h2>
 			<ul class="tag-chips">
 				{{range .AllTags}}
-				<li><a href="/tags/{{.Slug}}">#{{.Tag}}<span class="count">{{.Count}}</span></a></li>
+				<li><a href="/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
 				{{end}}
 				<li><a href="/tags" class="all-link">▸ all</a></li>
 			</ul>
@@ -117,7 +118,7 @@
 	{{if .NeedsSetup}}
 	<div class="setup-modal-backdrop">
 		<div class="setup-modal">
-			<h1><span class="h">#</span> Set up wiki</h1>
+			<h1><span class="h"></span>Set up wiki</h1>
 			<p>Nothing is written until you choose. Both are editable later.</p>
 
 			<form method="POST" action="/setup">

@@ -16,13 +16,13 @@
 	<div class="breadcrumb">
 		<a href="/">~/wiki</a>
 		<span class="sep">/</span>
-		{{if .PageTags}}{{with index .PageTags 0}}<a href="/tags/{{.Slug}}" class="tag">#{{.Tag}}</a>{{end}}<span class="sep">/</span>{{end}}
+		{{if .PageTags}}{{with index .PageTags 0}}<a href="/tags/{{.Slug}}" class="tag">{{.Tag}}</a>{{end}}<span class="sep">/</span>{{end}}
 		<span class="current">{{.Slug}}.md</span>
 		{{if and (not .RevHash) .RevisionCount}}<span class="sep breadcrumb-history">/</span><a href="{{.RoutePrefix}}/{{.Slug}}/history" class="breadcrumb-history">history</a>{{end}}
 	</div>
-	<h1 class="page-title" data-title="{{.Title}}"><span class="h">#</span> {{.Title}}</h1>
+	<h1 class="page-title" data-title="{{.Title}}"><span class="h"></span>{{.Title}}</h1>
 	<div class="page-meta">
-		{{range .PageTags}}<a class="meta-tag" href="/tags/{{.Slug}}">#{{.Tag}}</a>{{end}}
+		{{range .PageTags}}<a class="meta-tag" href="/tags/{{.Slug}}">{{.Tag}}</a>{{end}}
 		{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
 		{{if .RevisionCount}}<span>&middot; <a href="{{.RoutePrefix}}/{{.Slug}}/history">history({{.RevisionCount}})</a></span>{{end}}
 	</div>

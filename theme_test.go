@@ -40,83 +40,9 @@ func TestParseThemeDefaults(t *testing.T) {
 	}
 }
 
-func TestSnapshotThemeAllMatch(t *testing.T) {
-	defaults := map[string]string{
-		"bg":    "#0b0f14",
-		"panel": "#0e141b",
-	}
-	submitted := map[string]string{
-		"bg":    "#0b0f14",
-		"panel": "#0e141b",
-	}
-	result := snapshotTheme(submitted, defaults)
-	if result != nil {
-		t.Errorf("expected nil snapshot when all match defaults, got %v", result)
-	}
-}
-
-func TestSnapshotThemeOneChanged(t *testing.T) {
-	defaults := map[string]string{
-		"bg":    "#0b0f14",
-		"panel": "#0e141b",
-	}
-	submitted := map[string]string{
-		"bg":    "#111111",
-		"panel": "#0e141b",
-	}
-	result := snapshotTheme(submitted, defaults)
-	if result == nil {
-		t.Fatal("expected non-nil snapshot when one colour changed")
-	}
-	if result["bg"] != "#111111" {
-		t.Errorf("snapshot bg = %q, want #111111", result["bg"])
-	}
-	if result["panel"] != "#0e141b" {
-		t.Errorf("snapshot should include unchanged default for panel, got %q", result["panel"])
-	}
-}
-
-func TestSnapshotThemeWithEmpty(t *testing.T) {
-	defaults := map[string]string{
-		"bg":    "#0b0f14",
-		"panel": "#0e141b",
-	}
-	submitted := map[string]string{
-		"bg":    "",
-		"panel": "#ffffff",
-	}
-	result := snapshotTheme(submitted, defaults)
-	if result == nil {
-		t.Fatal("expected non-nil snapshot when one colour changed")
-	}
-	if result["bg"] != "#0b0f14" {
-		t.Errorf("empty submitted should fall back to default, got %q", result["bg"])
-	}
-	if result["panel"] != "#ffffff" {
-		t.Errorf("snapshot panel = %q, want #ffffff", result["panel"])
-	}
-}
-
-func TestCollectThemeRejectsNonHexValues(t *testing.T) {
-	form := map[string][]string{
-		"theme_dark_bg":    {`red}</style><script>alert(1)</script><style>{`},
-		"theme_dark_panel": {"#222222"},
-	}
-	m := collectTheme(form, "theme_dark_")
-	if _, ok := m["bg"]; ok {
-		t.Error("expected non-hex bg value to be dropped, got it in the map")
-	}
-	if m["panel"] != "#222222" {
-		t.Errorf("panel = %q, want #222222", m["panel"])
-	}
-}
-
 func TestBuildThemeStyle(t *testing.T) {
 	prefs := userRecord{
-		ThemeDark: map[string]string{
-			"bg":    "#111111",
-			"panel": "#222222",
-		},
+		Palette: "gruvbox",
 	}
 	css := string(buildThemeStyle(prefs))
 	if css == "" {
@@ -125,31 +51,18 @@ func TestBuildThemeStyle(t *testing.T) {
 	if !strings.Contains(css, `:root, :root[data-theme="dark"]{`) {
 		t.Errorf("expected dark selector in CSS, got: %s", css)
 	}
-	if !strings.Contains(css, "--bg:#111111;") {
-		t.Error("expected --bg override in CSS")
+	if !strings.Contains(css, `:root[data-theme="light"]{`) {
+		t.Errorf("expected light selector in CSS, got: %s", css)
 	}
-	if !strings.Contains(css, "--panel:#222222;") {
-		t.Error("expected --panel override in CSS")
+	if !strings.Contains(css, "--bg:") {
+		t.Error("expected --bg override in CSS")
 	}
 }
 
 func TestBuildThemeStyleEmpty(t *testing.T) {
 	css := buildThemeStyle(userRecord{})
 	if css != "" {
-		t.Errorf("expected empty CSS when no theme overrides, got %q", css)
-	}
-}
-
-func TestBuildThemeStyleLightOnly(t *testing.T) {
-	prefs := userRecord{
-		ThemeLight: map[string]string{"bg": "#ffffff"},
-	}
-	css := string(buildThemeStyle(prefs))
-	if strings.Contains(css, `[data-theme="dark"]`) {
-		t.Error("should not contain dark selector when only light is overridden")
-	}
-	if !strings.Contains(css, `:root[data-theme="light"]{`) {
-		t.Error("expected light selector in CSS")
+		t.Errorf("expected empty CSS when no palette is set, got %q", css)
 	}
 }
 
@@ -216,18 +129,3 @@ func TestBuildThemeStyleFonts(t *testing.T) {
 	}
 }
 
-func TestMatchingPreset(t *testing.T) {
-	if got := matchingPreset(themePresets["nord"].Dark, "dark"); got != "nord" {
-		t.Errorf("matchingPreset(nord dark) = %q, want nord", got)
-	}
-	if got := matchingPreset(themePresets["nord"].Light, "dark"); got != "" {
-		t.Errorf("light palette shouldn't match under dark mode, got %q", got)
-	}
-	if got := matchingPreset(defaultDark, "dark"); got != "" {
-		t.Errorf("default theme shouldn't match any preset, got %q", got)
-	}
-	tweaked := mergeTheme(themePresets["gruvbox"].Dark, map[string]string{"bg": "#123456"})
-	if got := matchingPreset(tweaked, "dark"); got != "" {
-		t.Errorf("hand-tweaked palette shouldn't match its source preset, got %q", got)
-	}
-}

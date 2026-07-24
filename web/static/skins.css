@@ -1,0 +1,302 @@
+/* Skins: structural themes (typography, spacing, borders, markers), fully
+   orthogonal to the colour palette in style.css. Every rule here is scoped
+   under :root[data-skin="<name>"] and must not contain a raw hex colour —
+   colour always comes from the palette's own custom properties (var() or
+   color-mix() over them). See TestSkinsNoRawHex and
+   specs/2026-07-24-skins.md.
+
+   --radius-lg isn't named in the spec's per-skin token lists, but
+   every flat skin below also zeroes it — otherwise the larger 6px "card"
+   panels (settings sections, inputs, cm-host) would stay rounded while the
+   smaller 4px ones went square, an inconsistency the spec's own screenshots
+   don't seem to intend. */
+
+/* phosphor is the default look; the block is empty because style.css's
+   :root already holds its values. It exists only so the settings <select>
+   has an explicit option to land on. */
+:root[data-skin="phosphor"] {
+}
+
+/* ---------------------------------------------------------------
+   newsprint — broadsheet. Reading-first, rejects the terminal idiom.
+   --------------------------------------------------------------- */
+
+:root[data-skin="newsprint"] {
+	--marker-title:  "";
+	--marker-h2:     "";
+	--marker-h3:     "";
+	--tag-prefix:    "";
+	--prompt-symbol: "";
+	--heading-family: Charter, "Bitstream Charter", Cambria, serif;
+	--font-ui:        Charter, "Bitstream Charter", Cambria, serif;
+	--radius:    0;
+	--radius-lg: 0;
+	--prose-measure: 66ch;
+	--prose-size:    17px;
+	--prose-leading: 1.5;
+	--prose-align:   justify;
+	--para-gap:      0;
+	--para-indent:   1.4em;
+	--title-size:     40px;
+	--title-tracking: -0.02em;
+}
+
+:root[data-skin="newsprint"] #page-content h2,
+:root[data-skin="newsprint"] #preview h2 {
+	border-top: var(--border-w) solid var(--border);
+	padding-top: 0.75rem;
+	margin-top: 2rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	font-size: 13px;
+}
+
+:root[data-skin="newsprint"] #page-content h3 {
+	font-variant: small-caps;
+}
+
+:root[data-skin="newsprint"] #page-content > p:first-of-type::first-letter {
+	float: left;
+	font-size: 3.2em;
+	line-height: 0.85;
+	padding-right: 0.08em;
+}
+
+:root[data-skin="newsprint"] #page-content p + p {
+	margin-top: 0;
+}
+
+:root[data-skin="newsprint"] .tag-chips a {
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
+:root[data-skin="newsprint"] .tag-chips a::before {
+	content: "\00b7 ";
+}
+
+:root[data-skin="newsprint"] .tag-chips a::after {
+	content: " \00b7";
+}
+
+:root[data-skin="newsprint"] .sidebar h2 {
+	font-variant: small-caps;
+}
+
+:root[data-skin="newsprint"] #page-content th {
+	border-bottom: 3px double var(--border-2);
+}
+
+/* ---------------------------------------------------------------
+   blueprint — drafting. Monospace kept, markers become section numbers.
+   --------------------------------------------------------------- */
+
+:root[data-skin="blueprint"] {
+	--radius:    0;
+	--radius-lg: 0;
+	--rule-style: dashed;
+	--marker-colour: var(--blue);
+	--marker-title:  "";
+	--prose-measure: 76ch;
+	--prose-leading: 1.7;
+	--pad: 20px;
+}
+
+:root[data-skin="blueprint"] main {
+	--grid-line: color-mix(in srgb, var(--border) 55%, transparent);
+	background-image:
+		linear-gradient(var(--grid-line) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+	background-size: 24px 24px;
+}
+
+:root[data-skin="blueprint"] #page-content { counter-reset: h2; }
+:root[data-skin="blueprint"] #page-content h2 { counter-increment: h2; counter-reset: h3; }
+:root[data-skin="blueprint"] #page-content h2::before { content: counter(h2) ". "; }
+:root[data-skin="blueprint"] #page-content h3 { counter-increment: h3; }
+:root[data-skin="blueprint"] #page-content h3::before { content: counter(h2) "." counter(h3) "  "; }
+
+:root[data-skin="blueprint"] .page-title {
+	position: relative;
+	display: inline-block;
+	padding: 0.3em 0.7em;
+}
+
+:root[data-skin="blueprint"] .page-title::before,
+:root[data-skin="blueprint"] .page-title::after {
+	content: "";
+	position: absolute;
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--blue);
+}
+
+:root[data-skin="blueprint"] .page-title::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+:root[data-skin="blueprint"] .page-title::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+:root[data-skin="blueprint"] #page-content pre {
+	border: var(--border-w) var(--rule-style) var(--border-2);
+	border-left: var(--border-w) var(--rule-style) var(--border-2);
+}
+
+:root[data-skin="blueprint"] #page-content table,
+:root[data-skin="blueprint"] #page-content th,
+:root[data-skin="blueprint"] #page-content td {
+	border: var(--border-w) solid var(--border);
+}
+
+/* ---------------------------------------------------------------
+   manuscript — typewriter. Draft-on-paper, everyday Zen Manuscript.
+   --------------------------------------------------------------- */
+
+:root[data-skin="manuscript"] {
+	--font-ui:       "Courier New", Courier, monospace;
+	--heading-family: "Courier New", Courier, monospace;
+	--prose-size:    16px;
+	--prose-leading: 2.0;
+	--prose-measure: 65ch;
+	--radius:     0;
+	--radius-lg:  0;
+	--border-w:   0;
+	--chrome-border: transparent;
+	--marker-title: "";
+	--marker-h2:    "";
+	--marker-h3:    "";
+	--tag-prefix:   "";
+	--title-weight:    400;
+	--title-size:      24px;
+	--title-transform: uppercase;
+	--title-tracking:  0.18em;
+}
+
+:root[data-skin="manuscript"] #page-content h2,
+:root[data-skin="manuscript"] #preview h2 {
+	text-decoration: underline;
+	text-underline-offset: 6px;
+}
+
+:root[data-skin="manuscript"] #page-content,
+:root[data-skin="manuscript"] #preview {
+	hyphens: none;
+}
+
+:root[data-skin="manuscript"] #page-content pre {
+	background: none;
+	border-left: none;
+	padding-left: 1.5em;
+}
+
+:root[data-skin="manuscript"] .tag-chips a::before { content: "["; }
+:root[data-skin="manuscript"] .tag-chips a::after { content: "]"; }
+
+/* ---------------------------------------------------------------
+   index — index card / neo-brutalist. Hard edges, flat offset shadows.
+   --------------------------------------------------------------- */
+
+:root[data-skin="index"] {
+	--radius:    0;
+	--radius-lg: 0;
+	--border-w:  2px;
+	--shadow: 4px 4px 0 var(--border-2);
+	--font-ui:        "Helvetica Neue", Helvetica, Arial, sans-serif;
+	--heading-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	--title-weight:    700;
+	--title-transform: uppercase;
+	--title-tracking:  -0.01em;
+	--marker-title: "\25AE ";
+	--marker-h2:    "\25AE\25AE ";
+	--marker-h3:    "\25AE\25AE\25AE ";
+	--pad: 14px;
+}
+
+:root[data-skin="index"] .sidebar,
+:root[data-skin="index"] .settings-section,
+:root[data-skin="index"] .preview-card,
+:root[data-skin="index"] .diff-panel,
+:root[data-skin="index"] button,
+:root[data-skin="index"] .ghost-btn,
+:root[data-skin="index"] #cm-host,
+:root[data-skin="index"] #preview,
+:root[data-skin="index"] input[type="text"],
+:root[data-skin="index"] input[type="search"],
+:root[data-skin="index"] input[type="password"],
+:root[data-skin="index"] textarea,
+:root[data-skin="index"] #page-content pre {
+	border: var(--border-w) solid var(--border-2);
+	box-shadow: var(--shadow);
+}
+
+:root[data-skin="index"] button:active,
+:root[data-skin="index"] .ghost-btn:active {
+	transform: translate(2px, 2px);
+	box-shadow: none;
+}
+
+:root[data-skin="index"] .tag-chips a {
+	background: var(--panel-2);
+	border-radius: 0;
+	text-transform: uppercase;
+}
+
+:root[data-skin="index"] #page-content table,
+:root[data-skin="index"] #page-content th,
+:root[data-skin="index"] #page-content td {
+	border: var(--border-w) solid var(--border-2);
+}
+
+/* ---------------------------------------------------------------
+   bare — minimal. Subtraction only; no rule here may add a border,
+   background or shadow.
+   --------------------------------------------------------------- */
+
+:root[data-skin="bare"] {
+	--marker-title: "";
+	--marker-h2:    "";
+	--marker-h3:    "";
+	--marker-h4:    "";
+	--tag-prefix:   "";
+	--prompt-symbol: "";
+	--border-w: 0;
+	--chrome-border: transparent;
+	--radius:    0;
+	--radius-lg: 0;
+	--prose-measure: 62ch;
+	--prose-leading: 1.8;
+	--pad: 28px;
+	--title-weight: 500;
+	--title-size:   22px;
+	--font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root[data-skin="bare"] .sidebar h2 {
+	color: var(--fg-faint);
+	font-size: 10px;
+	letter-spacing: 0.1em;
+}
+
+:root[data-skin="bare"] .sidebar-log,
+:root[data-skin="bare"] .breadcrumb,
+:root[data-skin="bare"] .statusline {
+	color: var(--fg-faint);
+}
+
+:root[data-skin="bare"] .sidebar-log:hover,
+:root[data-skin="bare"] .sidebar-log:focus-within,
+:root[data-skin="bare"] .breadcrumb:hover,
+:root[data-skin="bare"] .breadcrumb:focus-within,
+:root[data-skin="bare"] .statusline:hover,
+:root[data-skin="bare"] .statusline:focus-within {
+	color: var(--fg-muted);
+}
+
+:root[data-skin="bare"] #page-content pre {
+	border-left: none;
+}
+
+:root[data-skin="bare"] a {
+	text-decoration: none;
+}
+
+:root[data-skin="bare"] a:hover {
+	text-decoration: underline;
+}

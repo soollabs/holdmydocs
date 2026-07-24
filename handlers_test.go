@@ -20,6 +20,11 @@ import (
 )
 
 func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
+	_, server, client := newTestAppFull(t)
+	return server, client
+}
+
+func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
 
@@ -108,7 +113,7 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	client.Do(req)
 
-	return server, client
+	return app, server, client
 }
 
 func TestViewHome(t *testing.T) {

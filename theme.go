@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
-	"reflect"
 	"regexp"
 	"strings"
 )
@@ -78,80 +77,6 @@ func parseThemeVars(part string) map[string]string {
 
 // mergeTheme returns a copy of defaults with overrides applied. Used to
 // build the display values for the settings colour inputs.
-func mergeTheme(defaults, overrides map[string]string) map[string]string {
-	m := make(map[string]string, len(themeVarNames))
-	for _, n := range themeVarNames {
-		if v, ok := overrides[n]; ok && v != "" {
-			m[n] = v
-		} else if v, ok := defaults[n]; ok {
-			m[n] = v
-		}
-	}
-	return m
-}
-
-// snapshotTheme decides whether to persist a theme map to config.
-// If every submitted colour matches its default, returns nil (revert to
-// style.css defaults — nothing in config). Otherwise returns a full
-// snapshot of all 17 colours (submitted value, falling back to default
-// for any that were empty).
-func snapshotTheme(submitted, defaults map[string]string) map[string]string {
-	changed := false
-	for _, n := range themeVarNames {
-		sv := submitted[n]
-		if sv == "" {
-			continue
-		}
-		if defaults[n] == "" || sv != defaults[n] {
-			changed = true
-			break
-		}
-	}
-	if !changed {
-		return nil
-	}
-	snap := make(map[string]string, len(themeVarNames))
-	for _, n := range themeVarNames {
-		if sv := submitted[n]; sv != "" {
-			snap[n] = sv
-		} else if dv := defaults[n]; dv != "" {
-			snap[n] = dv
-		}
-	}
-	return snap
-}
-
-// collectTheme pulls theme_dark_<name> / theme_light_<name> form values
-// into a map keyed by the bare variable name. Values that aren't valid hex
-// colours are dropped rather than trusted into the CSS output.
-func collectTheme(r map[string][]string, prefix string) map[string]string {
-	m := make(map[string]string, len(themeVarNames))
-	for _, n := range themeVarNames {
-		if vals, ok := r[prefix+n]; ok && len(vals) > 0 && validThemeColour.MatchString(vals[0]) {
-			m[n] = vals[0]
-		}
-	}
-	return m
-}
-
-// matchingPreset returns the name of the preset whose palette for mode
-// ("dark" or "light") exactly equals current, or "" if current is the
-// built-in default or has been hand-tweaked away from every preset.
-// Presets aren't stored by name (see themePreset docs) — this just lets the
-// settings page show which preset is still in effect, if any.
-func matchingPreset(current map[string]string, mode string) string {
-	for _, name := range themePresetNames {
-		palette := themePresets[name].Dark
-		if mode == "light" {
-			palette = themePresets[name].Light
-		}
-		if reflect.DeepEqual(current, palette) {
-			return name
-		}
-	}
-	return ""
-}
-
 // Font options for the settings UI. Values are fixed CSS stacks looked up
 // by name — only these strings ever reach the inline <style> block, so no
 // user-supplied CSS is emitted. Empty config = the style.css default
@@ -161,6 +86,25 @@ var (
 	fontsSans  = []string{"system sans", "helvetica", "verdana"}
 	fontsSerif = []string{"georgia", "palatino", "charter"}
 )
+
+// skins are structural themes: typography, spacing, borders and markers,
+// orthogonal to the colour palette. The name is the only thing that reaches
+// HTML (as data-skin), and only after a lookup in this map.
+type skin struct {
+	Label string // shown in the settings select
+	Note  string // one-line hint, e.g. a palette that suits it
+}
+
+var skinNames = []string{"phosphor", "newsprint", "blueprint", "manuscript", "index", "bare"}
+
+var skins = map[string]skin{
+	"phosphor":   {"phosphor", "the default — terminal green, monospace, # markers"},
+	"newsprint":  {"newsprint", "broadsheet serif; try the solarized or gruvbox palette"},
+	"blueprint":  {"blueprint", "drafting grid and numbered sections; try nord or tokyo night"},
+	"manuscript": {"manuscript", "typewriter double-spacing, no chrome; try everforest"},
+	"index":      {"index card", "flat brutalist boxes and hard shadows; try monokai"},
+	"bare":       {"bare", "no borders, no markers, wide margins; any palette"},
+}
 
 var fontStacks = map[string]string{
 	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,
@@ -180,14 +124,13 @@ var fontStacks = map[string]string{
 // overrides configured.
 func buildThemeStyle(prefs userRecord) template.CSS {
 	var b strings.Builder
-	if len(prefs.ThemeDark) > 0 {
+	preset, ok := themePresets[prefs.Palette]
+	if ok {
 		b.WriteString(`:root, :root[data-theme="dark"]{`)
-		writeThemeVars(&b, prefs.ThemeDark)
+		writeThemeVars(&b, preset.Dark)
 		b.WriteString("}")
-	}
-	if len(prefs.ThemeLight) > 0 {
 		b.WriteString(`:root[data-theme="light"]{`)
-		writeThemeVars(&b, prefs.ThemeLight)
+		writeThemeVars(&b, preset.Light)
 		b.WriteString("}")
 	}
 	var fonts strings.Builder

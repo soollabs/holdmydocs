@@ -119,7 +119,7 @@
               const rect = link.getBoundingClientRect();
               const tags = (data.tags || []).map(t => '#' + escapeHtml(t)).join(' ');
               previewCard.innerHTML = `
-                <h3><span class="h">#</span> ${escapeHtml(data.title)}</h3>
+                <h3><span class="h"></span>${escapeHtml(data.title)}</h3>
                 <div class="snippet">${escapeHtml(data.snippet)}</div>
                 <div class="meta">${tags ? tags + ' · ' : ''}edited ${escapeHtml(data.age)}</div>
               `;
