@@ -1,0 +1,12 @@
+{{define "widget-backlinks"}}
+{{if .Backlinks}}
+<footer class="backlinks-footer">
+	<div class="backlinks-label">linked from</div>
+	<div class="backlinks-row">
+	{{range .Backlinks}}
+		<a href="/page/{{.Slug}}">{{.Title}}</a>
+	{{end}}
+	</div>
+</footer>
+{{end}}
+{{end}}

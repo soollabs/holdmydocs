@@ -1,0 +1,7 @@
+{{define "widget-identity"}}
+<div class="prompt">
+	<a href="/" class="prompt-link">
+		<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>
+	</a>
+</div>
+{{end}}

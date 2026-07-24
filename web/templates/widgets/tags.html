@@ -1,0 +1,13 @@
+{{define "widget-tags"}}
+{{if and .ShowTagsSidebar .AllTags}}
+<div class="sidebar-section sidebar-tags-section">
+	<h2>TAGS</h2>
+	<ul class="tag-chips">
+		{{range .AllTags}}
+		<li><a href="/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
+		{{end}}
+		<li><a href="/tags" class="all-link">▸ all</a></li>
+	</ul>
+</div>
+{{end}}
+{{end}}

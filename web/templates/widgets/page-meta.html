@@ -1,0 +1,7 @@
+{{define "widget-page-meta"}}
+<div class="page-meta">
+	{{range .PageTags}}<a class="meta-tag" href="/tags/{{.Slug}}">{{.Tag}}</a>{{end}}
+	{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
+	{{if .RevisionCount}}<span>&middot; <a href="{{.RoutePrefix}}/{{.Slug}}/history">history({{.RevisionCount}})</a></span>{{end}}
+</div>
+{{end}}

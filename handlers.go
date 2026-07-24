@@ -69,70 +69,74 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
-	SiteName         string
-	Authed           bool
-	Title            string
-	Slug             string
-	Content          template.HTML
-	Body             string
-	BaseHash         string
-	Backlinks        []BacklinkEntry
-	TagsInput        string
-	PageTags         []TagChip
-	AllTags          []TagCount
-	TagName          string
-	TagPages         []BacklinkEntry
-	SyncState        string
-	Error            string
-	Query            string
-	SearchResults    []SearchResult
-	HistoryEntries   []HistoryEntry
-	RevHash          string
-	OldVersionDate   string
-	TotalHistory     int
-	MermaidNeeded    bool
-	RevisionCount    int
-	HeadShortHash    string
-	HeadAuthor       string
-	HeadWhen         string // relative, e.g. "3 hours ago"
-	Username         string
-	StatusMode       string // view|edit|search|log|conflict, drives the statusline mode block
-	StatusContext    string // right-aligned context: revision count / word counts
-	Version          string // shown on login intro
-	RemoteHost       string // host of the git remote, for login intro (empty if none)
-	OIDCEnabled      bool   // show the SSO button on the login page
-	OIDCButtonText   string // SSO button label
-	OIDCLocalLogin   bool   // show the password form alongside SSO
-	OIDCIcon         bool   // show the icon (served at /auth/oidc/icon) on the SSO button
-	SearchElapsed    string // search timing, e.g. "3ms"
-	SearchPages      int    // total pages, for search stats
-	SearchHits       int    // match count, for search stats
-	Hostname         string // shell prompt host segment
-	PathLabel        string // shell prompt path segment
-	UserLabel        string // overrides Username in prompt when non-empty
-	ShowTagsSidebar  bool
-	SyncPollMs       int // injected as a JS global for sync polling
-	SyncMode         string
-	BlobHash         string // current page blob hash, for client-side change detection
-	ThemeStyle       template.CSS
-	Skin             string // structural skin name; empty = default, only ever a known skinNames entry
-	Settings         *SettingsData
-	SetupHomePreview template.HTML
-	SetupHelpPreview template.HTML
-	NeedsSetup       bool
-	NeedsHomeSetup   bool
-	NeedsHelpSetup   bool
-	HomeFileExists   bool
-	HelpFileExists   bool
-	HomeFilename     string
-	RoutePrefix      string
-	IsHidden         bool
-	IsPublic         bool       // frontmatter public flag, drives the editor checkbox
-	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
-	HealthMissing    int
-	HealthOrphans    int
-	SyncAge          string // relative age of the last successful sync, e.g. "12 seconds ago"
-	SyncLastUnix     int64  // raw timestamp for the client-side sync-age ticker
+	SiteName          string
+	Authed            bool
+	Title             string
+	Slug              string
+	Content           template.HTML
+	Body              string
+	BaseHash          string
+	Backlinks         []BacklinkEntry
+	TagsInput         string
+	PageTags          []TagChip
+	AllTags           []TagCount
+	TagName           string
+	TagPages          []BacklinkEntry
+	SyncState         string
+	Error             string
+	Query             string
+	SearchResults     []SearchResult
+	HistoryEntries    []HistoryEntry
+	RevHash           string
+	OldVersionDate    string
+	TotalHistory      int
+	MermaidNeeded     bool
+	RevisionCount     int
+	HeadShortHash     string
+	HeadAuthor        string
+	HeadWhen          string // relative, e.g. "3 hours ago"
+	Username          string
+	StatusMode        string // view|edit|search|log|conflict, drives the statusline mode block
+	StatusContext     string // right-aligned context: revision count / word counts
+	Version           string // shown on login intro
+	RemoteHost        string // host of the git remote, for login intro (empty if none)
+	OIDCEnabled       bool   // show the SSO button on the login page
+	OIDCButtonText    string // SSO button label
+	OIDCLocalLogin    bool   // show the password form alongside SSO
+	OIDCIcon          bool   // show the icon (served at /auth/oidc/icon) on the SSO button
+	SearchElapsed     string // search timing, e.g. "3ms"
+	SearchPages       int    // total pages, for search stats
+	SearchHits        int    // match count, for search stats
+	Hostname          string // shell prompt host segment
+	PathLabel         string // shell prompt path segment
+	UserLabel         string // overrides Username in prompt when non-empty
+	ShowTagsSidebar   bool
+	SyncPollMs        int // injected as a JS global for sync polling
+	SyncMode          string
+	BlobHash          string // current page blob hash, for client-side change detection
+	ThemeStyle        template.CSS
+	Skin              string // structural skin name; empty = default, only ever a known skinNames entry
+	Settings          *SettingsData
+	SetupHomePreview  template.HTML
+	SetupHelpPreview  template.HTML
+	NeedsSetup        bool
+	NeedsHomeSetup    bool
+	NeedsHelpSetup    bool
+	HomeFileExists    bool
+	HelpFileExists    bool
+	HomeFilename      string
+	RoutePrefix       string
+	IsHidden          bool
+	IsPublic          bool       // frontmatter public flag, drives the editor checkbox
+	RecentCommits     []LogEntry // sidebar LOG section: last commits for the current page
+	HealthMissing      int
+	HealthOrphans      int
+	SyncAge           string // relative age of the last successful sync, e.g. "12 seconds ago"
+	SyncLastUnix      int64  // raw timestamp for the client-side sync-age ticker
+	SidebarWidgets    []*widget
+	RailWidgets       []*widget
+	PageHeadWidgets   []*widget
+	PageFootWidgets   []*widget
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -428,6 +432,15 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 
 			data.NeedsSetup = data.NeedsHomeSetup || data.NeedsHelpSetup
 		}
+	}
+
+	// Populate widget arrays for sidebar, rail, page-head, and page-foot slots.
+	// defaultProfile only; profile implementation adds per-user profiles.
+	if data.Authed {
+		data.SidebarWidgets = widgetsForSlot(slotSidebar, defaultProfile)
+		data.RailWidgets = widgetsForSlot(slotRail, defaultProfile)
+		data.PageHeadWidgets = widgetsForSlot(slotPageHead, defaultProfile)
+		data.PageFootWidgets = widgetsForSlot(slotPageFoot, defaultProfile)
 	}
 
 	// Load mermaid only when the page content or editor body contains

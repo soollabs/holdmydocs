@@ -14,7 +14,6 @@ type widget struct {
 	ID    string
 	Title string     // "" = renders no <h2>
 	Slot  widgetSlot // default slot; a profile may override
-	Tmpl  string     // template name in web/templates/widgets/
 }
 
 var widgetIDs = []string{
@@ -24,25 +23,25 @@ var widgetIDs = []string{
 }
 
 var widgets = map[string]widget{
-	"identity": {ID: "identity", Title: "", Slot: slotSidebar, Tmpl: "widget-identity"},
-	"search":   {ID: "search", Title: "SEARCH", Slot: slotSidebar, Tmpl: "widget-search"},
-	"pages":    {ID: "pages", Title: "PAGES", Slot: slotSidebar, Tmpl: "widget-pages"},
-	"pinned":   {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Tmpl: "widget-pinned"},
-	"tags":     {ID: "tags", Title: "TAGS", Slot: slotSidebar, Tmpl: "widget-tags"},
-	"log":      {ID: "log", Title: "LOG", Slot: slotSidebar, Tmpl: "widget-log"},
-	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar, Tmpl: "widget-health"},
-	"keys":     {ID: "keys", Title: "", Slot: slotSidebar, Tmpl: "widget-keys"},
+	"identity": {ID: "identity", Title: "", Slot: slotSidebar},
+	"search":   {ID: "search", Title: "SEARCH", Slot: slotSidebar},
+	"pages":    {ID: "pages", Title: "PAGES", Slot: slotSidebar},
+	"pinned":   {ID: "pinned", Title: "PINNED", Slot: slotSidebar},
+	"tags":     {ID: "tags", Title: "TAGS", Slot: slotSidebar},
+	"log":      {ID: "log", Title: "LOG", Slot: slotSidebar},
+	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar},
+	"keys":     {ID: "keys", Title: "", Slot: slotSidebar},
 
-	"calendar":       {ID: "calendar", Title: "", Slot: slotSidebar, Tmpl: "widget-calendar"},
-	"writing-stats":  {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar, Tmpl: "widget-writing-stats"},
-	"inbox":          {ID: "inbox", Title: "INBOX", Slot: slotSidebar, Tmpl: "widget-inbox"},
-	"sources":        {ID: "sources", Title: "SOURCES", Slot: slotSidebar, Tmpl: "widget-sources"},
+	"calendar":       {ID: "calendar", Title: "", Slot: slotSidebar},
+	"writing-stats":  {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar},
+	"inbox":          {ID: "inbox", Title: "INBOX", Slot: slotSidebar},
+	"sources":        {ID: "sources", Title: "SOURCES", Slot: slotSidebar},
 
-	"outline":       {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail, Tmpl: "widget-outline"},
-	"source-card":   {ID: "source-card", Title: "", Slot: slotPageHead, Tmpl: "widget-source-card"},
-	"page-meta":     {ID: "page-meta", Title: "", Slot: slotPageHead, Tmpl: "widget-page-meta"},
-	"backlinks":     {ID: "backlinks", Title: "linked from", Slot: slotPageFoot, Tmpl: "widget-backlinks"},
-	"prev-entries":  {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot, Tmpl: "widget-prev-entries"},
+	"outline":       {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail},
+	"source-card":   {ID: "source-card", Title: "", Slot: slotPageHead},
+	"page-meta":     {ID: "page-meta", Title: "", Slot: slotPageHead},
+	"backlinks":     {ID: "backlinks", Title: "linked from", Slot: slotPageFoot},
+	"prev-entries":  {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot},
 }
 
 // defaultProfile is the set of widgets for each built-in profile.

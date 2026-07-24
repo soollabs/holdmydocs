@@ -1,0 +1,14 @@
+{{define "widget-log"}}
+{{if .RecentCommits}}
+<div class="sidebar-log" id="sidebar-log">
+	<details id="log-details" open>
+		<summary>LOG</summary>
+		<div id="log-entries">
+			{{range .RecentCommits}}
+			<div class="log-entry"><a href="/page/{{$.Slug}}/history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
+			{{end}}
+		</div>
+	</details>
+</div>
+{{end}}
+{{end}}

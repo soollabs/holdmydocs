@@ -37,47 +37,20 @@
 	</div>
 	<nav class="sidebar" id="sidebar">
 		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar">«</button>
-		<div class="prompt">
-			<a href="/" class="prompt-link">
-				<span class="user">{{if .UserLabel}}{{.UserLabel}}{{else}}{{.Username}}{{end}}@{{.Hostname}}:<span class="path">{{.PathLabel}}</span>
-			</a>
-		</div>
-		<div class="sidebar-section sidebar-pages">
-			<h2>PAGES</h2>
-			<ul class="sidebar-list" id="recent-list"></ul>
-		</div>
-		{{if and .ShowTagsSidebar .AllTags}}
-		<div class="sidebar-section sidebar-tags-section">
-			<h2>TAGS</h2>
-			<ul class="tag-chips">
-				{{range .AllTags}}
-				<li><a href="/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
-				{{end}}
-				<li><a href="/tags" class="all-link">▸ all</a></li>
-			</ul>
-		</div>
+		{{range .SidebarWidgets}}
+		{{if eq .ID "identity"}}{{template "widget-identity" $}}{{end}}
+		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
+		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}
+		{{if eq .ID "pinned"}}{{template "widget-pinned" $}}{{end}}
+		{{if eq .ID "tags"}}{{template "widget-tags" $}}{{end}}
+		{{if eq .ID "log"}}{{template "widget-log" $}}{{end}}
+		{{if eq .ID "health"}}{{template "widget-health" $}}{{end}}
+		{{if eq .ID "keys"}}{{template "widget-keys" $}}{{end}}
+		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
+		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
+		{{if eq .ID "inbox"}}{{template "widget-inbox" $}}{{end}}
+		{{if eq .ID "sources"}}{{template "widget-sources" $}}{{end}}
 		{{end}}
-		{{if .RecentCommits}}
-		<div class="sidebar-log" id="sidebar-log">
-			<details id="log-details" open>
-				<summary>LOG</summary>
-				<div id="log-entries">
-					{{range .RecentCommits}}
-					<div class="log-entry"><a href="/page/{{$.Slug}}/history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
-					{{end}}
-				</div>
-			</details>
-		</div>
-		{{end}}
-		<div class="sidebar-hints">
-			<a href="/settings" class="collapsed-gear" aria-label="Settings">⚙</a>
-			<div class="hint-row">
-				<a href="/settings">settings</a> · <a href="/hidden/help">? help</a> ·
-				<a href="/health-report" id="health-line" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}" title="{{.HealthMissing}} missing · {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}">health</a>
-			</div>
-			<div class="hint-row"><kbd>ctrl j</kbd> daily · <kbd>ctrl k</kbd> jump / >verbs</div>
-			<div class="hint-row sidebar-version">{{.Version}}</div>
-		</div>
 	</nav>
 	{{end}}
 	<main>
