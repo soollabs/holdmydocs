@@ -1602,7 +1602,7 @@ body.zen-manuscript .zen-status.visible {
 @media (max-width: 899px) {
 	body.shell {
 		grid-template-columns: 1fr;
-		grid-template-rows: 44px 1fr calc(36px + env(safe-area-inset-bottom));
+		grid-template-rows: calc(44px + env(safe-area-inset-top)) 1fr calc(36px + env(safe-area-inset-bottom));
 		grid-template-areas:
 			"topbar"
 			"main"
@@ -1611,7 +1611,7 @@ body.zen-manuscript .zen-status.visible {
 
 	.sidebar {
 		position: fixed;
-		top: 44px;
+		top: calc(44px + env(safe-area-inset-top));
 		left: 0;
 		bottom: 0;
 		width: 260px;
@@ -1629,7 +1629,7 @@ body.zen-manuscript .zen-status.visible {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 0 12px;
+		padding: env(safe-area-inset-top) 12px 0;
 		background: var(--panel);
 		border-bottom: 1px solid var(--border);
 		transition: transform 0.2s ease;
