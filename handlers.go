@@ -22,8 +22,11 @@ import (
 	"time"
 )
 
-// version is shown on the login screen intro line.
-const version = "dev"
+// buildVersion is baked in at compile time via -ldflags "-X main.buildVersion=..."
+// (see Dockerfile, which uses the short git commit hash). HMD_VERSION
+// overrides it at runtime if set. Shown on the login screen and sidebar footer.
+var buildVersion = "dev"
+var version = envOr("HMD_VERSION", buildVersion)
 
 type App struct {
 	cfg    atomic.Pointer[Config]

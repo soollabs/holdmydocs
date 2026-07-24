@@ -72,6 +72,7 @@
 				<a href="/health-report" id="health-line" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}" title="{{.HealthMissing}} missing · {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}">health</a>
 			</div>
 			<div class="hint-row"><kbd>ctrl j</kbd> daily · <kbd>ctrl k</kbd> jump / >verbs</div>
+			<div class="hint-row sidebar-version">{{.Version}}</div>
 		</div>
 	</nav>
 	{{end}}
