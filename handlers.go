@@ -23,8 +23,8 @@ import (
 )
 
 // buildVersion is baked in at compile time via -ldflags "-X main.buildVersion=..."
-// (see Dockerfile, which uses the short git commit hash). HMD_VERSION
-// overrides it at runtime if set. Shown on the login screen and sidebar footer.
+// (see Dockerfile's VERSION build arg). HMD_VERSION overrides it at runtime
+// if set. Shown on the login screen and sidebar footer.
 var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
 
