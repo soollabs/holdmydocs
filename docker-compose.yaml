@@ -4,7 +4,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      HMD_REMOTE_URL: "https://git.example.com/you/wiki.git"
+      HMD_GIT_REMOTE_URL: "https://git.example.com/you/wiki.git"
       HMD_GIT_USER: "you"
       HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
       HMD_ADMIN_USER: "admin"
