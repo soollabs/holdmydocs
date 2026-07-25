@@ -118,9 +118,15 @@ the process for most of them:
   `user_label`, upload size, and sync poll interval all apply immediately
   on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
   is bootstrap-only (env var or default) and always read-only.
-- **Theme, fonts, tags-sidebar:** per-user, saved to your own `users.json`
-  record — colour pickers for all 17 CSS variables (dark and light), font
-  pickers, and the sidebar toggle. Each user sets their own; nothing here
+- **Palette, skin, profile, fonts, tags-sidebar, widgets:** per-user, saved
+  to your own `users.json` record. A **palette** picker (named presets:
+  phosphor, catppuccin, dracula, everforest, gruvbox, monokai, nord, one
+  dark, rosé pine, solarized, tokyo night) and a **skin** picker (structural
+  theme — typography/spacing/borders, independent of colour) are chosen
+  separately. A **profile** picker (see Profiles, below) sets your default
+  widget arrangement and skin; a widgets checklist lets you add or remove a
+  single widget without leaving your profile. Font pickers and the
+  tags-sidebar toggle are also here. Each user sets their own; nothing here
   affects other users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
   Manage users with `hmd adduser` instead (see Users, below).
@@ -254,6 +260,37 @@ The home page (`readme.md` by default) is a clean welcome with a `<!-- hmd:toc -
 
 **Why split?** The `app/` directory contains files requiring POSIX advisory locking (user database). SQLite and similar are unreliable over NFS. The `repo/` directory is pure git, which works fine on NFS.
 
+**Per-user preferences** — palette, skin, fonts, profile, widget add/remove,
+tags-sidebar toggle, commit author, and access-token hashes — live in that
+user's own record in `users.json` under `app/`, not in `config.yaml`. They
+are therefore per-user and local-disk-only, same as the rest of `app/`.
+`config.yaml` holds only the install-wide `profile:` default (see Profiles,
+below).
+
+## Profiles
+
+A profile is a named, ordered widget arrangement plus a default skin — it
+changes what's on screen, never how or where pages are stored. Switch
+profile any time from `/settings`; the underlying repo is portable across
+every profile.
+
+- **`docs`** (default) — general-purpose wiki: pages list, tags, recent
+  commits, backlinks.
+- **`journal`** — daily-page focused: a calendar and writing-stats widget
+  instead of the pages list, lands on today's entry in edit mode, ctrl-j
+  opens it.
+- **`clipper`** — saved-links focused: an inbox of unread clips and a
+  sources list instead of the pages list, lands on `/inbox`, ctrl-j
+  disabled.
+- **`research`** — `docs` plus pinned pages, a sources list, and a health
+  summary widget.
+- **`minimal`** — stripped down to identity and a pages list, no
+  statusline extras, ctrl-j disabled.
+
+The install-wide default is `profile:` in `config.yaml` (env `HMD_PROFILE`);
+each user can override their own from `/settings`, including adding or
+removing a single widget without leaving the profile.
+
 ## Users
 
 ### Bootstrap on first run
@@ -331,6 +368,27 @@ The token is replaced server-side at render time with wiki-linked bullet points,
 
 ### History
 Click "History" on any page to see all versions. Click "View" to see an old version, or "Revert to this version" to restore it (creates a new commit, never rewrites history).
+
+### Optional frontmatter keys
+
+Beyond `title`/`tags`/`public`, a few keys are read by specific profile
+widgets. All are optional, ignored where irrelevant, and round-trip
+untouched through an ordinary editor save even though there's no dedicated
+editor UI for them yet — set them by hand in the frontmatter block, or via
+the MCP `save_page` tool.
+
+- `pin: true` — surfaces the page in the pinned sidebar widget (`research` profile).
+- `unread: true` — surfaces the page in the inbox widget and the `/inbox` route (`clipper` profile).
+- `source: https://example.com/article` — the page's origin URL; grouped by host in the sources widget, shown on the source-card widget.
+- `author: Jane Doe` — shown on the source-card widget.
+- `read_time: 4 min` — shown on the source-card and inbox widgets.
+
+### Daily pages
+
+Pages under `daily/YYYY-MM-DD` (e.g. `daily/2026-07-24`) are journal
+entries — the only slug convention in the app with a `/` in it. ctrl-j opens
+today's entry (except on the `clipper`/`minimal` profiles, which disable
+it); the calendar widget (`journal` profile) marks which days have one.
 
 ### Editor extras
 - **Hide preview:** the `preview` toolbar button collapses the preview pane so the source editor fills the width. Useful on smaller screens or when you just want more writing space. Persists across pages (`localStorage`).

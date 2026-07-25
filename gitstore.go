@@ -152,6 +152,18 @@ Every page starts with a frontmatter block:
 
 ` + "`title`" + ` is the display heading. ` + "`tags`" + ` is a comma-separated list.
 
+Optional keys, read by specific widgets — ignored everywhere else, and
+untouched by an ordinary editor save even though there's no dedicated UI
+for them yet:
+
+- ` + "`pin: true`" + ` — surfaces the page in the pinned sidebar widget.
+- ` + "`unread: true`" + ` — surfaces the page in the inbox widget/page and
+  the ` + "`/inbox`" + ` route.
+- ` + "`source: https://example.com/article`" + ` — the page's origin URL;
+  grouped by host in the sources widget and shown on the source-card widget.
+- ` + "`author: Jane Doe`" + ` — shown on the source-card widget.
+- ` + "`read_time: 4 min`" + ` — shown on the source-card and inbox widgets.
+
 ## Body
 
 - Use ` + "`#`" + ` for the title only; start sections at ` + "`##`" + ` (h2), subsections at ` + "`###`" + ` (h3).
@@ -180,6 +192,22 @@ Editing the repo directly (agents, scripts): commit the file straight to
 whitelist and SVG exclusion above are only enforced by the upload
 endpoint, not when serving, so stick to them by convention on direct
 writes too.
+
+## Daily pages
+
+Pages under ` + "`daily/YYYY-MM-DD`" + ` (e.g. ` + "`daily/2026-07-24`" + `) are
+journal entries. ctrl-j opens today's entry; the calendar widget marks which
+days have one.
+
+## Profiles
+
+A profile is a named widget arrangement plus a default skin — it changes
+what's on screen, never how or where pages are stored. Pick one on
+` + "`/settings`" + `: ` + "`docs`" + ` (default, general-purpose), ` + "`journal`" + `
+(daily-page focused), ` + "`clipper`" + ` (saved-links focused), ` + "`research`" + `
+(docs plus pinned pages and a health summary), ` + "`minimal`" + ` (stripped down).
+Add or remove a single widget without leaving your profile from the widgets
+checklist on ` + "`/settings`" + `.
 
 ## History
 
