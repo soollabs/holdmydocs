@@ -138,6 +138,17 @@ type TemplateData struct {
 	PageHeadWidgets  []*widget
 	PageFootWidgets  []*widget
 	Profile          string // resolved profile name in effect for this request
+
+	// Data for the widgets added in specs/2026-07-25-profiles-widgets.md
+	// widget implementation — populated in app.render only when the corresponding widget id
+	// is actually present in one of the *Widgets slices above.
+	Calendar     CalendarMonth
+	WritingStats WritingStats
+	Inbox        []UnreadEntry
+	Sources      []SourceCount
+	PinnedPages  []BacklinkEntry
+	PrevEntries  []PrevEntry
+	SourceMeta   widgetMeta // current page's pin/unread/source/author/read_time, for source-card
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -450,6 +461,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.RailWidgets = widgetsForSlot(slotRail, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
 		data.PageHeadWidgets = widgetsForSlot(slotPageHead, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
 		data.PageFootWidgets = widgetsForSlot(slotPageFoot, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
+
+		app.populateWidgetData(&data)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -613,6 +626,15 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /page/{slug}/rename", app.handleRenamePage)
 	mux.HandleFunc("POST /page/{slug}/tags", app.handleSetTags)
 	mux.HandleFunc("GET /health-report", app.handleHealthReport)
+
+	// daily/YYYY-MM-DD is the only slug in the app with a "/" in it — Go's
+	// ServeMux {slug} wildcard matches exactly one path segment, so nothing
+	// above can reach it. A trailing {path...} wildcard is strictly less
+	// specific than every route above (Go's mux prefers the most specific
+	// match), so it's safe to register as a catch-all fallback that only
+	// ever receives multi-segment slugs like "daily/2026-07-24[/edit]".
+	mux.HandleFunc("GET /page/{path...}", app.handleMultiSegmentGet)
+	mux.HandleFunc("POST /page/{path...}", app.handleMultiSegmentPost)
 
 	// Hidden page handlers (dot-prefixed files, separate route namespace)
 	mux.HandleFunc("GET /hidden", app.handleHiddenIndex)
@@ -871,6 +893,55 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleMultiSegmentGet/Post dispatch the "{path...}" catch-all registered
+// alongside the single-segment /page/{slug}... routes. It only ever
+// receives requests those routes couldn't match — in practice, exactly the
+// "daily/YYYY-MM-DD" namespace, whose slug contains a "/". The trailing
+// segment (edit/history/save), if any, selects the action; everything
+// before it is reassembled as the slug and handed to the normal handler.
+func (app *App) handleMultiSegmentGet(w http.ResponseWriter, r *http.Request) {
+	slug, action := splitTrailingAction(r.PathValue("path"))
+	r.SetPathValue("slug", slug)
+	switch action {
+	case "edit":
+		app.handleEditPage(w, r)
+	case "history":
+		app.handleHistory(w, r)
+	case "":
+		app.handleViewPage(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (app *App) handleMultiSegmentPost(w http.ResponseWriter, r *http.Request) {
+	slug, action := splitTrailingAction(r.PathValue("path"))
+	r.SetPathValue("slug", slug)
+	switch action {
+	case "save":
+		app.handleSavePage(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// splitTrailingAction splits "daily/2026-07-24/edit" into
+// ("daily/2026-07-24", "edit"), or "daily/2026-07-24" into
+// ("daily/2026-07-24", "").
+func splitTrailingAction(path string) (slug, action string) {
+	i := strings.LastIndex(path, "/")
+	if i < 0 {
+		return path, ""
+	}
+	last := path[i+1:]
+	switch last {
+	case "edit", "history", "save":
+		return path[:i], last
+	default:
+		return path, ""
+	}
+}
+
 func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
@@ -929,6 +1000,12 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	}
 
 	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body, Public: public}
+	// pin/unread/source/author/read_time have no editor UI yet — round-trip
+	// them from whatever was on disk before this save, untouched.
+	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
+		old := ParsePage(slug, oldContent)
+		page.Pin, page.Unread, page.Source, page.Author, page.ReadTime = old.Pin, old.Unread, old.Source, old.Author, old.ReadTime
+	}
 
 	message := "Update " + title
 	if basehash == "" {

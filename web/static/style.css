@@ -2409,6 +2409,191 @@ body.zen-manuscript .zen-status.visible {
 	text-decoration: underline;
 }
 
+/* Calendar widget (journal profile) */
+.cal {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.cal-dow {
+	font-size: 10px;
+	color: var(--fg-faint);
+	text-align: center;
+	padding-bottom: 2px;
+}
+
+.cal-day {
+	display: block;
+	aspect-ratio: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	color: var(--fg-muted);
+	text-decoration: none;
+	border-radius: var(--radius);
+}
+
+.cal-day-blank {
+	visibility: hidden;
+}
+
+.cal-day:hover {
+	background: var(--panel-2);
+}
+
+.cal-day.lit {
+	color: var(--bg);
+	background: var(--green-dim);
+}
+
+.cal-day.today {
+	border: var(--border-w) solid var(--green);
+}
+
+/* Writing-stats widget (journal profile) */
+.sidebar-writing-stats .stat-row {
+	display: flex;
+	justify-content: space-between;
+	font-size: 12px;
+	color: var(--fg-muted);
+	margin-bottom: 2px;
+}
+
+.sidebar-writing-stats .stat-value {
+	color: var(--fg-bright);
+}
+
+.spark {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	height: 20px;
+	margin-top: 8px;
+}
+
+.spark-bar {
+	flex: 1;
+	height: calc(4px + var(--v, 0) * 1px);
+	max-height: 20px;
+	background: var(--green-dim);
+	border-radius: 1px;
+}
+
+/* Inbox widget (clipper profile) */
+.inbox-list {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.inbox-list li a {
+	display: block;
+	padding: 4px 8px;
+	margin: 0 -8px;
+	color: var(--fg-muted);
+	text-decoration: none;
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-radius: 3px;
+}
+
+.inbox-list li a:hover {
+	color: var(--fg-bright);
+}
+
+.inbox-meta {
+	margin-left: 6px;
+	font-size: 11px;
+	color: var(--fg-faint);
+}
+
+/* Sources widget (clipper profile) */
+.src-list {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.src-list li {
+	display: flex;
+	justify-content: space-between;
+	font-size: 12.5px;
+	color: var(--fg-muted);
+	padding: 2px 0;
+}
+
+.src-list .count {
+	color: var(--fg-faint);
+}
+
+/* Source-card widget (clipper/research profile, page-head) */
+.source-card {
+	margin-bottom: 24px;
+	padding: 10px 12px;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
+	background: var(--panel);
+}
+
+.source-card-url {
+	color: var(--blue);
+	text-decoration: none;
+	font-size: 12.5px;
+	word-break: break-all;
+}
+
+.source-card-url:hover {
+	text-decoration: underline;
+}
+
+.source-card-meta {
+	display: flex;
+	gap: 10px;
+	margin-top: 6px;
+	font-size: 11.5px;
+	color: var(--fg-faint);
+}
+
+.source-card-unread {
+	color: var(--amber);
+}
+
+/* Prev-entries widget (journal profile, page-foot) */
+.prev-entries {
+	margin-top: 48px;
+	padding-top: 16px;
+	border-top: var(--border-w) solid var(--chrome-border);
+}
+
+.prev-entries-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	color: var(--fg-faint);
+	margin-bottom: 1rem;
+}
+
+.prev-entry {
+	font-size: 13px;
+	color: var(--fg-muted);
+	margin-bottom: 6px;
+}
+
+.prev-entry a {
+	color: var(--blue);
+	text-decoration: none;
+	margin-right: 6px;
+}
+
+.prev-entry a:hover {
+	text-decoration: underline;
+}
+
 /* History page checkboxes and diff */
 .history-rows {
 	display: flex;

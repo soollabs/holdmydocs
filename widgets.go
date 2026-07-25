@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 type widgetSlot string
 
 const (
@@ -76,4 +78,65 @@ func widgetsForSlot(slot widgetSlot, p profile, add, remove []string) []*widget 
 		}
 	}
 	return result
+}
+
+// hasWidget reports whether id appears in list.
+func hasWidget(list []*widget, id string) bool {
+	for _, w := range list {
+		if w.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// populateWidgetData fills in the data-heavy widget fields on data — only
+// the ones whose widget id is actually present in the resolved profile, so
+// a profile that doesn't use e.g. calendar never pays for Store.DailyPages.
+func (app *App) populateWidgetData(data *TemplateData) {
+	all := append(append(append(append([]*widget{}, data.SidebarWidgets...), data.RailWidgets...), data.PageHeadWidgets...), data.PageFootWidgets...)
+
+	needsDaily := hasWidget(all, "calendar") || hasWidget(all, "writing-stats") || hasWidget(all, "prev-entries")
+	var dailySlugs []string
+	if needsDaily {
+		dailySlugs, _ = app.Store.DailyPages()
+	}
+
+	bodyWords := func(slug string) int {
+		content, _, err := app.Store.Read(pageFile(slug))
+		if err != nil {
+			return 0
+		}
+		return countWords(ParsePage(slug, content).Body)
+	}
+	firstLine := func(slug string) string {
+		content, _, err := app.Store.Read(pageFile(slug))
+		if err != nil {
+			return ""
+		}
+		return firstNonEmptyLine(ParsePage(slug, content).Body)
+	}
+
+	now := time.Now()
+	if hasWidget(all, "calendar") {
+		data.Calendar = buildCalendarMonth(now, dailySlugs)
+	}
+	if hasWidget(all, "writing-stats") {
+		data.WritingStats = buildWritingStats(now, dailySlugs, bodyWords)
+	}
+	if hasWidget(all, "prev-entries") {
+		data.PrevEntries = buildPrevEntries(data.Slug, dailySlugs, 3, firstLine)
+	}
+	if hasWidget(all, "inbox") {
+		data.Inbox = app.Index.UnreadPages()
+	}
+	if hasWidget(all, "sources") {
+		data.Sources = app.Index.SourceCounts()
+	}
+	if hasWidget(all, "pinned") {
+		data.PinnedPages = app.Index.PinnedPages()
+	}
+	if hasWidget(all, "source-card") && data.Slug != "" {
+		data.SourceMeta = app.Index.MetaFor(data.Slug)
+	}
 }

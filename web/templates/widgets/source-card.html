@@ -1,2 +1,14 @@
 {{define "widget-source-card"}}
+{{if .SourceMeta.Source}}
+<div class="source-card">
+	<a href="{{.SourceMeta.Source}}" class="source-card-url" target="_blank" rel="noopener noreferrer">{{.SourceMeta.Source}}</a>
+	{{if or .SourceMeta.Author .SourceMeta.ReadTime}}
+	<div class="source-card-meta">
+		{{if .SourceMeta.Author}}<span>{{.SourceMeta.Author}}</span>{{end}}
+		{{if .SourceMeta.ReadTime}}<span>{{.SourceMeta.ReadTime}}</span>{{end}}
+		{{if .SourceMeta.Unread}}<span class="source-card-unread">unread</span>{{end}}
+	</div>
+	{{end}}
+</div>
+{{end}}
 {{end}}

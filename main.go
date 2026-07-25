@@ -107,6 +107,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Store.List failed: %v", err)
 	}
+	dailySlugs, err := store.DailyPages()
+	if err != nil {
+		log.Fatalf("Store.DailyPages failed: %v", err)
+	}
 
 	var pages []Page
 	hashes := make(map[string]string)
@@ -116,6 +120,14 @@ func main() {
 			log.Fatalf("Reading %s: %v", path, err)
 		}
 		slug := path[:len(path)-3] // remove .md
+		pages = append(pages, ParsePage(slug, content))
+		hashes[slug] = hash
+	}
+	for _, slug := range dailySlugs {
+		content, hash, err := store.Read(pageFile(slug))
+		if err != nil {
+			log.Fatalf("Reading %s: %v", pageFile(slug), err)
+		}
 		pages = append(pages, ParsePage(slug, content))
 		hashes[slug] = hash
 	}

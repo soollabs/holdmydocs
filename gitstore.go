@@ -573,6 +573,34 @@ func (s *Store) List() ([]string, error) {
 	return paths, nil
 }
 
+// DailyPages returns the "daily/YYYY-MM-DD" slugs found under the daily/
+// subdirectory, sorted ascending. Returns an empty slice, not an error, if
+// the daily/ directory doesn't exist yet — journalling profiles are usable
+// from the very first entry.
+func (s *Store) DailyPages() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	dir := filepath.Join(s.dir, "daily")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading daily directory: %w", err)
+	}
+
+	var slugs []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		slugs = append(slugs, "daily/"+strings.TrimSuffix(e.Name(), ".md"))
+	}
+	sort.Strings(slugs)
+	return slugs, nil
+}
+
 // ListHidden returns dot-prefixed .md files (hidden pages).
 func (s *Store) ListHidden() ([]string, error) {
 	s.mu.RLock()

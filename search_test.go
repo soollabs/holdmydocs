@@ -142,3 +142,55 @@ func TestPagesForTags(t *testing.T) {
 		t.Errorf("PagesForTags(nil) = %v, want []", got)
 	}
 }
+
+func TestWidgetMetaAccessors(t *testing.T) {
+	pages := []Page{
+		{Slug: "pinned-a", Title: "Zeta", Pin: true, Body: "x"},
+		{Slug: "pinned-b", Title: "Alpha", Pin: true, Body: "x"},
+		{Slug: "plain", Title: "Plain", Body: "x"},
+		{Slug: "unread-1", Title: "Unread One", Unread: true, Source: "https://example.com/a", ReadTime: "3 min", Body: "x"},
+		{Slug: "unread-2", Title: "Unread Two", Unread: true, Source: "https://blog.example.org/b", Body: "x"},
+		{Slug: "read-clip", Title: "Read Clip", Source: "https://example.com/c", Body: "x"},
+	}
+	ix, err := BuildIndex(pages)
+	if err != nil {
+		t.Fatalf("BuildIndex: %v", err)
+	}
+
+	pinned := ix.PinnedPages()
+	if len(pinned) != 2 || pinned[0].Title != "Alpha" || pinned[1].Title != "Zeta" {
+		t.Errorf("PinnedPages() = %+v, want [Alpha Zeta] sorted by title", pinned)
+	}
+
+	unread := ix.UnreadPages()
+	if len(unread) != 2 {
+		t.Fatalf("UnreadPages() length = %d, want 2", len(unread))
+	}
+	found := map[string]UnreadEntry{}
+	for _, u := range unread {
+		found[u.Slug] = u
+	}
+	if found["unread-1"].ReadTime != "3 min" || found["unread-1"].Source != "https://example.com/a" {
+		t.Errorf("UnreadPages()[unread-1] = %+v", found["unread-1"])
+	}
+
+	counts := ix.SourceCounts()
+	byHost := map[string]int{}
+	for _, c := range counts {
+		byHost[c.Host] = c.Count
+	}
+	if byHost["example.com"] != 2 {
+		t.Errorf("SourceCounts() example.com = %d, want 2 (unread-1 + read-clip)", byHost["example.com"])
+	}
+	if byHost["blog.example.org"] != 1 {
+		t.Errorf("SourceCounts() blog.example.org = %d, want 1", byHost["blog.example.org"])
+	}
+
+	meta := ix.MetaFor("unread-1")
+	if !meta.Unread || meta.ReadTime != "3 min" {
+		t.Errorf("MetaFor(unread-1) = %+v", meta)
+	}
+	if got := ix.MetaFor("nonexistent"); got != (widgetMeta{}) {
+		t.Errorf("MetaFor(nonexistent) = %+v, want zero value", got)
+	}
+}

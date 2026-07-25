@@ -23,6 +23,29 @@ func TestSkinsNoRawHex(t *testing.T) {
 	}
 }
 
+// TestNoRawHexInWidgetCSS extends TestSkinsNoRawHex's discipline to the new
+// widget rules in style.css (calendar/writing-stats/inbox/sources/
+// source-card/prev-entries) added for specs/2026-07-25-profiles-widgets.md
+// widget implementation — they must derive colour from the existing palette tokens so they
+// look correct under any palette and skin, same as the rest of style.css's
+// widget-facing rules.
+func TestNoRawHexInWidgetCSS(t *testing.T) {
+	css, err := webFS.ReadFile("web/static/style.css")
+	if err != nil {
+		t.Fatalf("reading embedded style.css: %v", err)
+	}
+	body := string(css)
+	start := strings.Index(body, "/* Calendar widget")
+	end := strings.Index(body, "/* History page checkboxes")
+	if start == -1 || end == -1 || end <= start {
+		t.Fatal("could not find the new widget CSS block in style.css (markers moved?)")
+	}
+	block := body[start:end]
+	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b`).FindString(block); m != "" {
+		t.Errorf("new widget CSS contains a raw hex colour %q; must derive colour from tokens", m)
+	}
+}
+
 // TestSkinsDefined catches typos in either direction: every name in
 // skinNames must have a skins entry and appear in skins.css, and every
 // [data-skin="x"] selector in skins.css must be a known name.

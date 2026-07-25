@@ -1,2 +1,13 @@
 {{define "widget-writing-stats"}}
+{{if .WritingStats.DaysWritten}}
+<div class="sidebar-section sidebar-writing-stats">
+	<h2>THIS MONTH</h2>
+	<div class="stat-row"><span class="stat-label">days written</span><span class="stat-value">{{.WritingStats.DaysWritten}}</span></div>
+	<div class="stat-row"><span class="stat-label">streak</span><span class="stat-value">{{.WritingStats.Streak}}</span></div>
+	<div class="stat-row"><span class="stat-label">words today</span><span class="stat-value">{{.WritingStats.WordsToday}}</span></div>
+	<div class="spark">
+		{{range .WritingStats.Sparkline}}<span class="spark-bar" style="--v:{{.}}"></span>{{end}}
+	</div>
+</div>
+{{end}}
 {{end}}

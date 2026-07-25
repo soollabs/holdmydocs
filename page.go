@@ -7,11 +7,16 @@ import (
 )
 
 type Page struct {
-	Slug   string
-	Title  string
-	Tags   []string
-	Body   string
-	Public bool // frontmatter `public: true` — served unauthenticated under /garden/
+	Slug     string
+	Title    string
+	Tags     []string
+	Body     string
+	Public   bool // frontmatter `public: true` — served unauthenticated under /garden/
+	Pin      bool // frontmatter `pin: true` — surfaced by the pinned widget
+	Unread   bool // frontmatter `unread: true` — surfaced by the inbox widget
+	Source   string
+	Author   string
+	ReadTime string
 }
 
 // pageFile maps a slug to its on-disk filename for regular pages.
@@ -99,6 +104,21 @@ func ParsePage(slug string, raw []byte) Page {
 		if strings.HasPrefix(line, "public:") {
 			page.Public = strings.TrimSpace(strings.TrimPrefix(line, "public:")) == "true"
 		}
+		if strings.HasPrefix(line, "pin:") {
+			page.Pin = strings.TrimSpace(strings.TrimPrefix(line, "pin:")) == "true"
+		}
+		if strings.HasPrefix(line, "unread:") {
+			page.Unread = strings.TrimSpace(strings.TrimPrefix(line, "unread:")) == "true"
+		}
+		if strings.HasPrefix(line, "source:") {
+			page.Source = strings.TrimSpace(strings.TrimPrefix(line, "source:"))
+		}
+		if strings.HasPrefix(line, "author:") {
+			page.Author = strings.TrimSpace(strings.TrimPrefix(line, "author:"))
+		}
+		if strings.HasPrefix(line, "read_time:") {
+			page.ReadTime = strings.TrimSpace(strings.TrimPrefix(line, "read_time:"))
+		}
 	}
 
 	// Extract body (everything after closing --- and optional blank line)
@@ -121,6 +141,21 @@ func (p Page) Encode() []byte {
 	}
 	if p.Public {
 		result += "public: true\n"
+	}
+	if p.Pin {
+		result += "pin: true\n"
+	}
+	if p.Unread {
+		result += "unread: true\n"
+	}
+	if p.Source != "" {
+		result += "source: " + p.Source + "\n"
+	}
+	if p.Author != "" {
+		result += "author: " + p.Author + "\n"
+	}
+	if p.ReadTime != "" {
+		result += "read_time: " + p.ReadTime + "\n"
 	}
 	result += "---\n\n"
 	result += body
