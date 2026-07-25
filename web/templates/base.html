@@ -58,16 +58,35 @@
 		{{template "content" .}}
 	</main>
 	{{if .Authed}}
-	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}">
+	{{/* Segment set per specs/2026-07-25-profiles-widgets.md profile implementation's statusline
+	     table: docs/research get the full set; journal/clipper/minimal trade
+	     +new/context/word-count/user for profile-specific segments. */}}
+	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-profile="{{.Profile}}">
 		<div class="seg-progress-fill" id="seg-progress-fill"></div>
-		<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
+		{{if eq .Profile "journal"}}
+			<div class="seg seg-mode" id="status-mode">{{if eq .StatusMode "edit"}}write{{else}}{{.StatusMode}}{{end}}</div>
+		{{else if eq .Profile "clipper"}}
+			<div class="seg seg-mode" id="status-mode">clip</div>
+		{{else}}
+			<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
+		{{end}}
 		<div class="seg seg-title" id="status-title">{{.Slug}}.md{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
-		<button type="button" class="seg seg-new" id="new-btn">+ new</button>
-		<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
-		{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
+		{{if eq .Profile "clipper"}}
+			<button type="button" class="seg seg-new" id="new-btn">+ clip url</button>
+			{{if .SourceMeta.Source}}<div class="seg seg-context">{{.SourceMeta.Source}}</div>{{end}}
+			<div class="seg seg-context">{{len .Inbox}} unread</div>
+		{{else if eq .Profile "journal"}}
+			<div class="seg seg-context">{{.WritingStats.WordsToday}} words today</div>
+		{{else if ne .Profile "minimal"}}
+			<button type="button" class="seg seg-new" id="new-btn">+ new</button>
+			<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
+			{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
+		{{end}}
 		<div class="seg-spacer"></div>
-		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}"><span class="sync-dot"></span><span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span></div>
-		<div class="seg seg-right seg-user">{{.Username}}</div>
+		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}">
+			<span class="sync-dot"></span>{{if not (or (eq .Profile "journal") (eq .Profile "minimal"))}}<span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span>{{end}}
+		</div>
+		{{if not (or (eq .Profile "journal") (eq .Profile "minimal"))}}<div class="seg seg-right seg-user">{{.Username}}</div>{{end}}
 		<div class="seg seg-right">
 			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
 		</div>
