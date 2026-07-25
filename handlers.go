@@ -149,6 +149,7 @@ type TemplateData struct {
 	PinnedPages  []BacklinkEntry
 	PrevEntries  []PrevEntry
 	SourceMeta   widgetMeta // current page's pin/unread/source/author/read_time, for source-card
+	DailyEnabled bool       // profile.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -427,6 +428,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 		activeProfile := resolveProfile(profileName)
 		data.Profile = activeProfile.Name
+		data.DailyEnabled = activeProfile.DailyKey != ""
 		if _, ok := skins[prefs.Skin]; ok {
 			data.Skin = prefs.Skin
 		} else if prefs.Skin == "" {
@@ -568,13 +570,36 @@ func injectTOC(body string, ix *Index, homeSlug string) string {
 	})
 }
 
+// handleRoot resolves the current user's profile (falling back to the
+// site-wide default) and redirects "/" to that profile's Landing target:
+// "home" -> the configured home page, "daily" -> today's daily entry (in
+// edit mode — journal is the only profile that sets this), "inbox" -> the
+// unread list. An unauthenticated request never reaches here (the auth
+// middleware redirects to /login first), so app.currentUser is always valid.
+func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
+	cfg := app.config()
+	prefs := app.Auth.prefs(app.currentUser(r))
+	profileName := prefs.Profile
+	if profileName == "" {
+		profileName = cfg.Profile
+	}
+	p := resolveProfile(profileName)
+
+	switch p.Landing {
+	case "daily":
+		http.Redirect(w, r, "/page/daily/"+time.Now().Format("2006-01-02")+"/edit", http.StatusSeeOther)
+	case "inbox":
+		http.Redirect(w, r, "/inbox", http.StatusSeeOther)
+	default:
+		http.Redirect(w, r, "/page/"+cfg.HomeSlug(), http.StatusSeeOther)
+	}
+}
+
 func (app *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Root: redirect to home page (named by HMD_HOME_FILENAME, default README.md)
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
-	})
+	// Root: redirect to the current user's profile landing target.
+	mux.HandleFunc("GET /{$}", app.handleRoot)
 
 	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
 	mux.HandleFunc("POST /setup", app.handleSetup)
@@ -599,6 +624,7 @@ func (app *App) Routes() http.Handler {
 
 	// Tags
 	mux.HandleFunc("GET /tags", app.handleTagsIndex)
+	mux.HandleFunc("GET /inbox", app.handleInboxIndex)
 	mux.HandleFunc("GET /tags/{tag}", app.handleTagPages)
 
 	// Settings
@@ -1196,6 +1222,17 @@ func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 		Authed:  true,
 		Title:   "Tags",
 		AllTags: app.Index.Tags(),
+	})
+}
+
+// handleInboxIndex is the clipper profile's landing page: every unread
+// page, newest first. Not profile-gated — reachable from any profile,
+// same as /tags.
+func (app *App) handleInboxIndex(w http.ResponseWriter, r *http.Request) {
+	app.render(w, r, http.StatusOK, "inbox", TemplateData{
+		Authed: true,
+		Title:  "Inbox",
+		Inbox:  app.Index.UnreadPages(),
 	})
 }
 

@@ -16,6 +16,7 @@
 	<script>
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
+		window.hmdDailyEnabled = {{.DailyEnabled}};
 		if ('serviceWorker' in navigator) {
 			window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js'));
 		}

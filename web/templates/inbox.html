@@ -1,0 +1,14 @@
+{{define "content"}}
+<div class="content-col">
+<h1><span class="h"></span>Inbox</h1>
+{{if .Inbox}}
+<ul>
+	{{range .Inbox}}
+	<li><a href="/page/{{.Slug}}">{{.Title}}</a>{{if .Source}} <span class="page-meta-inline">{{.Source}}</span>{{end}}{{if .ReadTime}} <span class="page-meta-inline">{{.ReadTime}}</span>{{end}}</li>
+	{{end}}
+</ul>
+{{else}}
+<p>Nothing unread.</p>
+{{end}}
+</div>
+{{end}}

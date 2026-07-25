@@ -284,8 +284,9 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
-  // ---- Daily note shortcut (ctrl-j) ----
+  // ---- Daily note shortcut (ctrl-j) ---- disabled per-profile (clipper/minimal have no DailyKey)
   document.addEventListener('keydown', e => {
+    if (!window.hmdDailyEnabled) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
@@ -507,7 +508,7 @@
     { name: 'health', desc: 'wiki health', action: 'health' },
     { name: 'sync', desc: 'push now', action: 'sync' },
     { name: 'pin', desc: 'pin this page', action: 'pin' },
-  ];
+  ].filter(v => v.action !== 'daily' || window.hmdDailyEnabled);
 
   function syncVerbDesc() {
     const seg = $('#status-sync');
