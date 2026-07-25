@@ -191,6 +191,9 @@ type SettingsData struct {
 	Skins            map[string]skin
 	Profile          string
 	ProfileNames     []string
+	WidgetIDs        []string          // fixed display order for the widget checklist
+	Widgets          map[string]widget // id -> definition, for labels
+	CheckedWidgets   map[string]bool   // id -> currently active for this user (profile defaults + their add/remove)
 	HelpDrifted      bool
 	UserGitAuthor    string      // current user's per-user git author override
 	HomeFilename     string      // read-only display; restart required to change
@@ -331,6 +334,14 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 
 	showTagsSidebar := prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
 
+	activeProfile := effectiveProfile(cfg, prefs)
+	checkedWidgets := make(map[string]bool)
+	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
+		for _, w := range widgetsForSlot(slot, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove) {
+			checkedWidgets[w.ID] = true
+		}
+	}
+
 	return SettingsData{
 		Fields:           fields,
 		ConfigPath:       cfg.ConfigFile,
@@ -352,6 +363,9 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		Skins:            skins,
 		Profile:          prefs.Profile,
 		ProfileNames:     profileNames,
+		WidgetIDs:        widgetIDs,
+		Widgets:          widgets,
+		CheckedWidgets:   checkedWidgets,
 		HomeFilename:     cfg.HomeFilename,
 		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
 		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
@@ -422,11 +436,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		data.ThemeStyle = buildThemeStyle(prefs)
-		profileName := prefs.Profile
-		if profileName == "" {
-			profileName = cfg.Profile
-		}
-		activeProfile := resolveProfile(profileName)
+		activeProfile := effectiveProfile(cfg, prefs)
 		data.Profile = activeProfile.Name
 		data.DailyEnabled = activeProfile.DailyKey != ""
 		if _, ok := skins[prefs.Skin]; ok {
@@ -579,11 +589,7 @@ func injectTOC(body string, ix *Index, homeSlug string) string {
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 	cfg := app.config()
 	prefs := app.Auth.prefs(app.currentUser(r))
-	profileName := prefs.Profile
-	if profileName == "" {
-		profileName = cfg.Profile
-	}
-	p := resolveProfile(profileName)
+	p := effectiveProfile(cfg, prefs)
 
 	switch p.Landing {
 	case "daily":
@@ -2055,7 +2061,18 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
 
 	user := app.currentUser(r)
-	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, skinName, profileName, showTagsSidebar); err != nil {
+
+	// Individual widget toggles are relative to the profile actually in
+	// effect for this save (the one just chosen, falling back to the site
+	// default) — a user can add/remove a single widget without leaving
+	// their profile.
+	targetProfile := resolveProfile(profileName)
+	if profileName == "" {
+		targetProfile = effectiveProfile(app.config(), app.Auth.prefs(user))
+	}
+	widgetsAdd, widgetsRemove := computeWidgetOverrides(targetProfile, r.Form["widgets"])
+
+	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, skinName, profileName, widgetsAdd, widgetsRemove, showTagsSidebar); err != nil {
 		http.Error(w, "Failed to save appearance", http.StatusInternalServerError)
 		return
 	}

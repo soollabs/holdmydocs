@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 type widgetSlot string
 
@@ -78,6 +81,45 @@ func widgetsForSlot(slot widgetSlot, p profile, add, remove []string) []*widget 
 		}
 	}
 	return result
+}
+
+// profileDefaultIDs returns the set of every widget id p mounts, across all
+// slots.
+func profileDefaultIDs(p profile) map[string]bool {
+	set := make(map[string]bool)
+	for _, ids := range p.Widgets {
+		for _, id := range ids {
+			set[id] = true
+		}
+	}
+	return set
+}
+
+// computeWidgetOverrides diffs the checked widget ids (from the settings
+// form) against p's own defaults, producing the WidgetsAdd/WidgetsRemove
+// pair to store: ids checked but not in the profile go to add; ids in the
+// profile but not checked go to remove. A widget id that isn't a real
+// widget is dropped rather than stored.
+func computeWidgetOverrides(p profile, checked []string) (add, remove []string) {
+	defaults := profileDefaultIDs(p)
+	checkedSet := make(map[string]bool, len(checked))
+	for _, id := range checked {
+		if _, ok := widgets[id]; !ok {
+			continue
+		}
+		checkedSet[id] = true
+		if !defaults[id] {
+			add = append(add, id)
+		}
+	}
+	for id := range defaults {
+		if !checkedSet[id] {
+			remove = append(remove, id)
+		}
+	}
+	sort.Strings(add)
+	sort.Strings(remove)
+	return add, remove
 }
 
 // hasWidget reports whether id appears in list.

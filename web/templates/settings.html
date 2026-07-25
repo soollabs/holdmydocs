@@ -275,6 +275,19 @@
 			</div>
 		</fieldset>
 
+		<fieldset class="settings-section">
+			<legend>widgets</legend>
+			<p class="settings-note">Add or remove a single widget without leaving your profile.</p>
+			<div class="widget-checklist">
+				{{range .Settings.WidgetIDs}}{{$w := index $.Settings.Widgets .}}
+				<label class="widget-check">
+					<input type="checkbox" name="widgets" value="{{.}}" {{if index $.Settings.CheckedWidgets .}}checked{{end}}>
+					{{.}}{{if $w.Title}} <span class="widget-check-title">({{$w.Title}})</span>{{end}}
+				</label>
+				{{end}}
+			</div>
+		</fieldset>
+
 		<div class="settings-actions settings-actions-sticky">
 			<button type="submit" class="primary">save appearance</button>
 			<a href="/page/index" class="ghost-btn">cancel</a>

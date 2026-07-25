@@ -67,8 +67,9 @@ func (a *Auth) prefs(name string) userRecord {
 	return a.users[name]
 }
 
-// SetPrefs stores name's display preferences (palette, fonts, skin, profile, sidebar).
-func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin, profile string, showTagsSidebar bool) error {
+// SetPrefs stores name's display preferences (palette, fonts, skin, profile,
+// per-widget add/remove overrides, sidebar).
+func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin, profile string, widgetsAdd, widgetsRemove []string, showTagsSidebar bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	rec, ok := a.users[name]
@@ -80,6 +81,8 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin, profile string, s
 	rec.FontMono = fontMono
 	rec.Skin = skin
 	rec.Profile = profile
+	rec.WidgetsAdd = widgetsAdd
+	rec.WidgetsRemove = widgetsRemove
 	rec.ShowTagsSidebar = &showTagsSidebar
 	a.users[name] = rec
 	return a.save()

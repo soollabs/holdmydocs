@@ -85,3 +85,13 @@ func resolveProfile(name string) profile {
 	}
 	return profiles["docs"]
 }
+
+// effectiveProfile resolves the profile in effect for a user: their own
+// Profile pref if set, else the site-wide default.
+func effectiveProfile(cfg Config, prefs userRecord) profile {
+	name := prefs.Profile
+	if name == "" {
+		name = cfg.Profile
+	}
+	return resolveProfile(name)
+}
