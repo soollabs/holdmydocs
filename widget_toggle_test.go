@@ -29,7 +29,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	// (sidebar + rail + page-head + page-foot) minus sources, plus log.
 	checked := []string{
 		"identity", "search", "inbox", "tags", "keys", "log", // sidebar (sources dropped, log added)
-		"outline",                // rail
+		"outline",                  // rail
 		"source-card", "page-meta", // page-head
 		"backlinks", // page-foot
 	}
