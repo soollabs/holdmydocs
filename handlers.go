@@ -965,6 +965,8 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	if content != nil {
 		page = ParsePage(slug, content)
 		baseHash = hash
+	} else if strings.HasPrefix(slug, dailyDatePrefix) {
+		page.Tags = []string{"daily"}
 	}
 
 	app.render(w, r, http.StatusOK, "edit", TemplateData{

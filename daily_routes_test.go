@@ -31,10 +31,14 @@ func TestDailyPageRoundTrip(t *testing.T) {
 		t.Fatalf("GET /page/daily/2026-07-24/edit status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
+	if !bytes.Contains(body, []byte(`id="tags" name="tags" value="daily"`)) {
+		t.Errorf("expected new daily page to default the tags field to %q, got: %s", "daily", body)
+	}
 
 	form := url.Values{
 		"title":    {"2026-07-24"},
 		"body":     {"Today's entry."},
+		"tags":     {"daily"},
 		"basehash": {regexp.MustCompile(`name="basehash" value="([0-9a-f]*)"`).FindStringSubmatch(string(body))[1]},
 	}
 	saveResp, err := client.PostForm(server.URL+"/page/daily/2026-07-24/save", form)
