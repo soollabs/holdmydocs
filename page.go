@@ -53,10 +53,18 @@ func Slugify(title string) string {
 	return s
 }
 
+// ParseTags reads the value half of a frontmatter "tags:" line. Both the
+// plain form (tags: a, b) and YAML's flow sequence (tags: [a, b]) are
+// accepted — the brackets are conventional enough that leaving them in
+// produced tags literally named "[a" and "b]".
 func ParseTags(s string) []string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "[")
+	s = strings.TrimSuffix(s, "]")
 	var tags []string
 	for _, part := range strings.Split(s, ",") {
 		part = strings.TrimSpace(part)
+		part = strings.Trim(part, `"'`)
 		if part != "" {
 			tags = append(tags, part)
 		}
