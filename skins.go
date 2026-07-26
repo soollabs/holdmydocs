@@ -37,7 +37,7 @@ var skins = map[string]skin{
 		Note:    "terminal green, monospace, # markers — the default",
 		Palette: "phosphor",
 		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags", "log", "keys"},
+			slotSidebar:  {"identity", "pages", "tags", "log"},
 			slotRail:     {"outline"},
 			slotPageHead: {"page-meta"},
 			slotPageFoot: {"backlinks"},
@@ -51,7 +51,7 @@ var skins = map[string]skin{
 		Note:    "broadsheet — masthead, serif, justified columns, ink on paper",
 		Palette: "solarized",
 		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags", "keys"},
+			slotSidebar:  {"identity", "pages", "tags"},
 			slotRail:     {"outline"},
 			slotPageHead: {"page-meta"},
 			slotPageFoot: {"backlinks"},
@@ -65,7 +65,7 @@ var skins = map[string]skin{
 		Note:    "writing first — serif, wide measure, no chrome; lands on today's entry",
 		Palette: "everforest",
 		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "calendar", "writing-stats", "pages", "keys"},
+			slotSidebar:  {"identity", "calendar", "writing-stats", "pages"},
 			slotPageFoot: {"prev-entries"},
 		},
 		Landing:  "daily",
@@ -77,7 +77,7 @@ var skins = map[string]skin{
 		Note:    "rounded and low-contrast — warm sans, roomy leading, filled panels",
 		Palette: "rosé pine",
 		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags", "keys"},
+			slotSidebar:  {"identity", "pages", "tags"},
 			slotRail:     {"outline"},
 			slotPageHead: {"page-meta"},
 			slotPageFoot: {"backlinks"},
@@ -91,7 +91,7 @@ var skins = map[string]skin{
 		Note:    "subtraction only — no borders, no markers, wide margins",
 		Palette: "one dark",
 		Widgets: map[widgetSlot][]string{
-			slotSidebar: {"identity", "pages", "keys"},
+			slotSidebar: {"identity", "pages"},
 		},
 		Landing:  "home",
 		DailyKey: "",

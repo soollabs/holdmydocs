@@ -49,12 +49,14 @@
 		{{if eq .ID "tags"}}{{template "widget-tags" $}}{{end}}
 		{{if eq .ID "log"}}{{template "widget-log" $}}{{end}}
 		{{if eq .ID "health"}}{{template "widget-health" $}}{{end}}
-		{{if eq .ID "keys"}}{{template "widget-keys" $}}{{end}}
 		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
 		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
 		{{if eq .ID "inbox"}}{{template "widget-inbox" $}}{{end}}
 		{{if eq .ID "sources"}}{{template "widget-sources" $}}{{end}}
 		{{end}}
+		{{/* Settings/help/health access is not a toggleable widget: it must
+		     always be reachable regardless of skin or widget picks. */}}
+		{{template "widget-keys" $}}
 	</nav>
 	{{end}}
 	<main>

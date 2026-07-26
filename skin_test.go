@@ -35,9 +35,46 @@ func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
 	}
 }
 
-func TestBareSkinIncludesSettingsWidget(t *testing.T) {
-	if !skinDefaultIDs(skins["bare"])["keys"] {
-		t.Error("bare skin must include the keys widget with the settings link")
+// TestNoSkinTogglesSettingsWidget guards against "keys" (the settings/help
+// link) re-entering the skin/widget-checklist system: it must always render,
+// regardless of skin or the user's widget picks, so settings can never be
+// toggled out of reach.
+func TestNoSkinTogglesSettingsWidget(t *testing.T) {
+	for name := range skins {
+		if skinDefaultIDs(skins[name])["keys"] {
+			t.Errorf("skin %q lists \"keys\" as a widget; settings must render unconditionally instead", name)
+		}
+	}
+	if _, ok := widgets["keys"]; ok {
+		t.Error("\"keys\" must not be a toggleable widget; settings must always be visible")
+	}
+}
+
+// TestSettingsLinkAlwaysRendered checks the end-to-end guarantee behind the
+// above: even with every sidebar widget unchecked, the rendered page still
+// links to /settings.
+func TestSettingsLinkAlwaysRendered(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	form := url.Values{"skin": {"bare"}}
+	resp, err := client.PostForm(server.URL+"/settings/appearance", form)
+	if err != nil {
+		t.Fatalf("setting skin: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+
+	rendered, err := client.Get(server.URL + "/settings")
+	if err != nil {
+		t.Fatalf("GET /settings: %v", err)
+	}
+	body, err := io.ReadAll(rendered.Body)
+	closeTestBody(t, rendered.Body)
+	if err != nil {
+		t.Fatalf("reading settings response: %v", err)
+	}
+	if !bytes.Contains(body, []byte(`href="/settings"`)) {
+		t.Error("settings link missing from rendered sidebar even with the bare skin's minimal widget set")
 	}
 }
 

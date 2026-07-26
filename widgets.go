@@ -23,7 +23,7 @@ type widget struct {
 }
 
 var widgetIDs = []string{
-	"identity", "search", "pages", "pinned", "tags", "log", "health", "keys",
+	"identity", "search", "pages", "pinned", "tags", "log", "health",
 	"calendar", "writing-stats", "inbox", "sources",
 	"outline", "source-card", "page-meta", "backlinks", "prev-entries",
 }
@@ -36,7 +36,6 @@ var widgets = map[string]widget{
 	"tags":     {ID: "tags", Title: "TAGS", Slot: slotSidebar},
 	"log":      {ID: "log", Title: "LOG", Slot: slotSidebar},
 	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar},
-	"keys":     {ID: "keys", Title: "", Slot: slotSidebar},
 
 	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar},
 	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar},

@@ -20,7 +20,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	// Switch to soft, which defaults to {identity, pages, tags, keys} in the
+	// Switch to soft, which defaults to {identity, pages, tags} in the
 	// sidebar.
 	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {"soft"}})
 	if err != nil {
@@ -34,7 +34,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	// mirror soft's full default arrangement (sidebar + rail + page-head +
 	// page-foot) minus tags, plus inbox.
 	checked := []string{
-		"identity", "pages", "keys", "inbox", // sidebar (tags dropped, inbox added)
+		"identity", "pages", "inbox", // sidebar (tags dropped, inbox added)
 		"outline",   // rail
 		"page-meta", // page-head
 		"backlinks", // page-foot
@@ -65,7 +65,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	for _, w := range sidebar {
 		got[w.ID] = true
 	}
-	for _, id := range []string{"identity", "pages", "keys", "inbox"} {
+	for _, id := range []string{"identity", "pages", "inbox"} {
 		if !got[id] {
 			t.Errorf("expected widget %q still present after toggle, sidebar = %v", id, sidebar)
 		}
@@ -79,11 +79,11 @@ func TestWidgetToggleUI(t *testing.T) {
 // that isn't in the skin in the first place doesn't produce a spurious
 // WidgetsRemove entry (only ids actually in the skin can be "removed").
 func TestWidgetToggleRemovingAbsentIsNoOp(t *testing.T) {
-	// phosphor defaults to {identity, pages, tags, log, keys} in the sidebar
-	// plus outline/page-meta/backlinks in the other slots — "calendar" isn't
-	// one of them, so submitting the form without "calendar" checked (it
-	// never was) must not add "calendar" to WidgetsRemove.
-	phosphorFullDefaults := []string{"identity", "pages", "tags", "log", "keys", "outline", "page-meta", "backlinks"}
+	// phosphor defaults to {identity, pages, tags, log} in the sidebar plus
+	// outline/page-meta/backlinks in the other slots — "calendar" isn't one
+	// of them, so submitting the form without "calendar" checked (it never
+	// was) must not add "calendar" to WidgetsRemove.
+	phosphorFullDefaults := []string{"identity", "pages", "tags", "log", "outline", "page-meta", "backlinks"}
 	add, remove := computeWidgetOverrides(resolveSkin("phosphor"), phosphorFullDefaults)
 	if len(add) != 0 {
 		t.Errorf("add = %v, want none", add)
@@ -106,7 +106,7 @@ func TestSkinSwitchDiscardsStaleCheckboxes(t *testing.T) {
 	// The form as the browser would submit it while sitting on phosphor:
 	// phosphor's own widget set, ticked, plus a new skin choice.
 	form := url.Values{"skin": {"journal"}}
-	for _, id := range []string{"identity", "pages", "tags", "log", "keys", "outline", "page-meta", "backlinks"} {
+	for _, id := range []string{"identity", "pages", "tags", "log", "outline", "page-meta", "backlinks"} {
 		form.Add("widgets", id)
 	}
 	resp, err := client.PostForm(server.URL+"/settings/appearance", form)
@@ -154,7 +154,7 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	form := url.Values{"skin": {"journal"}}
-	for _, id := range []string{"identity", "calendar", "pages", "keys", "prev-entries"} {
+	for _, id := range []string{"identity", "calendar", "pages", "prev-entries"} {
 		form.Add("widgets", id)
 	}
 	resp2, err := client.PostForm(server.URL+"/settings/appearance", form)
