@@ -1,0 +1,287 @@
+{{define "content"}}
+<div class="content-col">
+<div class="breadcrumb">
+	<a href="/">{{.SiteName}}</a>
+	<span class="sep">/</span>
+	<span class="current">admin</span>
+</div>
+<h1 class="page-title"><span class="h"></span>admin settings</h1>
+
+{{if .Settings}}
+	{{if .Settings.Flash}}
+	<div class="settings-flash">{{.Settings.Flash}}</div>
+	{{end}}
+
+	{{if .Settings.HelpDrifted}}
+	<div class="settings-banner">
+		<code>.help.md</code> differs from hmd's built-in help text for this version.
+		It may have been edited, or written by an older version of hmd.
+		<form method="POST" action="/settings/help/reset" style="display:contents">
+			<button type="submit" class="ghost-btn">Reset to built-in</button>
+		</form>
+	</div>
+	{{end}}
+
+<section class="settings-zone">
+	<h2 class="settings-zone-title"><span class="h"></span>system configuration</h2>
+	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>.</p>
+
+	<div class="settings-tabs">
+		<button type="button" class="settings-tab" data-tab="server">server</button>
+		<button type="button" class="settings-tab" data-tab="git-remote">git remote</button>
+		<button type="button" class="settings-tab" data-tab="site">site</button>
+		<button type="button" class="settings-tab" data-tab="behaviour">behaviour</button>
+		<button type="button" class="settings-tab" data-tab="users">users</button>
+		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
+	</div>
+
+	<form method="POST" action="/admin" class="settings-form">
+
+		<fieldset class="settings-section settings-panel" data-panel="server">
+			<legend>server</legend>
+			<div class="settings-row">
+				<label for="bind">bind</label>
+				<input type="text" id="bind" name="bind" value="{{.Settings.Fields.Bind.Value}}"
+					{{if not .Settings.Fields.Bind.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.Bind.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Bind.EnvVar}}</span>{{end}}
+				{{if .Settings.Fields.Bind.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+			</div>
+			<div class="settings-row">
+				<label for="repo_dir">repo dir</label>
+				<input type="text" id="repo_dir" name="repo_dir" value="{{.Settings.Fields.RepoDir.Value}}"
+					{{if not .Settings.Fields.RepoDir.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.RepoDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RepoDir.EnvVar}}</span>{{end}}
+				{{if .Settings.Fields.RepoDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
+			</div>
+			<div class="settings-row">
+				<label for="app_dir">app dir</label>
+				<input type="text" id="app_dir" value="{{.Settings.Fields.AppDir.Value}}" readonly>
+				{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{else}}<span class="badge-bootstrap">bootstrap only</span>{{end}}
+				<span class="badge-restart">restart reqd</span>
+			</div>
+		</fieldset>
+
+		<fieldset class="settings-section settings-panel" data-panel="git-remote">
+			<legend>git remote</legend>
+			<div class="settings-row">
+				<label for="remote_url">remote url</label>
+				<input type="text" id="remote_url" name="remote_url" value="{{.Settings.Fields.RemoteURL.Value}}"
+					placeholder="https://example.com/repo.git"
+					{{if not .Settings.Fields.RemoteURL.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.RemoteURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RemoteURL.EnvVar}}</span>{{end}}
+			</div>
+			<div class="settings-row">
+				<label for="git_user">git user</label>
+				<input type="text" id="git_user" name="git_user" value="{{.Settings.Fields.GitUser.Value}}"
+					{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
+			</div>
+			<div class="settings-row">
+				<label for="git_author">git author (default)</label>
+				<input type="text" id="git_author" name="git_author" value="{{.Settings.Fields.GitAuthor.Value}}"
+					placeholder="Name &lt;email@example.com&gt;"
+					{{if not .Settings.Fields.GitAuthor.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.GitAuthor.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitAuthor.EnvVar}}</span>{{end}}
+			</div>
+			<p class="settings-note">Fallback author for anyone without their own override under &ldquo;your account&rdquo; on the main <a href="/settings">settings</a> page.</p>
+		<div class="settings-row">
+			<label for="git_token">git token</label>
+			<input type="password" id="git_token" name="git_token"
+				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
+				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
+			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label for="sync_mode">sync mode</label>
+			{{if .Settings.Fields.SyncMode.Editable}}
+			<select id="sync_mode" name="sync_mode">
+				<option value="push" {{if or (eq .Settings.SyncMode "") (eq .Settings.SyncMode "push")}}selected{{end}}>push (local &rarr; remote only)</option>
+				<option value="bidirectional" {{if eq .Settings.SyncMode "bidirectional"}}selected{{end}}>bidirectional (fetch + ff pull)</option>
+			</select>
+			{{else}}
+			<input type="text" id="sync_mode" name="sync_mode" value="{{.Settings.SyncMode}}" readonly>
+			{{end}}
+			{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
+		</div>
+		<div class="settings-status" id="sync-status">
+			last push: <span class="state-{{.SyncState}}">{{if eq .SyncState "no remote"}}n/a{{else}}{{.SyncState}}{{end}}</span> · {{.SyncAge}} · last fetch: {{if eq .SyncMode "bidirectional"}}{{.SyncAge}}{{else}}n/a (push mode){{end}}
+		</div>
+		</fieldset>
+
+		<fieldset class="settings-section settings-panel" data-panel="site">
+			<legend>site</legend>
+			<div class="settings-row">
+				<label for="site_name">site name</label>
+				<input type="text" id="site_name" name="site_name" value="{{.Settings.Fields.SiteName.Value}}"
+					{{if not .Settings.Fields.SiteName.Editable}}readonly{{end}}>
+				{{if .Settings.Fields.SiteName.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SiteName.EnvVar}}</span>{{end}}
+			</div>
+			<p class="settings-note">The site name is what the shell prompt, the masthead and every breadcrumb read &mdash; there are no separate hostname/path/user labels.</p>
+		</fieldset>
+
+		<fieldset class="settings-section settings-panel" data-panel="behaviour">
+			<legend>behaviour</legend>
+			<div class="settings-row">
+				<label for="max_upload_bytes">max upload (bytes)</label>
+				<input type="number" id="max_upload_bytes" name="max_upload_bytes" value="{{.Settings.MaxUploadBytes}}" min="1">
+			</div>
+			<div class="settings-row">
+				<label for="sync_poll_ms">sync poll (ms)</label>
+				<input type="number" id="sync_poll_ms" name="sync_poll_ms" value="{{.Settings.SyncPollMs}}" min="100">
+			</div>
+		</fieldset>
+
+		<div class="settings-actions settings-actions-sticky">
+			<button type="submit" class="primary">save system config</button>
+			<a href="/page/index" class="ghost-btn">cancel</a>
+		</div>
+
+	</form>
+
+	{{/* Lives outside the form above: a <form> cannot nest inside another
+	     <form>, and this panel needs its own per-user and create-user forms. */}}
+	<fieldset class="settings-section settings-panel" data-panel="users">
+		<legend>users</legend>
+		<div class="settings-row">
+			<label>admin user</label>
+			<input type="text" value="{{.Settings.Fields.AdminUser.Value}}" readonly>
+			<span class="badge-bootstrap">bootstrap only &mdash; set via HMD_ADMIN_USER/HMD_ADMIN_PASSWORD</span>
+		</div>
+		<div class="settings-row">
+			<label>admin pass</label>
+			<input type="password" value="&bull;&bull;&bull;&bull;" readonly>
+			<span class="badge-bootstrap">bootstrap only</span>
+		</div>
+
+		{{if .Settings.UserError}}
+		<p class="settings-error">{{.Settings.UserError}}</p>
+		{{end}}
+
+		<p class="settings-note">The bootstrap admin above always has full access &mdash; create another user below to grant restricted access instead.</p>
+
+		{{range .Settings.Users}}
+		{{$u := .}}
+		{{if ne $u.Name $.Settings.Fields.AdminUser.Value}}
+		<form method="POST" action="/settings/users/scopes" class="settings-row user-row">
+			<input type="hidden" name="name" value="{{$u.Name}}">
+			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
+			<span class="scope-checks">
+				{{range $.Settings.AllScopes}}
+				<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>
+				{{end}}
+			</span>
+			<button type="submit" class="ghost-btn">save</button>
+		</form>
+		{{end}}
+		{{end}}
+
+		<form method="POST" action="/settings/users" class="settings-form">
+			<div class="settings-row">
+				<label for="new_user_name">new user</label>
+				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
+				<input type="password" name="password" placeholder="password" autocomplete="new-password">
+			</div>
+			<div class="settings-row">
+				<label>scopes</label>
+				<span class="scope-checks">
+					{{range .Settings.AllScopes}}
+					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>
+					{{end}}
+				</span>
+			</div>
+			<p class="settings-note">Leave every scope unchecked for full access.</p>
+			<div class="settings-actions">
+				<button type="submit" class="primary">create user</button>
+			</div>
+		</form>
+	</fieldset>
+
+	{{if .Settings.HasEnvOverrides}}
+	<fieldset class="settings-section settings-panel" data-panel="advanced">
+		<legend>environment overrides</legend>
+		<p class="settings-note">
+			Some settings above are set via <code>HMD_*</code> environment variables (marked
+			<span class="badge-env">set via HMD_X</span>) and read-only here. Exporting writes
+			the values currently in effect &mdash; including those env-set ones &mdash; into
+			<code>{{.Settings.ConfigPath}}</code>, so you can drop the env vars and manage
+			everything from this page afterwards.
+		</p>
+		{{if .Settings.ExportSecretVars}}
+		<div class="settings-banner">
+			&#9888; Exporting writes the following secret{{if gt (len .Settings.ExportSecretVars) 1}}s{{end}}
+			into <code>{{.Settings.ConfigPath}}</code> in <strong>plaintext</strong>:
+			<ul>
+				{{range .Settings.ExportSecretVars}}<li><code>{{.}}</code></li>{{end}}
+			</ul>
+			Make sure that file's permissions and backups are treated accordingly, or skip
+			exporting and keep the secret in the environment.
+		</div>
+		{{end}}
+		<form method="POST" action="/settings/export" id="export-config-form">
+			<div class="settings-actions">
+				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
+			</div>
+		</form>
+	</fieldset>
+	{{end}}
+
+	<fieldset class="settings-section settings-panel" data-panel="site">
+		<legend>wiki setup</legend>
+		<div class="settings-row">
+			<label>home page</label>
+			<input type="text" value="{{.Settings.HomeFilename}}" readonly>
+			{{if .Settings.HomeFilenameEnv}}<span class="badge-env">set via {{.Settings.HomeFilenameEnv}}</span>{{else}}<span class="badge-restart">restart reqd</span>{{end}}
+		</div>
+		<div class="settings-row">
+			<label>re-seed setup</label>
+			<form method="POST" action="/settings/setup" style="display:contents">
+				<button type="submit" class="ghost-btn">Re-run setup</button>
+			</form>
+		</div>
+	</fieldset>
+</section>
+{{end}}
+</div>
+<script>
+(function () {
+	// Settings tabs: one independent tab strip per zone. Panels default to
+	// visible (so the page still works with JS disabled); this only hides
+	// the inactive ones once it runs. A panel id can appear more than once
+	// (e.g. "site" spans a fieldset inside the form and one outside it) —
+	// all instances toggle together.
+	document.querySelectorAll('.settings-zone').forEach(function (zone) {
+		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
+		if (!tabs.length) return;
+		function activate(id) {
+			tabs.forEach(function (t) {
+				t.classList.toggle('active', t.dataset.tab === id);
+			});
+			zone.querySelectorAll('.settings-panel').forEach(function (p) {
+				p.hidden = p.dataset.panel !== id;
+			});
+		}
+		tabs.forEach(function (t) {
+			t.addEventListener('click', function () {
+				activate(t.dataset.tab);
+				history.replaceState(null, '', '#' + t.dataset.tab);
+			});
+		});
+		var hashId = location.hash.slice(1);
+		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
+	});
+
+	var exportForm = document.getElementById('export-config-form');
+	if (exportForm) {
+		exportForm.addEventListener('submit', function (e) {
+			var msg = 'This overwrites {{.Settings.ConfigPath}} with the settings currently in effect, including any set via environment variables.';
+			{{if .Settings.ExportSecretVars}}
+			msg += ' This writes the following secret(s) to the file in PLAINTEXT: {{range $i, $v := .Settings.ExportSecretVars}}{{if $i}}, {{end}}{{$v}}{{end}}.';
+			{{end}}
+			if (!confirm(msg + ' Continue?')) {
+				e.preventDefault();
+			}
+		});
+	}
+})();
+</script>
+{{end}}
