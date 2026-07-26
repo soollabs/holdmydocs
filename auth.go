@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -194,7 +195,7 @@ func OpenAuth(cfg Config) (*Auth, error) {
 			slog.Info("bootstrapped admin user", "user", cfg.AdminUser)
 		} else {
 			// No bootstrap, empty users
-			slog.Warn("no users.json and no HMD_ADMIN_USER/HMD_ADMIN_PASSWORD set; run: hmd adduser <name>")
+			slog.Warn("no users.json and no HMD_ADMIN_USER/HMD_ADMIN_PASSWORD set; set them and restart to create the first user")
 		}
 	} else {
 		return nil, fmt.Errorf("reading users file: %w", err)
@@ -226,6 +227,38 @@ func (a *Auth) AddUser(name, password string) error {
 		slog.Info("user added", "user", name)
 	}
 	return err
+}
+
+// UserExists reports whether name has a user record.
+func (a *Auth) UserExists(name string) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	_, ok := a.users[name]
+	return ok
+}
+
+// UserSummary is one row in the settings-page user list. Has is keyed by
+// scope name ("read", "write", "settings") so the template can tick the
+// right checkboxes without needing custom template funcs.
+type UserSummary struct {
+	Name string
+	Has  map[string]bool
+}
+
+// Users lists every user, sorted by name, for the settings page.
+func (a *Auth) Users() []UserSummary {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	out := make([]UserSummary, 0, len(a.users))
+	for name, rec := range a.users {
+		has := make(map[string]bool, len(allScopes))
+		for _, s := range allScopes {
+			has[string(s)] = rec.hasScope(s)
+		}
+		out = append(out, UserSummary{Name: name, Has: has})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // AddToken mints a personal access token for name, labelled label, expiring
@@ -476,17 +509,18 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 	return
 }
 
-// requiredScope reports which scope r needs. /settings (any method) needs
-// "settings". Everything else follows HTTP method: a body-carrying method
-// needs "write", a safe one needs "read". /mcp bundles read and write tools
-// behind a single JSON-RPC endpoint with no per-tool scoping yet, so it
-// checked separately, below, against both.
+// requiredScope reports which scope r needs. /settings and /admin (any
+// method) need "settings". Everything else follows HTTP method: a
+// body-carrying method needs "write", a safe one needs "read". /mcp bundles
+// read and write tools behind a single JSON-RPC endpoint with no per-tool
+// scoping yet, so it checked separately, below, against both.
 //
 // method-based, not route-based, so a handful of read-only-looking
 // POSTs (e.g. /search) don't exist — check with the route table in
 // handlers.go if a new write-shaped GET or read-shaped POST is ever added.
 func requiredScope(r *http.Request) scope {
-	if r.URL.Path == "/settings" || strings.HasPrefix(r.URL.Path, "/settings/") {
+	if r.URL.Path == "/settings" || strings.HasPrefix(r.URL.Path, "/settings/") ||
+		r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
 		return scopeSettings
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {

@@ -34,7 +34,7 @@ bare-metal or a home server unless you actually have `/data` set up.
 
 Install-wide settings live in `config.yaml` beside `users.json` in
 `HMD_APP_DIR` (default `/data/app/config.yaml`). hmd creates the file when
-you first save `/settings`; edit it by hand or from `/settings`.
+you first save `/admin`; edit it by hand or from `/admin`.
 
 Two things are env-only out of necessity — they say *where* the config
 file lives, so they can't come from the file itself:
@@ -49,7 +49,7 @@ and does not write them to the config file:
 
 | Variable | Meaning |
 |----------|---------|
-| `HMD_ADMIN_USER` / `HMD_ADMIN_PASSWORD` | Bootstrap admin credentials, used only on first run (creates the user if `users.json` doesn't exist yet). Manage users afterwards with `hmd adduser`. |
+| `HMD_ADMIN_USER` / `HMD_ADMIN_PASSWORD` | Bootstrap admin credentials, used only on first run (creates the user if `users.json` doesn't exist yet). Manage users afterwards from `/admin` (see Users, below). |
 
 All other settings, including the git token and OIDC client secret, can be
 set in `config.yaml` (`git.token`, `oidc.client_secret`). The
@@ -96,16 +96,20 @@ nested keys include their section, for example:
 `repo_dir` ↔ `HMD_REPO_DIR`, `git.remote_url` ↔ `HMD_GIT_REMOTE_URL`,
 `oidc.client_id` ↔ `HMD_OIDC_CLIENT_ID`. Use these for Docker/k8s deployments
 that inject configuration rather than mount a file. Environment values
-override the file and appear read-only in `/settings` with a `set via HMD_X`
-badge. Unknown file keys are rejected at startup.
+override the file and appear read-only in `/admin` with a `set via
+HMD_X` badge. Unknown file keys are rejected at startup.
 
 Skin, palette and fonts are **per-user** preferences, not install-wide
 config — see below.
 
-### In-app settings page (`/settings`)
+### In-app settings pages (`/settings`, `/admin`)
 
-Every install-wide field above is editable from the UI, without restarting
-the process for most of them:
+`/settings` covers your own account — appearance, widgets, git author,
+access tokens. `/settings` links to `/admin` for everything
+install-wide, below; both require an account with the `settings` scope.
+
+Every install-wide field above is editable from `/admin`, without
+restarting the process for most of them:
 
 - **Live vs restart-required:** `git.remote_url`, `git.user`, `git.token`,
   `git.author`, `sync_mode`, `site_name`, upload size, and sync poll
@@ -123,7 +127,7 @@ the process for most of them:
   are also here. Each user sets their own; nothing here affects other
   users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
-  Manage users with `hmd adduser` instead (see Users, below).
+  Manage users from the **users** tab instead (see Users, below).
 - **Re-run setup:** reopens the home-page/help-guide setup modal so you can
   add either file again if it was deleted.
 - **Help drift warning:** if `.help.md` differs from the binary's built-in
@@ -301,30 +305,28 @@ HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD=mypass ./hmd
 ```
 
 ### Add users later
-```bash
-./hmd adduser alice
-# Prompts for password
-```
 
-Or in Docker:
-```bash
-docker compose exec hmd /hmd adduser alice
-```
-
-(Note: distroless images have no shell, so the form above invokes the binary directly.)
+From `/admin` → **users** (needs an account with `settings` scope):
+the **new user** form takes a name, password and scopes, and creates the
+user immediately — no CLI or restart needed.
 
 ### Scopes
 
-Every user has full read/write/settings access by default. To restrict one:
+Every user has full read/write/settings access by default. Each user other
+than the bootstrap admin has a `read`/`write`/`settings` checkbox row in the
+**users** tab, ticked to their current access; save with only some ticked to
+restrict them to exactly those scopes, or untick all three to restore full
+access. Valid scopes: `read` (view pages, search), `write` (save, rename,
+tag, upload), `settings` (`/settings` and `/admin`, including
+tokens and user management). A request outside a user's scopes gets `403
+Forbidden`.
 
-```bash
-./hmd scopes alice read
-```
-
-Comma-separate multiple scopes (`read,write`). Run `./hmd scopes alice` with no
-scope list to restore full access. Valid scopes: `read` (view pages, search),
-`write` (save, rename, tag, upload), `settings` (`/settings`, including
-tokens). A request outside a user's scopes gets `403 Forbidden`.
+The bootstrap admin (`HMD_ADMIN_USER`) always keeps full access and isn't
+listed with editable checkboxes — it's the one account that can't be
+recreated from the UI, so it can't be locked out either. To restrict an
+administrator's own account, create a second user instead. Any other user
+also can't remove their own `settings` scope, since that would lock them
+out with no CLI left to undo it.
 
 ### Personal access tokens
 API and MCP clients use Bearer tokens instead of the session cookie. Create one

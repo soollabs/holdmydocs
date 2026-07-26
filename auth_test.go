@@ -150,6 +150,49 @@ func TestParseAuthor(t *testing.T) {
 	}
 }
 
+func TestUsersListsSortedWithScopes(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("OpenAuth: %v", err)
+	}
+	if err := auth.AddUser("zed", "pw"); err != nil {
+		t.Fatalf("AddUser: %v", err)
+	}
+	if err := auth.AddUser("amy", "pw"); err != nil {
+		t.Fatalf("AddUser: %v", err)
+	}
+	if err := auth.SetScopes("amy", []string{"read"}); err != nil {
+		t.Fatalf("SetScopes: %v", err)
+	}
+
+	users := auth.Users()
+	if len(users) != 2 || users[0].Name != "amy" || users[1].Name != "zed" {
+		t.Fatalf("Users() = %+v, want [amy, zed] sorted", users)
+	}
+	if !users[0].Has["read"] || users[0].Has["write"] {
+		t.Errorf("amy scopes = %+v, want read only", users[0].Has)
+	}
+	if !users[1].Has["read"] || !users[1].Has["write"] || !users[1].Has["settings"] {
+		t.Errorf("zed (full access) scopes = %+v, want all true", users[1].Has)
+	}
+}
+
+func TestUserExists(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("OpenAuth: %v", err)
+	}
+	if auth.UserExists("nobody") {
+		t.Error("UserExists should be false before the user is added")
+	}
+	if err := auth.AddUser("nobody", "pw"); err != nil {
+		t.Fatalf("AddUser: %v", err)
+	}
+	if !auth.UserExists("nobody") {
+		t.Error("UserExists should be true after the user is added")
+	}
+}
+
 func TestUserGitAuthorPersists(t *testing.T) {
 	appDir := t.TempDir()
 	auth, err := OpenAuth(Config{AppDir: appDir, AdminUser: "admin", AdminPass: "pw"})

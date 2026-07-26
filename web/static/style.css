@@ -1867,6 +1867,26 @@ body.zen-manuscript .zen-status.visible {
 	flex: 1;
 }
 
+.scope-checks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	flex: 1;
+}
+
+.scope-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	min-width: 0;
+	color: var(--fg-strong);
+	font-weight: 400;
+}
+
+.scope-check input {
+	flex: none;
+}
+
 .settings-form {
 	max-width: 48rem;
 }
@@ -1895,6 +1915,36 @@ body.zen-manuscript .zen-status.visible {
 	color: var(--fg-muted);
 	font-size: 0.85rem;
 	margin: 0 0 1.25rem;
+}
+
+.settings-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+	margin-bottom: 1.25rem;
+	border-bottom: var(--border-w) solid var(--chrome-border);
+}
+
+.settings-tab {
+	background: none;
+	border: none;
+	color: var(--fg-muted);
+	font-family: inherit;
+	font-size: 0.85rem;
+	text-transform: lowercase;
+	padding: 0.5rem 0.75rem;
+	margin-bottom: -1px;
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
+}
+
+.settings-tab:hover {
+	color: var(--fg-strong);
+}
+
+.settings-tab.active {
+	color: var(--primary);
+	border-bottom-color: var(--primary);
 }
 
 .settings-section {
@@ -2035,7 +2085,7 @@ body.zen-manuscript .zen-status.visible {
 		flex-wrap: wrap;
 	}
 
-	.settings-row label {
+	.settings-row label:not(.scope-check) {
 		min-width: 100%;
 	}
 
@@ -2428,22 +2478,92 @@ body.zen-manuscript .zen-status.visible {
 }
 
 .widget-checklist {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-	gap: 4px 12px;
+	display: flex;
+	flex-direction: column;
+}
+
+.widget-check-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 16px;
+	padding: 10px 0;
+	border-bottom: var(--border-w) solid var(--chrome-border);
+}
+
+.widget-check-row:last-child {
+	border-bottom: none;
 }
 
 .widget-check {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 6px;
+	flex: 1;
+	min-width: 0;
 	font-size: 13px;
 	color: var(--fg-muted);
+}
+
+.widget-check input[type="checkbox"] {
+	grid-row: 1;
+	margin: 3px 0 0;
+}
+
+.widget-check-name {
+	grid-row: 1;
 }
 
 .widget-check-title {
 	color: var(--fg-faint);
 	font-size: 11px;
+}
+
+.widget-check-desc {
+	grid-column: 2;
+	color: var(--fg-faint);
+	font-size: 12px;
+	margin-top: 2px;
+}
+
+.widget-preview,
+.widget-preview-note {
+	flex: 0 0 200px;
+	max-width: 200px;
+}
+
+.widget-preview {
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
+	padding: 10px;
+	max-height: 150px;
+	overflow: hidden;
+	pointer-events: none;
+	font-size: 12px;
+}
+
+/* .widget-preview reuses .sidebar for its cosmetics (h2/section spacing,
+   prompt colours) — but .sidebar also carries the real sidebar's
+   positioning, including the off-canvas drawer transform under 900px.
+   Two classes beats one, so this wins regardless of viewport width. */
+.widget-preview.sidebar {
+	position: static;
+	inset: auto;
+	width: auto;
+	z-index: auto;
+	transform: none;
+	transition: none;
+	border-right: none;
+}
+
+.widget-preview .sidebar-section {
+	margin-bottom: 0;
+}
+
+.widget-preview-note {
+	color: var(--fg-faint);
+	font-size: 12px;
+	font-style: italic;
+	align-self: center;
 }
 
 /* Skin and palette pickers: radio cards. The radio itself is hidden — the

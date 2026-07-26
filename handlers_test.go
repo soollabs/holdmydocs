@@ -1138,11 +1138,11 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("POST /settings failed: %v", err)
+		t.Fatalf("POST /admin failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 
@@ -1182,11 +1182,11 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("POST /settings failed: %v", err)
+		t.Fatalf("POST /admin failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 
@@ -1338,9 +1338,9 @@ func TestSettingsFullFlow(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/settings")
+	resp, err := client.Get(server.URL + "/admin")
 	if err != nil {
-		t.Fatalf("GET /settings failed: %v", err)
+		t.Fatalf("GET /admin failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
@@ -1359,11 +1359,11 @@ func TestSettingsFullFlow(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/settings", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp2, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("POST /settings failed: %v", err)
+		t.Fatalf("POST /admin failed: %v", err)
 	}
 	if err := resp2.Body.Close(); err != nil {
 		t.Fatalf("closing settings response body: %v", err)
@@ -1372,9 +1372,9 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Errorf("POST Status = %d, want 303", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/settings?saved=1")
+	resp3, err := client.Get(server.URL + "/admin?saved=1")
 	if err != nil {
-		t.Fatalf("GET /settings?saved=1 failed: %v", err)
+		t.Fatalf("GET /admin?saved=1 failed: %v", err)
 	}
 	body3, _ := io.ReadAll(resp3.Body)
 	if err := resp3.Body.Close(); err != nil {

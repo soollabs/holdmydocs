@@ -2,6 +2,7 @@ package main
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -17,9 +18,10 @@ const (
 )
 
 type widget struct {
-	ID    string
-	Title string     // "" = renders no <h2>
-	Slot  widgetSlot // default slot; a skin may override
+	ID          string
+	Title       string     // "" = renders no <h2>
+	Slot        widgetSlot // default slot; a skin may override
+	Description string     // one line, shown on the settings page
 }
 
 var widgetIDs = []string{
@@ -29,24 +31,24 @@ var widgetIDs = []string{
 }
 
 var widgets = map[string]widget{
-	"identity": {ID: "identity", Title: "", Slot: slotSidebar},
-	"search":   {ID: "search", Title: "SEARCH", Slot: slotSidebar},
-	"pages":    {ID: "pages", Title: "PAGES", Slot: slotSidebar},
-	"pinned":   {ID: "pinned", Title: "PINNED", Slot: slotSidebar},
-	"tags":     {ID: "tags", Title: "TAGS", Slot: slotSidebar},
-	"log":      {ID: "log", Title: "LOG", Slot: slotSidebar},
-	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar},
+	"identity": {ID: "identity", Title: "", Slot: slotSidebar, Description: "who you are and where — a shell prompt or masthead, depending on skin."},
+	"search":   {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
+	"pages":    {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages, most recent first."},
+	"pinned":   {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
+	"tags":     {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "every tag in the wiki, with page counts."},
+	"log":      {ID: "log", Title: "LOG", Slot: slotSidebar, Description: "the last few commits to the page you're viewing."},
+	"health":   {ID: "health", Title: "HEALTH", Slot: slotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
 
-	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar},
-	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar},
-	"inbox":         {ID: "inbox", Title: "INBOX", Slot: slotSidebar},
-	"sources":       {ID: "sources", Title: "SOURCES", Slot: slotSidebar},
+	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar, Description: "a month grid of daily pages, with entries highlighted."},
+	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar, Description: "days written, streak, and word count for this month."},
+	"inbox":         {ID: "inbox", Title: "INBOX", Slot: slotSidebar, Description: "unread pages waiting for your attention."},
+	"sources":       {ID: "sources", Title: "SOURCES", Slot: slotSidebar, Description: "pages grouped by source domain, for link-heavy wikis."},
 
-	"outline":      {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail},
-	"source-card":  {ID: "source-card", Title: "", Slot: slotPageHead},
-	"page-meta":    {ID: "page-meta", Title: "", Slot: slotPageHead},
-	"backlinks":    {ID: "backlinks", Title: "linked from", Slot: slotPageFoot},
-	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot},
+	"outline":      {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail, Description: "a table of contents built from the headings on the page you're viewing."},
+	"source-card":  {ID: "source-card", Title: "", Slot: slotPageHead, Description: "the original URL, author, and read time for an imported article."},
+	"page-meta":    {ID: "page-meta", Title: "", Slot: slotPageHead, Description: "tags, last editor, and revision count for the page you're viewing."},
+	"backlinks":    {ID: "backlinks", Title: "linked from", Slot: slotPageFoot, Description: "other pages that link to this one."},
+	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot, Description: "the daily entries just before this one."},
 }
 
 // widgetsForSlot returns the widgets that render in a given slot, in order,
@@ -186,5 +188,71 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	}
 	if needs("source-card") && data.Slug != "" {
 		data.SourceMeta = app.Index.MetaFor(data.Slug)
+	}
+}
+
+// populateWidgetPreviews fills every optional widget's data field with a
+// real, representative sample (the wiki's home page, and its most recent
+// daily entry) so the settings page can show a live preview of each widget
+// regardless of which ones are actually mounted for this user. Fields left
+// untouched here (because the widget is already mounted) are populated by
+// populateWidgetData instead, with the user's own real data taking
+// precedence.
+//
+// Preview boxes are rendered inert (see .widget-preview in style.css), so
+// it's fine that the slugs used here aren't the page actually being viewed.
+func (app *App) populateWidgetPreviews(data *TemplateData) {
+	dailySlugs, _ := app.Store.DailyPages()
+	now := time.Now()
+	data.Calendar = buildCalendarMonth(now, dailySlugs)
+
+	bodyWords := func(slug string) int {
+		content, _, err := app.Store.Read(pageFile(slug))
+		if err != nil {
+			return 0
+		}
+		return countWords(ParsePage(slug, content).Body)
+	}
+	data.WritingStats = buildWritingStats(now, dailySlugs, bodyWords)
+
+	if len(dailySlugs) > 0 {
+		firstLine := func(slug string) string {
+			content, _, err := app.Store.Read(pageFile(slug))
+			if err != nil {
+				return ""
+			}
+			return firstNonEmptyLine(ParsePage(slug, content).Body)
+		}
+		latest := dailySlugs[len(dailySlugs)-1]
+		data.PrevEntries = buildPrevEntries(latest, dailySlugs, 3, firstLine)
+	}
+
+	data.Inbox = app.Index.UnreadPages()
+	data.Sources = app.Index.SourceCounts()
+	data.PinnedPages = app.Index.PinnedPages()
+
+	homeSlug := app.config().HomeSlug()
+	data.SourceMeta = app.Index.MetaFor(homeSlug)
+
+	if content, _, err := app.Store.Read(pageFile(homeSlug)); err == nil {
+		page := ParsePage(homeSlug, content)
+		for _, tag := range page.Tags {
+			data.PageTags = append(data.PageTags, TagChip{Tag: tag, Slug: Slugify(tag)})
+		}
+	}
+	titles := app.Index.Titles()
+	for _, bslug := range app.Index.Backlinks(homeSlug) {
+		data.Backlinks = append(data.Backlinks, BacklinkEntry{Slug: bslug, Title: titles[bslug]})
+	}
+	if history, err := app.Store.History(pageFile(homeSlug)); err == nil && len(history) > 0 {
+		data.RevisionCount = len(history)
+		data.HeadAuthor = history[0].Author
+		data.HeadWhen = relativeTime(history[0].When)
+		for _, c := range history[:min(3, len(history))] {
+			data.RecentCommits = append(data.RecentCommits, LogEntry{
+				Age:     relativeTime(c.When),
+				Message: strings.TrimSpace(c.Message),
+			})
+		}
 	}
 }

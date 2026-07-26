@@ -189,14 +189,18 @@ type SettingsData struct {
 	Widgets          map[string]widget   // id -> definition, for labels
 	CheckedWidgets   map[string]bool     // id -> currently active for this user (skin defaults + their add/remove)
 	HelpDrifted      bool
-	UserGitAuthor    string      // current user's per-user git author override
-	HomeFilename     string      // read-only display; restart required to change
-	HomeFilenameEnv  string      // env var name if it overrides the file, else ""
-	Tokens           []TokenView // current user's personal access tokens
-	NewToken         string      // freshly minted token value, shown exactly once
-	TokenError       string      // token create/revoke validation error
-	HasEnvOverrides  bool        // any field currently sourced from an env var — shows the "export to file" action
-	ExportSecretVars []string    // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
+	UserGitAuthor    string        // current user's per-user git author override
+	HomeFilename     string        // read-only display; restart required to change
+	HomeFilenameEnv  string        // env var name if it overrides the file, else ""
+	Tokens           []TokenView   // current user's personal access tokens
+	NewToken         string        // freshly minted token value, shown exactly once
+	TokenError       string        // token create/revoke validation error
+	HasEnvOverrides  bool          // any field currently sourced from an env var — shows the "export to file" action
+	ExportSecretVars []string      // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
+	Users            []UserSummary // every user, for the users tab
+	AllScopes        []string      // "read", "write", "settings" — the scope checkbox options
+	CurrentUser      string        // name of the logged-in user, so the users tab can block self-lockout
+	UserError        string        // create/scope-update validation error
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -617,12 +621,15 @@ func (app *App) Routes() http.Handler {
 
 	// Settings
 	mux.HandleFunc("GET /settings", app.handleSettingsGet)
-	mux.HandleFunc("POST /settings", app.handleSettingsPost)
+	mux.HandleFunc("GET /admin", app.handleAdminGet)
+	mux.HandleFunc("POST /admin", app.handleSettingsPost)
 	mux.HandleFunc("POST /settings/appearance", app.handleSettingsAppearance)
 	mux.HandleFunc("POST /settings/export", app.handleSettingsExport)
 	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
 	mux.HandleFunc("POST /settings/tokens", app.handleCreateToken)
 	mux.HandleFunc("POST /settings/tokens/revoke", app.handleRevokeToken)
+	mux.HandleFunc("POST /settings/users", app.handleCreateUser)
+	mux.HandleFunc("POST /settings/users/scopes", app.handleSetUserScopes)
 	mux.HandleFunc("POST /settings/setup", app.handleRerunSetup)
 	mux.HandleFunc("POST /settings/help/reset", app.handleResetHelp)
 
@@ -811,7 +818,7 @@ func refererPath(r *http.Request, fallback string) string {
 // until submission; selecting an existing file overwrites it.
 func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 	app.Store.ForceSetup.Store(true)
-	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 // handleSetAuthor stores the current user's git author override ("Name <email>",
@@ -834,7 +841,7 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to reset .help.md", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
@@ -1832,6 +1839,9 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	sd := buildSettingsData(cfg, app.Auth.prefs(user))
 	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
+	sd.Users = app.Auth.Users()
+	sd.AllScopes = []string{string(scopeRead), string(scopeWrite), string(scopeSettings)}
+	sd.CurrentUser = user
 	for _, t := range app.Auth.TokensFor(user) {
 		expires := "never"
 		switch {
@@ -1855,14 +1865,16 @@ var tokenTTLs = map[string]time.Duration{
 	"never": 0,
 }
 
-func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd SettingsData) {
-	app.render(w, r, http.StatusOK, "settings", TemplateData{
+func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd SettingsData, tmpl string) {
+	data := TemplateData{
 		Authed:        true,
 		Title:         "Settings",
 		StatusMode:    "settings",
 		StatusContext: "config",
 		Settings:      &sd,
-	})
+	}
+	app.populateWidgetPreviews(&data)
+	app.render(w, r, http.StatusOK, tmpl, data)
 }
 
 func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
@@ -1870,10 +1882,22 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("saved"); q == "1" {
 		sd.Flash = "Settings saved"
 	}
+	app.renderSettings(w, r, sd, "settings")
+}
+
+// handleAdminGet renders the system-configuration page (server, git
+// remote, users, advanced overrides, wiki setup) — split out from the
+// personal /settings page since only accounts with the "settings" scope ever
+// reach either one, but the two cover very different ground.
+func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
+	sd := app.settingsData(r)
+	if q := r.URL.Query().Get("saved"); q == "1" {
+		sd.Flash = "Settings saved"
+	}
 	if q := r.URL.Query().Get("exported"); q == "1" {
 		sd.Flash = "Config exported to " + sd.ConfigPath
 	}
-	app.renderSettings(w, r, sd)
+	app.renderSettings(w, r, sd, "admin")
 }
 
 // handleCreateToken mints a PAT for the current user and re-renders the
@@ -1883,7 +1907,7 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	if label == "" {
 		sd := app.settingsData(r)
 		sd.TokenError = "Token needs a name"
-		app.renderSettings(w, r, sd)
+		app.renderSettings(w, r, sd, "settings")
 		return
 	}
 	ttl, ok := tokenTTLs[r.FormValue("expiry")]
@@ -1899,13 +1923,13 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		sd := app.settingsData(r)
 		sd.TokenError = err.Error()
-		app.renderSettings(w, r, sd)
+		app.renderSettings(w, r, sd, "settings")
 		return
 	}
 	slog.Info("token created", "user", user, "label", label)
 	sd := app.settingsData(r)
 	sd.NewToken = token
-	app.renderSettings(w, r, sd)
+	app.renderSettings(w, r, sd, "settings")
 }
 
 // handleRevokeToken revokes the current user's token named by the form.
@@ -1915,11 +1939,88 @@ func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 	if err := app.Auth.RemoveToken(user, label); err != nil {
 		sd := app.settingsData(r)
 		sd.TokenError = err.Error()
-		app.renderSettings(w, r, sd)
+		app.renderSettings(w, r, sd, "settings")
 		return
 	}
 	slog.Info("token revoked", "user", user, "label", label)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+}
+
+// handleCreateUser adds a new user from the settings page, with the scopes
+// selected in the form (none checked = full access, matching AddUser's
+// existing default for CLI-added users).
+func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	password := r.FormValue("password")
+	scopes := r.Form["scopes"]
+
+	fail := func(msg string) {
+		sd := app.settingsData(r)
+		sd.UserError = msg
+		app.renderSettings(w, r, sd, "admin")
+	}
+
+	if name == "" || password == "" {
+		fail("Name and password are required")
+		return
+	}
+	if app.Auth.UserExists(name) {
+		fail(fmt.Sprintf("User %q already exists", name))
+		return
+	}
+	if err := app.Auth.AddUser(name, password); err != nil {
+		fail(err.Error())
+		return
+	}
+	if err := app.Auth.SetScopes(name, scopes); err != nil {
+		fail(err.Error())
+		return
+	}
+	slog.Info("user created", "user", name, "by", app.currentUser(r))
+	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
+}
+
+// handleSetUserScopes updates an existing user's scopes from the settings
+// page. The bootstrap admin (HMD_ADMIN_USER) always keeps full access —
+// it's not listed with editable checkboxes, but this also rejects a
+// hand-crafted request against it, since it's the one account that can't be
+// recreated from the UI if it were ever locked out. Beyond that, a user may
+// not strip their own settings scope — with hmd scopes gone, that would lock
+// them out of /settings with no way back short of hand-editing users.json.
+func (app *App) handleSetUserScopes(w http.ResponseWriter, r *http.Request) {
+	name := r.FormValue("name")
+	scopes := r.Form["scopes"]
+
+	if name == app.config().AdminUser {
+		sd := app.settingsData(r)
+		sd.UserError = "the bootstrap admin user always has full access"
+		app.renderSettings(w, r, sd, "admin")
+		return
+	}
+
+	if name == app.currentUser(r) {
+		hasSettings := len(scopes) == 0
+		for _, s := range scopes {
+			if s == string(scopeSettings) {
+				hasSettings = true
+			}
+		}
+		if !hasSettings {
+			sd := app.settingsData(r)
+			sd.UserError = "cannot remove your own settings access"
+			app.renderSettings(w, r, sd, "admin")
+			return
+		}
+	}
+
+	if err := app.Auth.SetScopes(name, scopes); err != nil {
+		sd := app.settingsData(r)
+		sd.UserError = err.Error()
+		app.renderSettings(w, r, sd, "admin")
+		return
+	}
+	slog.Info("user scopes updated", "user", name, "by", app.currentUser(r))
+	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
 }
 
 func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
@@ -2016,7 +2117,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("settings updated", "by", app.currentUser(r))
-	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
 }
 
 // handleSettingsAppearance saves the current user's personal preferences —
@@ -2105,5 +2206,5 @@ func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 	app.SetConfig(newCfg)
 
 	slog.Info("settings exported to config file", "by", app.currentUser(r))
-	http.Redirect(w, r, "/settings?exported=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?exported=1", http.StatusSeeOther)
 }

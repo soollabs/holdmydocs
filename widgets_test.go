@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io"
+	"strings"
 	"testing"
 )
 
@@ -17,8 +19,13 @@ func TestWidgetRegistry(t *testing.T) {
 		}
 	}
 	for _, id := range widgetIDs {
-		if _, ok := widgets[id]; !ok {
+		w, ok := widgets[id]
+		if !ok {
 			t.Errorf("widgetIDs entry %q has no registry definition", id)
+			continue
+		}
+		if w.Description == "" {
+			t.Errorf("widget %q has no Description (shown on the settings page)", id)
 		}
 	}
 	for id := range widgets {
@@ -59,6 +66,75 @@ func TestWidgetsForSlotAddRemove(t *testing.T) {
 	got = widgetsForSlot(slotSidebar, p, nil, []string{"nonexistent"})
 	if len(got) != len(p.Widgets[slotSidebar]) {
 		t.Errorf("removing a nonexistent id changed the count: got %d, want %d", len(got), len(p.Widgets[slotSidebar]))
+	}
+}
+
+// TestPopulateWidgetPreviews checks that the settings page's widget preview
+// data is built from the wiki's real home page and doesn't depend on
+// whether the corresponding widget is actually mounted — the whole point of
+// letting a user preview widgets they haven't turned on yet.
+func TestPopulateWidgetPreviews(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	defer server.Close()
+
+	var data TemplateData
+	app.populateWidgetPreviews(&data)
+
+	if data.Calendar.MonthName == "" {
+		t.Error("Calendar not populated (should always be, regardless of mounted widgets)")
+	}
+	if data.RevisionCount != 1 {
+		t.Errorf("RevisionCount = %d, want 1 (readme.md's single seed commit)", data.RevisionCount)
+	}
+	if data.HeadAuthor != "test" {
+		t.Errorf("HeadAuthor = %q, want %q", data.HeadAuthor, "test")
+	}
+	if len(data.RecentCommits) != 1 {
+		t.Errorf("RecentCommits = %v, want 1 entry", data.RecentCommits)
+	}
+	if data.PrevEntries != nil {
+		t.Errorf("PrevEntries = %v, want nil (no daily pages exist)", data.PrevEntries)
+	}
+}
+
+// TestSettingsAppearanceFormNotNested is the regression test for a bug
+// where the widget checklist's live preview boxes (which reuse the real
+// widget partials verbatim) put the "search" widget's own <form> inside
+// #appearance-form. A browser silently detaches everything after a nested
+// <form>, including the save button — so clicking "save appearance" did
+// nothing. The fix moved the widgets fieldset outside #appearance-form and
+// associated its checkboxes/button via form="appearance-form" instead of
+// DOM nesting; this guards against a future widget partial reintroducing
+// the same nesting.
+func TestSettingsAppearanceFormNotNested(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	resp, err := client.Get(server.URL + "/settings")
+	if err != nil {
+		t.Fatalf("GET /settings: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	closeTestBody(t, resp.Body)
+	if err != nil {
+		t.Fatalf("reading body: %v", err)
+	}
+	html := string(body)
+
+	start := strings.Index(html, `id="appearance-form"`)
+	if start == -1 {
+		t.Fatal(`no element with id="appearance-form" found`)
+	}
+	end := strings.Index(html[start:], "</form>")
+	if end == -1 {
+		t.Fatal("no closing </form> found after #appearance-form")
+	}
+	if inner := html[start : start+end]; strings.Count(inner, "<form") > 0 {
+		t.Error("#appearance-form contains a nested <form> — this breaks the save button in real browsers")
+	}
+
+	if !strings.Contains(html, `form="appearance-form"`) {
+		t.Error(`expected a form="appearance-form" attribute associating the save button/checkboxes with #appearance-form`)
 	}
 }
 

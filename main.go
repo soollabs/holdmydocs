@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"embed"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 )
 
 //go:embed all:web
@@ -30,7 +28,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"web/templates/widgets/outline.html", "web/templates/widgets/source-card.html",
 		"web/templates/widgets/page-meta.html", "web/templates/widgets/backlinks.html", "web/templates/widgets/prev-entries.html",
 	}
-	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "hidden", "inbox"} {
+	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "admin", "hidden", "inbox"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
 		t, err := template.ParseFS(webFS, files...)
 		if err != nil {
@@ -62,65 +60,6 @@ func main() {
 		level = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
-
-	// Handle subcommands
-	if len(os.Args) > 1 && os.Args[1] == "adduser" {
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: hmd adduser <name>")
-			os.Exit(1)
-		}
-		name := os.Args[2]
-
-		// Read password from stdin
-		fmt.Fprintf(os.Stderr, "Password: ")
-		scanner := bufio.NewScanner(os.Stdin)
-		if !scanner.Scan() {
-			fmt.Fprintln(os.Stderr, "failed to read password")
-			os.Exit(1)
-		}
-		password := strings.TrimSpace(scanner.Text())
-
-		auth, err := OpenAuth(cfg)
-		if err != nil {
-			log.Fatalf("open auth failed: %v", err)
-		}
-
-		err = auth.AddUser(name, password)
-		if err != nil {
-			log.Fatalf("add user failed: %v", err)
-		}
-
-		fmt.Printf("User %q added\n", name)
-		return
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "scopes" {
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: hmd scopes <name> [read,write,settings]")
-			fmt.Fprintln(os.Stderr, "Omit the scope list to restore full access.")
-			os.Exit(1)
-		}
-		name := os.Args[2]
-		var scopes []string
-		if len(os.Args) > 3 {
-			scopes = strings.Split(os.Args[3], ",")
-		}
-
-		auth, err := OpenAuth(cfg)
-		if err != nil {
-			log.Fatalf("open auth failed: %v", err)
-		}
-		if err := auth.SetScopes(name, scopes); err != nil {
-			log.Fatalf("set scopes failed: %v", err)
-		}
-
-		if len(scopes) == 0 {
-			fmt.Printf("User %q restored to full access\n", name)
-		} else {
-			fmt.Printf("User %q scopes set to %v\n", name, scopes)
-		}
-		return
-	}
 
 	slog.Info("hmd starting", "bind", cfg.Bind, "debug", cfg.Debug, "sync_mode", cfg.SyncMode)
 

@@ -12,190 +12,23 @@
 	<div class="settings-flash">{{.Settings.Flash}}</div>
 	{{end}}
 
-	{{if .Settings.HelpDrifted}}
-	<div class="settings-banner">
-		<code>.help.md</code> differs from hmd's built-in help text for this version.
-		It may have been edited, or written by an older version of hmd.
-		<form method="POST" action="/settings/help/reset" style="display:contents">
-			<button type="submit" class="ghost-btn">Reset to built-in</button>
-		</form>
-	</div>
-	{{end}}
-
-<section class="settings-zone">
-	<h2 class="settings-zone-title"><span class="h"></span>system configuration</h2>
-	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>.</p>
-
-	<form method="POST" action="/settings" class="settings-form">
-
-		<fieldset class="settings-section">
-			<legend>server</legend>
-			<div class="settings-row">
-				<label for="bind">bind</label>
-				<input type="text" id="bind" name="bind" value="{{.Settings.Fields.Bind.Value}}"
-					{{if not .Settings.Fields.Bind.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.Bind.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Bind.EnvVar}}</span>{{end}}
-				{{if .Settings.Fields.Bind.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
-			</div>
-			<div class="settings-row">
-				<label for="repo_dir">repo dir</label>
-				<input type="text" id="repo_dir" name="repo_dir" value="{{.Settings.Fields.RepoDir.Value}}"
-					{{if not .Settings.Fields.RepoDir.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.RepoDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RepoDir.EnvVar}}</span>{{end}}
-				{{if .Settings.Fields.RepoDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
-			</div>
-			<div class="settings-row">
-				<label for="app_dir">app dir</label>
-				<input type="text" id="app_dir" value="{{.Settings.Fields.AppDir.Value}}" readonly>
-				{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{else}}<span class="badge-bootstrap">bootstrap only</span>{{end}}
-				<span class="badge-restart">restart reqd</span>
-			</div>
-		</fieldset>
-
-		<fieldset class="settings-section">
-			<legend>git remote</legend>
-			<div class="settings-row">
-				<label for="remote_url">remote url</label>
-				<input type="text" id="remote_url" name="remote_url" value="{{.Settings.Fields.RemoteURL.Value}}"
-					placeholder="https://example.com/repo.git"
-					{{if not .Settings.Fields.RemoteURL.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.RemoteURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RemoteURL.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
-				<label for="git_user">git user</label>
-				<input type="text" id="git_user" name="git_user" value="{{.Settings.Fields.GitUser.Value}}"
-					{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
-				<label for="git_author">git author (default)</label>
-				<input type="text" id="git_author" name="git_author" value="{{.Settings.Fields.GitAuthor.Value}}"
-					placeholder="Name &lt;email@example.com&gt;"
-					{{if not .Settings.Fields.GitAuthor.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.GitAuthor.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitAuthor.EnvVar}}</span>{{end}}
-			</div>
-			<p class="settings-note">Fallback author for anyone without their own override below, under &ldquo;your account&rdquo;.</p>
-		<div class="settings-row">
-			<label for="git_token">git token</label>
-			<input type="password" id="git_token" name="git_token"
-				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
-				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
-			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
-		</div>
-		<div class="settings-row">
-			<label for="sync_mode">sync mode</label>
-			{{if .Settings.Fields.SyncMode.Editable}}
-			<select id="sync_mode" name="sync_mode">
-				<option value="push" {{if or (eq .Settings.SyncMode "") (eq .Settings.SyncMode "push")}}selected{{end}}>push (local &rarr; remote only)</option>
-				<option value="bidirectional" {{if eq .Settings.SyncMode "bidirectional"}}selected{{end}}>bidirectional (fetch + ff pull)</option>
-			</select>
-			{{else}}
-			<input type="text" id="sync_mode" name="sync_mode" value="{{.Settings.SyncMode}}" readonly>
-			{{end}}
-			{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
-		</div>
-		<div class="settings-status" id="sync-status">
-			last push: <span class="state-{{.SyncState}}">{{if eq .SyncState "no remote"}}n/a{{else}}{{.SyncState}}{{end}}</span> · {{.SyncAge}} · last fetch: {{if eq .SyncMode "bidirectional"}}{{.SyncAge}}{{else}}n/a (push mode){{end}}
-		</div>
-		</fieldset>
-
-		<fieldset class="settings-section">
-			<legend>site</legend>
-			<div class="settings-row">
-				<label for="site_name">site name</label>
-				<input type="text" id="site_name" name="site_name" value="{{.Settings.Fields.SiteName.Value}}"
-					{{if not .Settings.Fields.SiteName.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.SiteName.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SiteName.EnvVar}}</span>{{end}}
-			</div>
-			<p class="settings-note">The site name is what the shell prompt, the masthead and every breadcrumb read &mdash; there are no separate hostname/path/user labels.</p>
-		</fieldset>
-
-		<fieldset class="settings-section">
-			<legend>behaviour</legend>
-			<div class="settings-row">
-				<label for="max_upload_bytes">max upload (bytes)</label>
-				<input type="number" id="max_upload_bytes" name="max_upload_bytes" value="{{.Settings.MaxUploadBytes}}" min="1">
-			</div>
-			<div class="settings-row">
-				<label for="sync_poll_ms">sync poll (ms)</label>
-				<input type="number" id="sync_poll_ms" name="sync_poll_ms" value="{{.Settings.SyncPollMs}}" min="100">
-			</div>
-		</fieldset>
-
-		<fieldset class="settings-section">
-			<legend>users (read-only)</legend>
-			<div class="settings-row">
-				<label>admin user</label>
-				<input type="text" value="{{.Settings.Fields.AdminUser.Value}}" readonly>
-				<span class="badge-bootstrap">bootstrap only &mdash; use <code>hmd adduser</code></span>
-			</div>
-			<div class="settings-row">
-				<label>admin pass</label>
-				<input type="password" value="&bull;&bull;&bull;&bull;" readonly>
-				<span class="badge-bootstrap">bootstrap only</span>
-			</div>
-		</fieldset>
-
-		<div class="settings-actions settings-actions-sticky">
-			<button type="submit" class="primary">save system config</button>
-			<a href="/page/index" class="ghost-btn">cancel</a>
-		</div>
-
-	</form>
-
-	{{if .Settings.HasEnvOverrides}}
-	<fieldset class="settings-section">
-		<legend>environment overrides</legend>
-		<p class="settings-note">
-			Some settings above are set via <code>HMD_*</code> environment variables (marked
-			<span class="badge-env">set via HMD_X</span>) and read-only here. Exporting writes
-			the values currently in effect &mdash; including those env-set ones &mdash; into
-			<code>{{.Settings.ConfigPath}}</code>, so you can drop the env vars and manage
-			everything from this page afterwards.
-		</p>
-		{{if .Settings.ExportSecretVars}}
-		<div class="settings-banner">
-			&#9888; Exporting writes the following secret{{if gt (len .Settings.ExportSecretVars) 1}}s{{end}}
-			into <code>{{.Settings.ConfigPath}}</code> in <strong>plaintext</strong>:
-			<ul>
-				{{range .Settings.ExportSecretVars}}<li><code>{{.}}</code></li>{{end}}
-			</ul>
-			Make sure that file's permissions and backups are treated accordingly, or skip
-			exporting and keep the secret in the environment.
-		</div>
-		{{end}}
-		<form method="POST" action="/settings/export" id="export-config-form">
-			<div class="settings-actions">
-				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
-			</div>
-		</form>
-	</fieldset>
-	{{end}}
-
-	<fieldset class="settings-section">
-		<legend>wiki setup</legend>
-		<div class="settings-row">
-			<label>home page</label>
-			<input type="text" value="{{.Settings.HomeFilename}}" readonly>
-			{{if .Settings.HomeFilenameEnv}}<span class="badge-env">set via {{.Settings.HomeFilenameEnv}}</span>{{else}}<span class="badge-restart">restart reqd</span>{{end}}
-		</div>
-		<div class="settings-row">
-			<label>re-seed setup</label>
-			<form method="POST" action="/settings/setup" style="display:contents">
-				<button type="submit" class="ghost-btn">Re-run setup</button>
-			</form>
-		</div>
-	</fieldset>
-</section>
+	<p class="settings-zone-desc"><a href="/admin">system configuration &amp; users &rarr;</a></p>
 
 <section class="settings-zone">
 	<h2 class="settings-zone-title"><span class="h"></span>your account</h2>
 	<p class="settings-zone-desc">Personal to you &mdash; stored against your user, no effect on anyone else.</p>
 
-	<form method="POST" action="/settings/appearance" class="settings-form">
+	<div class="settings-tabs">
+		<button type="button" class="settings-tab" data-tab="appearance">appearance</button>
+		<button type="button" class="settings-tab" data-tab="widgets">widgets</button>
+		<button type="button" class="settings-tab" data-tab="git-author">git author</button>
+		<button type="button" class="settings-tab" data-tab="access-tokens">access tokens</button>
+	</div>
+
+	<form method="POST" action="/settings/appearance" id="appearance-form" class="settings-form">
 		<input type="hidden" name="palette_explicit" id="palette-explicit">
 
-		<fieldset class="settings-section">
+		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>fonts &amp; layout</legend>
 			<div class="settings-row">
 				<label for="font_ui">ui font</label>
@@ -229,7 +62,7 @@
 			</div>
 		</fieldset>
 
-		<fieldset class="settings-section">
+		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>skin</legend>
 			<p class="settings-note">Skins control appearance, widgets, and the landing page. The same repository works with any skin.</p>
 			<div class="skin-picker">
@@ -243,7 +76,7 @@
 			</div>
 		</fieldset>
 
-		<fieldset class="settings-section">
+		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>palette</legend>
 			<p class="settings-note">Colour only, orthogonal to the skin. Swatches show the current light/dark mode.</p>
 			<div class="palette-picker">
@@ -259,27 +92,58 @@
 			</div>
 		</fieldset>
 
-		<fieldset class="settings-section">
-			<legend>widgets</legend>
-			<p class="settings-note">Choose which widgets appear with this skin. Changing the skin resets the list to that skin's defaults.</p>
-			<div class="widget-checklist">
-				{{range .Settings.WidgetIDs}}{{$w := index $.Settings.Widgets .}}
-				<label class="widget-check">
-					<input type="checkbox" name="widgets" value="{{.}}" {{if index $.Settings.CheckedWidgets .}}checked{{end}}>
-					{{.}}{{if $w.Title}} <span class="widget-check-title">({{$w.Title}})</span>{{end}}
-				</label>
-				{{end}}
-			</div>
-		</fieldset>
-
-		<div class="settings-actions settings-actions-sticky">
-			<button type="submit" class="primary">save appearance</button>
-			<a href="/page/index" class="ghost-btn">cancel</a>
-		</div>
-
 	</form>
 
-	<fieldset class="settings-section">
+	{{/* The widget preview boxes below reuse the real widget partials
+	     verbatim — one of which (search) renders its own <form>. Nesting a
+	     <form> inside another is invalid HTML and breaks the outer form
+	     (the browser silently detaches everything after the nested form,
+	     including the save button), so this fieldset lives outside
+	     #appearance-form and its checkboxes opt back in via the form=
+	     attribute instead of DOM nesting. */}}
+	<fieldset class="settings-section settings-panel" data-panel="widgets">
+		<legend>widgets</legend>
+		<p class="settings-note">Choose which widgets appear with this skin. Changing the skin resets the list to that skin's defaults.</p>
+		<div class="widget-checklist">
+			{{range .Settings.WidgetIDs}}{{$w := index $.Settings.Widgets .}}
+			<div class="widget-check-row">
+				<label class="widget-check">
+					<input type="checkbox" name="widgets" value="{{.}}" form="appearance-form" {{if index $.Settings.CheckedWidgets .}}checked{{end}}>
+					<span class="widget-check-name">{{.}}{{if $w.Title}} <span class="widget-check-title">({{$w.Title}})</span>{{end}}</span>
+					{{if $w.Description}}<span class="widget-check-desc">{{$w.Description}}</span>{{end}}
+				</label>
+				{{if eq . "outline"}}
+				<p class="widget-preview-note">not shown here &mdash; built from the headings of whatever page you're viewing.</p>
+				{{else}}
+				<div class="widget-preview sidebar" aria-hidden="true">
+					{{if eq . "identity"}}{{template "widget-identity" $}}{{end}}
+					{{if eq . "search"}}{{template "widget-search" $}}{{end}}
+					{{if eq . "pages"}}{{template "widget-pages" $}}{{end}}
+					{{if eq . "pinned"}}{{template "widget-pinned" $}}{{end}}
+					{{if eq . "tags"}}{{template "widget-tags" $}}{{end}}
+					{{if eq . "log"}}{{template "widget-log" $}}{{end}}
+					{{if eq . "health"}}{{template "widget-health" $}}{{end}}
+					{{if eq . "calendar"}}{{template "widget-calendar" $}}{{end}}
+					{{if eq . "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
+					{{if eq . "inbox"}}{{template "widget-inbox" $}}{{end}}
+					{{if eq . "sources"}}{{template "widget-sources" $}}{{end}}
+					{{if eq . "source-card"}}{{template "widget-source-card" $}}{{end}}
+					{{if eq . "page-meta"}}{{template "widget-page-meta" $}}{{end}}
+					{{if eq . "backlinks"}}{{template "widget-backlinks" $}}{{end}}
+					{{if eq . "prev-entries"}}{{template "widget-prev-entries" $}}{{end}}
+				</div>
+				{{end}}
+			</div>
+			{{end}}
+		</div>
+	</fieldset>
+
+	<div class="settings-actions settings-actions-sticky">
+		<button type="submit" form="appearance-form" class="primary">save appearance</button>
+		<a href="/page/index" class="ghost-btn">cancel</a>
+	</div>
+
+	<fieldset class="settings-section settings-panel" data-panel="git-author">
 		<legend>your git author</legend>
 		<form method="POST" action="/settings/author" class="settings-form">
 			<div class="settings-row">
@@ -293,7 +157,7 @@
 		</form>
 	</fieldset>
 
-	<fieldset class="settings-section">
+	<fieldset class="settings-section settings-panel" data-panel="access-tokens">
 		<legend>access tokens</legend>
 		{{if .Settings.NewToken}}
 		<div class="settings-row">
@@ -340,6 +204,40 @@
 (function () {
 	var fontStacks = {{.Settings.FontStacks}};
 	var root = document.documentElement;
+
+	// ---- Settings tabs: one independent tab strip per zone. Panels default
+	// to visible (so the page still works with JS disabled); this only
+	// hides the inactive ones once it runs. A panel id can appear more than
+	// once (e.g. "site" spans a fieldset inside the form and one outside
+	// it) — all instances toggle together.
+	document.querySelectorAll('.settings-zone').forEach(function (zone) {
+		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
+		if (!tabs.length) return;
+		function activate(id) {
+			tabs.forEach(function (t) {
+				t.classList.toggle('active', t.dataset.tab === id);
+			});
+			zone.querySelectorAll('.settings-panel').forEach(function (p) {
+				p.hidden = p.dataset.panel !== id;
+			});
+		}
+		tabs.forEach(function (t) {
+			t.addEventListener('click', function () {
+				activate(t.dataset.tab);
+				history.replaceState(null, '', '#' + t.dataset.tab);
+			});
+		});
+		var hashId = location.hash.slice(1);
+		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
+	});
+
+	// Widget previews reuse the real widget partials, some of which carry
+	// ids (e.g. #recent-list) that the real, mounted copy elsewhere on this
+	// same page also uses. Strip them so a preview never fights the real
+	// widget — and never appears twice — for the same id.
+	document.querySelectorAll('.widget-preview [id]').forEach(function (el) {
+		el.removeAttribute('id');
+	});
 
 	[['font_ui', '--font-ui'], ['font_mono', '--font-mono']].forEach(function (pair) {
 		var sel = document.getElementById(pair[0]);
@@ -426,19 +324,6 @@
 			});
 		});
 	});
-
-	var exportForm = document.getElementById('export-config-form');
-	if (exportForm) {
-		exportForm.addEventListener('submit', function (e) {
-			var msg = 'This overwrites {{.Settings.ConfigPath}} with the settings currently in effect, including any set via environment variables.';
-			{{if .Settings.ExportSecretVars}}
-			msg += ' This writes the following secret(s) to the file in PLAINTEXT: {{range $i, $v := .Settings.ExportSecretVars}}{{if $i}}, {{end}}{{$v}}{{end}}.';
-			{{end}}
-			if (!confirm(msg + ' Continue?')) {
-				e.preventDefault();
-			}
-		});
-	}
 })();
 </script>
 {{end}}
