@@ -313,6 +313,19 @@ docker compose exec hmd /hmd adduser alice
 
 (Note: distroless images have no shell, so the form above invokes the binary directly.)
 
+### Scopes
+
+Every user has full read/write/settings access by default. To restrict one:
+
+```bash
+./hmd scopes alice read
+```
+
+Comma-separate multiple scopes (`read,write`). Run `./hmd scopes alice` with no
+scope list to restore full access. Valid scopes: `read` (view pages, search),
+`write` (save, rename, tag, upload), `settings` (`/settings`, including
+tokens). A request outside a user's scopes gets `403 Forbidden`.
+
 ### Personal access tokens
 API and MCP clients use Bearer tokens instead of the session cookie. Create one
 under **access tokens** on `/settings`, choose a name and expiry (1 day, 7
@@ -330,6 +343,8 @@ commit attributed to the token owner.
 Create a token on `/settings` (see [Personal access tokens](#personal-access-tokens)), then configure your MCP client to send it as a Bearer token.
 
 Tools: `list_pages`, `read_page`, `save_page`, `delete_page`, `search`, `backlinks`, `recent_changes`. `save_page` uses the same optimistic locking as the web editor: pass the `hash` from `read_page`; a stale hash returns a conflict with the current content for merging and retrying.
+
+`/mcp` has no per-tool scoping yet, so it requires both `read` and `write` on the token's user (see [Scopes](#scopes)) — a read-only user can't use it.
 
 hmd is a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): point your agent's instructions at the wiki conventions and let it build interlinked pages.
 

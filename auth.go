@@ -39,6 +39,22 @@ type cachedToken struct {
 	expires time.Time
 }
 
+// A scope gates one slice of the app: scopeRead covers viewing pages and
+// search, scopeWrite covers anything that writes to the store (saving,
+// renaming, tagging, uploading), scopeSettings covers /settings itself
+// (appearance, tokens, author, exports).
+type scope string
+
+const (
+	scopeRead     scope = "read"
+	scopeWrite    scope = "write"
+	scopeSettings scope = "settings"
+)
+
+// allScopes is both the valid-scope allowlist (for CLI/validation) and the
+// full-access set new users get by default.
+var allScopes = []scope{scopeRead, scopeWrite, scopeSettings}
+
 // userRecord is a stored user. GitAuthor, when set, is that user's commit
 // identity in "Name <email>" form and overrides the global default.
 // Palette/FontUI/FontMono/Skin are that user's cosmetic preferences,
@@ -55,6 +71,22 @@ type userRecord struct {
 	Skin          string        `json:"skin,omitempty"`
 	WidgetsAdd    []string      `json:"widgets_add,omitempty"`
 	WidgetsRemove []string      `json:"widgets_remove,omitempty"`
+	Scopes        []string      `json:"scopes,omitempty"` // empty = full access (default, and every user before scopes existed)
+}
+
+// hasScope reports whether the user may perform an action requiring s. An
+// empty Scopes list means full access, so upgrading an existing install
+// doesn't lock out every user already in users.json.
+func (u userRecord) hasScope(s scope) bool {
+	if len(u.Scopes) == 0 {
+		return true
+	}
+	for _, have := range u.Scopes {
+		if have == string(s) {
+			return true
+		}
+	}
+	return false
 }
 
 // prefs is name's display preferences.
@@ -79,6 +111,35 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string, widgetsAdd
 	rec.Skin = skin
 	rec.WidgetsAdd = widgetsAdd
 	rec.WidgetsRemove = widgetsRemove
+	a.users[name] = rec
+	return a.save()
+}
+
+// SetScopes restricts name to exactly the given scopes ("read", "write",
+// "settings"); an empty list restores full access. Unknown scope names are
+// rejected rather than silently dropped, since a typo here is a permissions
+// bug, not a cosmetic one.
+func (a *Auth) SetScopes(name string, scopes []string) error {
+	for _, s := range scopes {
+		valid := false
+		for _, allowed := range allScopes {
+			if s == string(allowed) {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("unknown scope %q (want read, write, settings)", s)
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	rec, ok := a.users[name]
+	if !ok {
+		return fmt.Errorf("unknown user %q", name)
+	}
+	rec.Scopes = scopes
 	a.users[name] = rec
 	return a.save()
 }
@@ -415,6 +476,25 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 	return
 }
 
+// requiredScope reports which scope r needs. /settings (any method) needs
+// "settings". Everything else follows HTTP method: a body-carrying method
+// needs "write", a safe one needs "read". /mcp bundles read and write tools
+// behind a single JSON-RPC endpoint with no per-tool scoping yet, so it
+// checked separately, below, against both.
+//
+// method-based, not route-based, so a handful of read-only-looking
+// POSTs (e.g. /search) don't exist — check with the route table in
+// handlers.go if a new write-shaped GET or read-shaped POST is ever added.
+func requiredScope(r *http.Request) scope {
+	if r.URL.Path == "/settings" || strings.HasPrefix(r.URL.Path, "/settings/") {
+		return scopeSettings
+	}
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return scopeRead
+	}
+	return scopeWrite
+}
+
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow /login, the OIDC flow and /static/ without authentication
@@ -430,46 +510,53 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		isAPI := strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp"
+
 		// API namespaces never redirect to the login page: auth failure is
-		// a 401 JSON body so agents and apps get a parseable answer.
-		deny := func() {
-			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" {
+		// a JSON body so agents and apps get a parseable answer.
+		deny := func(status int, msg string) {
+			if isAPI {
 				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				if _, err := w.Write([]byte(`{"error":"unauthorized"}`)); err != nil {
-					slog.Debug("writing unauthorised response", "err", err)
+				w.WriteHeader(status)
+				if _, err := w.Write([]byte(`{"error":"` + msg + `"}`)); err != nil {
+					slog.Debug("writing auth error response", "err", err)
 				}
+				return
+			}
+			if status == http.StatusForbidden {
+				http.Error(w, "403 Forbidden: missing "+msg+" access", http.StatusForbidden)
 				return
 			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 		}
 
+		var user string
+		var authed bool
+
 		// Bearer PAT: an explicit credential, so a bad one is denied rather
 		// than falling through to the cookie check.
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			user, ok := a.UserForBearer(strings.TrimPrefix(h, "Bearer "))
-			if !ok {
-				deny()
-				return
-			}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, user)))
+			user, authed = a.UserForBearer(strings.TrimPrefix(h, "Bearer "))
+		} else if cookie, err := r.Cookie("hmd_session"); err == nil && cookie.Value != "" {
+			user, authed = a.UserFor(cookie.Value)
+		}
+		if !authed {
+			deny(http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
-		// Check for valid session cookie
-		cookie, err := r.Cookie("hmd_session")
-		if err != nil || cookie.Value == "" {
-			deny()
+		prefs := a.prefs(user)
+		need := "mcp (read+write)"
+		authorized := prefs.hasScope(scopeRead) && prefs.hasScope(scopeWrite)
+		if r.URL.Path != "/mcp" {
+			need = string(requiredScope(r))
+			authorized = prefs.hasScope(requiredScope(r))
+		}
+		if !authorized {
+			deny(http.StatusForbidden, need)
 			return
 		}
 
-		// Verify token is valid
-		_, ok := a.UserFor(cookie.Value)
-		if !ok {
-			deny()
-			return
-		}
-
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, user)))
 	})
 }
