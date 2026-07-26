@@ -20,14 +20,14 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
-		resp.Body.Close()
+		closeTestBody(t, resp.Body)
 	}
 	get := func() string {
 		resp, err := client.Get(server.URL + "/page/readme")
 		if err != nil {
 			t.Fatalf("GET /page/readme: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -74,7 +74,7 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	authorName, authorEmail := app.gitAuthor("admin")
 	if _, err := app.Store.Save("daily/2026-07-25.md", (Page{Slug: "daily/2026-07-25", Title: "2026-07-25", Body: "x"}).Encode(), "seed", authorName, authorEmail); err != nil {
@@ -85,7 +85,11 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}
-	defer editResp.Body.Close()
+	defer func() {
+		if err := editResp.Body.Close(); err != nil {
+			t.Errorf("closing edit response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(editResp.Body)
 	if !strings.Contains(string(body), `id="status-mode">write<`) {
 		t.Errorf("journal skin in edit mode should show mode label 'write', body snippet not found")

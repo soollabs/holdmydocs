@@ -436,7 +436,9 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"error":"unauthorized"}`))
+				if _, err := w.Write([]byte(`{"error":"unauthorized"}`)); err != nil {
+					slog.Debug("writing unauthorised response", "err", err)
+				}
 				return
 			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)

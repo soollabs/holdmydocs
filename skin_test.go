@@ -224,7 +224,7 @@ func TestSkinRejectsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/appearance failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
@@ -233,7 +233,11 @@ func TestSkinRejectsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing settings response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(resp2.Body)
 	if bytes.Contains(body, []byte(`value="nope" selected`)) {
 		t.Error("rejected skin should not have been persisted")
@@ -251,7 +255,7 @@ func TestSkinPersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/appearance failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
@@ -260,7 +264,11 @@ func TestSkinPersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing page response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body, []byte(`data-skin="soft"`)) {
 		t.Errorf("expected data-skin=\"soft\" on rendered page, body: %s", body)
@@ -285,7 +293,7 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte(`data-skin="`+defaultSkin+`"`)) {
 		t.Errorf("unknown stored skin should render the default skin, body: %s", body)

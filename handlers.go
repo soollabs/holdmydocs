@@ -482,7 +482,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	buf.WriteTo(w)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Error("writing response", "name", name, "err", err)
+	}
 }
 
 func (app *App) currentUser(r *http.Request) string {
@@ -768,7 +770,9 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "failed to seed home page", http.StatusInternalServerError)
 				return
 			}
-			app.Index.Update(ParsePage(homeSlug, content))
+			if err := app.Index.Update(ParsePage(homeSlug, content)); err != nil {
+				slog.Error("updating search index", "slug", homeSlug, "err", err)
+			}
 		}
 		if r.FormValue("add_help") == "on" {
 			content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
@@ -1072,7 +1076,9 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	if hidden {
 		app.Index.Remove(slug)
 	} else {
-		app.Index.Update(page)
+		if err := app.Index.Update(page); err != nil {
+			slog.Error("updating search index", "slug", page.Slug, "err", err)
+		}
 	}
 
 	http.Redirect(w, r, newPrefix+"/"+slug, http.StatusSeeOther)
@@ -1100,7 +1106,9 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	if _, err := w.Write([]byte(html)); err != nil {
+		slog.Error("writing preview response", "err", err)
+	}
 }
 
 func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
@@ -1119,7 +1127,11 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no file uploaded", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Warn("closing uploaded file", "err", err)
+		}
+	}()
 
 	// Sanitise filename: base name only, slugify name part, keep extension
 	filename := filepath.Base(header.Filename)
@@ -1175,7 +1187,9 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	// Return JSON response
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]string{"url": fmt.Sprintf("/attachments/%s/%s", slug, filename)}
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encoding attachment response", "err", err)
+	}
 }
 
 func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
@@ -1295,16 +1309,13 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]AutocompleteResult, 0, len(hits))
 	for _, hit := range hits {
-		results = append(results, AutocompleteResult{
-			Slug:    hit.Slug,
-			Title:   hit.Title,
-			Snippet: hit.Snippet,
-			Tags:    hit.Tags,
-		})
+		results = append(results, AutocompleteResult(hit))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		slog.Error("encoding search response", "err", err)
+	}
 }
 
 type SyncStatus struct {
@@ -1361,7 +1372,9 @@ func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encoding preview response", "err", err)
+	}
 }
 
 func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
@@ -1399,7 +1412,9 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encoding sync status response", "err", err)
+	}
 }
 
 func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
@@ -1413,7 +1428,9 @@ func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encoding sync push response", "err", err)
+	}
 }
 
 var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
@@ -1459,7 +1476,9 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	if newSlug != slug {
 		app.Index.Remove(slug)
 	}
-	app.Index.Update(page)
+	if err := app.Index.Update(page); err != nil {
+		slog.Error("updating search index", "slug", page.Slug, "err", err)
+	}
 
 	// Rewrite [[wiki-links]] that resolved to the old slug.
 	for _, src := range sources {
@@ -1479,13 +1498,17 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 		}
 		srcPage.Body = updated
 		if _, err := app.Store.SaveChecked(pageFile(src), pageFile(src), srcHash, srcPage.Encode(), "Update links after rename of "+oldTitle, authorName, authorEmail); err == nil {
-			app.Index.Update(srcPage)
+			if err := app.Index.Update(srcPage); err != nil {
+				slog.Error("updating search index", "slug", srcPage.Slug, "err", err)
+			}
 		}
 	}
 
 	slog.Info("renamed", "from", slug, "to", newSlug, "links", len(sources))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": newSlug})
+	if err := json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": newSlug}); err != nil {
+		slog.Error("encoding rename response", "err", err)
+	}
 }
 
 // handleSetTags replaces a page's tags (the ">tag" palette verb).
@@ -1503,9 +1526,13 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	app.Index.Update(page)
+	if err := app.Index.Update(page); err != nil {
+		slog.Error("updating search index", "slug", page.Slug, "err", err)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": slug})
+	if err := json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": slug}); err != nil {
+		slog.Error("encoding tags response", "err", err)
+	}
 }
 
 func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
@@ -1580,7 +1607,9 @@ func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte(diff))
+	if _, err := w.Write([]byte(diff)); err != nil {
+		slog.Error("writing diff response", "err", err)
+	}
 }
 
 func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -1691,7 +1720,9 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 
 	// Update index
 	page := ParsePage(slug, content)
-	app.Index.Update(page)
+	if err := app.Index.Update(page); err != nil {
+		slog.Error("updating search index", "slug", page.Slug, "err", err)
+	}
 
 	// Redirect to page
 	http.Redirect(w, r, "/page/"+slug, http.StatusSeeOther)

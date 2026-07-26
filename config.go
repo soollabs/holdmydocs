@@ -159,19 +159,19 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 				continue
 			}
 			fv.SetBool(b)
-		case fv.Kind() == reflect.Ptr && fv.Type().Elem().Kind() == reflect.Bool:
+		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
 				continue
 			}
 			fv.Set(reflect.ValueOf(&b))
-		case fv.Kind() == reflect.Ptr && fv.Type().Elem().Kind() == reflect.Int:
+		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Int:
 			n, err := strconv.Atoi(raw)
 			if err != nil {
 				continue
 			}
 			fv.Set(reflect.ValueOf(&n))
-		case fv.Kind() == reflect.Ptr && fv.Type().Elem().Kind() == reflect.Int64:
+		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Int64:
 			n, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil {
 				continue

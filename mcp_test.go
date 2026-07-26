@@ -84,7 +84,11 @@ func connectMCP(t *testing.T, server *httptest.Server, token string) *mcp.Client
 	if err != nil {
 		t.Fatalf("MCP connect failed: %v", err)
 	}
-	t.Cleanup(func() { session.Close() })
+	t.Cleanup(func() {
+		if err := session.Close(); err != nil {
+			t.Errorf("closing MCP session: %v", err)
+		}
+	})
 	return session
 }
 
@@ -126,7 +130,7 @@ func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("disabled /mcp: got status %d, want 404", resp.StatusCode)
 	}
@@ -139,7 +143,7 @@ func TestMCPWithoutBearer401JSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("unauthenticated /mcp: got status %d, want 401", resp.StatusCode)
 	}
@@ -157,7 +161,7 @@ func TestMCPInvalidBearer401(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("invalid Bearer: got status %d, want 401", resp.StatusCode)
 	}
@@ -282,7 +286,7 @@ func createTokenViaUI(t *testing.T, server *httptest.Server, client *http.Client
 	if err != nil {
 		t.Fatalf("POST /settings/tokens: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	token := tokenRe.FindString(string(body))
 	if token == "" {
@@ -304,7 +308,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bearer request failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Bearer /api/search: got %d, want 200", resp.StatusCode)
 	}
@@ -315,7 +319,9 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Fatalf("POST duplicate: %v", err)
 	}
 	dupBody, _ := io.ReadAll(dupResp.Body)
-	dupResp.Body.Close()
+	if err := dupResp.Body.Close(); err != nil {
+		t.Fatalf("closing duplicate-token response body: %v", err)
+	}
 	if !strings.Contains(string(dupBody), "already exists") {
 		t.Error("duplicate label accepted, want error")
 	}
@@ -323,7 +329,9 @@ func TestTokenSettingsUI(t *testing.T) {
 	// The settings page lists it with its expiry date.
 	pageResp, _ := client.Get(server.URL + "/settings")
 	pageBody, _ := io.ReadAll(pageResp.Body)
-	pageResp.Body.Close()
+	if err := pageResp.Body.Close(); err != nil {
+		t.Fatalf("closing settings response body: %v", err)
+	}
 	if !strings.Contains(string(pageBody), "laptop") {
 		t.Error("settings page missing token row")
 	}
@@ -336,7 +344,9 @@ func TestTokenSettingsUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST revoke: %v", err)
 	}
-	revokeResp.Body.Close()
+	if err := revokeResp.Body.Close(); err != nil {
+		t.Fatalf("closing revoke response body: %v", err)
+	}
 
 	req, _ = http.NewRequest("GET", server.URL+"/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -344,7 +354,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bearer request failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("revoked Bearer: got %d, want 401", resp.StatusCode)
 	}

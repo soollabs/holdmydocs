@@ -22,7 +22,7 @@ func TestLandingRouteBySkin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
-		resp.Body.Close()
+		closeTestBody(t, resp.Body)
 	}
 
 	noRedirectClient := &http.Client{
@@ -50,7 +50,7 @@ func TestLandingRouteBySkin(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GET /: %v", err)
 			}
-			resp.Body.Close()
+			closeTestBody(t, resp.Body)
 			if resp.StatusCode != http.StatusSeeOther {
 				t.Fatalf("status = %d, want 303", resp.StatusCode)
 			}
@@ -74,14 +74,14 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
-		resp.Body.Close()
+		closeTestBody(t, resp.Body)
 	}
 	get := func(path string) string {
 		resp, err := client.Get(server.URL + path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		defer resp.Body.Close()
+		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -116,13 +116,15 @@ func TestInboxIndexRendersUnreadPages(t *testing.T) {
 	if _, err := app.Store.Save("clip-a.md", page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
-	app.Index.Update(page)
+	if err := app.Index.Update(page); err != nil {
+		t.Fatalf("updating index: %v", err)
+	}
 
 	resp, err := client.Get(server.URL + "/inbox")
 	if err != nil {
 		t.Fatalf("GET /inbox: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}

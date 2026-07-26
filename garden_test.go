@@ -81,7 +81,11 @@ func anonGet(t *testing.T, url string) (int, string, http.Header) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(body), resp.Header
 }
@@ -204,7 +208,11 @@ func TestGardenPublicCheckboxRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET edit: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("closing edit response body: %v", err)
+			}
+		}()
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -215,7 +223,9 @@ func TestGardenPublicCheckboxRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST save: %v", err)
 		}
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Fatalf("closing save response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusSeeOther {
 			t.Fatalf("save status = %d, want 303", resp.StatusCode)
 		}

@@ -94,7 +94,9 @@ func TestMiddleware(t *testing.T) {
 	// Handler that returns 200
 	successHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("writing response: %v", err)
+		}
 	})
 
 	// Wrap with middleware

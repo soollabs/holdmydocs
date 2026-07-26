@@ -214,7 +214,9 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 
 	// Non-square local file fails to load.
 	badPath := filepath.Join(t.TempDir(), "bad.svg")
-	os.WriteFile(badPath, []byte(`<svg viewBox="0 0 24 16"></svg>`), 0644)
+	if err := os.WriteFile(badPath, []byte(`<svg viewBox="0 0 24 16"></svg>`), 0644); err != nil {
+		t.Fatalf("writing non-square icon: %v", err)
+	}
 	if _, err := loadOIDCIcon(context.Background(), badPath); err == nil {
 		t.Errorf("non-square icon file should be rejected")
 	}

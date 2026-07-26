@@ -672,7 +672,7 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	}
 
 	var commits []CommitInfo
-	iter.ForEach(func(c *object.Commit) error {
+	if err := iter.ForEach(func(c *object.Commit) error {
 		commits = append(commits, CommitInfo{
 			Hash:    c.Hash.String(),
 			Message: c.Message,
@@ -680,7 +680,9 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 			When:    c.Author.When,
 		})
 		return nil
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("walking history: %w", err)
+	}
 
 	if s.historyCache == nil {
 		s.historyCache = make(map[string][]CommitInfo)

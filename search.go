@@ -74,7 +74,9 @@ func BuildIndex(pages []Page) (*Index, error) {
 			"Body":  p.Body,
 			"Tags":  p.Tags,
 		}
-		blevIdx.Index(p.Slug, doc)
+		if err := blevIdx.Index(p.Slug, doc); err != nil {
+			return nil, err
+		}
 
 		// Index tags
 		ix.pageTags[p.Slug] = p.Tags
@@ -148,7 +150,9 @@ func pollFS(store *Store, ix *Index, hashes map[string]string) {
 			}
 			slog.Debug("pollFS: page changed", "slug", e.slug)
 			hashes[e.slug] = hash
-			ix.Update(ParsePage(e.slug, content))
+			if err := ix.Update(ParsePage(e.slug, content)); err != nil {
+				slog.Error("pollFS: updating search index", "slug", e.slug, "err", err)
+			}
 		}
 
 		for slug := range hashes {
@@ -182,7 +186,7 @@ func (ix *Index) Update(p Page) error {
 		"Body":  p.Body,
 		"Tags":  p.Tags,
 	}
-	ix.bleve.Index(p.Slug, doc)
+	indexErr := ix.bleve.Index(p.Slug, doc)
 
 	// Remove old tag associations for this page
 	if oldTags, ok := ix.pageTags[p.Slug]; ok {
@@ -220,7 +224,7 @@ func (ix *Index) Update(p Page) error {
 		ix.backward[linkSlug][p.Slug] = true
 	}
 
-	return nil
+	return indexErr
 }
 
 // Remove deletes a page from the index — used when a page is toggled to
@@ -229,7 +233,9 @@ func (ix *Index) Remove(slug string) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
-	ix.bleve.Delete(slug)
+	if err := ix.bleve.Delete(slug); err != nil {
+		slog.Error("removing page from search index", "slug", slug, "err", err)
+	}
 	delete(ix.titles, slug)
 	delete(ix.widget, slug)
 

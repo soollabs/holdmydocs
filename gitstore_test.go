@@ -110,10 +110,14 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	if err := os.WriteFile(existingPage, []byte("# Existing\n"), 0644); err != nil {
 		t.Fatalf("writing existing page: %v", err)
 	}
-	wt.Add("existing-page.md")
-	wt.Commit("initial", &git.CommitOptions{
+	if _, err := wt.Add("existing-page.md"); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
+	if _, err := wt.Commit("initial", &git.CommitOptions{
 		Author: &object.Signature{Name: "test", Email: "test@hmd.local", When: time.Now()},
-	})
+	}); err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
 
 	cfg := Config{
 		RepoDir:      tmpDir,
@@ -397,7 +401,9 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 	}
 
 	// Delete the bare repo to cause push to fail
-	os.RemoveAll(bareDir)
+	if err := os.RemoveAll(bareDir); err != nil {
+		t.Fatalf("removing bare repo: %v", err)
+	}
 
 	// Save should still succeed
 	_, err = store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local")

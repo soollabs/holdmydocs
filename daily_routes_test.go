@@ -22,7 +22,11 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing edit response body: %v", err)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /page/daily/2026-07-24/edit status = %d, want 200", resp.StatusCode)
 	}
@@ -37,7 +41,9 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	saveResp.Body.Close()
+	if err := saveResp.Body.Close(); err != nil {
+		t.Fatalf("closing save response body: %v", err)
+	}
 	if saveResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("save status = %d, want 303", saveResp.StatusCode)
 	}
@@ -46,7 +52,11 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET view: %v", err)
 	}
-	defer viewResp.Body.Close()
+	defer func() {
+		if err := viewResp.Body.Close(); err != nil {
+			t.Errorf("closing view response body: %v", err)
+		}
+	}()
 	viewBody, _ := io.ReadAll(viewResp.Body)
 	if viewResp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /page/daily/2026-07-24 status = %d, want 200, body: %s", viewResp.StatusCode, viewBody)
@@ -59,7 +69,11 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET history: %v", err)
 	}
-	defer histResp.Body.Close()
+	defer func() {
+		if err := histResp.Body.Close(); err != nil {
+			t.Errorf("closing history response body: %v", err)
+		}
+	}()
 	if histResp.StatusCode != http.StatusOK {
 		t.Errorf("GET /page/daily/2026-07-24/history status = %d, want 200", histResp.StatusCode)
 	}

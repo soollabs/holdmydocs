@@ -110,7 +110,9 @@ func (app *App) renderGardenTemplate(w http.ResponseWriter, name string, data ga
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	buf.WriteTo(w)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Error("writing garden template", "name", name, "err", err)
+	}
 }
 
 func (app *App) handleGardenIndex(w http.ResponseWriter, r *http.Request) {
@@ -256,7 +258,10 @@ func (app *App) handleGardenFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
-	w.Write([]byte(xml.Header))
+	if _, err := w.Write([]byte(xml.Header)); err != nil {
+		slog.Error("writing garden feed header", "err", err)
+		return
+	}
 	if err := xml.NewEncoder(w).Encode(feed); err != nil {
 		slog.Error("encoding garden feed", "err", err)
 	}

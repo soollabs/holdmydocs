@@ -26,7 +26,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Now save again with "tags" unchecked and "inbox" (not a soft default)
 	// checked, keeping skin=soft. The settings form submits every widget id
@@ -47,7 +47,9 @@ func TestWidgetToggleUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toggling widgets: %v", err)
 	}
-	resp2.Body.Close()
+	if err := resp2.Body.Close(); err != nil {
+		t.Fatalf("closing widget toggle response body: %v", err)
+	}
 
 	rec := app.Auth.prefs("admin")
 	if len(rec.WidgetsRemove) != 1 || rec.WidgetsRemove[0] != "tags" {
@@ -111,7 +113,7 @@ func TestSkinSwitchDiscardsStaleCheckboxes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switching skin: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	rec := app.Auth.prefs("admin")
 	if len(rec.WidgetsAdd) != 0 || len(rec.WidgetsRemove) != 0 {
@@ -149,7 +151,7 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	form := url.Values{"skin": {"journal"}}
 	for _, id := range []string{"identity", "calendar", "pages", "keys", "prev-entries"} {
@@ -159,13 +161,19 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("removing writing-stats: %v", err)
 	}
-	resp2.Body.Close()
+	if err := resp2.Body.Close(); err != nil {
+		t.Fatalf("closing widget removal response body: %v", err)
+	}
 
 	resp3, err := client.Get(server.URL + "/page/daily/" + today)
 	if err != nil {
 		t.Fatalf("GET daily page: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Errorf("closing daily response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(resp3.Body)
 	if strings.Contains(string(body), ">0 words today<") {
 		t.Error("words-today read 0 with the writing-stats widget unmounted; statusline data must not depend on the widget")
@@ -189,7 +197,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting palette: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if got := app.Auth.prefs("admin").Palette; got != "dracula" {
 		t.Fatalf("palette = %q, want dracula", got)
 	}
@@ -201,7 +209,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switching skin: %v", err)
 	}
-	resp2.Body.Close()
+	if err := resp2.Body.Close(); err != nil {
+		t.Fatalf("closing skin switch response body: %v", err)
+	}
 	if got := app.Auth.prefs("admin").Palette; got != skins["newsprint"].Palette {
 		t.Errorf("palette after skin switch = %q, want %q", got, skins["newsprint"].Palette)
 	}
@@ -210,7 +220,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("rendering switched skin: %v", err)
 	}
 	body, err := io.ReadAll(rendered.Body)
-	rendered.Body.Close()
+	if err := rendered.Body.Close(); err != nil {
+		t.Fatalf("closing settings response body: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("reading switched skin: %v", err)
 	}
@@ -226,7 +238,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repicking palette: %v", err)
 	}
-	resp3.Body.Close()
+	if err := resp3.Body.Close(); err != nil {
+		t.Fatalf("closing appearance response body: %v", err)
+	}
 	if got := app.Auth.prefs("admin").Palette; got != "gruvbox" {
 		t.Errorf("palette = %q, want gruvbox — an explicit pick on the same skin must stick", got)
 	}
@@ -242,7 +256,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switching skin with explicit palette: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if got := app.Auth.prefs("admin").Palette; got != "gruvbox" {
 		t.Errorf("palette = %q, want gruvbox chosen after the skin", got)
 	}

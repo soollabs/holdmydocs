@@ -22,14 +22,16 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	if _, err := app.Store.Save("clip.md", page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
-	app.Index.Update(page)
+	if err := app.Index.Update(page); err != nil {
+		t.Fatalf("updating index: %v", err)
+	}
 
 	getEdit := func() string {
 		resp, err := client.Get(server.URL + "/page/clip/edit")
 		if err != nil {
 			t.Fatalf("GET edit: %v", err)
 		}
-		defer resp.Body.Close()
+		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -43,7 +45,7 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("save status = %d, want 303", resp.StatusCode)
 	}

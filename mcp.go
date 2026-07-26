@@ -221,7 +221,9 @@ func (app *App) mcpHandler() http.Handler {
 		if err != nil {
 			return nil, mcpSaveOut{}, err
 		}
-		app.Index.Update(page)
+		if err := app.Index.Update(page); err != nil {
+			return nil, mcpSaveOut{}, err
+		}
 		slog.Info("mcp saved", "slug", in.Slug, "author", authorName, "message", message)
 		return nil, mcpSaveOut{Slug: in.Slug, Hash: hash}, nil
 	})
@@ -254,7 +256,7 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		out := mcpSearchOut{Hits: []mcpSearchHit{}}
 		for _, h := range hits {
-			out.Hits = append(out.Hits, mcpSearchHit{Slug: h.Slug, Title: h.Title, Snippet: h.Snippet, Tags: h.Tags})
+			out.Hits = append(out.Hits, mcpSearchHit(h))
 		}
 		return nil, out, nil
 	})

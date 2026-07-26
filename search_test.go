@@ -37,7 +37,9 @@ func TestTags(t *testing.T) {
 	}
 
 	// Update alpha to drop the "wiki" tag.
-	ix.Update(Page{Slug: "alpha", Title: "Alpha", Tags: []string{"go"}, Body: "alpha body"})
+	if err := ix.Update(Page{Slug: "alpha", Title: "Alpha", Tags: []string{"go"}, Body: "alpha body"}); err != nil {
+		t.Fatalf("updating alpha: %v", err)
+	}
 
 	tags = ix.Tags()
 	sort.Slice(tags, func(i, j int) bool { return tags[i].Tag < tags[j].Tag })
@@ -85,7 +87,9 @@ func TestSearchAndBacklinks(t *testing.T) {
 	}
 
 	// Test update: remove links from alpha
-	ix.Update(Page{Slug: "alpha", Title: "Alpha", Body: "no links now"})
+	if err := ix.Update(Page{Slug: "alpha", Title: "Alpha", Body: "no links now"}); err != nil {
+		t.Fatalf("updating alpha: %v", err)
+	}
 
 	// Search for "fox" should return no results
 	results, _ = ix.Search("fox")

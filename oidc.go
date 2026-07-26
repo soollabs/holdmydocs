@@ -78,7 +78,11 @@ func loadOIDCIcon(ctx context.Context, icon string) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("fetching Dashboard Icon %q: %w", icon, err)
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				slog.Debug("closing OIDC icon response", "err", err)
+			}
+		}()
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("fetching Dashboard Icon %q: %s (check the name at dashboardicons.com)", icon, resp.Status)
 		}
@@ -140,7 +144,9 @@ func (app *App) handleOIDCIcon(w http.ResponseWriter, r *http.Request) {
 	// direct navigation too.
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Write(app.OIDC.icon)
+	if _, err := w.Write(app.OIDC.icon); err != nil {
+		slog.Error("writing OIDC icon", "err", err)
+	}
 }
 
 // NewOIDCAuth runs discovery against cfg.OIDC.Issuer and builds the OAuth2

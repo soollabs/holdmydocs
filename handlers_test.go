@@ -24,6 +24,13 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	return server, client
 }
 
+func closeTestBody(t *testing.T, closer io.Closer) {
+	t.Helper()
+	if err := closer.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
+}
+
 func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
@@ -111,7 +118,9 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client.Do(req)
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("login request failed: %v", err)
+	}
 
 	return app, server, client
 }
@@ -124,7 +133,11 @@ func TestViewHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
@@ -144,7 +157,11 @@ func TestCreateAffordance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Status = %d, want 404", resp.StatusCode)
@@ -168,7 +185,11 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing edit response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Edit page status = %d, want 200", resp.StatusCode)
@@ -184,7 +205,11 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing save response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Save status = %d, want 303", resp.StatusCode)
@@ -195,7 +220,11 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing page response body: %v", err)
+		}
+	}()
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("This is a test page.")) {
@@ -218,7 +247,11 @@ func TestOptimisticLockConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing edit response body: %v", err)
+		}
+	}()
 	// BaseHash will be empty for new page
 
 	// Save directly via client to change the page
@@ -231,7 +264,9 @@ func TestOptimisticLockConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("closing save response body: %v", err)
+	}
 
 	// Now try to save with stale basehash
 	saveForm2 := url.Values{
@@ -243,7 +278,11 @@ func TestOptimisticLockConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save2 failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing conflict response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("Conflict status = %d, want 409", resp.StatusCode)
@@ -266,7 +305,11 @@ func TestPreview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST preview failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing preview response body: %v", err)
+		}
+	}()
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("<strong>")) {
@@ -289,7 +332,11 @@ func TestUnauthenticatedRedirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing unauthenticated response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Unauthenticated request status = %d, want 303", resp.StatusCode)
@@ -324,8 +371,12 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test-image.png")
-	io.Copy(part, bytes.NewReader(pngData))
-	writer.Close()
+	if _, err := io.Copy(part, bytes.NewReader(pngData)); err != nil {
+		t.Fatalf("copying PNG data: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing multipart writer: %v", err)
+	}
 
 	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -333,7 +384,11 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST upload failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing upload response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Upload status = %d, want 200", resp.StatusCode)
@@ -349,7 +404,11 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET attachment failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing attachment response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Serve status = %d, want 200", resp.StatusCode)
@@ -371,8 +430,12 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "virus.exe")
-	part.Write([]byte("malware"))
-	writer.Close()
+	if _, err := part.Write([]byte("malware")); err != nil {
+		t.Fatalf("writing malware payload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing multipart writer: %v", err)
+	}
 
 	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -380,7 +443,11 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST attachment failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing rejected attachment response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Bad extension status = %d, want 400", resp.StatusCode)
@@ -406,8 +473,12 @@ func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "escape.png")
-	io.Copy(part, bytes.NewReader(pngData))
-	writer.Close()
+	if _, err := io.Copy(part, bytes.NewReader(pngData)); err != nil {
+		t.Fatalf("copying PNG data: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing multipart writer: %v", err)
+	}
 
 	// Percent-encoded ".." as the {slug} path segment: net/http's ServeMux
 	// redirects literal ".." segments before routing, but %2e%2e reaches
@@ -420,7 +491,11 @@ func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST upload failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing traversal response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Path traversal slug status = %d, want 400", resp.StatusCode)
@@ -442,14 +517,14 @@ func TestSearchPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Search for the unique word
 	resp, err = client.Get(server.URL + "/search?q=uniquewordxyz")
 	if err != nil {
 		t.Fatalf("GET search failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Search status = %d, want 200", resp.StatusCode)
@@ -475,7 +550,7 @@ func TestBacklinksShown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST one failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Save page "page-two"
 	saveForm = url.Values{
@@ -487,14 +562,14 @@ func TestBacklinksShown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST two failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// View page page-two, should show backlinks
 	resp, err = client.Get(server.URL + "/page/page-two")
 	if err != nil {
 		t.Fatalf("GET page two failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("linked from")) {
@@ -522,7 +597,7 @@ func TestHistoryListAndRevert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	saveForm = url.Values{
 		"title":    {"History Test"},
@@ -533,14 +608,14 @@ func TestHistoryListAndRevert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v2 failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// GET history
 	resp, err = client.Get(server.URL + "/page/" + slug + "/history")
 	if err != nil {
 		t.Fatalf("GET history failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("History status = %d, want 200", resp.StatusCode)
@@ -573,14 +648,14 @@ func TestRevertToOldVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Verify page shows v1
 	resp, err = client.Get(server.URL + "/page/" + slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("Original content")) {
@@ -598,7 +673,7 @@ func TestPageChrome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
@@ -627,7 +702,7 @@ func TestPageChrome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
 	for _, want := range []string{
@@ -657,14 +732,14 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// View the page — mermaid script should be present
 	resp, err = client.Get(server.URL + "/page/mermaid-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`src="/static/mermaid.min.js"`)) {
@@ -676,7 +751,7 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`src="/static/mermaid.min.js"`)) {
@@ -695,7 +770,7 @@ func TestLoginErrorShown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST login failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Bad login status = %d, want 401", resp.StatusCode)
@@ -722,13 +797,13 @@ func TestTagBrowsePages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	resp, err = client.Get(server.URL + "/tags")
 	if err != nil {
 		t.Fatalf("tags index request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/tags/go"`) {
 		t.Errorf("GET /tags should list a link to /tags/go, got status %d body:\n%s", resp.StatusCode, body)
@@ -738,7 +813,7 @@ func TestTagBrowsePages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tag page request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/page/tagged"`) {
 		t.Errorf("GET /tags/go should list a link to /page/tagged, got status %d body:\n%s", resp.StatusCode, body)
@@ -761,14 +836,14 @@ func TestTagsOnEditAndView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Edit form should show the tags back.
 	resp, err = client.Get(server.URL + "/page/tagged/edit")
 	if err != nil {
 		t.Fatalf("edit request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `value="go, wiki"`) {
 		t.Errorf("edit page should show tags input, got:\n%s", body)
@@ -779,7 +854,7 @@ func TestTagsOnEditAndView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("view request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `href="/tags/go"`) || !strings.Contains(string(body), `class="meta-tag"`) {
 		t.Errorf("page view should show a tag chip linking to /tags/go, got:\n%s", body)
@@ -800,13 +875,13 @@ func TestTitleEscaped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	resp, err = client.Get(server.URL + "/page/xss-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
 	if bytes.Contains(body, []byte("<script>alert(1)</script>")) {
@@ -829,14 +904,14 @@ func TestSearchAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// Search via API
 	resp, err = client.Get(server.URL + "/api/search?q=uniquetestword")
 	if err != nil {
 		t.Fatalf("GET api/search failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("API search status = %d, want 200", resp.StatusCode)
@@ -863,7 +938,7 @@ func TestSyncAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET api/sync failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("API sync status = %d, want 200", resp.StatusCode)
@@ -1028,7 +1103,7 @@ func TestSettingsGetWithConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
@@ -1069,7 +1144,7 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
@@ -1113,7 +1188,7 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
@@ -1135,7 +1210,7 @@ func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.
 	if err != nil {
 		t.Fatalf("POST /settings/appearance failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
@@ -1144,7 +1219,11 @@ func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing settings response body: %v", err)
+		}
+	}()
 	body, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body, []byte(`value="helvetica" selected`)) {
 		t.Errorf("saved UI font should be selected on reload, body: %s", body)
@@ -1165,7 +1244,7 @@ func TestSettingsAppearancePostRejectsUnknownFont(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/appearance failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
@@ -1182,7 +1261,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if bytes.Contains(body, []byte("Set up wiki")) {
 		t.Errorf("setup modal should not appear before re-run is clicked, body: %s", body)
@@ -1192,7 +1271,11 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/setup failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing setup response body: %v", err)
+		}
+	}()
 	if resp2.StatusCode != http.StatusSeeOther {
 		t.Errorf("re-run setup status = %d, want 303", resp2.StatusCode)
 	}
@@ -1201,7 +1284,11 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /settings after re-run failed: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Errorf("closing settings response body: %v", err)
+		}
+	}()
 	body3, _ := io.ReadAll(resp3.Body)
 	if !bytes.Contains(body3, []byte("Set up wiki")) {
 		t.Errorf("setup modal should appear after re-run setup even though files exist, body: %s", body3)
@@ -1218,13 +1305,21 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /setup skip failed: %v", err)
 	}
-	defer resp4.Body.Close()
+	defer func() {
+		if err := resp4.Body.Close(); err != nil {
+			t.Errorf("closing setup response body: %v", err)
+		}
+	}()
 
 	resp5, err := client.Get(server.URL + "/settings")
 	if err != nil {
 		t.Fatalf("GET /settings after skip failed: %v", err)
 	}
-	defer resp5.Body.Close()
+	defer func() {
+		if err := resp5.Body.Close(); err != nil {
+			t.Errorf("closing settings response body: %v", err)
+		}
+	}()
 	body5, _ := io.ReadAll(resp5.Body)
 	if bytes.Contains(body5, []byte("Set up wiki")) {
 		t.Errorf("setup modal should not reappear after skip, body: %s", body5)
@@ -1248,7 +1343,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 	if !bytes.Contains(body, []byte("Original")) {
 		t.Errorf("GET should show original site name")
 	}
@@ -1270,7 +1365,9 @@ func TestSettingsFullFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings failed: %v", err)
 	}
-	resp2.Body.Close()
+	if err := resp2.Body.Close(); err != nil {
+		t.Fatalf("closing settings response body: %v", err)
+	}
 	if resp2.StatusCode != http.StatusSeeOther {
 		t.Errorf("POST Status = %d, want 303", resp2.StatusCode)
 	}
@@ -1280,7 +1377,9 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Fatalf("GET /settings?saved=1 failed: %v", err)
 	}
 	body3, _ := io.ReadAll(resp3.Body)
-	resp3.Body.Close()
+	if err := resp3.Body.Close(); err != nil {
+		t.Fatalf("closing saved settings response body: %v", err)
+	}
 	if !bytes.Contains(body3, []byte("Updated Wiki")) {
 		t.Errorf("After save, should show updated site name")
 	}
@@ -1315,7 +1414,7 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/export failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
@@ -1418,7 +1517,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save alpha failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	// View the index page: the seeded <!-- hmd:toc --> token must be
 	// replaced with a rendered wiki-link to the new page.
@@ -1426,7 +1525,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`href="/page/alpha"`)) {
@@ -1447,13 +1546,13 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save toc-test failed: %v", err)
 	}
-	resp.Body.Close()
+	closeTestBody(t, resp.Body)
 
 	resp, err = client.Get(server.URL + "/page/toc-test")
 	if err != nil {
 		t.Fatalf("GET /page/toc-test failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`href="/page/alpha"`)) {
@@ -1470,7 +1569,7 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /search failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if bytes.Contains(body, []byte(`href="/page/help"`)) {
 		t.Errorf("help should not appear in search results, body: %s", body)
@@ -1481,7 +1580,11 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /static/app.js failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing app.js response body: %v", err)
+		}
+	}()
 	body2, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body2, []byte(`href="/hidden"`)) || !bytes.Contains(body2, []byte(`:hidden:`)) {
 		t.Errorf("app.js should contain a :hidden: palette row linking to /hidden")
@@ -1498,7 +1601,7 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /hidden/help failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
@@ -1512,7 +1615,11 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/help failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing page response body: %v", err)
+		}
+	}()
 	if resp2.StatusCode != http.StatusNotFound {
 		t.Errorf("GET /page/help should be 404, got %d", resp2.StatusCode)
 	}
@@ -1522,7 +1629,11 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /hidden failed: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Errorf("closing hidden response body: %v", err)
+		}
+	}()
 	body3, _ := io.ReadAll(resp3.Body)
 	if !bytes.Contains(body3, []byte(`href="/hidden/help"`)) {
 		t.Errorf("/hidden should list help, body: %s", body3)
@@ -1546,10 +1657,14 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err := os.WriteFile(existingPage, []byte("# Existing\n"), 0644); err != nil {
 		t.Fatalf("writing existing page: %v", err)
 	}
-	wt.Add("existing-page.md")
-	wt.Commit("initial", &git.CommitOptions{
+	if _, err := wt.Add("existing-page.md"); err != nil {
+		t.Fatalf("adding existing page: %v", err)
+	}
+	if _, err := wt.Commit("initial", &git.CommitOptions{
 		Author: &object.Signature{Name: "test", Email: "test@hmd.local", When: time.Now()},
-	})
+	}); err != nil {
+		t.Fatalf("initial commit failed: %v", err)
+	}
 
 	cfg := Config{
 		RepoDir:      repoDir,
@@ -1599,14 +1714,16 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
 	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client.Do(req)
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("login request failed: %v", err)
+	}
 
 	// Root should redirect to /page/readme (not a standalone setup page).
 	resp, err := client.Get(server.URL + "/")
 	if err != nil {
 		t.Fatalf("GET / failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("root should redirect, got status %d", resp.StatusCode)
 	}
@@ -1616,7 +1733,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing home response body: %v", err)
+		}
+	}()
 	body2, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body2, []byte("Set up wiki")) {
 		t.Errorf("setup modal should appear when NeedsSetup, body: %s", body2)
@@ -1627,7 +1748,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /setup failed: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Errorf("closing setup response body: %v", err)
+		}
+	}()
 	if resp3.StatusCode != http.StatusSeeOther {
 		t.Errorf("setup status = %d, want 303", resp3.StatusCode)
 	}
@@ -1637,7 +1762,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer resp4.Body.Close()
+	defer func() {
+		if err := resp4.Body.Close(); err != nil {
+			t.Errorf("closing home response body: %v", err)
+		}
+	}()
 	if resp4.StatusCode != http.StatusOK {
 		t.Errorf("home page status = %d, want 200", resp4.StatusCode)
 	}
@@ -1651,7 +1780,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/readme after setup failed: %v", err)
 	}
-	defer resp5.Body.Close()
+	defer func() {
+		if err := resp5.Body.Close(); err != nil {
+			t.Errorf("closing home response body: %v", err)
+		}
+	}()
 	body5, _ := io.ReadAll(resp5.Body)
 	if bytes.Contains(body5, []byte("setup-modal-backdrop")) {
 		t.Errorf("setup modal should not appear after setup, body: %s", body5)
@@ -1720,14 +1853,16 @@ func TestCustomHomeFilename(t *testing.T) {
 	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
 	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client.Do(req)
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("login request failed: %v", err)
+	}
 
 	// Root redirects to /page/index (slug derived from index.md).
 	resp, err := client.Get(server.URL + "/")
 	if err != nil {
 		t.Fatalf("GET / failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeTestBody(t, resp.Body)
 	if loc := resp.Header.Get("Location"); loc != "/page/index" {
 		t.Errorf("root redirect = %q, want /page/index", loc)
 	}
@@ -1737,7 +1872,11 @@ func TestCustomHomeFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/index failed: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing index response body: %v", err)
+		}
+	}()
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("GET /page/index status = %d, want 200", resp2.StatusCode)
 	}
@@ -1760,13 +1899,19 @@ func TestCustomHomeFilename(t *testing.T) {
 	if _, err := store.Save("home.md", Page{Slug: "home", Title: "Home", Body: "<!-- hmd:toc -->\n"}.Encode(), "Add home", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding home.md: %v", err)
 	}
-	app.Index.Update(ParsePage("home", []byte("---\ntitle: Home\n---\n\n<!-- hmd:toc -->\n")))
+	if err := app.Index.Update(ParsePage("home", []byte("---\ntitle: Home\n---\n\n<!-- hmd:toc -->\n"))); err != nil {
+		t.Fatalf("updating home index: %v", err)
+	}
 
 	resp3, err := client.Get(server.URL + "/page/home")
 	if err != nil {
 		t.Fatalf("GET /page/home failed: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Errorf("closing page response body: %v", err)
+		}
+	}()
 	body3, _ := io.ReadAll(resp3.Body)
 	// "home" is an ordinary page, NOT the home slug, so it should appear in
 	// the TOC of the index page (home slug "index" is the one excluded).
@@ -1774,7 +1919,11 @@ func TestCustomHomeFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /page/index failed: %v", err)
 	}
-	defer resp4.Body.Close()
+	defer func() {
+		if err := resp4.Body.Close(); err != nil {
+			t.Errorf("closing index response body: %v", err)
+		}
+	}()
 	body4, _ := io.ReadAll(resp4.Body)
 	if !bytes.Contains(body4, []byte(`href="/page/home"`)) {
 		t.Errorf("index page TOC should list the ordinary 'home' page, body: %s", body4)
