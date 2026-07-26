@@ -4,14 +4,14 @@ import (
 	"testing"
 )
 
-// TestWidgetRegistry checks every id referenced by a profile exists in the
+// TestWidgetRegistry checks every id referenced by a skin exists in the
 // widgets registry, and every widgetIDs entry has a registry definition.
 func TestWidgetRegistry(t *testing.T) {
-	for pname, p := range profiles {
-		for slot, ids := range p.Widgets {
+	for sname, sk := range skins {
+		for slot, ids := range sk.Widgets {
 			for _, id := range ids {
 				if _, ok := widgets[id]; !ok {
-					t.Errorf("profile %q slot %q references unknown widget %q", pname, slot, id)
+					t.Errorf("skin %q slot %q references unknown widget %q", sname, slot, id)
 				}
 			}
 		}
@@ -36,7 +36,7 @@ func TestWidgetRegistry(t *testing.T) {
 }
 
 func TestWidgetsForSlotAddRemove(t *testing.T) {
-	p := profiles["docs"]
+	p := skins["phosphor"]
 	got := widgetsForSlot(slotSidebar, p, nil, []string{"log"})
 	for _, w := range got {
 		if w.ID == "log" {
@@ -62,14 +62,17 @@ func TestWidgetsForSlotAddRemove(t *testing.T) {
 	}
 }
 
-func TestResolveProfileFallback(t *testing.T) {
-	if got := resolveProfile("bogus").Name; got != "docs" {
-		t.Errorf("resolveProfile(bogus) = %q, want docs", got)
+func TestResolveSkinFallback(t *testing.T) {
+	if got := skinName("bogus"); got != defaultSkin {
+		t.Errorf("skinName(bogus) = %q, want %q", got, defaultSkin)
 	}
-	if got := resolveProfile("").Name; got != "docs" {
-		t.Errorf("resolveProfile(\"\") = %q, want docs", got)
+	if got := skinName(""); got != defaultSkin {
+		t.Errorf("skinName(\"\") = %q, want %q", got, defaultSkin)
 	}
-	if got := resolveProfile("journal").Name; got != "journal" {
-		t.Errorf("resolveProfile(journal) = %q, want journal", got)
+	if got := skinName("journal"); got != "journal" {
+		t.Errorf("skinName(journal) = %q, want journal", got)
+	}
+	if got := resolveSkin("bogus").Label; got != skins[defaultSkin].Label {
+		t.Errorf("resolveSkin(bogus).Label = %q, want %q", got, skins[defaultSkin].Label)
 	}
 }

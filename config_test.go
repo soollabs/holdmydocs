@@ -309,21 +309,21 @@ func TestSyncModeInvalid(t *testing.T) {
 	}
 }
 
-func TestProfileDefault(t *testing.T) {
+func TestSkinDefault(t *testing.T) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Profile != "docs" {
-		t.Errorf("Profile = %q, want docs", cfg.Profile)
+	if cfg.Skin != defaultSkin {
+		t.Errorf("Skin = %q, want %q", cfg.Skin, defaultSkin)
 	}
 }
 
-func TestProfileInvalid(t *testing.T) {
-	t.Setenv("HMD_PROFILE", "bogus")
+func TestSkinInvalid(t *testing.T) {
+	t.Setenv("HMD_SKIN", "bogus")
 	_, err := LoadConfig()
 	if err == nil {
-		t.Fatal("LoadConfig should reject invalid profile")
+		t.Fatal("LoadConfig should reject invalid skin")
 	}
 }
 

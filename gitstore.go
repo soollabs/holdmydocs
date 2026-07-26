@@ -199,14 +199,18 @@ Pages under ` + "`daily/YYYY-MM-DD`" + ` (e.g. ` + "`daily/2026-07-24`" + `) are
 journal entries. ctrl-j opens today's entry; the calendar widget marks which
 days have one.
 
-## Profiles
+## Skins
 
-A profile is a named widget arrangement plus a default skin — it changes
-what's on screen, never how or where pages are stored. Pick one on
-` + "`/settings`" + `: ` + "`docs`" + ` (default, general-purpose), ` + "`journal`" + `
-(daily-page focused), ` + "`clipper`" + ` (saved-links focused), ` + "`research`" + `
-(docs plus pinned pages and a health summary), ` + "`minimal`" + ` (stripped down).
-Add or remove a single widget without leaving your profile from the widgets
+A skin is how the app looks *and* what it puts on screen — typography,
+spacing and markers, plus which widgets mount where, what ` + "`/`" + ` opens
+and what the statusline shows. It never changes how or where pages are
+stored, so the same repo opens correctly under any of them. Pick one on
+` + "`/settings`" + `: ` + "`phosphor`" + ` (default, terminal),
+` + "`newsprint`" + ` (broadsheet serif), ` + "`journal`" + ` (writing first —
+serif, wide measure, lands on today's entry), ` + "`soft`" + ` (rounded,
+low-contrast sans), ` + "`bare`" + ` (stripped down). Each skin arrives in the colour **palette**
+it was designed for; you can pick a different one afterwards.
+Add or remove a single widget without leaving your skin from the widgets
 checklist on ` + "`/settings`" + `.
 
 ## History
@@ -603,7 +607,7 @@ func (s *Store) List() ([]string, error) {
 
 // DailyPages returns the "daily/YYYY-MM-DD" slugs found under the daily/
 // subdirectory, sorted ascending. Returns an empty slice, not an error, if
-// the daily/ directory doesn't exist yet — journalling profiles are usable
+// the daily/ directory doesn't exist yet — journalling skins are usable
 // from the very first entry.
 func (s *Store) DailyPages() ([]string, error) {
 	s.mu.RLock()

@@ -9,18 +9,18 @@ import (
 	"time"
 )
 
-// TestLandingRouteByProfile checks "/" redirects to each profile's Landing
-// target: docs/research/minimal -> home page, journal -> today's daily
-// entry in edit mode, clipper -> /inbox.
-func TestLandingRouteByProfile(t *testing.T) {
+// TestLandingRouteBySkin checks "/" redirects to each skin's Landing
+// target: everything but journal goes to the home page; journal goes to
+// today's daily entry in edit mode.
+func TestLandingRouteBySkin(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	setProfile := func(name string) {
-		form := url.Values{"profile": {name}}
+	setSkin := func(name string) {
+		form := url.Values{"skin": {name}}
 		resp, err := client.PostForm(server.URL+"/settings/appearance", form)
 		if err != nil {
-			t.Fatalf("setting profile %s: %v", name, err)
+			t.Fatalf("setting skin %s: %v", name, err)
 		}
 		resp.Body.Close()
 	}
@@ -34,18 +34,18 @@ func TestLandingRouteByProfile(t *testing.T) {
 
 	today := time.Now().Format("2006-01-02")
 	tests := []struct {
-		profile  string
+		skin     string
 		wantPath string
 	}{
-		{"docs", "/page/readme"},
-		{"research", "/page/readme"},
-		{"minimal", "/page/readme"},
+		{"phosphor", "/page/readme"},
+		{"newsprint", "/page/readme"},
+		{"soft", "/page/readme"},
+		{"bare", "/page/readme"},
 		{"journal", "/page/daily/" + today + "/edit"},
-		{"clipper", "/inbox"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.profile, func(t *testing.T) {
-			setProfile(tt.profile)
+		t.Run(tt.skin, func(t *testing.T) {
+			setSkin(tt.skin)
 			resp, err := noRedirectClient.Get(server.URL + "/")
 			if err != nil {
 				t.Fatalf("GET /: %v", err)
@@ -56,23 +56,23 @@ func TestLandingRouteByProfile(t *testing.T) {
 			}
 			loc := resp.Header.Get("Location")
 			if loc != tt.wantPath {
-				t.Errorf("profile=%s: Location = %q, want %q", tt.profile, loc, tt.wantPath)
+				t.Errorf("skin=%s: Location = %q, want %q", tt.skin, loc, tt.wantPath)
 			}
 		})
 	}
 }
 
 // TestDailyEnabledJSGlobal checks the window.hmdDailyEnabled flag rendered
-// into the page matches each profile's DailyKey (clipper/minimal have none,
-// so ctrl-j and the >daily palette verb must be disabled client-side).
+// into the page matches each skin's DailyKey (bare has none, so ctrl-j and
+// the >daily palette verb must be disabled client-side there).
 func TestDailyEnabledJSGlobal(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	setProfile := func(name string) {
-		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"profile": {name}})
+	setSkin := func(name string) {
+		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {name}})
 		if err != nil {
-			t.Fatalf("setting profile %s: %v", name, err)
+			t.Fatalf("setting skin %s: %v", name, err)
 		}
 		resp.Body.Close()
 	}
@@ -87,21 +87,21 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 	}
 
 	tests := []struct {
-		profile string
-		want    string
+		skin string
+		want string
 	}{
-		{"docs", "hmdDailyEnabled =  true"},
-		{"research", "hmdDailyEnabled =  true"},
+		{"phosphor", "hmdDailyEnabled =  true"},
+		{"newsprint", "hmdDailyEnabled =  true"},
+		{"soft", "hmdDailyEnabled =  true"},
 		{"journal", "hmdDailyEnabled =  true"},
-		{"clipper", "hmdDailyEnabled =  false"},
-		{"minimal", "hmdDailyEnabled =  false"},
+		{"bare", "hmdDailyEnabled =  false"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.profile, func(t *testing.T) {
-			setProfile(tt.profile)
+		t.Run(tt.skin, func(t *testing.T) {
+			setSkin(tt.skin)
 			body := get("/page/readme")
 			if !strings.Contains(body, tt.want) {
-				t.Errorf("profile=%s: expected %q in page, not found", tt.profile, tt.want)
+				t.Errorf("skin=%s: expected %q in page, not found", tt.skin, tt.want)
 			}
 		})
 	}

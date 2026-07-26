@@ -14,7 +14,7 @@
 {{else}}
 <h1>Tags</h1>
 {{if .AllTags}}
-<ul>
+<ul class="tag-list">
 	{{range .AllTags}}
 	<li><a href="/tags/{{.Slug}}">{{.Tag}}</a> ({{.Count}})</li>
 	{{end}}

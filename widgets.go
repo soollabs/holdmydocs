@@ -8,17 +8,18 @@ import (
 type widgetSlot string
 
 const (
-	slotSidebar    widgetSlot = "sidebar"    // left rail, ordered
-	slotRail       widgetSlot = "rail"       // right rail (≥1200px only)
-	slotPageHead   widgetSlot = "page-head"  // between title and article
-	slotPageFoot   widgetSlot = "page-foot"  // after article
-	slotStatusline widgetSlot = "statusline" // one segment
+	slotSidebar  widgetSlot = "sidebar"   // left rail, ordered
+	slotRail     widgetSlot = "rail"      // right rail (≥1200px only)
+	slotPageHead widgetSlot = "page-head" // between title and article
+	slotPageFoot widgetSlot = "page-foot" // after article
+	// The statusline is not a slot: its segments are fixed per skin.Status
+	// rather than composable, so there is nothing for a registry to hold.
 )
 
 type widget struct {
 	ID    string
 	Title string     // "" = renders no <h2>
-	Slot  widgetSlot // default slot; a profile may override
+	Slot  widgetSlot // default slot; a skin may override
 }
 
 var widgetIDs = []string{
@@ -51,10 +52,10 @@ var widgets = map[string]widget{
 
 // widgetsForSlot returns the widgets that render in a given slot, in order,
 // with add/remove overrides from the user's own prefs applied. add is
-// appended after the profile's own list (deduplicated); remove drops ids
-// present in the profile list. Removing an id that isn't there is a no-op.
-func widgetsForSlot(slot widgetSlot, p profile, add, remove []string) []*widget {
-	ids := append([]string{}, p.Widgets[slot]...)
+// appended after the skin's own list (deduplicated); remove drops ids
+// present in the skin's list. Removing an id that isn't there is a no-op.
+func widgetsForSlot(slot widgetSlot, s skin, add, remove []string) []*widget {
+	ids := append([]string{}, s.Widgets[slot]...)
 	removeSet := make(map[string]bool, len(remove))
 	for _, id := range remove {
 		removeSet[id] = true
@@ -83,11 +84,11 @@ func widgetsForSlot(slot widgetSlot, p profile, add, remove []string) []*widget 
 	return result
 }
 
-// profileDefaultIDs returns the set of every widget id p mounts, across all
+// skinDefaultIDs returns the set of every widget id s mounts, across all
 // slots.
-func profileDefaultIDs(p profile) map[string]bool {
+func skinDefaultIDs(s skin) map[string]bool {
 	set := make(map[string]bool)
-	for _, ids := range p.Widgets {
+	for _, ids := range s.Widgets {
 		for _, id := range ids {
 			set[id] = true
 		}
@@ -96,12 +97,15 @@ func profileDefaultIDs(p profile) map[string]bool {
 }
 
 // computeWidgetOverrides diffs the checked widget ids (from the settings
-// form) against p's own defaults, producing the WidgetsAdd/WidgetsRemove
-// pair to store: ids checked but not in the profile go to add; ids in the
-// profile but not checked go to remove. A widget id that isn't a real
-// widget is dropped rather than stored.
-func computeWidgetOverrides(p profile, checked []string) (add, remove []string) {
-	defaults := profileDefaultIDs(p)
+// form) against s's own defaults, producing the WidgetsAdd/WidgetsRemove
+// pair to store: ids checked but not in the skin go to add; ids in the skin
+// but not checked go to remove. A widget id that isn't a real widget is
+// dropped rather than stored.
+//
+// Only meaningful when the checkboxes were rendered against this same skin
+// — see handleSettingsAppearance, which discards them on a skin change.
+func computeWidgetOverrides(s skin, checked []string) (add, remove []string) {
+	defaults := skinDefaultIDs(s)
 	checkedSet := make(map[string]bool, len(checked))
 	for _, id := range checked {
 		if _, ok := widgets[id]; !ok {
@@ -133,12 +137,21 @@ func hasWidget(list []*widget, id string) bool {
 }
 
 // populateWidgetData fills in the data-heavy widget fields on data — only
-// the ones whose widget id is actually present in the resolved profile, so
-// a profile that doesn't use e.g. calendar never pays for Store.DailyPages.
-func (app *App) populateWidgetData(data *TemplateData) {
+// the ones something on the page actually reads, so a skin that doesn't use
+// e.g. calendar never pays for Store.DailyPages.
+//
+// "Something on the page" is not just the mounted widgets: the write
+// statusline reads WritingStats directly, and a user on that skin is free
+// to unmount the widget. Fold that need in here rather than letting the
+// statusline silently render zeroes.
+func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	all := append(append(append(append([]*widget{}, data.SidebarWidgets...), data.RailWidgets...), data.PageHeadWidgets...), data.PageFootWidgets...)
 
-	needsDaily := hasWidget(all, "calendar") || hasWidget(all, "writing-stats") || hasWidget(all, "prev-entries")
+	needs := func(id string) bool {
+		return hasWidget(all, id) || (s.Status == "write" && id == "writing-stats")
+	}
+
+	needsDaily := needs("calendar") || needs("writing-stats") || needs("prev-entries")
 	var dailySlugs []string
 	if needsDaily {
 		dailySlugs, _ = app.Store.DailyPages()
@@ -160,25 +173,25 @@ func (app *App) populateWidgetData(data *TemplateData) {
 	}
 
 	now := time.Now()
-	if hasWidget(all, "calendar") {
+	if needs("calendar") {
 		data.Calendar = buildCalendarMonth(now, dailySlugs)
 	}
-	if hasWidget(all, "writing-stats") {
+	if needs("writing-stats") {
 		data.WritingStats = buildWritingStats(now, dailySlugs, bodyWords)
 	}
-	if hasWidget(all, "prev-entries") {
+	if needs("prev-entries") {
 		data.PrevEntries = buildPrevEntries(data.Slug, dailySlugs, 3, firstLine)
 	}
-	if hasWidget(all, "inbox") {
+	if needs("inbox") {
 		data.Inbox = app.Index.UnreadPages()
 	}
-	if hasWidget(all, "sources") {
+	if needs("sources") {
 		data.Sources = app.Index.SourceCounts()
 	}
-	if hasWidget(all, "pinned") {
+	if needs("pinned") {
 		data.PinnedPages = app.Index.PinnedPages()
 	}
-	if hasWidget(all, "source-card") && data.Slug != "" {
+	if needs("source-card") && data.Slug != "" {
 		data.SourceMeta = app.Index.MetaFor(data.Slug)
 	}
 }

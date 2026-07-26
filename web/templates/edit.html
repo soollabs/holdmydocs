@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="editor-col">
 <div class="breadcrumb">
-	<a href="/">~/wiki</a>
+	<a href="/">{{.SiteName}}</a>
 	<span class="sep">/</span>
 	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
 </div>
@@ -65,6 +65,6 @@
 	<textarea name="body" rows="16" style="display:block">{{.Body}}</textarea>
 </noscript>
 
-<script src="/static/editor.js"></script>
+<script src="/static/editor.js?v=2"></script>
 </div>
 {{end}}

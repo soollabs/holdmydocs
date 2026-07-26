@@ -23,6 +23,136 @@ func TestSkinsNoRawHex(t *testing.T) {
 	}
 }
 
+func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
+	css, err := webFS.ReadFile("web/static/skins.css")
+	if err != nil {
+		t.Fatalf("reading embedded skins.css: %v", err)
+	}
+	if !strings.Contains(string(css), `:root:not([data-skin="phosphor"]) #page-content .wiki .br {
+	display: none;
+}`) {
+		t.Error("non-phosphor skins must hide wiki-link brackets")
+	}
+}
+
+func TestBareSkinIncludesSettingsWidget(t *testing.T) {
+	if !skinDefaultIDs(skins["bare"])["keys"] {
+		t.Error("bare skin must include the keys widget with the settings link")
+	}
+}
+
+func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
+	script, err := webFS.ReadFile("web/static/sw.js")
+	if err != nil {
+		t.Fatalf("reading service worker: %v", err)
+	}
+	body := string(script)
+	for _, asset := range []string{"style.css?v=2", "skins.css?v=2", "app.js?v=2", "editor.js?v=2"} {
+		if !strings.Contains(body, asset) {
+			t.Errorf("service worker does not precache the requested URL for %s", asset)
+		}
+	}
+	if !strings.Contains(body, "if (response.ok)") {
+		t.Error("service worker must not replace valid cached assets with failed responses")
+	}
+	fetchAt := strings.Index(body, "fetch(e.request)")
+	fallbackAt := strings.LastIndex(body, "caches.match(e.request)")
+	if fetchAt == -1 || fallbackAt == -1 || fetchAt > fallbackAt {
+		t.Error("static asset requests must try the network before the cache fallback")
+	}
+	if strings.Contains(body, "cached || fetch(e.request)") {
+		t.Error("cache-first static assets keep obsolete CSS across deployments")
+	}
+}
+
+func TestStaticAssetURLsEscapeLegacyCache(t *testing.T) {
+	for path, assets := range map[string][]string{
+		"web/templates/base.html": {"/static/style.css?v=2", "/static/skins.css?v=2", "/static/app.js?v=2"},
+		"web/templates/edit.html": {"/static/editor.js?v=2"},
+	} {
+		body, err := webFS.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		for _, asset := range assets {
+			if !bytes.Contains(body, []byte(asset)) {
+				t.Errorf("%s does not request %s, so the legacy cache can serve an obsolete asset", path, asset)
+			}
+		}
+	}
+}
+
+func TestSettingsSkinPreviewAppliesPalette(t *testing.T) {
+	template, err := webFS.ReadFile("web/templates/settings.html")
+	if err != nil {
+		t.Fatalf("reading settings template: %v", err)
+	}
+	body := string(template)
+	for _, required := range []string{
+		"function previewPalette(name)",
+		"root.style.setProperty('--' + role, values[role])",
+		"previewPalette(input.value)",
+		"previewPalette(skinPalettes[input.value])",
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("settings skin preview missing %q", required)
+		}
+	}
+}
+
+func TestSettingsPalettePreviewTracksThemeAndExplicitChoice(t *testing.T) {
+	template, err := webFS.ReadFile("web/templates/settings.html")
+	if err != nil {
+		t.Fatalf("reading settings template: %v", err)
+	}
+	body := string(template)
+	for _, required := range []string{
+		`name="palette_explicit"`,
+		`paletteExplicit.value = '1'`,
+		`paletteExplicit.value = ''`,
+		`window.addEventListener('load'`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("settings palette preview missing %q", required)
+		}
+	}
+}
+
+func TestThemeConsumersUseSemanticBackgrounds(t *testing.T) {
+	css, err := webFS.ReadFile("web/static/style.css")
+	if err != nil {
+		t.Fatalf("reading style.css: %v", err)
+	}
+	body := string(css)
+	for _, green := range []string{"#16261b", "rgba(86, 211, 100, .12)"} {
+		if strings.Contains(body, green) {
+			t.Errorf("theme consumer retains the phosphor palette's hard-coded green %s", green)
+		}
+	}
+
+	base, err := webFS.ReadFile("web/templates/base.html")
+	if err != nil {
+		t.Fatalf("reading base template: %v", err)
+	}
+	if !strings.Contains(string(base), "window.HMDSyncThemeColor") {
+		t.Error("browser theme colour does not follow the active palette background")
+	}
+}
+
+func TestSkinPickerInputsAreContained(t *testing.T) {
+	css, err := webFS.ReadFile("web/static/style.css")
+	if err != nil {
+		t.Fatalf("reading style.css: %v", err)
+	}
+	body := string(css)
+	if !strings.Contains(body, ".skin-card,\n.palette-card {\n\tposition: relative;") {
+		t.Error("skin card inputs need a positioned containing block")
+	}
+	if !strings.Contains(body, ".skin-card input,\n.palette-card input {\n\tposition: absolute;\n\tinset: 0;") {
+		t.Error("hidden skin inputs must remain inside their cards instead of extending page overflow")
+	}
+}
+
 // TestNoRawHexInWidgetCSS extends TestSkinsNoRawHex's discipline to the new
 // widget rules in style.css (calendar/writing-stats/inbox/sources/
 // source-card/prev-entries) added for specs/2026-07-25-profiles-widgets.md
@@ -114,7 +244,7 @@ func TestSkinPersists(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	form := url.Values{"skin": {"blueprint"}}
+	form := url.Values{"skin": {"soft"}}
 	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
@@ -132,12 +262,16 @@ func TestSkinPersists(t *testing.T) {
 	}
 	defer resp2.Body.Close()
 	body, _ := io.ReadAll(resp2.Body)
-	if !bytes.Contains(body, []byte(`data-skin="blueprint"`)) {
-		t.Errorf("expected data-skin=\"blueprint\" on rendered page, body: %s", body)
+	if !bytes.Contains(body, []byte(`data-skin="soft"`)) {
+		t.Errorf("expected data-skin=\"soft\" on rendered page, body: %s", body)
 	}
 }
 
-func TestUnknownStoredSkinIgnored(t *testing.T) {
+// TestUnknownStoredSkinFallsBack: a hand-edited users.json naming a skin
+// that doesn't exist renders the default one. The skin now decides widget
+// composition as well as looks, so there is no "render no attribute" state
+// to fall back to — it resolves to phosphor like any other unknown name.
+func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
@@ -153,7 +287,7 @@ func TestUnknownStoredSkinIgnored(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if bytes.Contains(body, []byte(`data-skin=`)) {
-		t.Errorf("unknown stored skin should render no data-skin attribute, body: %s", body)
+	if !bytes.Contains(body, []byte(`data-skin="`+defaultSkin+`"`)) {
+		t.Errorf("unknown stored skin should render the default skin, body: %s", body)
 	}
 }

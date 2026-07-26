@@ -79,15 +79,12 @@ type Config struct {
 	Bind           string
 	RepoDir        string
 	SiteName       string
-	Hostname       string
-	PathLabel      string
-	UserLabel      string
 	MaxUploadBytes int64
 	SyncPollMs     int
 	SyncMode       string
 	DefaultBranch  string
 	HomeFilename   string
-	Profile        string
+	Skin           string
 	Debug          bool
 
 	Git    GitConfig
@@ -101,15 +98,12 @@ type fileConfig struct {
 	Bind           string `yaml:"bind"`
 	RepoDir        string `yaml:"repo_dir"`
 	SiteName       string `yaml:"site_name"`
-	Hostname       string `yaml:"hostname"`
-	PathLabel      string `yaml:"path_label"`
-	UserLabel      string `yaml:"user_label"`
 	MaxUploadBytes *int64 `yaml:"max_upload_bytes"`
 	SyncPollMs     *int   `yaml:"sync_poll_ms"`
 	SyncMode       string `yaml:"sync_mode"`
 	DefaultBranch  string `yaml:"default_branch"`
 	HomeFilename   string `yaml:"home_filename"`
-	Profile        string `yaml:"profile"`
+	Skin           string `yaml:"skin"`
 	Debug          bool   `yaml:"debug"`
 
 	Git    GitConfig      `yaml:"git"`
@@ -251,15 +245,12 @@ func LoadConfig() (Config, error) {
 		Bind:           or(file.Bind, ":8080"),
 		RepoDir:        or(file.RepoDir, "/data/repo"),
 		SiteName:       or(file.SiteName, "hold my docs (hmd)"),
-		Hostname:       or(file.Hostname, "homelab"),
-		PathLabel:      or(file.PathLabel, "~/wiki"),
-		UserLabel:      file.UserLabel,
 		MaxUploadBytes: orInt64(file.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:     orInt(file.SyncPollMs, 10000),
 		SyncMode:       or(file.SyncMode, "push"),
 		DefaultBranch:  or(file.DefaultBranch, "main"),
 		HomeFilename:   or(file.HomeFilename, "readme.md"),
-		Profile:        or(file.Profile, "docs"),
+		Skin:           or(file.Skin, defaultSkin),
 		Debug:          file.Debug,
 
 		Git: GitConfig{
@@ -299,8 +290,8 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("invalid sync_mode %q: must be push or bidirectional", cfg.SyncMode)
 	}
 
-	if _, ok := profiles[cfg.Profile]; !ok {
-		return Config{}, fmt.Errorf("invalid profile %q: must be one of %v", cfg.Profile, profileNames)
+	if _, ok := skins[cfg.Skin]; !ok {
+		return Config{}, fmt.Errorf("invalid skin %q: must be one of %v", cfg.Skin, skinNames)
 	}
 
 	if err := cfg.validateHomeFilename(); err != nil {
@@ -363,15 +354,12 @@ func (c Config) toFileConfig() fileConfig {
 		Bind:           c.Bind,
 		RepoDir:        c.RepoDir,
 		SiteName:       c.SiteName,
-		Hostname:       c.Hostname,
-		PathLabel:      c.PathLabel,
-		UserLabel:      c.UserLabel,
 		MaxUploadBytes: int64Ptr(c.MaxUploadBytes),
 		SyncPollMs:     intPtr(c.SyncPollMs),
 		SyncMode:       c.SyncMode,
 		DefaultBranch:  c.DefaultBranch,
 		HomeFilename:   c.HomeFilename,
-		Profile:        c.Profile,
+		Skin:           c.Skin,
 		Debug:          c.Debug,
 		Git:            git,
 		Garden:         c.Garden,

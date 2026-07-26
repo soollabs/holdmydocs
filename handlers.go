@@ -107,11 +107,7 @@ type TemplateData struct {
 	SearchElapsed    string // search timing, e.g. "3ms"
 	SearchPages      int    // total pages, for search stats
 	SearchHits       int    // match count, for search stats
-	Hostname         string // shell prompt host segment
-	PathLabel        string // shell prompt path segment
-	UserLabel        string // overrides Username in prompt when non-empty
-	ShowTagsSidebar  bool
-	SyncPollMs       int // injected as a JS global for sync polling
+	SyncPollMs       int    // injected as a JS global for sync polling
 	SyncMode         string
 	BlobHash         string // current page blob hash, for client-side change detection
 	ThemeStyle       template.CSS
@@ -137,11 +133,10 @@ type TemplateData struct {
 	RailWidgets      []*widget
 	PageHeadWidgets  []*widget
 	PageFootWidgets  []*widget
-	Profile          string // resolved profile name in effect for this request
+	StatusVariant    string // skin.Status: full | write | quiet
 
-	// Data for the widgets added in specs/2026-07-25-profiles-widgets.md
-	// widget implementation — populated in app.render only when the corresponding widget id
-	// is actually present in one of the *Widgets slices above.
+	// Widget data — populated in app.render only when something on the page
+	// actually reads it (see populateWidgetData).
 	Calendar     CalendarMonth
 	WritingStats WritingStats
 	Inbox        []UnreadEntry
@@ -149,7 +144,7 @@ type TemplateData struct {
 	PinnedPages  []BacklinkEntry
 	PrevEntries  []PrevEntry
 	SourceMeta   widgetMeta // current page's pin/unread/source/author/read_time, for source-card
-	DailyEnabled bool       // profile.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
+	DailyEnabled bool       // skin.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -175,7 +170,6 @@ type SettingsData struct {
 	Error            string // validation error
 	MaxUploadBytes   int64
 	SyncPollMs       int
-	ShowTagsSidebar  bool
 	SyncMode         string
 	Palette          string
 	PaletteNames     []string
@@ -189,11 +183,11 @@ type SettingsData struct {
 	Skin             string
 	SkinNames        []string
 	Skins            map[string]skin
-	Profile          string
-	ProfileNames     []string
-	WidgetIDs        []string          // fixed display order for the widget checklist
-	Widgets          map[string]widget // id -> definition, for labels
-	CheckedWidgets   map[string]bool   // id -> currently active for this user (profile defaults + their add/remove)
+	SkinWidgets      map[string][]string // skin -> widget ids, JSON-encoded to re-tick the checklist on change
+	SkinPalettes     map[string]string   // skin -> default palette, JSON-encoded to move the selection on change
+	WidgetIDs        []string            // fixed display order for the widget checklist
+	Widgets          map[string]widget   // id -> definition, for labels
+	CheckedWidgets   map[string]bool     // id -> currently active for this user (skin defaults + their add/remove)
 	HelpDrifted      bool
 	UserGitAuthor    string      // current user's per-user git author override
 	HomeFilename     string      // read-only display; restart required to change
@@ -326,18 +320,13 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		adminPassEnv = "HMD_ADMIN_PASSWORD"
 	}
 	fields["AdminPass"] = FieldState{Value: cfg.AdminPass, Editable: false, EnvVar: adminPassEnv, BootstrapOnly: true}
-	fields["Hostname"] = mkField(cfg.Hostname, "Hostname", false, false)
-	fields["PathLabel"] = mkField(cfg.PathLabel, "PathLabel", false, false)
-	fields["UserLabel"] = mkField(cfg.UserLabel, "UserLabel", false, false)
 
 	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
 
-	showTagsSidebar := prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
-
-	activeProfile := effectiveProfile(cfg, prefs)
+	activeName, activeSkin := effectiveSkin(cfg, prefs)
 	checkedWidgets := make(map[string]bool)
 	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
-		for _, w := range widgetsForSlot(slot, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove) {
+		for _, w := range widgetsForSlot(slot, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove) {
 			checkedWidgets[w.ID] = true
 		}
 	}
@@ -347,9 +336,8 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		ConfigPath:       cfg.ConfigFile,
 		MaxUploadBytes:   cfg.MaxUploadBytes,
 		SyncPollMs:       cfg.SyncPollMs,
-		ShowTagsSidebar:  showTagsSidebar,
 		SyncMode:         cfg.SyncMode,
-		Palette:          prefs.Palette,
+		Palette:          effectivePalette(prefs, activeSkin),
 		PaletteNames:     themePresetNames,
 		Palettes:         themePresets,
 		FontUI:           prefs.FontUI,
@@ -358,11 +346,11 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		FontsSans:        fontsSans,
 		FontsSerif:       fontsSerif,
 		FontStacks:       fontStacks,
-		Skin:             prefs.Skin,
+		Skin:             activeName,
 		SkinNames:        skinNames,
 		Skins:            skins,
-		Profile:          prefs.Profile,
-		ProfileNames:     profileNames,
+		SkinWidgets:      skinWidgetIDs(),
+		SkinPalettes:     skinPalettes(),
 		WidgetIDs:        widgetIDs,
 		Widgets:          widgets,
 		CheckedWidgets:   checkedWidgets,
@@ -429,21 +417,15 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed {
 		cfg := app.config()
 		prefs := app.Auth.prefs(app.currentUser(r))
-		data.Hostname = cfg.Hostname
-		data.PathLabel = cfg.PathLabel
-		data.UserLabel = cfg.UserLabel
-		data.ShowTagsSidebar = prefs.ShowTagsSidebar == nil || *prefs.ShowTagsSidebar
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
-		data.ThemeStyle = buildThemeStyle(prefs)
-		activeProfile := effectiveProfile(cfg, prefs)
-		data.Profile = activeProfile.Name
-		data.DailyEnabled = activeProfile.DailyKey != ""
-		if _, ok := skins[prefs.Skin]; ok {
-			data.Skin = prefs.Skin
-		} else if prefs.Skin == "" {
-			data.Skin = activeProfile.Skin
-		}
+		activeName, activeSkin := effectiveSkin(cfg, prefs)
+		themePrefs := prefs
+		themePrefs.Palette = effectivePalette(prefs, activeSkin)
+		data.ThemeStyle = buildThemeStyle(themePrefs)
+		data.Skin = activeName
+		data.StatusVariant = activeSkin.Status
+		data.DailyEnabled = activeSkin.DailyKey != ""
 		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
@@ -469,12 +451,12 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.NeedsSetup = data.NeedsHomeSetup || data.NeedsHelpSetup
 		}
 
-		data.SidebarWidgets = widgetsForSlot(slotSidebar, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.RailWidgets = widgetsForSlot(slotRail, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.PageHeadWidgets = widgetsForSlot(slotPageHead, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.PageFootWidgets = widgetsForSlot(slotPageFoot, activeProfile, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.SidebarWidgets = widgetsForSlot(slotSidebar, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.RailWidgets = widgetsForSlot(slotRail, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.PageHeadWidgets = widgetsForSlot(slotPageHead, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		data.PageFootWidgets = widgetsForSlot(slotPageFoot, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
 
-		app.populateWidgetData(&data)
+		app.populateWidgetData(&data, activeSkin)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -580,22 +562,20 @@ func injectTOC(body string, ix *Index, homeSlug string) string {
 	})
 }
 
-// handleRoot resolves the current user's profile (falling back to the
-// site-wide default) and redirects "/" to that profile's Landing target:
+// handleRoot resolves the current user's skin (falling back to the
+// site-wide default) and redirects "/" to that skin's Landing target:
 // "home" -> the configured home page, "daily" -> today's daily entry (in
-// edit mode — journal is the only profile that sets this), "inbox" -> the
-// unread list. An unauthenticated request never reaches here (the auth
+// edit mode — journal is the only skin that sets this). An
+// unauthenticated request never reaches here (the auth
 // middleware redirects to /login first), so app.currentUser is always valid.
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 	cfg := app.config()
 	prefs := app.Auth.prefs(app.currentUser(r))
-	p := effectiveProfile(cfg, prefs)
+	_, s := effectiveSkin(cfg, prefs)
 
-	switch p.Landing {
+	switch s.Landing {
 	case "daily":
 		http.Redirect(w, r, "/page/daily/"+time.Now().Format("2006-01-02")+"/edit", http.StatusSeeOther)
-	case "inbox":
-		http.Redirect(w, r, "/inbox", http.StatusSeeOther)
 	default:
 		http.Redirect(w, r, "/page/"+cfg.HomeSlug(), http.StatusSeeOther)
 	}
@@ -604,7 +584,7 @@ func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 func (app *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Root: redirect to the current user's profile landing target.
+	// Root: redirect to the current user's skin landing target.
 	mux.HandleFunc("GET /{$}", app.handleRoot)
 
 	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
@@ -1231,9 +1211,10 @@ func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleInboxIndex is the clipper profile's landing page: every unread
-// page, newest first. Not profile-gated — reachable from any profile,
-// same as /tags.
+// handleInboxIndex lists every page marked `unread: true`, newest first.
+// Not skin-gated — reachable from any skin, same as /tags. No skin lands
+// here by default; it's for whoever mounts the inbox widget or sets the
+// frontmatter over MCP.
 func (app *App) handleInboxIndex(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "inbox", TemplateData{
 		Authed: true,
@@ -1926,9 +1907,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	gitAuthor := r.FormValue("git_author")
 	gitToken := r.FormValue("git_token")
 	siteName := r.FormValue("site_name")
-	hostname := r.FormValue("hostname")
-	pathLabel := r.FormValue("path_label")
-	userLabel := r.FormValue("user_label")
 	maxUploadStr := r.FormValue("max_upload_bytes")
 	syncPollStr := r.FormValue("sync_poll_ms")
 	syncMode := r.FormValue("sync_mode")
@@ -1947,14 +1925,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if siteName == "" {
 		http.Error(w, "Site name cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if hostname == "" {
-		http.Error(w, "Hostname cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if pathLabel == "" {
-		http.Error(w, "Path label cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if remoteURL != "" && !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "git@") {
@@ -1989,9 +1959,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.Git.User = gitUser
 	fc.Git.Author = gitAuthor
 	fc.SiteName = siteName
-	fc.Hostname = hostname
-	fc.PathLabel = pathLabel
-	fc.UserLabel = userLabel
 	fc.MaxUploadBytes = int64Ptr(maxUploadBytes)
 	fc.SyncPollMs = intPtr(syncPollMs)
 	fc.SyncMode = syncMode
@@ -2048,31 +2015,35 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Unknown monospace font", http.StatusBadRequest)
 		return
 	}
-	skinName := r.FormValue("skin")
-	if _, ok := skins[skinName]; skinName != "" && !ok {
+	chosenSkin := r.FormValue("skin")
+	if _, ok := skins[chosenSkin]; chosenSkin != "" && !ok {
 		http.Error(w, "Unknown skin", http.StatusBadRequest)
 		return
 	}
-	profileName := r.FormValue("profile")
-	if _, ok := profiles[profileName]; profileName != "" && !ok {
-		http.Error(w, "Unknown profile", http.StatusBadRequest)
-		return
-	}
-	showTagsSidebar := r.FormValue("show_tags_sidebar") == "on"
 
 	user := app.currentUser(r)
+	prevName, prevSkin := effectiveSkin(app.config(), app.Auth.prefs(user))
+	switchingSkin := skinName(chosenSkin) != prevName
 
-	// Individual widget toggles are relative to the profile actually in
-	// effect for this save (the one just chosen, falling back to the site
-	// default) — a user can add/remove a single widget without leaving
-	// their profile.
-	targetProfile := resolveProfile(profileName)
-	if profileName == "" {
-		targetProfile = effectiveProfile(app.config(), app.Auth.prefs(user))
+	// Everything the settings form submits alongside the skin was rendered
+	// against the skin the user was *on*. On a skin change those values
+	// describe the old look, so they are discarded in favour of the new
+	// skin's own defaults unless the browser marks a later palette choice.
+	//
+	// Widgets: diffing the old checked set against the new skin's defaults
+	// would write every widget that defines the new skin into
+	// widgets_remove — switching skin would silently cancel itself out.
+	// Palette: a skin arrives in the colours it was designed for.
+	var widgetsAdd, widgetsRemove []string
+	if switchingSkin {
+		if r.FormValue("palette_explicit") != "1" {
+			palette = resolveSkin(chosenSkin).Palette
+		}
+	} else {
+		widgetsAdd, widgetsRemove = computeWidgetOverrides(prevSkin, r.Form["widgets"])
 	}
-	widgetsAdd, widgetsRemove := computeWidgetOverrides(targetProfile, r.Form["widgets"])
 
-	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, skinName, profileName, widgetsAdd, widgetsRemove, showTagsSidebar); err != nil {
+	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, chosenSkin, widgetsAdd, widgetsRemove); err != nil {
 		http.Error(w, "Failed to save appearance", http.StatusInternalServerError)
 		return
 	}

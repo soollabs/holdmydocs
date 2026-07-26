@@ -7,20 +7,18 @@ import (
 	"testing"
 )
 
-// TestStatuslineSegmentsPerProfile checks the statusline shows/hides
-// segments per specs/2026-07-25-profiles-widgets.md profile implementation's table: docs
-// gets the full set (+new, context, user); journal drops those for a
-// words-today segment and a dot-only sync; clipper swaps in +clip url,
-// source host and unread count; minimal strips everything down to mode,
-// title and a dot-only sync.
-func TestStatuslineSegmentsPerProfile(t *testing.T) {
+// TestStatuslineSegmentsPerSkin checks the statusline shows/hides segments
+// per the skin's Status variant (skins.go): phosphor gets the full set
+// (+new, context, user); journal drops those for a words-today segment and
+// a dot-only sync; bare strips down to mode, title and a dot-only sync.
+func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	setProfile := func(name string) {
-		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"profile": {name}})
+	setSkin := func(name string) {
+		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {name}})
 		if err != nil {
-			t.Fatalf("setting profile %s: %v", name, err)
+			t.Fatalf("setting skin %s: %v", name, err)
 		}
 		resp.Body.Close()
 	}
@@ -34,56 +32,47 @@ func TestStatuslineSegmentsPerProfile(t *testing.T) {
 		return string(body)
 	}
 
-	setProfile("docs")
+	setSkin("phosphor")
 	docs := get()
 	if !strings.Contains(docs, `id="new-btn">+ new<`) {
-		t.Error("docs profile should show the +new button")
+		t.Error("phosphor skin should show the +new button")
 	}
 	if !strings.Contains(docs, `class="seg seg-right seg-user"`) {
-		t.Error("docs profile should show the user segment")
+		t.Error("phosphor skin should show the user segment")
 	}
 
-	setProfile("journal")
+	setSkin("journal")
 	journal := get()
 	if strings.Contains(journal, `id="new-btn">+ new<`) {
-		t.Error("journal profile should not show the docs +new button")
+		t.Error("journal skin should not show the docs +new button")
 	}
 	if !strings.Contains(journal, "words today") {
-		t.Error("journal profile should show a words-today segment")
+		t.Error("journal skin should show a words-today segment")
 	}
 	if strings.Contains(journal, `id="sync-text"`) {
-		t.Error("journal profile should show a dot-only sync (no sync-text)")
+		t.Error("journal skin should show a dot-only sync (no sync-text)")
 	}
 
-	setProfile("clipper")
-	clipper := get()
-	if !strings.Contains(clipper, "+ clip url") {
-		t.Error("clipper profile should show a +clip url button")
-	}
-	if !strings.Contains(clipper, "unread") {
-		t.Error("clipper profile should show an unread count segment")
-	}
-
-	setProfile("minimal")
+	setSkin("bare")
 	minimal := get()
 	if strings.Contains(minimal, `class="seg seg-right seg-user"`) {
-		t.Error("minimal profile should not show the user segment")
+		t.Error("bare skin should not show the user segment")
 	}
 	if strings.Contains(minimal, `id="sync-text"`) {
-		t.Error("minimal profile should show a dot-only sync (no sync-text)")
+		t.Error("bare skin should show a dot-only sync (no sync-text)")
 	}
 	if strings.Contains(minimal, `id="new-btn"`) {
-		t.Error("minimal profile should not show any +new/+clip button")
+		t.Error("bare skin should not show any +new button")
 	}
 }
 
-func TestStatuslineModeLabelPerProfile(t *testing.T) {
+func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"profile": {"journal"}})
+	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {"journal"}})
 	if err != nil {
-		t.Fatalf("setting profile: %v", err)
+		t.Fatalf("setting skin: %v", err)
 	}
 	resp.Body.Close()
 
@@ -99,6 +88,6 @@ func TestStatuslineModeLabelPerProfile(t *testing.T) {
 	defer editResp.Body.Close()
 	body, _ := io.ReadAll(editResp.Body)
 	if !strings.Contains(string(body), `id="status-mode">write<`) {
-		t.Errorf("journal profile in edit mode should show mode label 'write', body snippet not found")
+		t.Errorf("journal skin in edit mode should show mode label 'write', body snippet not found")
 	}
 }

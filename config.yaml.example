@@ -13,8 +13,8 @@
 #
 # All keys are optional; omit anything you want left at its default.
 #
-# Theme colours, fonts, and the tags-sidebar toggle are per-user
-# preferences, set from /settings — not in this file.
+# Skin, palette and fonts are per-user preferences, set from /settings —
+# not in this file.
 
 # --- Server ---
 bind: ":8080"
@@ -40,11 +40,11 @@ git:
 # Set via HMD_ADMIN_USER / HMD_ADMIN_PASSWORD env vars only (first run).
 # Manage users afterwards with `hmd adduser <name>`.
 
-# --- Site / shell-prompt appearance ---
+# --- Site ---
+# The site's name. It is the only display label there is: the terminal
+# skins' prompt renders <logged-in user>@<site_name>$, the typographic
+# skins use it as a masthead, and every breadcrumb starts with it.
 site_name: Homelab Wiki
-hostname: homelab
-path_label: ~/wiki
-# user_label: alice   # overrides the logged-in username in the sidebar prompt
 
 # --- Behaviour ---
 max_upload_bytes: 10485760   # 10 MiB
@@ -57,10 +57,10 @@ sync_poll_ms: 10000
 # Home page file. Must end in .md, no path separators, not dot-prefixed.
 # Default readme.md renders on the git host front page (GitHub, git, Gitea).
 # home_filename: readme.md
-# Install-wide default profile: docs | journal | clipper | research | minimal.
-# A profile is a widget arrangement + default skin, not a storage mode — any
-# user can override their own profile from /settings.
-# profile: docs
+# Install-wide default skin: phosphor | newsprint | journal | soft | bare.
+# A skin is a look plus a widget arrangement, not a storage mode — any user
+# can override their own from /settings.
+# skin: phosphor
 
 # --- OIDC single sign-on ---
 # Optional. Setting oidc.issuer enables SSO (restart required). Register hmd

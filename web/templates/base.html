@@ -5,8 +5,8 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
-	<link rel="stylesheet" href="/static/style.css">
-	<link rel="stylesheet" href="/static/skins.css">
+	<link rel="stylesheet" href="/static/style.css?v=2">
+	<link rel="stylesheet" href="/static/skins.css?v=2">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='%2300ff9c' font-family='monospace'%3E%23%3C/text%3E%3C/svg%3E">
 	<link rel="manifest" href="/static/manifest.json">
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
@@ -17,6 +17,9 @@
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
 		window.hmdDailyEnabled = {{.DailyEnabled}};
+		window.HMDSyncThemeColor = function() {
+			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+		};
 		if ('serviceWorker' in navigator) {
 			window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js'));
 		}
@@ -24,8 +27,8 @@
 			var saved = localStorage.getItem('hmd-theme');
 			if (saved === 'light') {
 				document.documentElement.setAttribute('data-theme', 'light');
-				document.getElementById('meta-theme-color').setAttribute('content', '#f7f8f6');
 			}
+			window.HMDSyncThemeColor();
 		})();
 	</script>
 </head>
@@ -33,11 +36,11 @@
 	{{if .Authed}}
 	<div class="mobile-topbar">
 		<button type="button" id="sidebar-toggle" aria-label="Toggle sidebar">&equiv;</button>
-		<span class="crumb">~/wiki</span>
+		<span class="crumb">{{.SiteName}}</span>
 		<button type="button" id="mobile-search" aria-label="Search">/ search</button>
 	</div>
 	<nav class="sidebar" id="sidebar">
-		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar">«</button>
+		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar"></button>
 		{{range .SidebarWidgets}}
 		{{if eq .ID "identity"}}{{template "widget-identity" $}}{{end}}
 		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
@@ -58,35 +61,31 @@
 		{{template "content" .}}
 	</main>
 	{{if .Authed}}
-	{{/* Segment set per specs/2026-07-25-profiles-widgets.md profile implementation's statusline
-	     table: docs/research get the full set; journal/clipper/minimal trade
-	     +new/context/word-count/user for profile-specific segments. */}}
-	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-profile="{{.Profile}}">
+	{{/* Segment set comes from the skin's Status variant (skins.go):
+	     full — mode, title, +new, context, words, sync, user
+	     write — mode "write", title, words today, sync dot
+	     quiet — mode, title, sync dot */}}
+	{{$quiet := or (eq .StatusVariant "write") (eq .StatusVariant "quiet")}}
+	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-skin="{{.Skin}}">
 		<div class="seg-progress-fill" id="seg-progress-fill"></div>
-		{{if eq .Profile "journal"}}
-			<div class="seg seg-mode" id="status-mode">{{if eq .StatusMode "edit"}}write{{else}}{{.StatusMode}}{{end}}</div>
-		{{else if eq .Profile "clipper"}}
-			<div class="seg seg-mode" id="status-mode">clip</div>
+		{{if eq .StatusVariant "write"}}
+			<div class="seg seg-mode" id="status-mode">{{if eq .StatusMode "view"}}read{{else}}write{{end}}</div>
 		{{else}}
 			<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
 		{{end}}
 		<div class="seg seg-title" id="status-title">{{.Slug}}.md{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
-		{{if eq .Profile "clipper"}}
-			<button type="button" class="seg seg-new" id="new-btn">+ clip url</button>
-			{{if .SourceMeta.Source}}<div class="seg seg-context">{{.SourceMeta.Source}}</div>{{end}}
-			<div class="seg seg-context">{{len .Inbox}} unread</div>
-		{{else if eq .Profile "journal"}}
+		{{if eq .StatusVariant "write"}}
 			<div class="seg seg-context">{{.WritingStats.WordsToday}} words today</div>
-		{{else if ne .Profile "minimal"}}
+		{{else if eq .StatusVariant "full"}}
 			<button type="button" class="seg seg-new" id="new-btn">+ new</button>
 			<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
 			{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
 		{{end}}
 		<div class="seg-spacer"></div>
 		<div class="seg seg-sync" id="status-sync" title="last successful push" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}">
-			<span class="sync-dot"></span>{{if not (or (eq .Profile "journal") (eq .Profile "minimal"))}}<span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span>{{end}}
+			<span class="sync-dot"></span>{{if not $quiet}}<span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span>{{end}}
 		</div>
-		{{if not (or (eq .Profile "journal") (eq .Profile "minimal"))}}<div class="seg seg-right seg-user">{{.Username}}</div>{{end}}
+		{{if not $quiet}}<div class="seg seg-right seg-user">{{.Username}}</div>{{end}}
 		<div class="seg seg-right">
 			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
 		</div>
@@ -167,7 +166,7 @@
 					document.documentElement.setAttribute('data-theme', 'light');
 				}
 				localStorage.setItem('hmd-theme', next);
-				document.getElementById('meta-theme-color').setAttribute('content', next === 'light' ? '#f7f8f6' : '#0b0f14');
+				window.HMDSyncThemeColor();
 				if (window.HMDSetMermaidTheme) window.HMDSetMermaidTheme(next);
 			});
 		}
@@ -181,7 +180,7 @@
 		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
 	</script>
 	{{end}}
-	<script src="/static/app.js"></script>
+	<script src="/static/app.js?v=2"></script>
 </body>
 </html>
 {{end}}

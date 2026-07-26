@@ -8,15 +8,15 @@ import (
 	"strings"
 )
 
-// themeVarNames is the ordered list of the 17 base CSS custom properties
-// that are user-editable. Aliases (surface, accent, danger, mark) are
-// derived via var() references in style.css and are not editable.
+// themeVarNames is the ordered list of the 17 semantic colour roles supplied
+// directly by every palette. CSS consumes these names without a hue-based
+// variable or alias layer.
 var themeVarNames = []string{
-	"bg", "panel", "panel-2", "border", "border-2",
-	"fg", "fg-bright", "fg-muted", "fg-faint",
-	"green", "green-dim", "blue",
-	"amber", "amber-bg",
-	"red", "red-dim", "red-bg",
+	"bg", "surface", "surface-raised", "border", "border-strong",
+	"fg", "fg-strong", "fg-muted", "fg-faint",
+	"primary", "primary-muted", "accent",
+	"warning", "warning-bg",
+	"danger", "danger-muted", "danger-bg",
 }
 
 var themeVarSet = func() map[string]bool {
@@ -87,24 +87,8 @@ var (
 	fontsSerif = []string{"georgia", "palatino", "charter"}
 )
 
-// skins are structural themes: typography, spacing, borders and markers,
-// orthogonal to the colour palette. The name is the only thing that reaches
-// HTML (as data-skin), and only after a lookup in this map.
-type skin struct {
-	Label string // shown in the settings select
-	Note  string // one-line hint, e.g. a palette that suits it
-}
-
-var skinNames = []string{"phosphor", "newsprint", "blueprint", "manuscript", "index", "bare"}
-
-var skins = map[string]skin{
-	"phosphor":   {"phosphor", "the default — terminal green, monospace, # markers"},
-	"newsprint":  {"newsprint", "broadsheet serif; try the solarized or gruvbox palette"},
-	"blueprint":  {"blueprint", "drafting grid and numbered sections; try nord or tokyo night"},
-	"manuscript": {"manuscript", "typewriter double-spacing, no chrome; try everforest"},
-	"index":      {"index card", "flat brutalist boxes and hard shadows; try monokai"},
-	"bare":       {"bare", "no borders, no markers, wide margins; any palette"},
-}
+// skins (the structural themes, and now the widget composition too) live in
+// skins.go.
 
 var fontStacks = map[string]string{
 	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,

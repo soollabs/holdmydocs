@@ -1,24 +1,40 @@
-/* Skins: structural themes (typography, spacing, borders, markers), fully
-   orthogonal to the colour palette in style.css. Every rule here is scoped
-   under :root[data-skin="<name>"] and must not contain a raw hex colour —
-   colour always comes from the palette's own custom properties (var() or
-   color-mix() over them). See TestSkinsNoRawHex and
-   specs/2026-07-24-skins.md.
+/* Skins: the one presentation knob. Each block below sets the structural
+   tokens declared in style.css's :root (typography, spacing, borders,
+   markers) plus a short tail of rules a token cannot express. Which widgets
+   a skin mounts, where "/" lands, which statusline segments show and which
+   colour palette it arrives in all live in skins.go. That last one is a
+   pairing by name, not a merge: no colour is set here.
 
-   --radius-lg isn't named in the spec's per-skin token lists, but
-   every flat skin below also zeroes it — otherwise the larger 6px "card"
-   panels (settings sections, inputs, cm-host) would stay rounded while the
-   smaller 4px ones went square, an inconsistency the spec's own screenshots
-   don't seem to intend. */
+   Every rule here is scoped under :root[data-skin="<name>"] and must not
+   contain a raw hex colour: colour always comes from the palette's own
+   custom properties (var() or color-mix() over them). See TestSkinsNoRawHex.
+
+   Two width tokens matter for the shell:
+     --border-w        content hairlines (panels, cards, tables, code)
+     --chrome-border-w the shell's own region edges (sidebar rule,
+                       statusline rule, mobile topbar)
+   A skin that wants "no chrome" zeroes the first and keeps the second at a
+   hairline, or the three regions bleed into one undifferentiated field.
+
+   --radius-lg isn't in the spec's per-skin token lists, but every
+   flat skin below also zeroes it — otherwise the 6px "card" panels stay
+   rounded while the 4px ones go square. */
 
 /* phosphor is the default look; the block is empty because style.css's
-   :root already holds its values. It exists only so the settings <select>
-   has an explicit option to land on. */
+   :root already holds its values. It exists so the settings picker has an
+   explicit option to land on. */
 :root[data-skin="phosphor"] {
+}
+
+/* Brackets identify links in the terminal skin; prose skins show the title. */
+:root:not([data-skin="phosphor"]) #page-content .wiki .br {
+	display: none;
 }
 
 /* ---------------------------------------------------------------
    newsprint — broadsheet. Reading-first, rejects the terminal idiom.
+   Dense, justified, drop cap. Contrast with journal, which is the airy
+   serif: this one is a column of type, journal is a page of margin.
    --------------------------------------------------------------- */
 
 :root[data-skin="newsprint"] {
@@ -31,7 +47,7 @@
 	--font-ui:        Charter, "Bitstream Charter", Cambria, serif;
 	--radius:    0;
 	--radius-lg: 0;
-	--prose-measure: 66ch;
+	--prose-measure: 62ch;
 	--prose-size:    17px;
 	--prose-leading: 1.5;
 	--prose-align:   justify;
@@ -51,7 +67,8 @@
 	font-size: 13px;
 }
 
-:root[data-skin="newsprint"] #page-content h3 {
+:root[data-skin="newsprint"] #page-content h3,
+:root[data-skin="newsprint"] #preview h3 {
 	font-variant: small-caps;
 }
 
@@ -62,7 +79,8 @@
 	padding-right: 0.08em;
 }
 
-:root[data-skin="newsprint"] #page-content p + p {
+:root[data-skin="newsprint"] #page-content p + p,
+:root[data-skin="newsprint"] #preview p + p {
 	margin-top: 0;
 }
 
@@ -71,195 +89,291 @@
 	letter-spacing: 0.08em;
 }
 
-:root[data-skin="newsprint"] .tag-chips a::before {
-	content: "\00b7 ";
-}
-
-:root[data-skin="newsprint"] .tag-chips a::after {
-	content: " \00b7";
-}
+:root[data-skin="newsprint"] .tag-chips a::before { content: "\00b7 "; }
+:root[data-skin="newsprint"] .tag-chips a::after  { content: " \00b7"; }
 
 :root[data-skin="newsprint"] .sidebar h2 {
 	font-variant: small-caps;
 }
 
+/* A solid green block is a terminal's idea of "you are here". Newsprint
+   marks the current page the way a printed index does. */
+:root[data-skin="newsprint"] .sidebar-list li a.active {
+	background: none;
+	color: var(--fg-strong);
+	font-weight: 700;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* A newspaper's identity is its masthead: the title in large caps over a
+   double rule, with the reader's name as a byline under it. Nothing here is
+   a shell. */
+:root[data-skin="newsprint"] .identity-prompt { display: none; }
+:root[data-skin="newsprint"] .identity-masthead { display: block; }
+
+:root[data-skin="newsprint"] .identity {
+	border-bottom: 3px double var(--border-strong);
+	padding-bottom: 10px;
+	margin-bottom: 24px;
+	text-align: center;
+}
+
+:root[data-skin="newsprint"] .masthead-name {
+	font-family: var(--heading-family);
+	font-size: 26px;
+	line-height: 1.1;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: var(--fg-strong);
+}
+
+:root[data-skin="newsprint"] .masthead-byline {
+	margin-top: 6px;
+	font-size: 11px;
+	font-variant: small-caps;
+	letter-spacing: 0.14em;
+	color: var(--fg-faint);
+}
+
+:root[data-skin="newsprint"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
+
 :root[data-skin="newsprint"] #page-content th {
-	border-bottom: 3px double var(--border-2);
+	border-bottom: 3px double var(--border-strong);
 }
 
 /* ---------------------------------------------------------------
-   blueprint — drafting. Monospace kept, markers become section numbers.
+   journal — writing first. The point is the absence of everything else:
+   serif, a wide relaxed measure, generous leading, no markers, no panel
+   edges, no rail. Only the shell's own region rules survive, so you can
+   still tell sidebar from page from statusline.
    --------------------------------------------------------------- */
 
-:root[data-skin="blueprint"] {
+:root[data-skin="journal"] {
+	--font-ui:        Georgia, "Times New Roman", serif;
+	--heading-family: Georgia, "Times New Roman", serif;
+	--marker-title:  "";
+	--marker-h2:     "";
+	--marker-h3:     "";
+	--marker-h4:     "";
+	--tag-prefix:    "";
+	--prompt-symbol: "";
+
+	--prose-measure: 80ch;
+	--prose-size:    18px;
+	--prose-leading: 1.9;
+	--para-gap:      1.4em;
+	--rail-w:        0px;
+
+	--title-size:      34px;
+	--title-weight:    400;
+	--title-tracking:  -0.01em;
+	--title-transform: none;
+
 	--radius:    0;
 	--radius-lg: 0;
-	--rule-style: dashed;
-	--marker-colour: var(--blue);
-	--marker-title:  "";
-	--prose-measure: 76ch;
-	--prose-leading: 1.7;
-	--pad: 20px;
+	--border-w:  0;
+	--pad:       32px;
+	--pad-tight: 16px;
 }
 
-:root[data-skin="blueprint"] main {
-	--grid-line: color-mix(in srgb, var(--border) 55%, transparent);
-	background-image:
-		linear-gradient(var(--grid-line) 1px, transparent 1px),
-		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-	background-size: 24px 24px;
+/* Whitespace does the work borders used to. */
+:root[data-skin="journal"] .page-wrap {
+	padding-block: 3rem;
 }
 
-:root[data-skin="blueprint"] #page-content { counter-reset: h2; }
-:root[data-skin="blueprint"] #page-content h2 { counter-increment: h2; counter-reset: h3; }
-:root[data-skin="blueprint"] #page-content h2::before { content: counter(h2) ". "; }
-:root[data-skin="blueprint"] #page-content h3 { counter-increment: h3; }
-:root[data-skin="blueprint"] #page-content h3::before { content: counter(h2) "." counter(h3) "  "; }
-
-:root[data-skin="blueprint"] .page-title {
-	position: relative;
-	display: inline-block;
-	padding: 0.3em 0.7em;
+:root[data-skin="journal"] .sidebar-section {
+	margin-bottom: 40px;
 }
 
-:root[data-skin="blueprint"] .page-title::before,
-:root[data-skin="blueprint"] .page-title::after {
-	content: "";
-	position: absolute;
-	width: 12px;
-	height: 12px;
-	border: 2px solid var(--blue);
+:root[data-skin="journal"] #page-content h2,
+:root[data-skin="journal"] #preview h2 {
+	margin-top: 2.4em;
+	font-weight: 400;
+	font-style: italic;
 }
 
-:root[data-skin="blueprint"] .page-title::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
-:root[data-skin="blueprint"] .page-title::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-
-:root[data-skin="blueprint"] #page-content pre {
-	border: var(--border-w) var(--rule-style) var(--border-2);
-	border-left: var(--border-w) var(--rule-style) var(--border-2);
+:root[data-skin="journal"] #page-content h3,
+:root[data-skin="journal"] #preview h3 {
+	margin-top: 1.8em;
+	font-weight: 400;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	font-size: 0.8em;
+	color: var(--fg-muted);
 }
 
-:root[data-skin="blueprint"] #page-content table,
-:root[data-skin="blueprint"] #page-content th,
-:root[data-skin="blueprint"] #page-content td {
-	border: var(--border-w) solid var(--border);
-}
-
-/* ---------------------------------------------------------------
-   manuscript — typewriter. Draft-on-paper, everyday Zen Manuscript.
-   --------------------------------------------------------------- */
-
-:root[data-skin="manuscript"] {
-	--font-ui:       "Courier New", Courier, monospace;
-	--heading-family: "Courier New", Courier, monospace;
-	--prose-size:    16px;
-	--prose-leading: 2.0;
-	--prose-measure: 65ch;
-	--radius:     0;
-	--radius-lg:  0;
-	--border-w:   0;
-	--chrome-border: transparent;
-	--marker-title: "";
-	--marker-h2:    "";
-	--marker-h3:    "";
-	--tag-prefix:   "";
-	--title-weight:    400;
-	--title-size:      24px;
-	--title-transform: uppercase;
-	--title-tracking:  0.18em;
-}
-
-:root[data-skin="manuscript"] #page-content h2,
-:root[data-skin="manuscript"] #preview h2 {
-	text-decoration: underline;
-	text-underline-offset: 6px;
-}
-
-:root[data-skin="manuscript"] #page-content,
-:root[data-skin="manuscript"] #preview {
+/* Ragged right, no hyphenation — a draft, not a printed column. */
+:root[data-skin="journal"] #page-content,
+:root[data-skin="journal"] #preview {
 	hyphens: none;
+	text-align: left;
 }
 
-:root[data-skin="manuscript"] #page-content pre {
+:root[data-skin="journal"] #page-content pre,
+:root[data-skin="journal"] #preview pre {
 	background: none;
 	border-left: none;
 	padding-left: 1.5em;
 }
 
-:root[data-skin="manuscript"] .tag-chips a::before { content: "["; }
-:root[data-skin="manuscript"] .tag-chips a::after { content: "]"; }
+/* The sidebar recedes: it is a date and a word count, not navigation. */
+:root[data-skin="journal"] .sidebar {
+	background: none;
+	font-size: 13px;
+}
+
+:root[data-skin="journal"] .sidebar h2 {
+	color: var(--fg-faint);
+	font-weight: 400;
+	letter-spacing: 0.14em;
+}
+
+/* A notebook's flyleaf: whose it is, in the same serif as the writing. */
+:root[data-skin="journal"] .identity-prompt { display: none; }
+:root[data-skin="journal"] .identity-masthead { display: block; }
+
+:root[data-skin="journal"] .identity {
+	margin-bottom: 36px;
+}
+
+:root[data-skin="journal"] .sidebar-list li a.active {
+	background: none;
+	color: var(--fg-strong);
+	font-style: italic;
+}
+
+:root[data-skin="journal"] .masthead-name {
+	font-size: 17px;
+	font-style: italic;
+	color: var(--fg-strong);
+}
+
+:root[data-skin="journal"] .masthead-byline {
+	margin-top: 2px;
+	font-size: 12px;
+	color: var(--fg-faint);
+}
+
+:root[data-skin="journal"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 /* ---------------------------------------------------------------
-   index — index card / neo-brutalist. Hard edges, flat offset shadows.
+   soft — rounded and low-contrast. The one skin here that isn't austere:
+   generous radii, filled panels, roomy leading, and no markers or prompt
+   glyphs. Sans, not mono — the terminal idiom is what it's opting out of.
+
+   It softens edges rather than deleting them (that's `bare`): every border
+   stays, mixed back toward the panel so it reads as a seam, not a rule.
+   Depth comes from the fill, not a shadow: nothing in the shell draws one.
    --------------------------------------------------------------- */
 
-:root[data-skin="index"] {
-	--radius:    0;
-	--radius-lg: 0;
-	--border-w:  2px;
-	--shadow: 4px 4px 0 var(--border-2);
-	--font-ui:        "Helvetica Neue", Helvetica, Arial, sans-serif;
-	--heading-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-	--title-weight:    700;
-	--title-transform: uppercase;
-	--title-tracking:  -0.01em;
-	--marker-title: "\25AE ";
-	--marker-h2:    "\25AE\25AE ";
-	--marker-h3:    "\25AE\25AE\25AE ";
-	--pad: 14px;
+:root[data-skin="soft"] {
+	--marker-title:  "";
+	--marker-h2:     "";
+	--marker-h3:     "";
+	--marker-h4:     "";
+	--tag-prefix:    "";
+	--prompt-symbol: "";
+	--radius:    10px;
+	--radius-lg: 14px;
+	--font-ui:        system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--heading-family: var(--font-ui);
+	--title-size:      26px;
+	--title-weight:    600;
+	--title-tracking:  -0.015em;
+	--prose-measure: 66ch;
+	--prose-leading: 1.85;
+	--pad: 20px;
+	/* Mixed toward the panel, not removed: at 55% the seam is visible when
+	   you look for it and invisible when you don't. */
+	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
 }
 
-:root[data-skin="index"] .sidebar,
-:root[data-skin="index"] .settings-section,
-:root[data-skin="index"] .preview-card,
-:root[data-skin="index"] .diff-panel,
-:root[data-skin="index"] button,
-:root[data-skin="index"] .ghost-btn,
-:root[data-skin="index"] #cm-host,
-:root[data-skin="index"] #preview,
-:root[data-skin="index"] input[type="text"],
-:root[data-skin="index"] input[type="search"],
-:root[data-skin="index"] input[type="password"],
-:root[data-skin="index"] textarea,
-:root[data-skin="index"] #page-content pre {
-	border: var(--border-w) solid var(--border-2);
-	box-shadow: var(--shadow);
+/* Panels are cards: rounded and filled rather than outlined. */
+:root[data-skin="soft"] .sidebar-section,
+:root[data-skin="soft"] .settings-section,
+:root[data-skin="soft"] .preview-card {
+	border-radius: var(--radius-lg);
 }
 
-:root[data-skin="index"] button:active,
-:root[data-skin="index"] .ghost-btn:active {
-	transform: translate(2px, 2px);
-	box-shadow: none;
+:root[data-skin="soft"] .sidebar-section {
+	padding: var(--pad-tight) var(--pad);
+	background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
 }
 
-:root[data-skin="index"] .tag-chips a {
-	background: var(--panel-2);
-	border-radius: 0;
-	text-transform: uppercase;
+:root[data-skin="soft"] .sidebar h2 {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	color: var(--fg-faint);
 }
 
-:root[data-skin="index"] #page-content table,
-:root[data-skin="index"] #page-content th,
-:root[data-skin="index"] #page-content td {
-	border: var(--border-w) solid var(--border-2);
+/* A solid fill is the terminal's "you are here". Here it's a soft pill. */
+:root[data-skin="soft"] .sidebar-list li a {
+	border-radius: var(--radius);
+	padding: 2px 8px;
 }
+
+:root[data-skin="soft"] .sidebar-list li a.active {
+	background: color-mix(in srgb, var(--primary) 18%, transparent);
+	color: var(--fg-strong);
+}
+
+/* No $ prompt to identify by — a name and a byline, in the body face. */
+:root[data-skin="soft"] .identity-prompt { display: none; }
+:root[data-skin="soft"] .identity-masthead { display: block; }
+
+:root[data-skin="soft"] .masthead-name {
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--fg-strong);
+}
+
+:root[data-skin="soft"] .masthead-byline {
+	margin-top: 2px;
+	font-size: 12px;
+	color: var(--fg-faint);
+}
+
+:root[data-skin="soft"] .tag-chips a {
+	border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+	background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* style.css marks code blocks with a lone 3px accent border-left. At this
+   radius that stroke curves away from the box on its own — the fill is
+   enough here, so drop it rather than round it. */
+:root[data-skin="soft"] #page-content pre,
+:root[data-skin="soft"] #preview pre {
+	border-left: none;
+	border-radius: var(--radius-lg);
+	background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+}
+
+:root[data-skin="soft"] #page-content code,
+:root[data-skin="soft"] #preview code {
+	border-radius: var(--radius);
+}
+
+:root[data-skin="soft"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 /* ---------------------------------------------------------------
    bare — minimal. Subtraction only; no rule here may add a border,
-   background or shadow.
+   background or shadow. The shell's region rules stay: they are the only
+   thing telling you where the page ends.
    --------------------------------------------------------------- */
 
 :root[data-skin="bare"] {
-	--marker-title: "";
-	--marker-h2:    "";
-	--marker-h3:    "";
-	--marker-h4:    "";
-	--tag-prefix:   "";
+	--marker-title:  "";
+	--marker-h2:     "";
+	--marker-h3:     "";
+	--marker-h4:     "";
+	--tag-prefix:    "";
 	--prompt-symbol: "";
-	--border-w: 0;
-	--chrome-border: transparent;
+	--border-w:  0;
 	--radius:    0;
 	--radius-lg: 0;
+	--rail-w:    0px;
 	--prose-measure: 62ch;
 	--prose-leading: 1.8;
 	--pad: 28px;
@@ -273,6 +387,24 @@
 	font-size: 10px;
 	letter-spacing: 0.1em;
 }
+
+/* Subtraction applies to identity too: a name, nothing else. */
+:root[data-skin="bare"] .identity-prompt { display: none; }
+:root[data-skin="bare"] .identity-masthead { display: block; }
+
+:root[data-skin="bare"] .masthead-name {
+	font-size: 13px;
+	color: var(--fg-muted);
+}
+
+:root[data-skin="bare"] .masthead-byline { display: none; }
+
+:root[data-skin="bare"] .sidebar-list li a.active {
+	background: none;
+	color: var(--fg-strong);
+}
+
+:root[data-skin="bare"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 :root[data-skin="bare"] .sidebar-log,
 :root[data-skin="bare"] .breadcrumb,

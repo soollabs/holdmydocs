@@ -70,8 +70,6 @@ OIDC settings grouped under their own section. See
 site_name: Homelab Wiki
 bind: ":8080"
 repo_dir: /data/repo
-hostname: homelab
-path_label: ~/wiki
 max_upload_bytes: 10485760
 sync_poll_ms: 10000
 # sync_mode: bidirectional  # default: push (local→remote only)
@@ -105,8 +103,8 @@ over the file and are shown read-only in `/settings` with a `set via
 HMD_X` badge. Unknown keys in the file are rejected at startup, so a typo
 fails loudly instead of being silently ignored.
 
-Theme colours, fonts, and the tags-sidebar toggle are **per-user**
-preferences, not install-wide config — see below.
+Skin, palette and fonts are **per-user** preferences, not install-wide
+config — see below.
 
 ### In-app settings page (`/settings`)
 
@@ -114,20 +112,20 @@ Every install-wide field above is editable from the UI, without restarting
 the process for most of them:
 
 - **Live vs restart-required:** `git.remote_url`, `git.user`, `git.token`,
-  `git.author`, `sync_mode`, `site_name`, `hostname`, `path_label`,
-  `user_label`, upload size, and sync poll interval all apply immediately
-  on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
+  `git.author`, `sync_mode`, `site_name`, upload size, and sync poll
+  interval all apply immediately on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
   is bootstrap-only (env var or default) and always read-only.
-- **Palette, skin, profile, fonts, tags-sidebar, widgets:** per-user, saved
-  to your own `users.json` record. A **palette** picker (named presets:
-  phosphor, catppuccin, dracula, everforest, gruvbox, monokai, nord, one
-  dark, rosé pine, solarized, tokyo night) and a **skin** picker (structural
-  theme — typography/spacing/borders, independent of colour) are chosen
-  separately. A **profile** picker (see Profiles, below) sets your default
-  widget arrangement and skin; a widgets checklist lets you add or remove a
-  single widget without leaving your profile. Font pickers and the
-  tags-sidebar toggle are also here. Each user sets their own; nothing here
-  affects other users.
+- **Skin, palette, fonts, widgets:** per-user, saved to your own
+  `users.json` record. Two independent choices: a **skin** (see Skins,
+  below — typography, spacing, markers *and* the widget arrangement) and a
+  **palette** (named colour presets: phosphor, catppuccin, dracula,
+  everforest, gruvbox, monokai, nord, one dark, rosé pine, solarized, tokyo
+  night, each shown as a row of its own swatches). Picking a skin resets the
+  palette and the widget checklist to that skin's own defaults; changing
+  either afterwards sticks. A widgets checklist lets you add or remove a
+  single widget without leaving your skin. Font pickers
+  are also here. Each user sets their own; nothing here affects other
+  users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
   Manage users with `hmd adduser` instead (see Users, below).
 - **Re-run setup:** a button that reopens the home-page/help-guide setup
@@ -260,36 +258,43 @@ The home page (`readme.md` by default) is a clean welcome with a `<!-- hmd:toc -
 
 **Why split?** The `app/` directory contains files requiring POSIX advisory locking (user database). SQLite and similar are unreliable over NFS. The `repo/` directory is pure git, which works fine on NFS.
 
-**Per-user preferences** — palette, skin, fonts, profile, widget add/remove,
-tags-sidebar toggle, commit author, and access-token hashes — live in that
-user's own record in `users.json` under `app/`, not in `config.yaml`. They
-are therefore per-user and local-disk-only, same as the rest of `app/`.
-`config.yaml` holds only the install-wide `profile:` default (see Profiles,
-below).
+**Per-user preferences** — skin, palette, fonts, widget add/remove, commit
+author, and access-token hashes — live in that user's own record in
+`users.json` under `app/`, not in `config.yaml`. They are therefore per-user
+and local-disk-only, same as the rest of `app/`. `config.yaml` holds only
+the install-wide `skin:` default (see Skins, below).
 
-## Profiles
+## Skins
 
-A profile is a named, ordered widget arrangement plus a default skin — it
-changes what's on screen, never how or where pages are stored. Switch
-profile any time from `/settings`; the underlying repo is portable across
-every profile.
+A skin is the one presentation choice: how the app looks (typography,
+spacing, borders, markers), what it puts on screen (which widgets mount
+where, where `/` lands, what ctrl-j opens, which statusline segments show),
+and which colour palette it arrives in. It never changes how or where pages
+are stored — the same repo opens correctly under any skin, and `git log` is
+byte-identical across them.
 
-- **`docs`** (default) — general-purpose wiki: pages list, tags, recent
-  commits, backlinks.
-- **`journal`** — daily-page focused: a calendar and writing-stats widget
-  instead of the pages list, lands on today's entry in edit mode, ctrl-j
-  opens it.
-- **`clipper`** — saved-links focused: an inbox of unread clips and a
-  sources list instead of the pages list, lands on `/inbox`, ctrl-j
-  disabled.
-- **`research`** — `docs` plus pinned pages, a sources list, and a health
-  summary widget.
-- **`minimal`** — stripped down to identity and a pages list, no
-  statusline extras, ctrl-j disabled.
+- **`phosphor`** (default, phosphor palette) — terminal: green, monospace,
+  `#` markers, a `<user>@<site_name>$` prompt. Pages list, tags, recent
+  commits, outline rail, backlinks.
+- **`newsprint`** (solarized) — broadsheet: a masthead instead of a prompt,
+  serif, justified columns, drop cap, kicker headings in place of `##`.
+- **`journal`** (everforest) — writing first: serif, a wide relaxed measure,
+  generous leading, no panel chrome. Calendar, writing stats and previous
+  entries; lands on today's entry in edit mode.
+- **`soft`** (rosé pine) — rounded and low-contrast: a warm sans, roomy
+  leading, filled panels with their borders mixed back toward the fill, no
+  markers or prompt. The one skin here that isn't austere.
+- **`bare`** (one dark) — subtraction only: no borders, no markers, wide
+  margins, identity and a pages list, ctrl-j disabled.
 
-The install-wide default is `profile:` in `config.yaml` (env `HMD_PROFILE`);
-each user can override their own from `/settings`, including adding or
-removing a single widget without leaving the profile.
+Each skin names the **palette** it was designed for, and choosing a skin
+switches to it — a broadsheet that opened in terminal green would not be a
+broadsheet. The palette picker stays live afterwards, so any skin × palette
+combination is still reachable; it just isn't the starting point.
+
+The install-wide default is `skin:` in `config.yaml` (env `HMD_SKIN`); each
+user can override their own from `/settings`, including adding or removing a
+single widget without leaving the skin.
 
 ## Users
 
@@ -371,14 +376,15 @@ Click "History" on any page to see all versions. Click "View" to see an old vers
 
 ### Optional frontmatter keys
 
-Beyond `title`/`tags`/`public`, a few keys are read by specific profile
-widgets. All are optional, ignored where irrelevant, and round-trip
-untouched through an ordinary editor save even though there's no dedicated
-editor UI for them yet — set them by hand in the frontmatter block, or via
-the MCP `save_page` tool.
+Beyond `title`/`tags`/`public`, a few keys feed the pinned, inbox, sources
+and source-card widgets. No skin mounts those four by default — tick them on
+the `/settings` widgets checklist if you use these keys. All are optional,
+ignored where irrelevant, and round-trip untouched through an ordinary
+editor save even though there's no dedicated editor UI for them yet — set
+them by hand in the frontmatter block, or via the MCP `save_page` tool.
 
-- `pin: true` — surfaces the page in the pinned sidebar widget (`research` profile).
-- `unread: true` — surfaces the page in the inbox widget and the `/inbox` route (`clipper` profile).
+- `pin: true` — surfaces the page in the pinned sidebar widget.
+- `unread: true` — surfaces the page in the inbox widget and the `/inbox` route.
 - `source: https://example.com/article` — the page's origin URL; grouped by host in the sources widget, shown on the source-card widget.
 - `author: Jane Doe` — shown on the source-card widget.
 - `read_time: 4 min` — shown on the source-card and inbox widgets.
@@ -387,8 +393,8 @@ the MCP `save_page` tool.
 
 Pages under `daily/YYYY-MM-DD` (e.g. `daily/2026-07-24`) are journal
 entries — the only slug convention in the app with a `/` in it. ctrl-j opens
-today's entry (except on the `clipper`/`minimal` profiles, which disable
-it); the calendar widget (`journal` profile) marks which days have one.
+today's entry (except on the `bare` skin, which disables it); the
+calendar widget (`journal` skin) marks which days have one.
 
 ### Editor extras
 - **Hide preview:** the `preview` toolbar button collapses the preview pane so the source editor fills the width. Useful on smaller screens or when you just want more writing space. Persists across pages (`localStorage`).

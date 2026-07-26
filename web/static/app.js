@@ -117,7 +117,7 @@
             .then(r => r.json())
             .then(data => {
               const rect = link.getBoundingClientRect();
-              const tags = (data.tags || []).map(t => '#' + escapeHtml(t)).join(' ');
+              const tags = (data.tags || []).map(t => '<span class="card-tag">' + escapeHtml(t) + '</span>').join(' ');
               previewCard.innerHTML = `
                 <h3><span class="h"></span>${escapeHtml(data.title)}</h3>
                 <div class="snippet">${escapeHtml(data.snippet)}</div>
@@ -284,7 +284,7 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
-  // ---- Daily note shortcut (ctrl-j) ---- disabled per-profile (clipper/minimal have no DailyKey)
+  // ---- Daily note shortcut (ctrl-j) ---- disabled per-skin (bare has no DailyKey)
   document.addEventListener('keydown', e => {
     if (!window.hmdDailyEnabled) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -461,7 +461,7 @@
           <span class="verb-desc">${escapeHtml(r.snippet)}</span>
         </div>`;
       }
-      const tags = r.tags && r.tags.length ? ' <span class="hit-tags">#' + r.tags.map(escapeHtml).join(' #') + '</span>' : '';
+      const tags = r.tags && r.tags.length ? ' <span class="hit-tags">' + r.tags.map(t => '<span class="hit-tag">' + escapeHtml(t) + '</span>').join(' ') + '</span>' : '';
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
       return `<a href="/page/${r.slug}" class="palette-row${i === paletteSelected ? ' selected' : ''}">

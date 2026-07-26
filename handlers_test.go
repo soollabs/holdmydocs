@@ -602,7 +602,7 @@ func TestPageChrome(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
-		`src="/static/app.js"`,
+		`src="/static/app.js?v=2"`,
 		`class="sidebar"`,
 		`action="/logout"`,
 		`seg-sync`,
@@ -633,7 +633,7 @@ func TestPageChrome(t *testing.T) {
 	for _, want := range []string{
 		`id="cm-host"`,
 		`data-slug="readme"`,
-		`src="/static/editor.js"`,
+		`src="/static/editor.js?v=2"`,
 		`id="preview"`,
 		`data-action="toc"`,
 	} {
@@ -1059,9 +1059,6 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"remote_url":       {""},
 		"git_user":         {"test"},
 		"git_token":        {""},
-		"hostname":         {"homelab"},
-		"path_label":       {"~/wiki"},
-		"user_label":       {""},
 		"max_upload_bytes": {"10485760"},
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
@@ -1106,9 +1103,6 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"remote_url":       {""},
 		"git_user":         {"test"},
 		"git_token":        {""},
-		"hostname":         {"homelab"},
-		"path_label":       {"~/wiki"},
-		"user_label":       {""},
 		"max_upload_bytes": {"10485760"},
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
@@ -1266,9 +1260,6 @@ func TestSettingsFullFlow(t *testing.T) {
 		"remote_url":       {""},
 		"git_user":         {"test"},
 		"git_token":        {""},
-		"hostname":         {"homelab"},
-		"path_label":       {"~/wiki"},
-		"user_label":       {""},
 		"max_upload_bytes": {"10485760"},
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
@@ -1315,7 +1306,7 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 	t.Setenv("HMD_CONFIG_FILE", cfgFile)
-	t.Setenv("HMD_HOSTNAME", "env-host")
+	t.Setenv("HMD_SYNC_MODE", "bidirectional")
 
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -1333,8 +1324,8 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
-	if loaded.Hostname != "env-host" {
-		t.Errorf("Hostname in file = %q, want %q (exported from HMD_HOSTNAME)", loaded.Hostname, "env-host")
+	if loaded.SyncMode != "bidirectional" {
+		t.Errorf("SyncMode in file = %q, want %q (exported from HMD_SYNC_MODE)", loaded.SyncMode, "bidirectional")
 	}
 	if loaded.SiteName != "Original" {
 		t.Errorf("SiteName in file = %q, want %q (untouched field preserved)", loaded.SiteName, "Original")
