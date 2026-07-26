@@ -153,7 +153,7 @@
           h.id = 'h-' + i + '-' + (h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 's');
         }
         const cls = h.tagName === 'H3' ? 'h3' : '';
-        return `<a href="#${h.id}" class="${cls}">${h.textContent}</a>`;
+        return `<a href="#${h.id}" class="${cls}">${escapeHtml(h.textContent)}</a>`;
       }).join('');
       tocList.innerHTML = tocHtml;
       if (tocListInline) tocListInline.innerHTML = tocHtml;

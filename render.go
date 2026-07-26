@@ -8,10 +8,27 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 )
+
+// sanitizePolicy strips script/event-handler HTML that goldmark's
+// WithUnsafe() would otherwise pass straight through from raw HTML in a
+// page body. It extends bluemonday's UGC baseline with the markup our own
+// post-processing and goldmark's GFM extensions rely on: wiki-link/mermaid
+// classes, footnote anchors, and task-list checkboxes.
+var sanitizePolicy = newSanitizePolicy()
+
+func newSanitizePolicy() *bluemonday.Policy {
+	p := bluemonday.UGCPolicy()
+	p.AllowAttrs("class").OnElements("a", "span", "pre", "code", "div", "li")
+	p.AllowAttrs("role").OnElements("a", "div", "sup")
+	p.AllowElements("input")
+	p.AllowAttrs("type", "checked", "disabled").OnElements("input")
+	return p
+}
 
 type Renderer struct {
 	md     goldmark.Markdown
@@ -48,6 +65,7 @@ func (r *Renderer) Render(body string) (htmltemplate.HTML, error) {
 	// Post-process mermaid blocks
 	htmlStr := buf.String()
 	htmlStr = r.processMermaidBlocks(htmlStr)
+	htmlStr = sanitizePolicy.Sanitize(htmlStr)
 
 	return htmltemplate.HTML(htmlStr), nil
 }

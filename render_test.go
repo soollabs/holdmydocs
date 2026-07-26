@@ -53,6 +53,18 @@ func TestRender(t *testing.T) {
 			wantContains:    []string{"&lt;script&gt;alert(1)&lt;/script&gt;"},
 			wantNotContains: []string{"<script>alert(1)</script>"},
 		},
+		{
+			name:            "raw script tag in page body is stripped",
+			exists:          func(s string) bool { return false },
+			input:           "hello\n\n<script>alert(document.cookie)</script>\n\nworld",
+			wantNotContains: []string{"<script", "alert(document.cookie)"},
+		},
+		{
+			name:            "raw event-handler attribute is stripped",
+			exists:          func(s string) bool { return false },
+			input:           `<img src="x" onerror="alert(1)">`,
+			wantNotContains: []string{"onerror"},
+		},
 	}
 
 	for _, tt := range tests {
