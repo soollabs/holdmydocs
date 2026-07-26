@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// gardenData feeds the standalone garden template without internal state.
+// gardenData is separate from TemplateData, so public templates cannot
+// receive internal state.
 type gardenData struct {
 	GardenTitle string
 	Title       string

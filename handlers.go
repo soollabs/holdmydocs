@@ -1160,7 +1160,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	// Read file content
 	content, err := io.ReadAll(file)
 	if err != nil {
-		http.Error(w, "failed to read file", http.StatusInternalServerError)
+		http.Error(w, "error reading file", http.StatusInternalServerError)
 		return
 	}
 
@@ -1168,7 +1168,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	authorName, authorEmail := app.gitAuthor(username)
 	_, err = app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail)
 	if err != nil {
-		http.Error(w, "failed to save file", http.StatusInternalServerError)
+		http.Error(w, "error saving file", http.StatusInternalServerError)
 		return
 	}
 
@@ -1424,7 +1424,7 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	newTitle := strings.TrimSpace(r.FormValue("title"))
 	if newTitle == "" {
-		http.Error(w, "title required", http.StatusBadRequest)
+		http.Error(w, "missing title", http.StatusBadRequest)
 		return
 	}
 	newSlug := Slugify(newTitle)
@@ -1435,11 +1435,11 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 
 	content, hash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "page not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	if newSlug != slug && app.Index.Exists(newSlug) {
-		http.Error(w, "page already exists", http.StatusConflict)
+		http.Error(w, "a page with that title already exists", http.StatusConflict)
 		return
 	}
 
@@ -1493,7 +1493,7 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	content, hash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "page not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	page := ParsePage(slug, content)
@@ -1589,7 +1589,7 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 	// Get page to get title
 	content, _, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "page not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -1636,7 +1636,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
-		http.Error(w, "revision not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -1676,7 +1676,7 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
-		http.Error(w, "revision not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -1684,7 +1684,7 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	authorName, authorEmail := app.gitAuthor(username)
 	_, err = app.Store.Save(pageFile(slug), content, "Revert "+slug+" to "+hash[:8], authorName, authorEmail)
 	if err != nil {
-		http.Error(w, "Error reverting", http.StatusInternalServerError)
+		http.Error(w, "error reverting", http.StatusInternalServerError)
 		return
 	}
 	slog.Info("reverted", "slug", slug, "to", hash[:8], "author", authorName)
@@ -1893,7 +1893,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	configPath := app.config().ConfigFile
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
 
@@ -1909,38 +1909,38 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	syncMode := r.FormValue("sync_mode")
 
 	if bind == "" {
-		http.Error(w, "Bind cannot be empty", http.StatusBadRequest)
+		http.Error(w, "bind cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if repoDir == "" {
-		http.Error(w, "Repo directory cannot be empty", http.StatusBadRequest)
+		http.Error(w, "repo directory cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if gitUser == "" {
-		http.Error(w, "Git user cannot be empty", http.StatusBadRequest)
+		http.Error(w, "git user cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if siteName == "" {
-		http.Error(w, "Site name cannot be empty", http.StatusBadRequest)
+		http.Error(w, "site name cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if remoteURL != "" && !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "git@") {
-		http.Error(w, "Remote URL must be HTTPS or git@ SSH format", http.StatusBadRequest)
+		http.Error(w, "remote URL must be HTTPS or git@ SSH format", http.StatusBadRequest)
 		return
 	}
 	if syncMode != "push" && syncMode != "bidirectional" {
-		http.Error(w, "Sync mode must be push or bidirectional", http.StatusBadRequest)
+		http.Error(w, "sync mode must be push or bidirectional", http.StatusBadRequest)
 		return
 	}
 
 	maxUploadBytes, err := strconv.ParseInt(maxUploadStr, 10, 64)
 	if err != nil || maxUploadBytes < 1 {
-		http.Error(w, "Invalid upload size", http.StatusBadRequest)
+		http.Error(w, "invalid upload size", http.StatusBadRequest)
 		return
 	}
 	syncPollMs, err := strconv.Atoi(syncPollStr)
 	if err != nil || syncPollMs < 100 {
-		http.Error(w, "Sync poll must be at least 100ms", http.StatusBadRequest)
+		http.Error(w, "sync poll must be at least 100ms", http.StatusBadRequest)
 		return
 	}
 
@@ -1992,29 +1992,29 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 // never touch config.yaml, and take effect only for the saving user.
 func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
 
 	palette := r.FormValue("palette")
 	if _, ok := themePresets[palette]; palette != "" && !ok {
-		http.Error(w, "Unknown palette", http.StatusBadRequest)
+		http.Error(w, "unknown palette", http.StatusBadRequest)
 		return
 	}
 
 	fontUI := r.FormValue("font_ui")
 	fontMono := r.FormValue("font_mono")
 	if _, ok := fontStacks[fontUI]; fontUI != "" && !ok {
-		http.Error(w, "Unknown UI font", http.StatusBadRequest)
+		http.Error(w, "unknown UI font", http.StatusBadRequest)
 		return
 	}
 	if _, ok := fontStacks[fontMono]; fontMono != "" && !ok {
-		http.Error(w, "Unknown monospace font", http.StatusBadRequest)
+		http.Error(w, "unknown monospace font", http.StatusBadRequest)
 		return
 	}
 	chosenSkin := r.FormValue("skin")
 	if _, ok := skins[chosenSkin]; chosenSkin != "" && !ok {
-		http.Error(w, "Unknown skin", http.StatusBadRequest)
+		http.Error(w, "unknown skin", http.StatusBadRequest)
 		return
 	}
 
@@ -2041,7 +2041,7 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, chosenSkin, widgetsAdd, widgetsRemove); err != nil {
-		http.Error(w, "Failed to save appearance", http.StatusInternalServerError)
+		http.Error(w, "failed to save appearance", http.StatusInternalServerError)
 		return
 	}
 

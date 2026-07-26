@@ -1,7 +1,9 @@
 # hmd install-wide configuration file.
 #
-# hmd creates <HMD_APP_DIR>/config.yaml when you first save /settings. Copy
-# this example to provision it, or set HMD_CONFIG_FILE to use another path.
+# hmd creates <HMD_APP_DIR>/config.yaml when you first save /settings.
+# This example is reference-only. Copy or adapt it only after replacing or
+# commenting out unsuitable placeholders, including the remote and token settings.
+# Set HMD_CONFIG_FILE to use another path.
 #
 # Every key here also has a HMD_<KEY, upper-cased> env var equivalent, with
 # nested keys folding their section into the name (e.g. repo_dir <->
@@ -29,9 +31,9 @@ git:
   token_file: /run/secrets/git_token
   # token: pat_xyz
 
-  # Default commit author in "Name <email>" form. Used for commits unless the
-  # user has set an author on the settings page; otherwise falls back to the
-  # logged-in username.
+  # Global commit author in "Name <email>" form. Commits use the per-user
+  # author, then this global author, then the logged-in username if neither is
+  # set.
   # author: hmd <hmd@example.com>
 
 # --- Bootstrap admin user ---

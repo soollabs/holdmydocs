@@ -12,6 +12,9 @@ package main
 // it — a newspaper that opened in terminal green wasn't a newspaper — and
 // the palette picker stays live afterwards for anyone who wants a different
 // one.
+//
+// skin and composition deliberately use one setting; the widget
+// checklist is the opt-in mechanism for individual widget changes.
 type skin struct {
 	Label   string
 	Note    string                  // one-line hint in the settings picker
