@@ -139,8 +139,8 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		return nil, fmt.Errorf("reading users file: %w", err)
 	}
 
-	// Sessions persisting is best-effort: a missing/corrupt file just means
-	// everyone logs in again, so ignore errors rather than fail startup.
+	// Session persistence is best-effort. A missing or corrupt file means users
+	// log in again, so startup continues.
 	if data, err := os.ReadFile(auth.sessionsFile); err == nil {
 		_ = json.Unmarshal(data, &auth.sessions)
 	}

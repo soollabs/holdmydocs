@@ -14,8 +14,7 @@ import (
 	"time"
 )
 
-// gardenData feeds the standalone garden template. Deliberately not
-// TemplateData: the garden template must never see internal state.
+// gardenData feeds the standalone garden template without internal state.
 type gardenData struct {
 	GardenTitle string
 	Title       string
@@ -166,8 +165,8 @@ func (app *App) handleGardenPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGardenAttachment serves an attachment only if its owning page is
-// currently public; otherwise 404, identical to a nonexistent file.
+// handleGardenAttachment serves attachments only for public pages. Private
+// pages return 404, as do nonexistent files.
 func (app *App) handleGardenAttachment(w http.ResponseWriter, r *http.Request) {
 	if !app.config().Garden.Enabled {
 		http.NotFound(w, r)

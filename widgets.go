@@ -136,14 +136,8 @@ func hasWidget(list []*widget, id string) bool {
 	return false
 }
 
-// populateWidgetData fills in the data-heavy widget fields on data — only
-// the ones something on the page actually reads, so a skin that doesn't use
-// e.g. calendar never pays for Store.DailyPages.
-//
-// "Something on the page" is not just the mounted widgets: the write
-// statusline reads WritingStats directly, and a user on that skin is free
-// to unmount the widget. Fold that need in here rather than letting the
-// statusline silently render zeroes.
+// populateWidgetData fills only the data needed by mounted widgets and the
+// statusline.
 func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	all := append(append(append(append([]*widget{}, data.SidebarWidgets...), data.RailWidgets...), data.PageHeadWidgets...), data.PageFootWidgets...)
 

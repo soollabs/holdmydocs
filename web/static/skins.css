@@ -96,8 +96,7 @@
 	font-variant: small-caps;
 }
 
-/* A solid green block is a terminal's idea of "you are here". Newsprint
-   marks the current page the way a printed index does. */
+/* Newsprint uses an underlined current-page link instead of a filled block. */
 :root[data-skin="newsprint"] .sidebar-list li a.active {
 	background: none;
 	color: var(--fg-strong);
@@ -106,9 +105,8 @@
 	text-underline-offset: 3px;
 }
 
-/* A newspaper's identity is its masthead: the title in large caps over a
-   double rule, with the reader's name as a byline under it. Nothing here is
-   a shell. */
+/* Newsprint uses a centred masthead with an uppercase site name, byline, and
+   double rule. */
 :root[data-skin="newsprint"] .identity-prompt { display: none; }
 :root[data-skin="newsprint"] .identity-masthead { display: block; }
 
@@ -284,8 +282,7 @@
 	--prose-measure: 66ch;
 	--prose-leading: 1.85;
 	--pad: 20px;
-	/* Mixed toward the panel, not removed: at 55% the seam is visible when
-	   you look for it and invisible when you don't. */
+	/* Keep a low-contrast border so the panel edge remains visible. */
 	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
 }
 
@@ -308,7 +305,7 @@
 	color: var(--fg-faint);
 }
 
-/* A solid fill is the terminal's "you are here". Here it's a soft pill. */
+/* Soft marks the active page with a rounded, low-contrast fill. */
 :root[data-skin="soft"] .sidebar-list li a {
 	border-radius: var(--radius);
 	padding: 2px 8px;

@@ -75,19 +75,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Password: ")
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
-			fmt.Fprintln(os.Stderr, "Failed to read password")
+			fmt.Fprintln(os.Stderr, "failed to read password")
 			os.Exit(1)
 		}
 		password := strings.TrimSpace(scanner.Text())
 
 		auth, err := OpenAuth(cfg)
 		if err != nil {
-			log.Fatalf("OpenAuth failed: %v", err)
+			log.Fatalf("open auth failed: %v", err)
 		}
 
 		err = auth.AddUser(name, password)
 		if err != nil {
-			log.Fatalf("AddUser failed: %v", err)
+			log.Fatalf("add user failed: %v", err)
 		}
 
 		fmt.Printf("User %q added\n", name)
@@ -99,17 +99,17 @@ func main() {
 	// Open store
 	store, err := OpenStore(cfg)
 	if err != nil {
-		log.Fatalf("OpenStore failed: %v", err)
+		log.Fatalf("open store failed: %v", err)
 	}
 
 	// Load all pages and build index
 	paths, err := store.List()
 	if err != nil {
-		log.Fatalf("Store.List failed: %v", err)
+		log.Fatalf("store.List failed: %v", err)
 	}
 	dailySlugs, err := store.DailyPages()
 	if err != nil {
-		log.Fatalf("Store.DailyPages failed: %v", err)
+		log.Fatalf("store.DailyPages failed: %v", err)
 	}
 
 	var pages []Page
@@ -134,7 +134,7 @@ func main() {
 
 	index, err := BuildIndex(pages)
 	if err != nil {
-		log.Fatalf("BuildIndex failed: %v", err)
+		log.Fatalf("build index failed: %v", err)
 	}
 	slog.Info("index built", "pages", len(pages))
 
@@ -147,7 +147,7 @@ func main() {
 	renderer := NewRenderer(index.Exists)
 	auth, err := OpenAuth(cfg)
 	if err != nil {
-		log.Fatalf("OpenAuth failed: %v", err)
+		log.Fatalf("open auth failed: %v", err)
 	}
 
 	tmpl, err := parseTemplates()
@@ -170,7 +170,7 @@ func main() {
 	if cfg.OIDC.Issuer != "" {
 		app.OIDC, err = NewOIDCAuth(context.Background(), cfg)
 		if err != nil {
-			log.Fatalf("OIDC setup failed: %v", err)
+			log.Fatalf("setting up OIDC failed: %v", err)
 		}
 		slog.Info("OIDC enabled", "issuer", cfg.OIDC.Issuer)
 	}

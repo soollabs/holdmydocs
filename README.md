@@ -1,6 +1,6 @@
 # hold my docs (hmd) — Self-Hosted Wiki
 
-A single-binary, self-hosted wiki. Content lives in a git repository: git is the live source of truth, not a backup. Every save is a commit with auto-push to HTTPS remotes. Split-pane editor with live preview, wiki-links, backlinks, full-text search, and per-page history with revert.
+A single-binary, self-hosted wiki backed by a git repository. Git is the live source of truth; every save commits and auto-pushes to HTTPS remotes. Includes a split-pane editor with live preview, wiki-links, backlinks, full-text search, and per-page history with revert.
 
 ## Quick Start (Docker)
 
@@ -32,10 +32,9 @@ bare-metal or a home server unless you actually have `/data` set up.
 
 ## Configuration
 
-Install-wide settings live in a **YAML file**, `config.yaml`, next to
-`users.json` in `HMD_APP_DIR` (default `/data/app/config.yaml`) — created
-automatically the first time you save `/settings`, so there's nothing to
-provision by hand. It's editable both by hand and from `/settings`.
+Install-wide settings live in `config.yaml` beside `users.json` in
+`HMD_APP_DIR` (default `/data/app/config.yaml`). hmd creates the file when
+you first save `/settings`; edit it by hand or from `/settings`.
 
 Two things are env-only out of necessity — they say *where* the config
 file lives, so they can't come from the file itself:
@@ -45,19 +44,17 @@ file lives, so they can't come from the file itself:
 | `HMD_APP_DIR` | Where app state (`users.json`, `sessions.json`, `config.yaml`) lives. **Local disk only, never NFS.** Default `/data/app`. Restart required. |
 | `HMD_CONFIG_FILE` | Overrides the config file path (default: `config.yaml` inside `HMD_APP_DIR`). Restart required. |
 
-A couple more are env-only by choice rather than necessity — bootstrap
-credentials that felt better left to deploy tooling than a file the app
-itself writes to:
+Bootstrap credentials are env-only; hmd uses them to create the bootstrap user
+and does not write them to the config file:
 
 | Variable | Meaning |
 |----------|---------|
 | `HMD_ADMIN_USER` / `HMD_ADMIN_PASSWORD` | Bootstrap admin credentials, used only on first run (creates the user if `users.json` doesn't exist yet). Manage users afterwards with `hmd adduser`. |
 
-Everything else, including secrets like the git token and OIDC client
-secret, is a normal field in `config.yaml` (`git.token`, `oidc.client_secret`)
-— the `HMD_GIT_TOKEN(_FILE)` / `HMD_OIDC_CLIENT_SECRET` env vars are just an
-*optional* override on top, for anyone who'd rather inject secrets via
-Docker/k8s secrets than put them in a file next to the app data.
+All other settings, including the git token and OIDC client secret, can be
+set in `config.yaml` (`git.token`, `oidc.client_secret`). The
+`HMD_GIT_TOKEN(_FILE)` and `HMD_OIDC_CLIENT_SECRET` variables optionally
+override those values, allowing Docker/k8s secret injection.
 
 ### Configuration file
 
@@ -94,14 +91,13 @@ git:
 #   base_url: https://wiki.example.com
 ```
 
-Every key here also has a `HMD_<KEY, upper-cased>` environment variable
-equivalent, with nested keys folding their section into the name — e.g.
+Each key also has a `HMD_<KEY, upper-cased>` environment variable equivalent;
+nested keys include their section, for example:
 `repo_dir` ↔ `HMD_REPO_DIR`, `git.remote_url` ↔ `HMD_GIT_REMOTE_URL`,
-`oidc.client_id` ↔ `HMD_OIDC_CLIENT_ID`. Handy for Docker/k8s deploys that
-inject config via env rather than a mounted file. Env values always win
-over the file and are shown read-only in `/settings` with a `set via
-HMD_X` badge. Unknown keys in the file are rejected at startup, so a typo
-fails loudly instead of being silently ignored.
+`oidc.client_id` ↔ `HMD_OIDC_CLIENT_ID`. Use these for Docker/k8s deployments
+that inject configuration rather than mount a file. Environment values
+override the file and appear read-only in `/settings` with a `set via HMD_X`
+badge. Unknown file keys are rejected at startup.
 
 Skin, palette and fonts are **per-user** preferences, not install-wide
 config — see below.
@@ -128,10 +124,10 @@ the process for most of them:
   users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
   Manage users with `hmd adduser` instead (see Users, below).
-- **Re-run setup:** a button that reopens the home-page/help-guide setup
-  modal, for re-adding either file if it was deleted later.
+- **Re-run setup:** reopens the home-page/help-guide setup modal so you can
+  add either file again if it was deleted.
 - **Help drift warning:** if `.help.md` differs from the binary's built-in
-  text (e.g. after upgrading hmd, or a manual edit), a banner appears
+  text (for example, after an upgrade or manual edit), a banner appears
   with a "Reset to built-in" button.
 
 ## Git Token
@@ -169,14 +165,13 @@ are not supported (see Not in v1).
 
 `HMD_SYNC_MODE` controls the direction of sync:
 
-- **`push` (default):** one-way, local → remote. Every save commits locally
-  and async-pushes to `origin`. hmd never pulls; commits made on the remote
-  side (or by another writer) will not appear locally.
-- **`bidirectional`:** fetch + fast-forward pull on every sync poll and before
-  each save. Changes pushed by other writers (agents, another hmd instance,
-  direct git commits) appear in the UI automatically. ff-only — if local and
-  remote have diverged, the state is reported as `failed` and left for manual
-  resolution via git on the server. No merge commits, no conflict markers.
+- **`push` (default):** one-way, local → remote. Each save commits locally
+  and asynchronously pushes to `origin`; hmd never pulls, so remote commits
+  do not appear locally.
+- **`bidirectional`:** fetches and performs fast-forward-only pulls on every
+  sync poll and before each save. Changes from other writers appear automatically in the UI.
+  If local and remote diverge, the state is `failed` and requires manual
+  resolution via git on the server. No merge commits or conflict markers.
 
 ### Startup
 
@@ -229,16 +224,21 @@ Env-set values are read-only in the UI.
 
 ## First Run Behaviour
 
-Nothing is written to the repo without consent. Every case below just flags
-a setup modal (shown on any authed page) if the home file (`HMD_HOME_FILENAME`,
-default `readme.md`) and/or `.help.md` is
-missing. The modal lists only the files that are actually missing, with a
-checkbox per file (checked by default) and "Add selected" / "Skip" buttons.
+The repo is never written without consent. If the home file
+(`HMD_HOME_FILENAME`, default `readme.md`) or `.help.md` is missing, hmd
+shows a setup modal on any authenticated page. The modal lists only missing
+files, each selected by default, with "Add selected" and "Skip" buttons.
 
-- **Any repo state** (fresh init, cloned, empty, or existing with other content) that's missing the home file (`HMD_HOME_FILENAME`, default `readme.md`) and/or `.help.md`: shows the setup modal, no auto-seeding, ever
+- **Any repo state** (fresh init, cloned, empty, or existing with other
+  content): shows the setup modal when either file is missing; no automatic
+  seeding.
 - **Bootstrap users:** if `HMD_ADMIN_USER` and `HMD_ADMIN_PASSWORD` are set, creates that user on startup
 
-The home page (`readme.md` by default) is a clean welcome with a `<!-- hmd:toc -->` token that auto-generates a list of all pages. The help guide lives in `.help.md`, a hidden dot-file, editable via the UI at `/hidden/help` or directly via git. Settings shows a warning if it drifts from the binary's built-in version (e.g. after upgrading hmd), with a button to reset it. Settings also has a "re-run setup" button to reopen the modal if either file is deleted later.
+The home page (`readme.md` by default) contains a `<!-- hmd:toc -->` token
+that generates a list of all pages. The help guide is `.help.md`, a hidden
+dot-file editable at `/hidden/help` or via git. Settings warns when it differs
+from the binary's built-in version and offers a reset button. A "re-run setup"
+button reopens the modal if either file is later deleted.
 
 ## Storage Layout & NFS
 
@@ -266,12 +266,10 @@ the install-wide `skin:` default (see Skins, below).
 
 ## Skins
 
-A skin is the one presentation choice: how the app looks (typography,
-spacing, borders, markers), what it puts on screen (which widgets mount
-where, where `/` lands, what ctrl-j opens, which statusline segments show),
-and which colour palette it arrives in. It never changes how or where pages
-are stored — the same repo opens correctly under any skin, and `git log` is
-byte-identical across them.
+A skin controls the app's presentation: typography, spacing, borders, markers,
+mounted widgets, the `/` landing page, ctrl-j, statusline segments, and colour
+palette. It does not change how or where pages are stored; the same repo works
+under any skin, and `git log` remains byte-identical.
 
 - **`phosphor`** (default, phosphor palette) — terminal: green, monospace,
   `#` markers, a `<user>@<site_name>$` prompt. Pages list, tags, recent
@@ -287,10 +285,9 @@ byte-identical across them.
 - **`bare`** (one dark) — subtraction only: no borders, no markers, wide
   margins, identity and a pages list, ctrl-j disabled.
 
-Each skin names the **palette** it was designed for, and choosing a skin
-switches to it — a broadsheet that opened in terminal green would not be a
-broadsheet. The palette picker stays live afterwards, so any skin × palette
-combination is still reachable; it just isn't the starting point.
+Each skin names its default **palette**, and choosing a skin switches to that
+palette. The palette picker remains available, so every skin × palette
+combination is still possible; the pairing is the default.
 
 The install-wide default is `skin:` in `config.yaml` (env `HMD_SKIN`); each
 user can override their own from `/settings`, including adding or removing a
@@ -317,17 +314,24 @@ docker compose exec hmd /hmd adduser alice
 (Note: distroless images have no shell, so the form above invokes the binary directly.)
 
 ### Personal access tokens
-API and MCP clients authenticate with a Bearer token instead of the session cookie. Create tokens under **access tokens** on `/settings`: name the token, pick an expiry (1 day, 7 days, 30 days — the default — 1 year, or never) and copy the value when it is shown — that's the only time it appears. Only a hash is stored. Revoke from the same page; revocation takes effect immediately.
+API and MCP clients use Bearer tokens instead of the session cookie. Create one
+under **access tokens** on `/settings`, choose a name and expiry (1 day, 7
+days, 30 days — default, 1 year, or never), and copy it when shown; it appears
+only once. hmd stores only a hash. Revoke tokens from the same page; revocation
+is immediate.
 
 ## MCP server
 
-Set `HMD_MCP_ENABLED=true` (restart required) to serve the wiki over the [Model Context Protocol](https://modelcontextprotocol.io/) at `/mcp` (streamable HTTP). MCP clients can then read and write pages directly — every save is a git commit attributed to the token's owner.
+Set `HMD_MCP_ENABLED=true` (restart required) to serve the wiki over the
+[Model Context Protocol](https://modelcontextprotocol.io/) at `/mcp` (streamable
+HTTP). MCP clients can read and write pages; each save is a git
+commit attributed to the token owner.
 
 Create a token on `/settings` (see [Personal access tokens](#personal-access-tokens)), then configure your MCP client to send it as a Bearer token.
 
-Tools: `list_pages`, `read_page`, `save_page`, `delete_page`, `search`, `backlinks`, `recent_changes`. Saves use the same optimistic locking as the web editor: `save_page` requires the `hash` returned by `read_page`, and a stale hash returns a conflict carrying the current content so the agent can merge and retry.
+Tools: `list_pages`, `read_page`, `save_page`, `delete_page`, `search`, `backlinks`, `recent_changes`. `save_page` uses the same optimistic locking as the web editor: pass the `hash` from `read_page`; a stale hash returns a conflict with the current content for merging and retrying.
 
-This makes hmd usable as a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): point your agent's instructions at the wiki conventions you want, and let it compile knowledge into interlinked pages.
+hmd is a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): point your agent's instructions at the wiki conventions and let it build interlinked pages.
 
 ## Writing Pages
 
@@ -336,7 +340,7 @@ This makes hmd usable as a persistent agent knowledge base ([LLM wiki](https://g
 See [[My Other Page]] for details.
 ```
 
-Creates a link to `/page/my-other-page`. If the page doesn't exist, the link shows as "create this page" until you make it.
+Links to `/page/my-other-page`. Missing pages show "create this page" until created.
 
 ### Mermaid diagrams
 ````markdown
@@ -369,7 +373,9 @@ Or filter by tags (pages matching ANY tag are included):
 <!-- hmd:toc:meta -->
 ```
 
-The token is replaced server-side at render time with wiki-linked bullet points, sorted by title. Use the `toc` button in the editor toolbar to insert the token at the cursor.
+At render time, the server replaces the token with wiki-linked bullet points
+sorted by title. Use the editor toolbar's `toc` button to insert it at the
+cursor.
 
 ### History
 Click "History" on any page to see all versions. Click "View" to see an old version, or "Revert to this version" to restore it (creates a new commit, never rewrites history).

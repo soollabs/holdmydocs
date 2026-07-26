@@ -1,15 +1,13 @@
 # hmd install-wide configuration file.
 #
-# hmd looks for this at <HMD_APP_DIR>/config.yaml by default (created
-# automatically the first time you save /settings) — no need to copy this
-# file anywhere or set HMD_CONFIG_FILE unless you want it somewhere else.
+# hmd creates <HMD_APP_DIR>/config.yaml when you first save /settings. Copy
+# this example to provision it, or set HMD_CONFIG_FILE to use another path.
 #
 # Every key here also has a HMD_<KEY, upper-cased> env var equivalent, with
 # nested keys folding their section into the name (e.g. repo_dir <->
 # HMD_REPO_DIR, git.remote_url <-> HMD_GIT_REMOTE_URL, oidc.client_id <->
-# HMD_OIDC_CLIENT_ID). Env always wins over this file, handy for Docker/k8s
-# deploys. Unknown keys are rejected at startup — a typo fails loudly
-# instead of being silently ignored.
+# HMD_OIDC_CLIENT_ID). Environment values override this file, useful for
+# Docker/k8s deployments. Unknown keys are rejected at startup.
 #
 # All keys are optional; omit anything you want left at its default.
 #
@@ -31,9 +29,9 @@ git:
   token_file: /run/secrets/git_token
   # token: pat_xyz
 
-  # Default commit author, in "Name <email>" form. Used for every commit
-  # unless a user has set their own author on the settings page. Falls
-  # back to the logged-in username when unset.
+  # Default commit author in "Name <email>" form. Used for commits unless the
+  # user has set an author on the settings page; otherwise falls back to the
+  # logged-in username.
   # author: hmd <hmd@example.com>
 
 # --- Bootstrap admin user ---
@@ -41,9 +39,9 @@ git:
 # Manage users afterwards with `hmd adduser <name>`.
 
 # --- Site ---
-# The site's name. It is the only display label there is: the terminal
-# skins' prompt renders <logged-in user>@<site_name>$, the typographic
-# skins use it as a masthead, and every breadcrumb starts with it.
+# Site name. It is the only display label: terminal prompts render
+# <logged-in user>@<site_name>$; typographic skins use it as a masthead;
+# breadcrumbs start with it.
 site_name: Homelab Wiki
 
 # --- Behaviour ---
@@ -58,14 +56,14 @@ sync_poll_ms: 10000
 # Default readme.md renders on the git host front page (GitHub, git, Gitea).
 # home_filename: readme.md
 # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
-# A skin is a look plus a widget arrangement, not a storage mode — any user
-# can override their own from /settings.
+# A skin controls presentation and widget arrangement, not storage. Users can
+# override it from /settings.
 # skin: phosphor
 
 # --- OIDC single sign-on ---
-# Optional. Setting oidc.issuer enables SSO (restart required). Register hmd
-# with your provider (Authentik, Authelia, Pocket ID, ...) as a confidential
-# client with redirect URI <oidc.base_url>/auth/oidc/callback.
+# Optional. Setting oidc.issuer enables SSO and requires a restart. Register
+# hmd as a confidential client with your provider and use
+# <oidc.base_url>/auth/oidc/callback as the redirect URI.
 # oidc:
 #   issuer: https://auth.example.com
 #   client_id: hmd
@@ -74,9 +72,9 @@ sync_poll_ms: 10000
 #   base_url: https://wiki.example.com   # public URL of this hmd instance
 #   local_login: true                    # false hides the password form
 #   button_text: Sign in with SSO        # e.g. "Login with Authelia"
-#   # Icon on the SSO button: a name from https://dashboardicons.com/ (fetched
-#   # once at startup, then served locally) or a path to an SVG file. The SVG
-#   # must be square (equal viewBox or width/height) and at most 256 KiB.
+#   # SSO button icon: a name from https://dashboardicons.com/ (fetched once at
+#   # startup and served locally) or a path to an SVG file. SVGs must be square
+#   # (equal viewBox or width/height) and at most 256 KiB.
 #   icon: authelia
 #   # icon: /etc/hmd/sso-icon.svg
 
@@ -91,7 +89,6 @@ sync_poll_ms: 10000
 
 # --- MCP server ---
 # Expose the wiki to AI agents over MCP (streamable HTTP at /mcp).
-# Requires a personal access token, created under /settings.
-# Restart required.
+# Requires a personal access token from /settings. Restart required.
 # mcp:
 #   enabled: true

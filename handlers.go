@@ -765,7 +765,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 			homeSlug := cfg.HomeSlug()
 			content := Page{Slug: homeSlug, Title: homeSlug, Body: defaultHomeMD}.Encode()
 			if _, err := app.Store.Save(cfg.HomeFilename, content, "Add "+cfg.HomeFilename, authorName, authorEmail); err != nil {
-				http.Error(w, "Failed to seed home page", http.StatusInternalServerError)
+				http.Error(w, "failed to seed home page", http.StatusInternalServerError)
 				return
 			}
 			app.Index.Update(ParsePage(homeSlug, content))
@@ -773,7 +773,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("add_help") == "on" {
 			content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
 			if _, err := app.Store.Save(".help.md", content, "Add .help.md", authorName, authorEmail); err != nil {
-				http.Error(w, "Failed to seed help guide", http.StatusInternalServerError)
+				http.Error(w, "failed to seed help guide", http.StatusInternalServerError)
 				return
 			}
 		}
@@ -803,11 +803,8 @@ func refererPath(r *http.Request, fallback string) string {
 	return u.Path
 }
 
-// handleRerunSetup reopens the setup modal on demand, showing both items
-// even if the home file/.help.md already exist (unlike the automatic NeedsSetup
-// flag, which only shows items that are actually missing). Nothing is
-// written until the form is submitted — checking an existing file's box
-// overwrites it.
+// handleRerunSetup reopens the setup modal with both items. Nothing is written
+// until submission; selecting an existing file overwrites it.
 func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 	app.Store.ForceSetup.Store(true)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -818,7 +815,7 @@ func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 	author := strings.TrimSpace(r.FormValue("git_author"))
 	if err := app.Auth.SetAuthor(app.currentUser(r), author); err != nil {
-		http.Error(w, "Failed to save git author", http.StatusInternalServerError)
+		http.Error(w, "failed to save git author", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -830,7 +827,7 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
 	content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
 	if _, err := app.Store.Save(".help.md", content, "Reset .help.md to built-in", authorName, authorEmail); err != nil {
-		http.Error(w, "Failed to reset .help.md", http.StatusInternalServerError)
+		http.Error(w, "failed to reset .help.md", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -1119,7 +1116,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "No file uploaded", http.StatusBadRequest)
+		http.Error(w, "no file uploaded", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -1131,7 +1128,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	name = Slugify(name)
 
 	if name == "" {
-		http.Error(w, "Invalid filename", http.StatusBadRequest)
+		http.Error(w, "invalid filename", http.StatusBadRequest)
 		return
 	}
 
@@ -1142,7 +1139,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		".webp": true, ".pdf": true,
 	}
 	if !allowedExts[strings.ToLower(ext)] {
-		http.Error(w, "File type not allowed", http.StatusBadRequest)
+		http.Error(w, "file type not allowed", http.StatusBadRequest)
 		return
 	}
 
@@ -1156,14 +1153,14 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	absPath, _ := filepath.Abs(repoPath)
 	absRepoAbs, _ := filepath.Abs(absRepo)
 	if !strings.HasPrefix(absPath, absRepoAbs+string(filepath.Separator)) {
-		http.Error(w, "Invalid slug", http.StatusBadRequest)
+		http.Error(w, "invalid slug", http.StatusBadRequest)
 		return
 	}
 
 	// Read file content
 	content, err := io.ReadAll(file)
 	if err != nil {
-		http.Error(w, "Error reading file", http.StatusInternalServerError)
+		http.Error(w, "failed to read file", http.StatusInternalServerError)
 		return
 	}
 
@@ -1171,7 +1168,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	authorName, authorEmail := app.gitAuthor(username)
 	_, err = app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail)
 	if err != nil {
-		http.Error(w, "Error saving file", http.StatusInternalServerError)
+		http.Error(w, "failed to save file", http.StatusInternalServerError)
 		return
 	}
 
@@ -1195,7 +1192,7 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	absRepoAbs, _ := filepath.Abs(absRepo)
 
 	if !strings.HasPrefix(absPath, absRepoAbs+string(filepath.Separator)) {
-		http.Error(w, "Not found", http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -1427,7 +1424,7 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	newTitle := strings.TrimSpace(r.FormValue("title"))
 	if newTitle == "" {
-		http.Error(w, "missing title", http.StatusBadRequest)
+		http.Error(w, "title required", http.StatusBadRequest)
 		return
 	}
 	newSlug := Slugify(newTitle)
@@ -1438,11 +1435,11 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 
 	content, hash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
 	if newSlug != slug && app.Index.Exists(newSlug) {
-		http.Error(w, "a page with that title already exists", http.StatusConflict)
+		http.Error(w, "page already exists", http.StatusConflict)
 		return
 	}
 
@@ -1496,7 +1493,7 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	content, hash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
 	page := ParsePage(slug, content)
@@ -1592,7 +1589,7 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 	// Get page to get title
 	content, _, err := app.Store.Read(pageFile(slug))
 	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
+		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
 
@@ -1639,7 +1636,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
+		http.Error(w, "revision not found", http.StatusNotFound)
 		return
 	}
 
@@ -1679,7 +1676,7 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
+		http.Error(w, "revision not found", http.StatusNotFound)
 		return
 	}
 
@@ -1969,14 +1966,14 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 
 	if err := SaveFileConfig(configPath, fc); err != nil {
 		slog.Error("saving config", "err", err)
-		http.Error(w, "Failed to save config", http.StatusInternalServerError)
+		http.Error(w, "failed to save config", http.StatusInternalServerError)
 		return
 	}
 
 	newCfg, err := LoadConfig()
 	if err != nil {
 		slog.Error("reloading config after save", "err", err)
-		http.Error(w, "Config saved but reload failed", http.StatusInternalServerError)
+		http.Error(w, "config saved but reload failed", http.StatusInternalServerError)
 		return
 	}
 	app.SetConfig(newCfg)
@@ -2062,14 +2059,14 @@ func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 	cfg := app.config()
 	if err := SaveFileConfig(cfg.ConfigFile, cfg.toFileConfig()); err != nil {
 		slog.Error("exporting config", "err", err)
-		http.Error(w, "Failed to export config", http.StatusInternalServerError)
+		http.Error(w, "failed to export config", http.StatusInternalServerError)
 		return
 	}
 
 	newCfg, err := LoadConfig()
 	if err != nil {
 		slog.Error("reloading config after export", "err", err)
-		http.Error(w, "Config exported but reload failed", http.StatusInternalServerError)
+		http.Error(w, "config exported but reload failed", http.StatusInternalServerError)
 		return
 	}
 	app.SetConfig(newCfg)

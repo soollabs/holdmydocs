@@ -231,7 +231,7 @@
 
 		<fieldset class="settings-section">
 			<legend>skin</legend>
-			<p class="settings-note">One choice: how the app looks <em>and</em> what it puts on screen. Storage is identical across skins &mdash; the same repo opens correctly under any of them.</p>
+			<p class="settings-note">Skins control appearance, widgets, and the landing page. The same repository works with any skin.</p>
 			<div class="skin-picker">
 				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
@@ -261,7 +261,7 @@
 
 		<fieldset class="settings-section">
 			<legend>widgets</legend>
-			<p class="settings-note">Add or remove a single widget without leaving your skin. Choosing a skin above resets these to that skin's own set.</p>
+			<p class="settings-note">Choose which widgets appear with this skin. Changing the skin resets the list to that skin's defaults.</p>
 			<div class="widget-checklist">
 				{{range .Settings.WidgetIDs}}{{$w := index $.Settings.Widgets .}}
 				<label class="widget-check">
@@ -351,9 +351,7 @@
 		});
 	});
 
-	// Palette swatches: fill each card's seven chips from the preset's own
-	// values for the mode the user is currently looking at, so the choice is
-	// made by looking rather than by reading a name.
+	// Fill each card's swatches with the preset values for the current mode.
 	var palettes = {{.Settings.Palettes}};
 	var swatchVars = ['bg', 'surface', 'fg', 'primary', 'accent', 'warning', 'danger'];
 	function paintSwatches() {
@@ -388,10 +386,9 @@
 		});
 	});
 
-	// Radio cards: keep the .selected outline in step, and preview the skin
-	// live. Choosing a skin also re-ticks the widget checklist to that skin's
-	// own set — the server discards the submitted boxes on a skin change, so
-	// showing the old skin's ticks would just be a lie.
+	// Keep the .selected outline in sync and preview the skin. On a skin change,
+	// the server resets widgets to that skin's defaults, so update the checklist
+	// to match.
 	var skinWidgets = {{.Settings.SkinWidgets}};
 	var skinPalettes = {{.Settings.SkinPalettes}};
 	var paletteExplicit = document.getElementById('palette-explicit');

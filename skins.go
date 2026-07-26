@@ -12,21 +12,6 @@ package main
 // it — a newspaper that opened in terminal green wasn't a newspaper — and
 // the palette picker stays live afterwards for anyone who wants a different
 // one.
-//
-// look and composition were two knobs (skin + profile) that
-// nobody wants to mix independently — a broadsheet-serif reading skin with
-// a writing skin's calendar rail is not a combination anyone asked for.
-// One knob, five values.
-//
-// A skin only earns a name here if its composition half is real. The
-// dropped `clipper` failed that test: it landed on /inbox and offered a
-// "+ clip url" button, but nothing in the app clips — `unread:`/`source:`
-// have no editor UI, so its inbox was empty for anyone not hand-editing
-// markdown. The inbox/sources/source-card widgets survive as opt-ins
-// (settings checklist) because the frontmatter behind them is real; they
-// just no longer come pre-mounted by a skin that promised a workflow.
-// `research` failed a softer version of the same test: it was phosphor
-// with every panel ticked, which the checklist already does.
 type skin struct {
 	Label   string
 	Note    string                  // one-line hint in the settings picker
