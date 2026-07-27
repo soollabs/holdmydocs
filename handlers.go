@@ -386,9 +386,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	data.SiteName = app.config().SiteName
 	data.Version = version
 	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
-	if data.RoutePrefix == "" {
-		data.RoutePrefix = "/page"
-	}
 	if data.SyncState == "" {
 		data.SyncState, _ = app.Store.SyncState()
 	}
@@ -581,9 +578,9 @@ func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	switch s.Landing {
 	case "daily":
-		http.Redirect(w, r, "/page/daily/"+time.Now().Format("2006-01-02")+"/edit", http.StatusSeeOther)
+		http.Redirect(w, r, "/daily/"+time.Now().Format("2006-01-02")+"?do=edit", http.StatusSeeOther)
 	default:
-		http.Redirect(w, r, "/page/"+cfg.HomeSlug(), http.StatusSeeOther)
+		http.Redirect(w, r, "/"+cfg.HomeSlug(), http.StatusSeeOther)
 	}
 }
 
@@ -593,75 +590,59 @@ func (app *App) Routes() http.Handler {
 	// Root: redirect to the current user's skin landing target.
 	mux.HandleFunc("GET /{$}", app.handleRoot)
 
+	// Everything under /_/ is the app itself — the one reserved top-level
+	// segment a namespace may never take. Content owns everything else.
+
 	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
-	mux.HandleFunc("POST /setup", app.handleSetup)
+	mux.HandleFunc("POST /_/setup", app.handleSetup)
 
 	// Static files. embed.FS carries no real mtime/ETag, so browsers have
 	// nothing to conditionally revalidate against and can cache a stale
 	// copy indefinitely across binary rebuilds — force revalidation instead.
 	fsys, _ := fs.Sub(webFS, "web/static")
-	staticHandler := http.StripPrefix("/static/", http.FileServerFS(fsys))
-	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(fsys))
+	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		staticHandler.ServeHTTP(w, r)
 	}))
 
 	// Login handlers
-	mux.HandleFunc("GET /login", app.handleLoginGet)
-	mux.HandleFunc("POST /login", app.handleLoginPost)
-	mux.HandleFunc("POST /logout", app.handleLogout)
-	mux.HandleFunc("GET /auth/oidc/login", app.handleOIDCLogin)
-	mux.HandleFunc("GET /auth/oidc/callback", app.handleOIDCCallback)
-	mux.HandleFunc("GET /auth/oidc/icon", app.handleOIDCIcon)
+	mux.HandleFunc("GET /_/login", app.handleLoginGet)
+	mux.HandleFunc("POST /_/login", app.handleLoginPost)
+	mux.HandleFunc("POST /_/logout", app.handleLogout)
+	mux.HandleFunc("GET /_/auth/oidc/login", app.handleOIDCLogin)
+	mux.HandleFunc("GET /_/auth/oidc/callback", app.handleOIDCCallback)
+	mux.HandleFunc("GET /_/auth/oidc/icon", app.handleOIDCIcon)
 
-	// Tags
-	mux.HandleFunc("GET /tags", app.handleTagsIndex)
-	mux.HandleFunc("GET /inbox", app.handleInboxIndex)
-	mux.HandleFunc("GET /tags/{tag}", app.handleTagPages)
+	// Tags, inbox: page indexes, not real content.
+	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)
+	mux.HandleFunc("GET /_/inbox", app.handleInboxIndex)
+	mux.HandleFunc("GET /_/tags/{tag}", app.handleTagPages)
 
 	// Settings
-	mux.HandleFunc("GET /settings", app.handleSettingsGet)
-	mux.HandleFunc("GET /admin", app.handleAdminGet)
-	mux.HandleFunc("POST /admin", app.handleSettingsPost)
-	mux.HandleFunc("POST /settings/appearance", app.handleSettingsAppearance)
-	mux.HandleFunc("POST /settings/export", app.handleSettingsExport)
-	mux.HandleFunc("POST /settings/author", app.handleSetAuthor)
-	mux.HandleFunc("POST /settings/tokens", app.handleCreateToken)
-	mux.HandleFunc("POST /settings/tokens/revoke", app.handleRevokeToken)
-	mux.HandleFunc("POST /settings/users", app.handleCreateUser)
-	mux.HandleFunc("POST /settings/users/scopes", app.handleSetUserScopes)
-	mux.HandleFunc("POST /settings/setup", app.handleRerunSetup)
-	mux.HandleFunc("POST /settings/help/reset", app.handleResetHelp)
+	mux.HandleFunc("GET /_/settings", app.handleSettingsGet)
+	mux.HandleFunc("GET /_/admin", app.handleAdminGet)
+	mux.HandleFunc("POST /_/admin", app.handleSettingsPost)
+	mux.HandleFunc("POST /_/settings/appearance", app.handleSettingsAppearance)
+	mux.HandleFunc("POST /_/settings/export", app.handleSettingsExport)
+	mux.HandleFunc("POST /_/settings/author", app.handleSetAuthor)
+	mux.HandleFunc("POST /_/settings/tokens", app.handleCreateToken)
+	mux.HandleFunc("POST /_/settings/tokens/revoke", app.handleRevokeToken)
+	mux.HandleFunc("POST /_/settings/users", app.handleCreateUser)
+	mux.HandleFunc("POST /_/settings/users/scopes", app.handleSetUserScopes)
+	mux.HandleFunc("POST /_/settings/setup", app.handleRerunSetup)
+	mux.HandleFunc("POST /_/settings/help/reset", app.handleResetHelp)
 
 	// Search
-	mux.HandleFunc("GET /search", app.handleSearch)
+	mux.HandleFunc("GET /_/search", app.handleSearch)
+	mux.HandleFunc("GET /_/health-report", app.handleHealthReport)
 
-	// Page handlers
-	mux.HandleFunc("GET /page/{slug}", app.handleViewPage)
-	mux.HandleFunc("GET /page/{slug}/edit", app.handleEditPage)
-	mux.HandleFunc("POST /page/{slug}/save", app.handleSavePage)
-	mux.HandleFunc("GET /page/{slug}/history", app.handleHistory)
-	mux.HandleFunc("GET /page/{slug}/rev/{hash}", app.handleViewRev)
-	mux.HandleFunc("GET /page/{slug}/diff", app.handlePageDiff)
-	mux.HandleFunc("POST /page/{slug}/revert", app.handleRevert)
-	mux.HandleFunc("POST /page/{slug}/rename", app.handleRenamePage)
-	mux.HandleFunc("POST /page/{slug}/tags", app.handleSetTags)
-	mux.HandleFunc("GET /health-report", app.handleHealthReport)
-
-	// daily/YYYY-MM-DD is the only slug in the app with a "/" in it — Go's
-	// ServeMux {slug} wildcard matches exactly one path segment, so nothing
-	// above can reach it. A trailing {path...} wildcard is strictly less
-	// specific than every route above (Go's mux prefers the most specific
-	// match), so it's safe to register as a catch-all fallback that only
-	// ever receives multi-segment slugs like "daily/2026-07-24[/edit]".
-	mux.HandleFunc("GET /page/{path...}", app.handleMultiSegmentGet)
-	mux.HandleFunc("POST /page/{path...}", app.handleMultiSegmentPost)
-
-	// Hidden page handlers (dot-prefixed files, separate route namespace)
-	mux.HandleFunc("GET /hidden", app.handleHiddenIndex)
-	mux.HandleFunc("GET /hidden/{slug}", app.handleViewHidden)
-	mux.HandleFunc("GET /hidden/{slug}/edit", app.handleEditHidden)
-	mux.HandleFunc("POST /hidden/{slug}/save", app.handleSaveHidden)
+	// Hidden page handlers (dot-prefixed files, an app-internal drafting
+	// namespace — never addressable content, so it lives under /_/ too).
+	// Actions are ?do= query params, same as ordinary pages.
+	mux.HandleFunc("GET /_/hidden", app.handleHiddenIndex)
+	mux.HandleFunc("GET /_/hidden/{path...}", app.handleHiddenGet)
+	mux.HandleFunc("POST /_/hidden/{path...}", app.handleHiddenPost)
 
 	// Digital garden: public read-only namespace. 404s unless
 	// HMD_GARDEN_ENABLED (and stays behind the auth redirect when disabled).
@@ -671,19 +652,33 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /garden/attachments/{slug}/{file}", app.handleGardenAttachment)
 
 	// MCP server (opt-in, restart-required): agents read and write the wiki
-	// over streamable HTTP. Same middleware as /api/ — Bearer PAT, 401 JSON.
+	// over streamable HTTP. Same middleware as /_/api/ — Bearer PAT, 401 JSON.
 	if app.config().MCP.Enabled {
-		mux.Handle("/mcp", app.mcpHandler())
+		mcpHandler := app.mcpHandler()
+		// Explicit methods, not a bare "/_/mcp" pattern: a method-less
+		// pattern can't coexist with the "GET /{path...}"/"POST /{path...}"
+		// page dispatcher below — Go's mux requires one pattern to
+		// dominate the other in both path and method specificity.
+		mux.Handle("GET /_/mcp", mcpHandler)
+		mux.Handle("POST /_/mcp", mcpHandler)
+		mux.Handle("DELETE /_/mcp", mcpHandler)
 	}
 
 	// API endpoints
-	mux.HandleFunc("GET /api/search", app.handleSearchAPI)
-	mux.HandleFunc("GET /api/sync", app.handleSyncAPI)
-	mux.HandleFunc("POST /api/sync/push-now", app.handleSyncPushNow)
-	mux.HandleFunc("GET /api/preview/{slug}", app.handleAPIPreview)
-	mux.HandleFunc("POST /api/preview", app.handlePreview)
-	mux.HandleFunc("POST /api/attachments/{slug}", app.handleUploadAttachment)
-	mux.HandleFunc("GET /attachments/{slug}/{file}", app.handleServeAttachment)
+	mux.HandleFunc("GET /_/api/search", app.handleSearchAPI)
+	mux.HandleFunc("GET /_/api/sync", app.handleSyncAPI)
+	mux.HandleFunc("POST /_/api/sync/push-now", app.handleSyncPushNow)
+	mux.HandleFunc("GET /_/api/preview/{slug}", app.handleAPIPreview)
+	mux.HandleFunc("POST /_/api/preview", app.handlePreview)
+	mux.HandleFunc("POST /_/api/attachments/{slug}", app.handleUploadAttachment)
+	mux.HandleFunc("GET /_/attachments/{slug}/{file}", app.handleServeAttachment)
+
+	// Content owns the root: one dispatcher for every page, GET and POST,
+	// actions selected by ?do= rather than a path suffix. Go's ServeMux
+	// prefers the more specific /_/... patterns above over this wildcard,
+	// so /_/... never resolves here.
+	mux.HandleFunc("GET /{path...}", app.handlePageGet)
+	mux.HandleFunc("POST /{path...}", app.handlePagePost)
 
 	return mux
 }
@@ -738,7 +733,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
+	http.Redirect(w, r, "/"+app.config().HomeSlug(), http.StatusSeeOther)
 }
 
 func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -756,7 +751,7 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/login", http.StatusSeeOther)
 }
 
 // handleSetup processes the setup form. Nothing is seeded without explicit
@@ -792,7 +787,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	app.Store.NeedsSetup.Store(false)
 	app.Store.ForceSetup.Store(false)
-	http.Redirect(w, r, refererPath(r, "/page/"+cfg.HomeSlug()), http.StatusSeeOther)
+	http.Redirect(w, r, refererPath(r, "/"+cfg.HomeSlug()), http.StatusSeeOther)
 }
 
 // refererPath returns the path+query of the request's Referer header, so
@@ -818,7 +813,7 @@ func refererPath(r *http.Request, fallback string) string {
 // until submission; selecting an existing file overwrites it.
 func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 	app.Store.ForceSetup.Store(true)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
 // handleSetAuthor stores the current user's git author override ("Name <email>",
@@ -829,7 +824,7 @@ func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save git author", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
 }
 
 // handleResetHelp overwrites .help.md with the built-in default, clearing
@@ -841,7 +836,7 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to reset .help.md", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
 func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
@@ -913,52 +908,86 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleMultiSegmentGet/Post dispatch the "{path...}" catch-all registered
-// alongside the single-segment /page/{slug}... routes. It only ever
-// receives requests those routes couldn't match — in practice, exactly the
-// "daily/YYYY-MM-DD" namespace, whose slug contains a "/". The trailing
-// segment (edit/history/save), if any, selects the action; everything
-// before it is reassembled as the slug and handed to the normal handler.
-func (app *App) handleMultiSegmentGet(w http.ResponseWriter, r *http.Request) {
-	slug, action := splitTrailingAction(r.PathValue("path"))
-	r.SetPathValue("slug", slug)
-	switch action {
+// reservedPath reports whether path (as captured by {path...}) falls under
+// the reserved "_" segment. Only an *exact* app route ever matches it as a
+// literal http.ServeMux pattern; anything else under "_/" would otherwise
+// fall through to this wildcard dispatcher and be treated as a page slug —
+// "/_/…" must never resolve to content, registered route or not.
+func reservedPath(path string) bool {
+	return path == "_" || strings.HasPrefix(path, "_/")
+}
+
+// handlePageGet dispatches every read of a page's own URL. The action is
+// selected by ?do= (edit/history/diff/rev), never by a path suffix — a page
+// literally named "edit" is unambiguous, since "do" can never be part of
+// the path. No do= at all means view. Any other value 404s rather than
+// silently falling back to view, so a typoed ?do= doesn't look like success.
+func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
+	if reservedPath(r.PathValue("path")) {
+		http.NotFound(w, r)
+		return
+	}
+	r.SetPathValue("slug", r.PathValue("path"))
+	switch r.URL.Query().Get("do") {
+	case "":
+		app.handleViewPage(w, r)
 	case "edit":
 		app.handleEditPage(w, r)
 	case "history":
 		app.handleHistory(w, r)
-	case "":
-		app.handleViewPage(w, r)
+	case "diff":
+		app.handlePageDiff(w, r)
+	case "rev":
+		app.handleViewRev(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func (app *App) handleMultiSegmentPost(w http.ResponseWriter, r *http.Request) {
-	slug, action := splitTrailingAction(r.PathValue("path"))
-	r.SetPathValue("slug", slug)
-	switch action {
+// handlePagePost dispatches every write to a page's own URL, selected by
+// ?do=.
+func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
+	if reservedPath(r.PathValue("path")) {
+		http.NotFound(w, r)
+		return
+	}
+	r.SetPathValue("slug", r.PathValue("path"))
+	switch r.URL.Query().Get("do") {
 	case "save":
 		app.handleSavePage(w, r)
+	case "revert":
+		app.handleRevert(w, r)
+	case "rename":
+		app.handleRenamePage(w, r)
+	case "tags":
+		app.handleSetTags(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-// splitTrailingAction splits "daily/2026-07-24/edit" into
-// ("daily/2026-07-24", "edit"), or "daily/2026-07-24" into
-// ("daily/2026-07-24", "").
-func splitTrailingAction(path string) (slug, action string) {
-	i := strings.LastIndex(path, "/")
-	if i < 0 {
-		return path, ""
-	}
-	last := path[i+1:]
-	switch last {
-	case "edit", "history", "save":
-		return path[:i], last
+// handleHiddenGet/Post mirror handlePageGet/Post for the /_/hidden/{path...}
+// subtree: only view/edit/save make sense for a hidden page (no history,
+// diff, revert or rename UI exists for it today).
+func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
+	r.SetPathValue("slug", r.PathValue("path"))
+	switch r.URL.Query().Get("do") {
+	case "":
+		app.handleViewHidden(w, r)
+	case "edit":
+		app.handleEditHidden(w, r)
 	default:
-		return path, ""
+		http.NotFound(w, r)
+	}
+}
+
+func (app *App) handleHiddenPost(w http.ResponseWriter, r *http.Request) {
+	r.SetPathValue("slug", r.PathValue("path"))
+	switch r.URL.Query().Get("do") {
+	case "save":
+		app.handleSaveHidden(w, r)
+	default:
+		http.NotFound(w, r)
 	}
 }
 
@@ -1008,10 +1037,10 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	username := app.currentUser(r)
 
 	newFile := pageFile(slug)
-	newPrefix := "/page"
+	newPrefix := ""
 	if hidden {
 		newFile = hiddenFile(slug)
-		newPrefix = "/hidden"
+		newPrefix = "/_/hidden"
 	}
 
 	cfg := app.config()
@@ -1048,9 +1077,9 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		oldPrefix := "/page"
+		oldPrefix := ""
 		if oldFile == hiddenFile(slug) {
-			oldPrefix = "/hidden"
+			oldPrefix = "/_/hidden"
 		}
 		headAuthor, headWhen, headShortHash := "", "", ""
 		if history, herr := app.Store.History(oldFile); herr == nil && len(history) > 0 {
@@ -1195,7 +1224,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	// Return JSON response
 	w.Header().Set("Content-Type", "application/json")
-	resp := map[string]string{"url": fmt.Sprintf("/attachments/%s/%s", slug, filename)}
+	resp := map[string]string{"url": fmt.Sprintf("/_/attachments/%s/%s", slug, filename)}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("encoding attachment response", "err", err)
 	}
@@ -1558,7 +1587,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	if len(missingSlugs) > 0 {
 		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(missingSlugs))
 		for _, m := range missingSlugs {
-			fmt.Fprintf(&b, `<li><a href="/page/%s/edit" class="missing">%s</a> — linked from `, m, htmlEscape(m))
+			fmt.Fprintf(&b, `<li><a href="/%s?do=edit" class="missing">%s</a> — linked from `, m, htmlEscape(m))
 			for i, src := range missing[m] {
 				if i > 0 {
 					b.WriteString(", ")
@@ -1567,7 +1596,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 				if title == "" {
 					title = src
 				}
-				fmt.Fprintf(&b, `<a href="/page/%s">%s</a>`, src, htmlEscape(title))
+				fmt.Fprintf(&b, `<a href="/%s">%s</a>`, src, htmlEscape(title))
 			}
 			b.WriteString(`</li>`)
 		}
@@ -1581,7 +1610,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 			if title == "" {
 				title = o
 			}
-			fmt.Fprintf(&b, `<li><a href="/page/%s">%s</a></li>`, o, htmlEscape(title))
+			fmt.Fprintf(&b, `<li><a href="/%s">%s</a></li>`, o, htmlEscape(title))
 		}
 		b.WriteString(`</ul></section>`)
 	}
@@ -1669,7 +1698,7 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	hash := r.PathValue("hash")
+	hash := r.URL.Query().Get("hash")
 
 	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
@@ -1734,7 +1763,7 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Redirect to page
-	http.Redirect(w, r, "/page/"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, "/"+slug, http.StatusSeeOther)
 }
 
 func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
@@ -1758,7 +1787,7 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 		Authed:      true,
 		Title:       "Hidden",
 		StatusMode:  "view",
-		RoutePrefix: "/hidden",
+		RoutePrefix: "/_/hidden",
 		TagPages:    pages,
 	})
 }
@@ -1774,7 +1803,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 				Authed:      true,
 				Title:       "Page not found",
 				Slug:        slug,
-				RoutePrefix: "/hidden",
+				RoutePrefix: "/_/hidden",
 			})
 			return
 		}
@@ -1794,7 +1823,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 		Title:       page.Title,
 		Slug:        slug,
 		Content:     renderedBody,
-		RoutePrefix: "/hidden",
+		RoutePrefix: "/_/hidden",
 	})
 }
 
@@ -1819,7 +1848,7 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 		BaseHash:    baseHash,
 		TagsInput:   strings.Join(page.Tags, ", "),
 		StatusMode:  "edit",
-		RoutePrefix: "/hidden",
+		RoutePrefix: "/_/hidden",
 		IsHidden:    true,
 		IsPublic:    page.Public,
 	})
@@ -1943,7 +1972,7 @@ func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("token revoked", "user", user, "label", label)
-	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
 }
 
 // handleCreateUser adds a new user from the settings page, with the scopes
@@ -1977,7 +2006,7 @@ func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("user created", "user", name, "by", app.currentUser(r))
-	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
 // handleSetUserScopes updates an existing user's scopes from the settings
@@ -2020,7 +2049,7 @@ func (app *App) handleSetUserScopes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("user scopes updated", "user", name, "by", app.currentUser(r))
-	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
 func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
@@ -2117,7 +2146,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("settings updated", "by", app.currentUser(r))
-	http.Redirect(w, r, "/admin?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
 // handleSettingsAppearance saves the current user's personal preferences —
@@ -2180,7 +2209,7 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	}
 
 	slog.Info("appearance updated", "by", user)
-	http.Redirect(w, r, "/settings?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings?saved=1", http.StatusSeeOther)
 }
 
 // handleSettingsExport snapshots the currently effective config (file
@@ -2206,5 +2235,5 @@ func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 	app.SetConfig(newCfg)
 
 	slog.Info("settings exported to config file", "by", app.currentUser(r))
-	http.Redirect(w, r, "/admin?exported=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/admin?exported=1", http.StatusSeeOther)
 }

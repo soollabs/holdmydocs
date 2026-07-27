@@ -5,7 +5,7 @@
 {{if .TagPages}}
 <ul>
 	{{range .TagPages}}
-	<li><a href="/page/{{.Slug}}">{{.Title}}</a></li>
+	<li><a href="/{{.Slug}}">{{.Title}}</a></li>
 	{{end}}
 </ul>
 {{else}}
@@ -16,7 +16,7 @@
 {{if .AllTags}}
 <ul class="tag-list">
 	{{range .AllTags}}
-	<li><a href="/tags/{{.Slug}}">{{.Tag}}</a> ({{.Count}})</li>
+	<li><a href="/_/tags/{{.Slug}}">{{.Tag}}</a> ({{.Count}})</li>
 	{{end}}
 </ul>
 {{else}}

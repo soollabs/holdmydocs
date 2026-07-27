@@ -54,12 +54,11 @@
   }
 
   // ---- Pages sidebar: merged pinned + recent (client-side, localStorage) ----
-  // Only /page/<slug> routes are tracked — other views (e.g. /health-report)
-  // share the "page" template and a .page-title, but aren't real page
-  // routes and have no /page/<slug> URL to link back to.
+  // Content owns the root, and every app route lives under /_/ — so any
+  // path outside /_/ is a real page's own URL, and the slug is just the
+  // path with its leading slash stripped.
   const recentList = $('#recent-list');
-  const currentSlugMatch = window.location.pathname.match(/^\/page\/([^/]+)/);
-  const currentSlug = currentSlugMatch ? currentSlugMatch[1] : '';
+  const currentSlug = window.location.pathname.startsWith('/_/') ? '' : window.location.pathname.slice(1).replace(/\/$/, '');
 
   if (recentList) {
     try {
@@ -90,7 +89,7 @@
       const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
       const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
       const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '<span class="recent-glyph">·</span>';
-      return `<li>${glyph}${dot}<a href="/page/${e.slug}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+      return `<li>${glyph}${dot}<a href="/${e.slug}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
     }).join('');
   }
 
@@ -110,10 +109,10 @@
 
         previewTimer = setTimeout(() => {
           const href = link.getAttribute('href');
-          if (!href || !href.startsWith('/page/')) return;
+          if (!link.classList.contains('wiki') || !href) return;
 
-          const slug = href.replace(/^\/page\//, '').replace(/\/$/, '');
-          fetch('/api/preview/' + encodeURIComponent(slug))
+          const slug = href.replace(/^\//, '').replace(/\/$/, '');
+          fetch('/_/api/preview/' + encodeURIComponent(slug))
             .then(r => r.json())
             .then(data => {
               const rect = link.getBoundingClientRect();
@@ -252,12 +251,12 @@
     }
 
     function pollSync() {
-      fetch('/api/sync').then(r => r.json()).then(s => {
+      fetch('/_/api/sync').then(r => r.json()).then(s => {
         updateSyncSeg(s);
         if (s.pagesChanged && s.pagesChanged.length > 0 && pageContent) {
           const slug = document.body.dataset.slug || '';
-          const routePrefix = document.body.dataset.routePrefix || '/page';
-          const prefix = routePrefix === '/hidden' ? '.' : '';
+          const routePrefix = document.body.dataset.routePrefix || '';
+          const prefix = routePrefix === '/_/hidden' ? '.' : '';
           const pageFile = prefix + slug + '.md';
           if (s.pagesChanged.includes(pageFile)) {
             showRemoteChangedBanner();
@@ -291,7 +290,7 @@
     if (mod && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
       const today = new Date().toISOString().split('T')[0];
-      window.location.href = `/page/daily/${today}/edit`;
+      window.location.href = `/daily/${today}?do=edit`;
     }
   });
 
@@ -464,17 +463,17 @@
       const tags = r.tags && r.tags.length ? ' <span class="hit-tags">' + r.tags.map(t => '<span class="hit-tag">' + escapeHtml(t) + '</span>').join(' ') + '</span>' : '';
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
-      return `<a href="/page/${r.slug}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
+      return `<a href="/${r.slug}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
         <span class="filetype">md</span>
         <span class="title">${escapeHtml(r.title)}</span>
         <span class="snippet">${r.snippet || ''}</span>${tags}
       </a>`;
     }).join('');
     const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
-      `<a href="/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
-      `<a href="/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
+      `<a href="/_/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
+      `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
     const createRow = (query && !paletteVerbMode)
-      ? `<a href="/page/${slugifyQuery(query)}/edit" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}"</a>`
+      ? `<a href="/${slugifyQuery(query)}?do=edit" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}"</a>`
       : '';
     paletteResults.innerHTML = rowsHtml + builtinHtml + createRow;
     if (!paletteVerbMode) {
@@ -534,7 +533,7 @@
     if (!q) { showRecent(); return; }
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      fetch('/api/search?q=' + encodeURIComponent(q))
+      fetch('/_/api/search?q=' + encodeURIComponent(q))
         .then(r => r.json())
         .then(hits => {
           paletteRows = hits.map(h => ({
@@ -561,21 +560,21 @@
     switch (action) {
       case 'hist':
         closePalette();
-        window.location.href = `/page/${slug}/history`;
+        window.location.href = `/${slug}?do=history`;
         break;
       case 'daily': {
         closePalette();
         const today = new Date().toISOString().split('T')[0];
-        window.location.href = `/page/daily/${today}/edit`;
+        window.location.href = `/daily/${today}?do=edit`;
         break;
       }
       case 'health':
         closePalette();
-        window.location.href = '/health-report';
+        window.location.href = '/_/health-report';
         break;
       case 'sync':
         closePalette();
-        fetch('/api/sync/push-now', { method: 'POST' })
+        fetch('/_/api/sync/push-now', { method: 'POST' })
           .then(r => r.json())
           .then(d => {
             const seg = $('#status-sync');
@@ -626,12 +625,12 @@
     paletteVerbInput = null;
     if (action === 'rename') {
       if (!value) { closePalette(); return; }
-      fetch(`/page/${slug}/rename`, { method: 'POST', body: new URLSearchParams({ title: value }) })
+      fetch(`/${slug}?do=rename`, { method: 'POST', body: new URLSearchParams({ title: value }) })
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => { window.location.href = '/page/' + d.slug; })
+        .then(d => { window.location.href = '/' + d.slug; })
         .catch(() => closePalette());
     } else {
-      fetch(`/page/${slug}/tags`, { method: 'POST', body: new URLSearchParams({ tags: value }) })
+      fetch(`/${slug}?do=tags`, { method: 'POST', body: new URLSearchParams({ tags: value }) })
         .then(() => window.location.reload())
         .catch(() => closePalette());
     }
@@ -661,19 +660,19 @@
     const isCreate = paletteSelected === paletteRows.length + builtinCount() && paletteInput.value;
     if (isCreate) {
       const slug = slugifyQuery(paletteInput.value);
-      window.location.href = '/page/' + slug + (editMode ? '/edit' : '/edit');
+      window.location.href = '/' + slug + '?do=edit';
       return;
     }
     if (isHidden) {
-      window.location.href = '/hidden';
+      window.location.href = '/_/hidden';
       return;
     }
     if (isSettings) {
-      window.location.href = '/settings';
+      window.location.href = '/_/settings';
       return;
     }
     const row = paletteRows[paletteSelected];
-    if (row) window.location.href = '/page/' + row.slug + (editMode ? '/edit' : '');
+    if (row) window.location.href = '/' + row.slug + (editMode ? '?do=edit' : '');
   }
 
   if (paletteBackdrop) {
@@ -724,7 +723,7 @@
     }
     if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused) {
       const slug = document.body.dataset.slug;
-      if (slug) { e.preventDefault(); window.location.href = '/page/' + slug + '/edit'; }
+      if (slug) { e.preventDefault(); window.location.href = '/' + slug + '?do=edit'; }
       return;
     }
     if (e.key === 'Escape' && paletteOpen) {
@@ -882,7 +881,7 @@
       previewTimeout = setTimeout(() => {
         preview.classList.add('preview-loading');
         preview.classList.remove('preview-error');
-        fetch('/api/preview', {
+        fetch('/_/api/preview', {
           method: 'POST',
           body: textarea.value
         })
@@ -1119,7 +1118,7 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        fetch(`/api/attachments/${cmHost.dataset.slug}`, {
+        fetch(`/_/api/attachments/${cmHost.dataset.slug}`, {
           method: 'POST',
           body: formData
         })
@@ -1306,7 +1305,7 @@
       diffStatus.textContent = hashA.slice(0, 7) + ' ↔ ' + hashB.slice(0, 7) + ' selected';
 
       const slug = document.body.dataset.slug;
-      fetch(`/page/${slug}/diff?a=${hashA}&b=${hashB}`)
+      fetch(`/${slug}?do=diff&a=${hashA}&b=${hashB}`)
         .then(r => r.text())
         .then(diff => {
           diffHeader.textContent = `diff ${hashA.slice(0, 7)}..${hashB.slice(0, 7)}`;

@@ -27,7 +27,7 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	}
 
 	getEdit := func() string {
-		resp, err := client.Get(server.URL + "/page/clip/edit")
+		resp, err := client.Get(server.URL + "/clip?do=edit")
 		if err != nil {
 			t.Fatalf("GET edit: %v", err)
 		}
@@ -41,7 +41,7 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 		"body":     {"Edited body."},
 		"basehash": {basehashRe.FindStringSubmatch(getEdit())[1]},
 	}
-	resp, err := client.PostForm(server.URL+"/page/clip/save", form)
+	resp, err := client.PostForm(server.URL+"/clip?do=save", form)
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}

@@ -5,10 +5,10 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
-	<link rel="stylesheet" href="/static/style.css?v=2">
-	<link rel="stylesheet" href="/static/skins.css?v=2">
+	<link rel="stylesheet" href="/_/static/style.css?v=2">
+	<link rel="stylesheet" href="/_/static/skins.css?v=2">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='%2300ff9c' font-family='monospace'%3E%23%3C/text%3E%3C/svg%3E">
-	<link rel="manifest" href="/static/manifest.json">
+	<link rel="manifest" href="/_/static/manifest.json">
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,7 +21,7 @@
 			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 		};
 		if ('serviceWorker' in navigator) {
-			window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js'));
+			window.addEventListener('load', () => navigator.serviceWorker.register('/_/static/sw.js'));
 		}
 		(function() {
 			var saved = localStorage.getItem('hmd-theme');
@@ -92,7 +92,7 @@
 			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
 		</div>
 		<div class="seg seg-right">
-			<form method="POST" action="/logout" style="display:contents">
+			<form method="POST" action="/_/logout" style="display:contents">
 				<button type="submit" class="link-btn">logout</button>
 			</form>
 		</div>
@@ -115,7 +115,7 @@
 			<h1><span class="h"></span>Set up wiki</h1>
 			<p>Checkboxes start selected; no pages are added until you submit &ldquo;Add selected&rdquo;.</p>
 
-			<form method="POST" action="/setup">
+			<form method="POST" action="/_/setup">
 
 			{{if .NeedsHomeSetup}}
 			<div class="setup-item">
@@ -140,7 +140,7 @@
 					<span class="setup-badge">hidden</span>
 					{{if .HelpFileExists}}<span class="setup-badge">exists</span>{{end}}
 				</div>
-				<p class="setup-item-desc">UI usage plus markdown/frontmatter conventions, useful for new users and AI agents. Hidden pages are excluded from the page list, search, tags, and backlinks, and live at <code>/hidden</code>.{{if .HelpFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
+				<p class="setup-item-desc">UI usage plus markdown/frontmatter conventions, useful for new users and AI agents. Hidden pages are excluded from the page list, search, tags, and backlinks, and live at <code>/_/hidden</code>.{{if .HelpFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
 				<details class="setup-preview">
 					<summary>Preview content</summary>
 					<div class="setup-preview-body">{{.SetupHelpPreview}}</div>
@@ -174,7 +174,7 @@
 		}
 	</script>
 	{{if .MermaidNeeded}}
-	<script src="/static/mermaid.min.js"></script>
+	<script src="/_/static/mermaid.min.js"></script>
 	<script>
 		window.HMDSetMermaidTheme = function(theme) {
 			if (window.mermaid) mermaid.initialize({startOnLoad:false, theme: theme === 'light' ? 'default' : 'dark'});
@@ -182,7 +182,7 @@
 		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
 	</script>
 	{{end}}
-	<script src="/static/app.js?v=2"></script>
+	<script src="/_/static/app.js?v=2"></script>
 </body>
 </html>
 {{end}}

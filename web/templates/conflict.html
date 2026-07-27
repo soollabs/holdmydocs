@@ -14,7 +14,7 @@
 	</div>
 	<div class="conflict-actions">
 		<a href="{{.RoutePrefix}}/{{.Slug}}" target="_blank" class="ghost-btn">view newer version</a>
-		<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}/save" style="display:contents">
+		<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" style="display:contents">
 			<input type="hidden" name="title" value="{{.Title}}">
 			<input type="hidden" name="body" value="{{.Body}}">
 			<input type="hidden" name="tags" value="{{.TagsInput}}">

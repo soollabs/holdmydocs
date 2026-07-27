@@ -125,7 +125,7 @@ func TestOIDCLoginSetsStateAndRedirects(t *testing.T) {
 		},
 	}}
 
-	r := httptest.NewRequest("GET", "/auth/oidc/login", nil)
+	r := httptest.NewRequest("GET", "/_/auth/oidc/login", nil)
 	w := httptest.NewRecorder()
 	app.handleOIDCLogin(w, r)
 
@@ -238,7 +238,7 @@ func TestLoginTemplateOIDC(t *testing.T) {
 
 	// SSO enabled, local login hidden.
 	out := render(TemplateData{OIDCEnabled: true, OIDCButtonText: "Login with Authelia"})
-	if !strings.Contains(out, "Login with Authelia") || !strings.Contains(out, "/auth/oidc/login") {
+	if !strings.Contains(out, "Login with Authelia") || !strings.Contains(out, "/_/auth/oidc/login") {
 		t.Errorf("SSO button with configured text should be rendered")
 	}
 	if strings.Contains(out, `name="password"`) {
@@ -247,7 +247,7 @@ func TestLoginTemplateOIDC(t *testing.T) {
 
 	// SSO disabled, plain password form.
 	out = render(TemplateData{OIDCLocalLogin: true})
-	if strings.Contains(out, "/auth/oidc/login") {
+	if strings.Contains(out, "/_/auth/oidc/login") {
 		t.Errorf("SSO button should not render when OIDC is disabled")
 	}
 	if !strings.Contains(out, `name="password"`) {

@@ -3,7 +3,7 @@
 <div class="create-page">
 	<h1>Page not found</h1>
 	<p>This page does not exist yet.</p>
-	<a href="/page/{{.Slug}}/edit" class="create-button">Create this page</a>
+	<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="create-button">Create this page</a>
 </div>
 </div>
 {{end}}

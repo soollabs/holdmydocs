@@ -22,7 +22,7 @@ func TestWidgetToggleUI(t *testing.T) {
 
 	// Switch to soft, which defaults to {identity, pages, tags} in the
 	// sidebar.
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {"soft"}})
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"soft"}})
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestWidgetToggleUI(t *testing.T) {
 	for _, id := range checked {
 		form.Add("widgets", id)
 	}
-	resp2, err := client.PostForm(server.URL+"/settings/appearance", form)
+	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", form)
 	if err != nil {
 		t.Fatalf("toggling widgets: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestSkinSwitchDiscardsStaleCheckboxes(t *testing.T) {
 	for _, id := range []string{"identity", "pages", "tags", "log", "outline", "page-meta", "backlinks"} {
 		form.Add("widgets", id)
 	}
-	resp, err := client.PostForm(server.URL+"/settings/appearance", form)
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", form)
 	if err != nil {
 		t.Fatalf("switching skin: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	}
 
 	// journal, then a second save that unticks writing-stats.
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {"journal"}})
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"journal"}})
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	for _, id := range []string{"identity", "calendar", "pages", "prev-entries"} {
 		form.Add("widgets", id)
 	}
-	resp2, err := client.PostForm(server.URL+"/settings/appearance", form)
+	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", form)
 	if err != nil {
 		t.Fatalf("removing writing-stats: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 		t.Fatalf("closing widget removal response body: %v", err)
 	}
 
-	resp3, err := client.Get(server.URL + "/page/daily/" + today)
+	resp3, err := client.Get(server.URL + "/daily/" + today)
 	if err != nil {
 		t.Fatalf("GET daily page: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"phosphor"}, "palette": {"dracula"},
 	})
 	if err != nil {
@@ -203,7 +203,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	}
 
 	// Switching skin overrides the stale palette from the form.
-	resp2, err := client.PostForm(server.URL+"/settings/appearance", url.Values{
+	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"newsprint"}, "palette": {"dracula"},
 	})
 	if err != nil {
@@ -215,7 +215,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if got := app.Auth.prefs("admin").Palette; got != skins["newsprint"].Palette {
 		t.Errorf("palette after skin switch = %q, want %q", got, skins["newsprint"].Palette)
 	}
-	rendered, err := client.Get(server.URL + "/settings")
+	rendered, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("rendering switched skin: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	}
 
 	// Staying on the same skin leaves the choice alone.
-	resp3, err := client.PostForm(server.URL+"/settings/appearance", url.Values{
+	resp3, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"newsprint"}, "palette": {"gruvbox"},
 	})
 	if err != nil {
@@ -250,7 +250,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"newsprint"}, "palette": {"gruvbox"}, "palette_explicit": {"1"},
 	})
 	if err != nil {

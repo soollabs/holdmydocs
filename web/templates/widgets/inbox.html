@@ -4,7 +4,7 @@
 	<h2>INBOX · {{len .Inbox}} UNREAD</h2>
 	<ul class="inbox-list">
 		{{range .Inbox}}
-		<li><a href="/page/{{.Slug}}">{{.Title}}</a>{{if .ReadTime}}<span class="inbox-meta">{{.ReadTime}}</span>{{end}}</li>
+		<li><a href="/{{.Slug}}">{{.Title}}</a>{{if .ReadTime}}<span class="inbox-meta">{{.ReadTime}}</span>{{end}}</li>
 		{{end}}
 	</ul>
 </div>

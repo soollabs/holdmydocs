@@ -18,7 +18,7 @@ func TestLandingRouteBySkin(t *testing.T) {
 
 	setSkin := func(name string) {
 		form := url.Values{"skin": {name}}
-		resp, err := client.PostForm(server.URL+"/settings/appearance", form)
+		resp, err := client.PostForm(server.URL+"/_/settings/appearance", form)
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
@@ -37,11 +37,11 @@ func TestLandingRouteBySkin(t *testing.T) {
 		skin     string
 		wantPath string
 	}{
-		{"phosphor", "/page/readme"},
-		{"newsprint", "/page/readme"},
-		{"soft", "/page/readme"},
-		{"bare", "/page/readme"},
-		{"journal", "/page/daily/" + today + "/edit"},
+		{"phosphor", "/readme"},
+		{"newsprint", "/readme"},
+		{"soft", "/readme"},
+		{"bare", "/readme"},
+		{"journal", "/daily/" + today + "?do=edit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.skin, func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 	defer server.Close()
 
 	setSkin := func(name string) {
-		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {name}})
+		resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {name}})
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
@@ -99,7 +99,7 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.skin, func(t *testing.T) {
 			setSkin(tt.skin)
-			body := get("/page/readme")
+			body := get("/readme")
 			if !strings.Contains(body, tt.want) {
 				t.Errorf("skin=%s: expected %q in page, not found", tt.skin, tt.want)
 			}
@@ -120,9 +120,9 @@ func TestInboxIndexRendersUnreadPages(t *testing.T) {
 		t.Fatalf("updating index: %v", err)
 	}
 
-	resp, err := client.Get(server.URL + "/inbox")
+	resp, err := client.Get(server.URL + "/_/inbox")
 	if err != nil {
-		t.Fatalf("GET /inbox: %v", err)
+		t.Fatalf("GET /_/inbox: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {

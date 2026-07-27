@@ -2,7 +2,7 @@
 {{if or .HealthMissing .HealthOrphans}}
 <div class="sidebar-section sidebar-health">
 	<h2>HEALTH</h2>
-	<a href="/health-report" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}">
+	<a href="/_/health-report" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}">
 		{{.HealthMissing}} missing &middot; {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}
 	</a>
 </div>

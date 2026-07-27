@@ -519,8 +519,8 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 // POSTs (e.g. /search) don't exist — check with the route table in
 // handlers.go if a new write-shaped GET or read-shaped POST is ever added.
 func requiredScope(r *http.Request) scope {
-	if r.URL.Path == "/settings" || strings.HasPrefix(r.URL.Path, "/settings/") ||
-		r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
+	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
+		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") {
 		return scopeSettings
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -531,8 +531,8 @@ func requiredScope(r *http.Request) scope {
 
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow /login, the OIDC flow and /static/ without authentication
-		if r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/static/") {
+		// Allow /_/login, the OIDC flow and /_/static/ without authentication
+		if r.URL.Path == "/_/login" || strings.HasPrefix(r.URL.Path, "/_/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/_/static/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -544,7 +544,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		isAPI := strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp"
+		isAPI := strings.HasPrefix(r.URL.Path, "/_/api/") || r.URL.Path == "/_/mcp"
 
 		// API namespaces never redirect to the login page: auth failure is
 		// a JSON body so agents and apps get a parseable answer.
@@ -561,7 +561,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				http.Error(w, "403 Forbidden: missing "+msg+" access", http.StatusForbidden)
 				return
 			}
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			http.Redirect(w, r, "/_/login", http.StatusSeeOther)
 		}
 
 		var user string
@@ -582,7 +582,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		prefs := a.prefs(user)
 		need := "mcp (read+write)"
 		authorized := prefs.hasScope(scopeRead) && prefs.hasScope(scopeWrite)
-		if r.URL.Path != "/mcp" {
+		if r.URL.Path != "/_/mcp" {
 			need = string(requiredScope(r))
 			authorized = prefs.hasScope(requiredScope(r))
 		}

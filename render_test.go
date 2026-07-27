@@ -30,14 +30,14 @@ func TestRender(t *testing.T) {
 			name:            "existing wiki link",
 			exists:          func(s string) bool { return s == "alpha" },
 			input:           "go to [[Alpha]]",
-			wantContains:    []string{"class=\"wiki\"", "href=\"/page/alpha\"", "<span class=\"br\">[[</span>Alpha<span class=\"br\">]]</span>"},
+			wantContains:    []string{"class=\"wiki\"", "href=\"/alpha\"", "<span class=\"br\">[[</span>Alpha<span class=\"br\">]]</span>"},
 			wantNotContains: []string{"class=\"missing"},
 		},
 		{
 			name:         "missing wiki link",
 			exists:       func(s string) bool { return s == "alpha" },
 			input:        "go to [[Nowhere]]",
-			wantContains: []string{"class=\"missing wiki\"", "href=\"/page/nowhere\"", "<span class=\"missing-suffix\">+</span>"},
+			wantContains: []string{"class=\"missing wiki\"", "href=\"/nowhere\"", "<span class=\"missing-suffix\">+</span>"},
 		},
 		{
 			name:            "wiki link title is escaped",

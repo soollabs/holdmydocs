@@ -119,9 +119,9 @@ func TestGardenPublicRendersUnauthenticated(t *testing.T) {
 	}
 
 	// Same slug behind the private route still redirects to login.
-	code, _, headers := anonGet(t, server.URL+"/page/plant")
-	if code != http.StatusSeeOther || headers.Get("Location") != "/login" {
-		t.Errorf("GET /page/plant = %d -> %q, want 303 -> /login", code, headers.Get("Location"))
+	code, _, headers := anonGet(t, server.URL+"/plant")
+	if code != http.StatusSeeOther || headers.Get("Location") != "/_/login" {
+		t.Errorf("GET /plant = %d -> %q, want 303 -> /_/login", code, headers.Get("Location"))
 	}
 }
 
@@ -191,8 +191,8 @@ func TestGardenDisabledRedirectsToLogin(t *testing.T) {
 
 	for _, path := range []string{"/garden", "/garden/readme", "/garden/feed.xml", "/garden/attachments/x/y.png"} {
 		code, _, headers := anonGet(t, server.URL+path)
-		if code != http.StatusSeeOther || headers.Get("Location") != "/login" {
-			t.Errorf("GET %s = %d -> %q, want 303 -> /login", path, code, headers.Get("Location"))
+		if code != http.StatusSeeOther || headers.Get("Location") != "/_/login" {
+			t.Errorf("GET %s = %d -> %q, want 303 -> /_/login", path, code, headers.Get("Location"))
 		}
 	}
 }
@@ -204,7 +204,7 @@ func TestGardenPublicCheckboxRoundTrip(t *testing.T) {
 	defer server.Close()
 
 	getEdit := func() string {
-		resp, err := client.Get(server.URL + "/page/plant/edit")
+		resp, err := client.Get(server.URL + "/plant?do=edit")
 		if err != nil {
 			t.Fatalf("GET edit: %v", err)
 		}
@@ -219,7 +219,7 @@ func TestGardenPublicCheckboxRoundTrip(t *testing.T) {
 	basehashRe := regexp.MustCompile(`name="basehash" value="([0-9a-f]*)"`)
 	save := func(form url.Values) {
 		form.Set("basehash", basehashRe.FindStringSubmatch(getEdit())[1])
-		resp, err := client.PostForm(server.URL+"/page/plant/save", form)
+		resp, err := client.PostForm(server.URL+"/plant?do=save", form)
 		if err != nil {
 			t.Fatalf("POST save: %v", err)
 		}

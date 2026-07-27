@@ -5,7 +5,7 @@
 		<div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div><div class="cal-dow">S</div>
 		{{range .Calendar.Days}}
 		{{if .Date}}
-		<a href="/page/daily/{{.Date}}" class="cal-day{{if .Lit}} lit{{end}}{{if .Today}} today{{end}}">{{.Day}}</a>
+		<a href="/daily/{{.Date}}" class="cal-day{{if .Lit}} lit{{end}}{{if .Today}} today{{end}}">{{.Day}}</a>
 		{{else}}
 		<span class="cal-day cal-day-blank"></span>
 		{{end}}

@@ -80,9 +80,9 @@ func (r *Renderer) processWikiLinks(body string) string {
 		escaped := html.EscapeString(title)
 
 		if r.exists(slug) {
-			return fmt.Sprintf(`<a class="wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
+			return fmt.Sprintf(`<a class="wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
 		}
-		return fmt.Sprintf(`<a class="missing wiki" href="/page/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
+		return fmt.Sprintf(`<a class="missing wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
 	})
 }
 

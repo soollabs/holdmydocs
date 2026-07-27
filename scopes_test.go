@@ -77,13 +77,13 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	loginResp, err := client.PostForm(server.URL+"/login", url.Values{"username": {"reader"}, "password": {"secret"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"secret"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	closeTestBody(t, loginResp.Body)
 
-	viewResp, err := client.Get(server.URL + "/page/readme")
+	viewResp, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET page: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user GET /page/readme = %d, want 200", viewResp.StatusCode)
 	}
 
-	saveResp, err := client.PostForm(server.URL+"/page/readme/save", url.Values{
+	saveResp, err := client.PostForm(server.URL+"/readme?do=save", url.Values{
 		"title": {"readme"}, "body": {"nope"}, "basehash": {""},
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user POST save = %d, want 403", saveResp.StatusCode)
 	}
 
-	settingsResp, err := client.Get(server.URL + "/settings")
+	settingsResp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET settings: %v", err)
 	}
@@ -120,13 +120,13 @@ func TestCreateUserViaSettings(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	closeTestBody(t, loginResp.Body)
 
-	createResp, err := client.PostForm(server.URL+"/settings/users", url.Values{
+	createResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
 		"name": {"newbie"}, "password": {"secret"}, "scopes": {"read"},
 	})
 	if err != nil {
@@ -145,7 +145,7 @@ func TestCreateUserViaSettings(t *testing.T) {
 	}
 
 	// Duplicate name is rejected rather than silently resetting the password.
-	dupResp, err := client.PostForm(server.URL+"/settings/users", url.Values{
+	dupResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
 		"name": {"newbie"}, "password": {"other"},
 	})
 	if err != nil {
@@ -166,13 +166,13 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	closeTestBody(t, loginResp.Body)
 
-	resp, err := client.PostForm(server.URL+"/settings/users/scopes", url.Values{
+	resp, err := client.PostForm(server.URL+"/_/settings/users/scopes", url.Values{
 		"name": {"admin"}, "scopes": {"read"},
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 		t.Errorf("bootstrap admin scopes = %v, want unchanged (nil = full access)", app.Auth.prefs("admin").Scopes)
 	}
 
-	settingsResp, err := client.Get(server.URL + "/settings")
+	settingsResp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}
@@ -209,13 +209,13 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 		t.Fatalf("SetScopes: %v", err)
 	}
 
-	loginResp, err := client.PostForm(server.URL+"/login", url.Values{"username": {"mod"}, "password": {"secret"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"mod"}, "password": {"secret"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	closeTestBody(t, loginResp.Body)
 
-	resp, err := client.PostForm(server.URL+"/settings/users/scopes", url.Values{
+	resp, err := client.PostForm(server.URL+"/_/settings/users/scopes", url.Values{
 		"name": {"mod"}, "scopes": {"read"},
 	})
 	if err != nil {
@@ -227,7 +227,7 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 		t.Error("mod should still have settings scope after the rejected self-lockout")
 	}
 
-	settingsResp, err := client.Get(server.URL + "/settings")
+	settingsResp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}

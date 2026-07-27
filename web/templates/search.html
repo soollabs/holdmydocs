@@ -8,7 +8,7 @@
 	{{if .SearchResults}}
 		{{range .SearchResults}}
 		<div class="search-hit">
-			<a href="/page/{{.Slug}}" class="hit-title">{{.Title}}</a>
+			<a href="/{{.Slug}}" class="hit-title">{{.Title}}</a>
 			{{if .Tags}}<span class="hit-tags">{{range .Tags}}<span class="hit-tag">{{.}}</span> {{end}}</span>{{end}}
 			{{if .Snippet}}<div class="hit-snippet">{{.Snippet}}</div>{{end}}
 		</div>

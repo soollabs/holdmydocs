@@ -4,9 +4,9 @@
 	<h2>TAGS</h2>
 	<ul class="tag-chips">
 		{{range .AllTags}}
-		<li><a href="/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
+		<li><a href="/_/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
 		{{end}}
-		<li><a href="/tags" class="all-link">▸ all</a></li>
+		<li><a href="/_/tags" class="all-link">▸ all</a></li>
 	</ul>
 </div>
 {{end}}

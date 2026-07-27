@@ -16,14 +16,14 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	defer server.Close()
 
 	setSkin := func(name string) {
-		resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {name}})
+		resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {name}})
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
 		closeTestBody(t, resp.Body)
 	}
 	get := func() string {
-		resp, err := client.Get(server.URL + "/page/readme")
+		resp, err := client.Get(server.URL + "/readme")
 		if err != nil {
 			t.Fatalf("GET /page/readme: %v", err)
 		}
@@ -70,7 +70,7 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {"journal"}})
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"journal"}})
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 		t.Fatalf("seeding: %v", err)
 	}
 
-	editResp, err := client.Get(server.URL + "/page/daily/2026-07-25/edit")
+	editResp, err := client.Get(server.URL + "/daily/2026-07-25?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}

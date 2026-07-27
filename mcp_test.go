@@ -78,7 +78,7 @@ func connectMCP(t *testing.T, server *httptest.Server, token string) *mcp.Client
 	t.Helper()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:   server.URL + "/mcp",
+		Endpoint:   server.URL + "/_/mcp",
 		HTTPClient: &http.Client{Transport: bearerTransport{token}},
 	}, nil)
 	if err != nil {
@@ -124,7 +124,7 @@ func toolJSON(t *testing.T, res *mcp.CallToolResult, out any) {
 func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 	server, token := newMCPTestApp(t, false)
 
-	req, _ := http.NewRequest("POST", server.URL+"/mcp", strings.NewReader("{}"))
+	req, _ := http.NewRequest("POST", server.URL+"/_/mcp", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -139,7 +139,7 @@ func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 func TestMCPWithoutBearer401JSON(t *testing.T) {
 	server, _ := newMCPTestApp(t, true)
 
-	resp, err := http.Post(server.URL+"/mcp", "application/json", strings.NewReader("{}"))
+	resp, err := http.Post(server.URL+"/_/mcp", "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestMCPWithoutBearer401JSON(t *testing.T) {
 func TestMCPInvalidBearer401(t *testing.T) {
 	server, _ := newMCPTestApp(t, true)
 
-	req, _ := http.NewRequest("POST", server.URL+"/mcp", strings.NewReader("{}"))
+	req, _ := http.NewRequest("POST", server.URL+"/_/mcp", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer hmd_bogus")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -282,9 +282,9 @@ var tokenRe = regexp.MustCompile(`hmd_[0-9a-f]{64}`)
 // token from the rendered page.
 func createTokenViaUI(t *testing.T, server *httptest.Server, client *http.Client, label, expiry string) string {
 	t.Helper()
-	resp, err := client.PostForm(server.URL+"/settings/tokens", url.Values{"label": {label}, "expiry": {expiry}})
+	resp, err := client.PostForm(server.URL+"/_/settings/tokens", url.Values{"label": {label}, "expiry": {expiry}})
 	if err != nil {
-		t.Fatalf("POST /settings/tokens: %v", err)
+		t.Fatalf("POST /_/settings/tokens: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
@@ -302,7 +302,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	token := createTokenViaUI(t, server, client, "laptop", "30d")
 
 	// The token authenticates API requests.
-	req, _ := http.NewRequest("GET", server.URL+"/api/search?q=readme", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -314,7 +314,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	// Duplicate label is rejected.
-	dupResp, err := client.PostForm(server.URL+"/settings/tokens", url.Values{"label": {"laptop"}, "expiry": {"30d"}})
+	dupResp, err := client.PostForm(server.URL+"/_/settings/tokens", url.Values{"label": {"laptop"}, "expiry": {"30d"}})
 	if err != nil {
 		t.Fatalf("POST duplicate: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	// The settings page lists it with its expiry date.
-	pageResp, _ := client.Get(server.URL + "/settings")
+	pageResp, _ := client.Get(server.URL + "/_/settings")
 	pageBody, _ := io.ReadAll(pageResp.Body)
 	if err := pageResp.Body.Close(); err != nil {
 		t.Fatalf("closing settings response body: %v", err)
@@ -340,7 +340,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	// Revoke, then the token no longer authenticates.
-	revokeResp, err := client.PostForm(server.URL+"/settings/tokens/revoke", url.Values{"label": {"laptop"}})
+	revokeResp, err := client.PostForm(server.URL+"/_/settings/tokens/revoke", url.Values{"label": {"laptop"}})
 	if err != nil {
 		t.Fatalf("POST revoke: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Fatalf("closing revoke response body: %v", err)
 	}
 
-	req, _ = http.NewRequest("GET", server.URL+"/api/search?q=readme", nil)
+	req, _ = http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {

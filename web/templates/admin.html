@@ -16,7 +16,7 @@
 	<div class="settings-banner">
 		<code>.help.md</code> differs from hmd's built-in help text for this version.
 		It may have been edited, or written by an older version of hmd.
-		<form method="POST" action="/settings/help/reset" style="display:contents">
+		<form method="POST" action="/_/settings/help/reset" style="display:contents">
 			<button type="submit" class="ghost-btn">Reset to built-in</button>
 		</form>
 	</div>
@@ -35,7 +35,7 @@
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
 	</div>
 
-	<form method="POST" action="/admin" class="settings-form">
+	<form method="POST" action="/_/admin" class="settings-form">
 
 		<fieldset class="settings-section settings-panel" data-panel="server">
 			<legend>server</legend>
@@ -83,7 +83,7 @@
 					{{if not .Settings.Fields.GitAuthor.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.GitAuthor.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitAuthor.EnvVar}}</span>{{end}}
 			</div>
-			<p class="settings-note">Fallback author for anyone without their own override under &ldquo;your account&rdquo; on the main <a href="/settings">settings</a> page.</p>
+			<p class="settings-note">Fallback author for anyone without their own override under &ldquo;your account&rdquo; on the main <a href="/_/settings">settings</a> page.</p>
 		<div class="settings-row">
 			<label for="git_token">git token</label>
 			<input type="password" id="git_token" name="git_token"
@@ -133,7 +133,7 @@
 
 		<div class="settings-actions settings-actions-sticky">
 			<button type="submit" class="primary">save system config</button>
-			<a href="/page/index" class="ghost-btn">cancel</a>
+			<a href="/index" class="ghost-btn">cancel</a>
 		</div>
 
 	</form>
@@ -162,7 +162,7 @@
 		{{range .Settings.Users}}
 		{{$u := .}}
 		{{if ne $u.Name $.Settings.Fields.AdminUser.Value}}
-		<form method="POST" action="/settings/users/scopes" class="settings-row user-row">
+		<form method="POST" action="/_/settings/users/scopes" class="settings-row user-row">
 			<input type="hidden" name="name" value="{{$u.Name}}">
 			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
 			<span class="scope-checks">
@@ -175,7 +175,7 @@
 		{{end}}
 		{{end}}
 
-		<form method="POST" action="/settings/users" class="settings-form">
+		<form method="POST" action="/_/settings/users" class="settings-form">
 			<div class="settings-row">
 				<label for="new_user_name">new user</label>
 				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
@@ -217,7 +217,7 @@
 			exporting and keep the secret in the environment.
 		</div>
 		{{end}}
-		<form method="POST" action="/settings/export" id="export-config-form">
+		<form method="POST" action="/_/settings/export" id="export-config-form">
 			<div class="settings-actions">
 				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
 			</div>
@@ -234,7 +234,7 @@
 		</div>
 		<div class="settings-row">
 			<label>re-seed setup</label>
-			<form method="POST" action="/settings/setup" style="display:contents">
+			<form method="POST" action="/_/settings/setup" style="display:contents">
 				<button type="submit" class="ghost-btn">Re-run setup</button>
 			</form>
 		</div>

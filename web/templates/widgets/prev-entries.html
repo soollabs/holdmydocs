@@ -3,7 +3,7 @@
 <footer class="prev-entries">
 	<div class="prev-entries-label">earlier</div>
 	{{range .PrevEntries}}
-	<div class="prev-entry"><a href="/page/{{.Slug}}">{{.Date}}</a>{{if .FirstLine}} — {{.FirstLine}}{{end}}</div>
+	<div class="prev-entry"><a href="/{{.Slug}}">{{.Date}}</a>{{if .FirstLine}} — {{.FirstLine}}{{end}}</div>
 	{{end}}
 </footer>
 {{end}}

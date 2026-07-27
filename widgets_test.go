@@ -110,7 +110,7 @@ func TestSettingsAppearanceFormNotNested(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/settings")
+	resp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}

@@ -18,7 +18,7 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/daily/2026-07-24/edit")
+	resp, err := client.Get(server.URL + "/daily/2026-07-24?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestDailyPageRoundTrip(t *testing.T) {
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /page/daily/2026-07-24/edit status = %d, want 200", resp.StatusCode)
+		t.Fatalf("GET /daily/2026-07-24?do=edit status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte(`id="tags" name="tags" value="daily"`)) {
@@ -41,7 +41,7 @@ func TestDailyPageRoundTrip(t *testing.T) {
 		"tags":     {"daily"},
 		"basehash": {regexp.MustCompile(`name="basehash" value="([0-9a-f]*)"`).FindStringSubmatch(string(body))[1]},
 	}
-	saveResp, err := client.PostForm(server.URL+"/page/daily/2026-07-24/save", form)
+	saveResp, err := client.PostForm(server.URL+"/daily/2026-07-24?do=save", form)
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestDailyPageRoundTrip(t *testing.T) {
 		t.Fatalf("save status = %d, want 303", saveResp.StatusCode)
 	}
 
-	viewResp, err := client.Get(server.URL + "/page/daily/2026-07-24")
+	viewResp, err := client.Get(server.URL + "/daily/2026-07-24")
 	if err != nil {
 		t.Fatalf("GET view: %v", err)
 	}
@@ -63,13 +63,13 @@ func TestDailyPageRoundTrip(t *testing.T) {
 	}()
 	viewBody, _ := io.ReadAll(viewResp.Body)
 	if viewResp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /page/daily/2026-07-24 status = %d, want 200, body: %s", viewResp.StatusCode, viewBody)
+		t.Fatalf("GET /daily/2026-07-24 status = %d, want 200, body: %s", viewResp.StatusCode, viewBody)
 	}
 	if !bytes.Contains(viewBody, []byte("Today&#39;s entry.")) && !bytes.Contains(viewBody, []byte("Today's entry.")) {
 		t.Errorf("expected saved body content on view page, got: %s", viewBody)
 	}
 
-	histResp, err := client.Get(server.URL + "/page/daily/2026-07-24/history")
+	histResp, err := client.Get(server.URL + "/daily/2026-07-24?do=history")
 	if err != nil {
 		t.Fatalf("GET history: %v", err)
 	}
@@ -79,6 +79,6 @@ func TestDailyPageRoundTrip(t *testing.T) {
 		}
 	}()
 	if histResp.StatusCode != http.StatusOK {
-		t.Errorf("GET /page/daily/2026-07-24/history status = %d, want 200", histResp.StatusCode)
+		t.Errorf("GET /daily/2026-07-24?do=history status = %d, want 200", histResp.StatusCode)
 	}
 }

@@ -16,13 +16,13 @@ func TestAllSkinsRenderWithoutError(t *testing.T) {
 
 	for _, p := range skinNames {
 		t.Run(p, func(t *testing.T) {
-			resp, err := client.PostForm(server.URL+"/settings/appearance", url.Values{"skin": {p}})
+			resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {p}})
 			if err != nil {
 				t.Fatalf("setting skin: %v", err)
 			}
 			closeTestBody(t, resp.Body)
 
-			for _, path := range []string{"/page/readme", "/page/readme/edit", "/settings", "/inbox", "/tags"} {
+			for _, path := range []string{"/readme", "/readme?do=edit", "/_/settings", "/_/inbox", "/_/tags"} {
 				resp, err := client.Get(server.URL + path)
 				if err != nil {
 					t.Fatalf("GET %s: %v", path, err)

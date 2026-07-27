@@ -169,7 +169,7 @@ func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
 			ClientID:     cfg.OIDC.ClientID,
 			ClientSecret: cfg.OIDC.ClientSecret,
 			Endpoint:     provider.Endpoint(),
-			RedirectURL:  strings.TrimSuffix(cfg.OIDC.BaseURL, "/") + "/auth/oidc/callback",
+			RedirectURL:  strings.TrimSuffix(cfg.OIDC.BaseURL, "/") + "/_/auth/oidc/callback",
 			Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 		},
 		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.OIDC.ClientID}),
@@ -186,7 +186,7 @@ func oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) 
 		HttpOnly: true,
 		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
-		Path:     "/auth/oidc/",
+		Path:     "/_/auth/oidc/",
 	})
 }
 
@@ -278,5 +278,5 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   30 * 24 * 60 * 60, // SSO users get the "remember me" lifetime
 	})
-	http.Redirect(w, r, "/page/"+app.config().HomeSlug(), http.StatusSeeOther)
+	http.Redirect(w, r, "/"+app.config().HomeSlug(), http.StatusSeeOther)
 }

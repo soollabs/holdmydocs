@@ -58,13 +58,13 @@ func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"bare"}}
-	resp, err := client.PostForm(server.URL+"/settings/appearance", form)
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", form)
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
-	rendered, err := client.Get(server.URL + "/settings")
+	rendered, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading settings response: %v", err)
 	}
-	if !bytes.Contains(body, []byte(`href="/settings"`)) {
+	if !bytes.Contains(body, []byte(`href="/_/settings"`)) {
 		t.Error("settings link missing from rendered sidebar even with the bare skin's minimal widget set")
 	}
 }
@@ -104,8 +104,8 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 
 func TestStaticAssetURLsEscapeLegacyCache(t *testing.T) {
 	for path, assets := range map[string][]string{
-		"web/templates/base.html": {"/static/style.css?v=2", "/static/skins.css?v=2", "/static/app.js?v=2"},
-		"web/templates/edit.html": {"/static/editor.js?v=2"},
+		"web/templates/base.html": {"/_/static/style.css?v=2", "/_/static/skins.css?v=2", "/_/static/app.js?v=2"},
+		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
 	} {
 		body, err := webFS.ReadFile(path)
 		if err != nil {
@@ -255,7 +255,7 @@ func TestSkinRejectsUnknown(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"nope"}}
-	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -266,7 +266,7 @@ func TestSkinRejectsUnknown(t *testing.T) {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/settings")
+	resp2, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestSkinPersists(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"soft"}}
-	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -297,7 +297,7 @@ func TestSkinPersists(t *testing.T) {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/page/readme")
+	resp2, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	app.Auth.users["admin"] = rec
 	app.Auth.mu.Unlock()
 
-	resp, err := client.Get(server.URL + "/page/readme")
+	resp, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}

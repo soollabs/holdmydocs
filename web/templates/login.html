@@ -8,7 +8,7 @@
 		<div class="error">{{.Error}}</div>
 	{{end}}
 	{{if .OIDCLocalLogin}}
-	<form method="POST" action="/login" class="login-form">
+	<form method="POST" action="/_/login" class="login-form">
 		<div class="edit-field">
 			<label for="username">login:</label>
 			<input type="text" id="username" name="username" required autofocus>
@@ -25,7 +25,7 @@
 	{{end}}
 	{{if .OIDCEnabled}}
 		<div class="login-form">
-			<a href="/auth/oidc/login"><button type="button">{{if .OIDCIcon}}<img class="sso-icon" src="/auth/oidc/icon" alt="">{{end}}{{.OIDCButtonText}}</button></a>
+			<a href="/_/auth/oidc/login"><button type="button">{{if .OIDCIcon}}<img class="sso-icon" src="/_/auth/oidc/icon" alt="">{{end}}{{.OIDCButtonText}}</button></a>
 		</div>
 	{{end}}
 </div>

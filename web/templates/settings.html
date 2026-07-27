@@ -12,7 +12,7 @@
 	<div class="settings-flash">{{.Settings.Flash}}</div>
 	{{end}}
 
-	<p class="settings-zone-desc"><a href="/admin">system configuration &amp; users &rarr;</a></p>
+	<p class="settings-zone-desc"><a href="/_/admin">system configuration &amp; users &rarr;</a></p>
 
 <section class="settings-zone">
 	<h2 class="settings-zone-title"><span class="h"></span>your account</h2>
@@ -25,7 +25,7 @@
 		<button type="button" class="settings-tab" data-tab="access-tokens">access tokens</button>
 	</div>
 
-	<form method="POST" action="/settings/appearance" id="appearance-form" class="settings-form">
+	<form method="POST" action="/_/settings/appearance" id="appearance-form" class="settings-form">
 		<input type="hidden" name="palette_explicit" id="palette-explicit">
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
@@ -140,12 +140,12 @@
 
 	<div class="settings-actions settings-actions-sticky">
 		<button type="submit" form="appearance-form" class="primary">save appearance</button>
-		<a href="/page/index" class="ghost-btn">cancel</a>
+		<a href="/index" class="ghost-btn">cancel</a>
 	</div>
 
 	<fieldset class="settings-section settings-panel" data-panel="git-author">
 		<legend>your git author</legend>
-		<form method="POST" action="/settings/author" class="settings-form">
+		<form method="POST" action="/_/settings/author" class="settings-form">
 			<div class="settings-row">
 				<label for="user_git_author">git author</label>
 				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}"
@@ -173,13 +173,13 @@
 		<div class="settings-row">
 			<label>{{.Name}}</label>
 			<span class="token-meta">created {{.Created}} &middot; expires {{.Expires}}</span>
-			<form method="POST" action="/settings/tokens/revoke" style="display:contents">
+			<form method="POST" action="/_/settings/tokens/revoke" style="display:contents">
 				<input type="hidden" name="label" value="{{.Name}}">
 				<button type="submit" class="ghost-btn">revoke</button>
 			</form>
 		</div>
 		{{end}}
-		<form method="POST" action="/settings/tokens" class="settings-form">
+		<form method="POST" action="/_/settings/tokens" class="settings-form">
 			<div class="settings-row">
 				<label for="token_label">new token name</label>
 				<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">

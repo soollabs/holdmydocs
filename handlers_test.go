@@ -116,7 +116,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		"username": {"admin"},
 		"password": {"test"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("login request failed: %v", err)
@@ -129,7 +129,7 @@ func TestViewHome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/readme")
+	resp, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestCreateAffordance(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/does-not-exist")
+	resp, err := client.Get(server.URL + "/does-not-exist")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	slug := "test-page"
 
 	// GET edit page for new slug
-	resp, err := client.Get(server.URL + "/page/" + slug + "/edit")
+	resp, err := client.Get(server.URL + "/"+slug+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		"body":     {"This is a test page."},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	}
 
 	// GET page, verify content
-	resp, err = client.Get(server.URL + "/page/" + slug)
+	resp, err = client.Get(server.URL + "/"+slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 	slug := "lock-test"
 
 	// Get the hash for a new page
-	resp, err := client.Get(server.URL + "/page/" + slug + "/edit")
+	resp, err := client.Get(server.URL + "/"+slug+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 		"body":     {"First version"},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 		"body":     {"Second version"},
 		"basehash": {""}, // stale hash
 	}
-	resp, err = client.PostForm(server.URL+"/page/"+slug+"/save", saveForm2)
+	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm2)
 	if err != nil {
 		t.Fatalf("POST save2 failed: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestPreview(t *testing.T) {
 	previewForm := url.Values{
 		"body": {"**bold**"},
 	}
-	resp, err := client.PostForm(server.URL+"/api/preview", previewForm)
+	resp, err := client.PostForm(server.URL+"/_/api/preview", previewForm)
 	if err != nil {
 		t.Fatalf("POST preview failed: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestUnauthenticatedRedirect(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Get(server.URL + "/page/readme")
+	resp, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestUnauthenticatedRedirect(t *testing.T) {
 	}
 
 	location := resp.Header.Get("Location")
-	if !bytes.Contains([]byte(location), []byte("/login")) {
+	if !bytes.Contains([]byte(location), []byte("/_/login")) {
 		t.Errorf("Should redirect to /login, got %q", location)
 	}
 }
@@ -378,7 +378,7 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/"+slug, body)
+	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
@@ -395,12 +395,12 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	}
 
 	respBody, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(respBody, []byte("/attachments/"+slug+"/")) {
+	if !bytes.Contains(respBody, []byte("/_/attachments/"+slug+"/")) {
 		t.Errorf("Response should contain attachment URL")
 	}
 
 	// GET the attachment
-	resp, err = client.Get(server.URL + "/attachments/" + slug + "/test-image.png")
+	resp, err = client.Get(server.URL + "/_/attachments/" + slug + "/test-image.png")
 	if err != nil {
 		t.Fatalf("GET attachment failed: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/"+slug, body)
+	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
@@ -485,7 +485,7 @@ func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 	// PathValue("slug") as ".." unmolested, so this is the exploitable form.
 	// It would otherwise resolve to a path outside attachments/ once joined
 	// with the repo dir.
-	req, _ := http.NewRequest("POST", server.URL+"/api/attachments/%2e%2e", body)
+	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/%2e%2e", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
@@ -513,14 +513,14 @@ func TestSearchPage(t *testing.T) {
 		"body":     {"This contains uniquewordxyz for searching."},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	// Search for the unique word
-	resp, err = client.Get(server.URL + "/search?q=uniquewordxyz")
+	resp, err = client.Get(server.URL + "/_/search?q=uniquewordxyz")
 	if err != nil {
 		t.Fatalf("GET search failed: %v", err)
 	}
@@ -546,7 +546,7 @@ func TestBacklinksShown(t *testing.T) {
 		"body":     {"This links to [[Page Two]]"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/page-one/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/page-one?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST one failed: %v", err)
 	}
@@ -558,14 +558,14 @@ func TestBacklinksShown(t *testing.T) {
 		"body":     {"This is page two."},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/page/page-two/save", saveForm)
+	resp, err = client.PostForm(server.URL+"/page-two?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST two failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	// View page page-two, should show backlinks
-	resp, err = client.Get(server.URL + "/page/page-two")
+	resp, err = client.Get(server.URL + "/page-two")
 	if err != nil {
 		t.Fatalf("GET page two failed: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestBacklinksShown(t *testing.T) {
 		t.Logf("Response: %s", body)
 		t.Errorf("Page should show 'linked from' section")
 	}
-	if !bytes.Contains(body, []byte("/page/page-one")) {
+	if !bytes.Contains(body, []byte("/page-one")) {
 		t.Errorf("Backlinks should contain link to page-one")
 	}
 }
@@ -593,7 +593,7 @@ func TestHistoryListAndRevert(t *testing.T) {
 		"body":     {"Version one"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
@@ -604,14 +604,14 @@ func TestHistoryListAndRevert(t *testing.T) {
 		"body":     {"Version two"},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST v2 failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	// GET history
-	resp, err = client.Get(server.URL + "/page/" + slug + "/history")
+	resp, err = client.Get(server.URL + "/"+slug+"?do=history")
 	if err != nil {
 		t.Fatalf("GET history failed: %v", err)
 	}
@@ -644,14 +644,14 @@ func TestRevertToOldVersion(t *testing.T) {
 		"body":     {"Original content"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	// Verify page shows v1
-	resp, err = client.Get(server.URL + "/page/" + slug)
+	resp, err = client.Get(server.URL + "/"+slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -669,7 +669,7 @@ func TestPageChrome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/page/readme")
+	resp, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -677,9 +677,9 @@ func TestPageChrome(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
-		`src="/static/app.js?v=2"`,
+		`src="/_/static/app.js?v=2"`,
 		`class="sidebar"`,
-		`action="/logout"`,
+		`action="/_/logout"`,
 		`seg-sync`,
 	} {
 		if !bytes.Contains(body, []byte(want)) {
@@ -688,7 +688,7 @@ func TestPageChrome(t *testing.T) {
 	}
 
 	// Mermaid should NOT be loaded on pages without mermaid content
-	if bytes.Contains(body, []byte(`src="/static/mermaid.min.js"`)) {
+	if bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
 		t.Error("Mermaid script loaded on page without mermaid content")
 	}
 
@@ -698,7 +698,7 @@ func TestPageChrome(t *testing.T) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
 
-	resp, err = client.Get(server.URL + "/page/readme/edit")
+	resp, err = client.Get(server.URL + "/readme?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestPageChrome(t *testing.T) {
 	for _, want := range []string{
 		`id="cm-host"`,
 		`data-slug="readme"`,
-		`src="/static/editor.js?v=2"`,
+		`src="/_/static/editor.js?v=2"`,
 		`id="preview"`,
 		`data-action="toc"`,
 	} {
@@ -723,7 +723,7 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	defer server.Close()
 
 	// Create a page with a mermaid diagram
-	resp, err := client.PostForm(server.URL+"/page/mermaid-test/save", url.Values{
+	resp, err := client.PostForm(server.URL+"/mermaid-test?do=save", url.Values{
 		"title":    {"Mermaid Test"},
 		"body":     {"```mermaid\ngraph TD;\n  A-->B\n```\n"},
 		"tags":     {""},
@@ -735,26 +735,26 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	// View the page — mermaid script should be present
-	resp, err = client.Get(server.URL + "/page/mermaid-test")
+	resp, err = client.Get(server.URL + "/mermaid-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`src="/static/mermaid.min.js"`)) {
+	if !bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
 		t.Error("Mermaid script missing on page with mermaid content")
 	}
 
 	// View the edit page — mermaid script should be present (body contains "mermaid")
-	resp, err = client.Get(server.URL + "/page/mermaid-test/edit")
+	resp, err = client.Get(server.URL + "/mermaid-test?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`src="/static/mermaid.min.js"`)) {
+	if !bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
 		t.Error("Mermaid script missing on edit page when body contains mermaid")
 	}
 }
@@ -763,7 +763,7 @@ func TestLoginErrorShown(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
 
-	resp, err := http.PostForm(server.URL+"/login", url.Values{
+	resp, err := http.PostForm(server.URL+"/_/login", url.Values{
 		"username": {"admin"},
 		"password": {"wrong"},
 	})
@@ -791,7 +791,7 @@ func TestTagBrowsePages(t *testing.T) {
 		"tags":     {"go, wiki"},
 		"basehash": {""},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/page/tagged/save", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/tagged?do=save", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -799,24 +799,24 @@ func TestTagBrowsePages(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	resp, err = client.Get(server.URL + "/tags")
+	resp, err = client.Get(server.URL + "/_/tags")
 	if err != nil {
 		t.Fatalf("tags index request failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/tags/go"`) {
-		t.Errorf("GET /tags should list a link to /tags/go, got status %d body:\n%s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/_/tags/go"`) {
+		t.Errorf("GET /_/tags should list a link to /_/tags/go, got status %d body:\n%s", resp.StatusCode, body)
 	}
 
-	resp, err = client.Get(server.URL + "/tags/go")
+	resp, err = client.Get(server.URL + "/_/tags/go")
 	if err != nil {
 		t.Fatalf("tag page request failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/page/tagged"`) {
-		t.Errorf("GET /tags/go should list a link to /page/tagged, got status %d body:\n%s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/tagged"`) {
+		t.Errorf("GET /_/tags/go should list a link to /page/tagged, got status %d body:\n%s", resp.StatusCode, body)
 	}
 }
 
@@ -830,7 +830,7 @@ func TestTagsOnEditAndView(t *testing.T) {
 		"tags":     {"go, wiki"},
 		"basehash": {""},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/page/tagged/save", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/tagged?do=save", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -839,7 +839,7 @@ func TestTagsOnEditAndView(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	// Edit form should show the tags back.
-	resp, err = client.Get(server.URL + "/page/tagged/edit")
+	resp, err = client.Get(server.URL + "/tagged?do=edit")
 	if err != nil {
 		t.Fatalf("edit request failed: %v", err)
 	}
@@ -850,14 +850,14 @@ func TestTagsOnEditAndView(t *testing.T) {
 	}
 
 	// Page view should show tag chips.
-	resp, err = client.Get(server.URL + "/page/tagged")
+	resp, err = client.Get(server.URL + "/tagged")
 	if err != nil {
 		t.Fatalf("view request failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), `href="/tags/go"`) || !strings.Contains(string(body), `class="meta-tag"`) {
-		t.Errorf("page view should show a tag chip linking to /tags/go, got:\n%s", body)
+	if !strings.Contains(string(body), `href="/_/tags/go"`) || !strings.Contains(string(body), `class="meta-tag"`) {
+		t.Errorf("page view should show a tag chip linking to /_/tags/go, got:\n%s", body)
 	}
 }
 
@@ -871,13 +871,13 @@ func TestTitleEscaped(t *testing.T) {
 		"body":     {"content"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/xss-test/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/xss-test?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
-	resp, err = client.Get(server.URL + "/page/xss-test")
+	resp, err = client.Get(server.URL + "/xss-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -900,14 +900,14 @@ func TestSearchAPI(t *testing.T) {
 		"body":     {"This contains uniquetestword for API search."},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/page/"+slug+"/save", saveForm)
+	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	// Search via API
-	resp, err = client.Get(server.URL + "/api/search?q=uniquetestword")
+	resp, err = client.Get(server.URL + "/_/api/search?q=uniquetestword")
 	if err != nil {
 		t.Fatalf("GET api/search failed: %v", err)
 	}
@@ -934,7 +934,7 @@ func TestSyncAPI(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/api/sync")
+	resp, err := client.Get(server.URL + "/_/api/sync")
 	if err != nil {
 		t.Fatalf("GET api/sync failed: %v", err)
 	}
@@ -1099,7 +1099,7 @@ func TestSettingsGetWithConfigFile(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/settings")
+	resp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
@@ -1138,7 +1138,7 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1182,7 +1182,7 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1204,18 +1204,18 @@ func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.
 		"font_mono":         {"courier"},
 		"show_tags_sidebar": {"on"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("POST /settings/appearance failed: %v", err)
+		t.Fatalf("POST /_/settings/appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/settings")
+	resp2, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
@@ -1238,11 +1238,11 @@ func TestSettingsAppearancePostRejectsUnknownFont(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"font_ui": {"comic-sans"}}
-	req, _ := http.NewRequest("POST", server.URL+"/settings/appearance", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("POST /settings/appearance failed: %v", err)
+		t.Fatalf("POST /_/settings/appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -1257,7 +1257,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	// newTestApp already seeds readme.md and .help.md, so under normal
 	// (non-forced) NeedsSetup logic, neither would be missing and the
 	// modal would have nothing to show.
-	resp, err := client.Get(server.URL + "/settings")
+	resp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
@@ -1267,9 +1267,9 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("setup modal should not appear before re-run is clicked, body: %s", body)
 	}
 
-	resp2, err := client.PostForm(server.URL+"/settings/setup", url.Values{})
+	resp2, err := client.PostForm(server.URL+"/_/settings/setup", url.Values{})
 	if err != nil {
-		t.Fatalf("POST /settings/setup failed: %v", err)
+		t.Fatalf("POST /_/settings/setup failed: %v", err)
 	}
 	defer func() {
 		if err := resp2.Body.Close(); err != nil {
@@ -1280,7 +1280,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("re-run setup status = %d, want 303", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/settings")
+	resp3, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings after re-run failed: %v", err)
 	}
@@ -1301,7 +1301,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	}
 
 	// Skipping should clear ForceSetup so the modal doesn't keep reappearing.
-	resp4, err := client.PostForm(server.URL+"/setup", url.Values{"action": {"skip"}})
+	resp4, err := client.PostForm(server.URL+"/_/setup", url.Values{"action": {"skip"}})
 	if err != nil {
 		t.Fatalf("POST /setup skip failed: %v", err)
 	}
@@ -1311,7 +1311,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		}
 	}()
 
-	resp5, err := client.Get(server.URL + "/settings")
+	resp5, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings after skip failed: %v", err)
 	}
@@ -1338,7 +1338,7 @@ func TestSettingsFullFlow(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/admin")
+	resp, err := client.Get(server.URL + "/_/admin")
 	if err != nil {
 		t.Fatalf("GET /admin failed: %v", err)
 	}
@@ -1359,7 +1359,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/admin", bytes.NewBufferString(form.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp2, err := client.Do(req)
 	if err != nil {
@@ -1372,7 +1372,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Errorf("POST Status = %d, want 303", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/admin?saved=1")
+	resp3, err := client.Get(server.URL + "/_/admin?saved=1")
 	if err != nil {
 		t.Fatalf("GET /admin?saved=1 failed: %v", err)
 	}
@@ -1410,9 +1410,9 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/settings/export", url.Values{})
+	resp, err := client.PostForm(server.URL+"/_/settings/export", url.Values{})
 	if err != nil {
-		t.Fatalf("POST /settings/export failed: %v", err)
+		t.Fatalf("POST /_/settings/export failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusSeeOther {
@@ -1508,7 +1508,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	defer server.Close()
 
 	// Create a page so the index TOC has something to list.
-	resp, err := client.PostForm(server.URL+"/page/alpha/save", url.Values{
+	resp, err := client.PostForm(server.URL+"/alpha?do=save", url.Values{
 		"title":    {"Alpha"},
 		"body":     {"Alpha body"},
 		"tags":     {"meta"},
@@ -1521,14 +1521,14 @@ func TestTOCRenderedOnHome(t *testing.T) {
 
 	// View the index page: the seeded <!-- hmd:toc --> token must be
 	// replaced with a rendered wiki-link to the new page.
-	resp, err = client.Get(server.URL + "/page/readme")
+	resp, err = client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`href="/page/alpha"`)) {
+	if !bytes.Contains(body, []byte(`href="/alpha"`)) {
 		t.Errorf("index page should contain a TOC link to /page/alpha, body: %s", body)
 	}
 	if bytes.Contains(body, []byte("hmd:toc")) {
@@ -1537,7 +1537,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 
 	// A tag-filtered TOC on a non-index page should also render. Create a
 	// second page that embeds <!-- hmd:toc:meta --> and view it.
-	resp, err = client.PostForm(server.URL+"/page/toc-test/save", url.Values{
+	resp, err = client.PostForm(server.URL+"/toc-test?do=save", url.Values{
 		"title":    {"TOC Test"},
 		"body":     {"Pages:\n\n<!-- hmd:toc:meta -->\n"},
 		"tags":     {""},
@@ -1548,14 +1548,14 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	resp, err = client.Get(server.URL + "/page/toc-test")
+	resp, err = client.Get(server.URL + "/toc-test")
 	if err != nil {
 		t.Fatalf("GET /page/toc-test failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`href="/page/alpha"`)) {
+	if !bytes.Contains(body, []byte(`href="/alpha"`)) {
 		t.Errorf("tag-filtered TOC should link alpha (tagged meta), body: %s", body)
 	}
 }
@@ -1565,20 +1565,20 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 	defer server.Close()
 
 	// .help.md is NOT in the bleve search index.
-	resp, err := client.Get(server.URL + "/search?q=frontmatter")
+	resp, err := client.Get(server.URL + "/_/search?q=frontmatter")
 	if err != nil {
 		t.Fatalf("GET /search failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
-	if bytes.Contains(body, []byte(`href="/page/help"`)) {
+	if bytes.Contains(body, []byte(`href="/help"`)) {
 		t.Errorf("help should not appear in search results, body: %s", body)
 	}
 
-	// The palette (app.js) should have a built-in :hidden: row linking to /hidden.
-	resp2, err := client.Get(server.URL + "/static/app.js")
+	// The palette (app.js) should have a built-in :hidden: row linking to /_/hidden.
+	resp2, err := client.Get(server.URL + "/_/static/app.js")
 	if err != nil {
-		t.Fatalf("GET /static/app.js failed: %v", err)
+		t.Fatalf("GET /_/static/app.js failed: %v", err)
 	}
 	defer func() {
 		if err := resp2.Body.Close(); err != nil {
@@ -1586,7 +1586,7 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 		}
 	}()
 	body2, _ := io.ReadAll(resp2.Body)
-	if !bytes.Contains(body2, []byte(`href="/hidden"`)) || !bytes.Contains(body2, []byte(`:hidden:`)) {
+	if !bytes.Contains(body2, []byte(`href="/_/hidden"`)) || !bytes.Contains(body2, []byte(`:hidden:`)) {
 		t.Errorf("app.js should contain a :hidden: palette row linking to /hidden")
 	}
 }
@@ -1595,11 +1595,11 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Help is served at /hidden/help, not /page/help, and covers both UI
+	// Help is served at /_/hidden/help, not /page/help, and covers both UI
 	// usage and formatting conventions in one file.
-	resp, err := client.Get(server.URL + "/hidden/help")
+	resp, err := client.Get(server.URL + "/_/hidden/help")
 	if err != nil {
-		t.Fatalf("GET /hidden/help failed: %v", err)
+		t.Fatalf("GET /_/hidden/help failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
@@ -1611,7 +1611,7 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	}
 
 	// /page/help should NOT serve the help page.
-	resp2, err := client.Get(server.URL + "/page/help")
+	resp2, err := client.Get(server.URL + "/help")
 	if err != nil {
 		t.Fatalf("GET /page/help failed: %v", err)
 	}
@@ -1625,7 +1625,7 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	}
 
 	// /hidden index should list help.
-	resp3, err := client.Get(server.URL + "/hidden")
+	resp3, err := client.Get(server.URL + "/_/hidden")
 	if err != nil {
 		t.Fatalf("GET /hidden failed: %v", err)
 	}
@@ -1635,8 +1635,8 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 		}
 	}()
 	body3, _ := io.ReadAll(resp3.Body)
-	if !bytes.Contains(body3, []byte(`href="/hidden/help"`)) {
-		t.Errorf("/hidden should list help, body: %s", body3)
+	if !bytes.Contains(body3, []byte(`href="/_/hidden/help"`)) {
+		t.Errorf("/_/hidden should list help, body: %s", body3)
 	}
 }
 
@@ -1712,7 +1712,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		},
 	}
 	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
-	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("login request failed: %v", err)
@@ -1729,7 +1729,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// Setup modal should appear on any authed page when NeedsSetup.
-	resp2, err := client.Get(server.URL + "/page/readme")
+	resp2, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
@@ -1744,7 +1744,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// POST setup with action=add, add_home=on to seed readme.md.
-	resp3, err := client.PostForm(server.URL+"/setup", url.Values{"action": {"add"}, "add_home": {"on"}})
+	resp3, err := client.PostForm(server.URL+"/_/setup", url.Values{"action": {"add"}, "add_home": {"on"}})
 	if err != nil {
 		t.Fatalf("POST /setup failed: %v", err)
 	}
@@ -1758,7 +1758,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// readme.md should now exist and be viewable.
-	resp4, err := client.Get(server.URL + "/page/readme")
+	resp4, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
@@ -1776,7 +1776,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 
 	// Modal should no longer appear after setup.
-	resp5, err := client.Get(server.URL + "/page/readme")
+	resp5, err := client.Get(server.URL + "/readme")
 	if err != nil {
 		t.Fatalf("GET /page/readme after setup failed: %v", err)
 	}
@@ -1851,7 +1851,7 @@ func TestCustomHomeFilename(t *testing.T) {
 		},
 	}
 	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
-	req, _ := http.NewRequest("POST", server.URL+"/login", bytes.NewBufferString(loginForm.Encode()))
+	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("login request failed: %v", err)
@@ -1863,12 +1863,12 @@ func TestCustomHomeFilename(t *testing.T) {
 		t.Fatalf("GET / failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	if loc := resp.Header.Get("Location"); loc != "/page/index" {
+	if loc := resp.Header.Get("Location"); loc != "/index" {
 		t.Errorf("root redirect = %q, want /page/index", loc)
 	}
 
 	// The home page is viewable at /page/index.
-	resp2, err := client.Get(server.URL + "/page/index")
+	resp2, err := client.Get(server.URL + "/index")
 	if err != nil {
 		t.Fatalf("GET /page/index failed: %v", err)
 	}
@@ -1886,10 +1886,10 @@ func TestCustomHomeFilename(t *testing.T) {
 	}
 
 	// TOC on the home page lists alpha but must not list the home slug itself.
-	if !bytes.Contains(body2, []byte(`href="/page/alpha"`)) {
+	if !bytes.Contains(body2, []byte(`href="/alpha"`)) {
 		t.Errorf("home page TOC should link alpha, body: %s", body2)
 	}
-	if bytes.Contains(body2, []byte(`href="/page/index"`)) {
+	if bytes.Contains(body2, []byte(`href="/index"`)) {
 		t.Errorf("home page TOC must not link the home page itself, body: %s", body2)
 	}
 
@@ -1903,7 +1903,7 @@ func TestCustomHomeFilename(t *testing.T) {
 		t.Fatalf("updating home index: %v", err)
 	}
 
-	resp3, err := client.Get(server.URL + "/page/home")
+	resp3, err := client.Get(server.URL + "/home")
 	if err != nil {
 		t.Fatalf("GET /page/home failed: %v", err)
 	}
@@ -1915,7 +1915,7 @@ func TestCustomHomeFilename(t *testing.T) {
 	body3, _ := io.ReadAll(resp3.Body)
 	// "home" is an ordinary page, NOT the home slug, so it should appear in
 	// the TOC of the index page (home slug "index" is the one excluded).
-	resp4, err := client.Get(server.URL + "/page/index")
+	resp4, err := client.Get(server.URL + "/index")
 	if err != nil {
 		t.Fatalf("GET /page/index failed: %v", err)
 	}
@@ -1925,17 +1925,17 @@ func TestCustomHomeFilename(t *testing.T) {
 		}
 	}()
 	body4, _ := io.ReadAll(resp4.Body)
-	if !bytes.Contains(body4, []byte(`href="/page/home"`)) {
+	if !bytes.Contains(body4, []byte(`href="/home"`)) {
 		t.Errorf("index page TOC should list the ordinary 'home' page, body: %s", body4)
 	}
-	if bytes.Contains(body4, []byte(`href="/page/index"`)) {
+	if bytes.Contains(body4, []byte(`href="/index"`)) {
 		t.Errorf("index page TOC must not list the home page itself, body: %s", body4)
 	}
 	// And the 'home' page's own TOC should list alpha but not the home slug.
-	if !bytes.Contains(body3, []byte(`href="/page/alpha"`)) {
+	if !bytes.Contains(body3, []byte(`href="/alpha"`)) {
 		t.Errorf("home page TOC should list alpha, body: %s", body3)
 	}
-	if bytes.Contains(body3, []byte(`href="/page/index"`)) {
+	if bytes.Contains(body3, []byte(`href="/index"`)) {
 		t.Errorf("home page TOC must not list the home slug 'index', body: %s", body3)
 	}
 }
