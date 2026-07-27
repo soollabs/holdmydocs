@@ -106,26 +106,3 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 		})
 	}
 }
-
-func TestInboxIndexRendersUnreadPages(t *testing.T) {
-	app, server, client := newTestAppFull(t)
-	defer server.Close()
-
-	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: "clip-a", Title: "Clip A", Unread: true, Source: "https://example.com/a", Body: "x"}
-	if _, err := app.Store.Save("clip-a.md", page.Encode(), "seed", authorName, authorEmail); err != nil {
-		t.Fatalf("seeding page: %v", err)
-	}
-	if err := app.Index.Update(page); err != nil {
-		t.Fatalf("updating index: %v", err)
-	}
-
-	resp, err := client.Get(server.URL + "/_/inbox")
-	if err != nil {
-		t.Fatalf("GET /_/inbox: %v", err)
-	}
-	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
-	}
-}

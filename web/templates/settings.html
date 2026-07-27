@@ -20,7 +20,7 @@
 
 	<div class="settings-tabs">
 		<button type="button" class="settings-tab" data-tab="appearance">appearance</button>
-		<button type="button" class="settings-tab" data-tab="widgets">widgets</button>
+		<button type="button" class="settings-tab" data-tab="namespaces">namespaces</button>
 		<button type="button" class="settings-tab" data-tab="git-author">git author</button>
 		<button type="button" class="settings-tab" data-tab="access-tokens">access tokens</button>
 	</div>
@@ -94,48 +94,23 @@
 
 	</form>
 
-	{{/* The widget preview boxes below reuse the real widget partials
-	     verbatim — one of which (search) renders its own <form>. Nesting a
-	     <form> inside another is invalid HTML and breaks the outer form
-	     (the browser silently detaches everything after the nested form,
-	     including the save button), so this fieldset lives outside
-	     #appearance-form and its checkboxes opt back in via the form=
-	     attribute instead of DOM nesting. */}}
-	<fieldset class="settings-section settings-panel" data-panel="widgets">
-		<legend>widgets</legend>
-		<p class="settings-note">Choose which widgets appear with this skin. Changing the skin resets the list to that skin's defaults.</p>
-		<div class="widget-checklist">
-			{{range .Settings.WidgetIDs}}{{$w := index $.Settings.Widgets .}}
-			<div class="widget-check-row">
-				<label class="widget-check">
-					<input type="checkbox" name="widgets" value="{{.}}" form="appearance-form" {{if index $.Settings.CheckedWidgets .}}checked{{end}}>
-					<span class="widget-check-name">{{.}}{{if $w.Title}} <span class="widget-check-title">({{$w.Title}})</span>{{end}}</span>
-					{{if $w.Description}}<span class="widget-check-desc">{{$w.Description}}</span>{{end}}
-				</label>
-				{{if eq . "outline"}}
-				<p class="widget-preview-note">not shown here &mdash; built from the headings of whatever page you're viewing.</p>
-				{{else}}
-				<div class="widget-preview sidebar" aria-hidden="true">
-					{{if eq . "identity"}}{{template "widget-identity" $}}{{end}}
-					{{if eq . "search"}}{{template "widget-search" $}}{{end}}
-					{{if eq . "pages"}}{{template "widget-pages" $}}{{end}}
-					{{if eq . "pinned"}}{{template "widget-pinned" $}}{{end}}
-					{{if eq . "tags"}}{{template "widget-tags" $}}{{end}}
-					{{if eq . "log"}}{{template "widget-log" $}}{{end}}
-					{{if eq . "health"}}{{template "widget-health" $}}{{end}}
-					{{if eq . "calendar"}}{{template "widget-calendar" $}}{{end}}
-					{{if eq . "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
-					{{if eq . "inbox"}}{{template "widget-inbox" $}}{{end}}
-					{{if eq . "sources"}}{{template "widget-sources" $}}{{end}}
-					{{if eq . "source-card"}}{{template "widget-source-card" $}}{{end}}
-					{{if eq . "page-meta"}}{{template "widget-page-meta" $}}{{end}}
-					{{if eq . "backlinks"}}{{template "widget-backlinks" $}}{{end}}
-					{{if eq . "prev-entries"}}{{template "widget-prev-entries" $}}{{end}}
-				</div>
-				{{end}}
-			</div>
+	<fieldset class="settings-section settings-panel" data-panel="namespaces">
+		<legend>namespaces</legend>
+		<p class="settings-note">Composition is a property of where a page lives, not a per-user preference. Widgets, visibility and the new-page template are set per namespace via <code>.namespace.yaml</code> &mdash; there's no form here, the repo is the editor.</p>
+		<table class="namespace-list">
+			<thead><tr><th>namespace</th><th>widgets</th><th>public</th><th>template</th><th></th></tr></thead>
+			<tbody>
+			{{range .Settings.Namespaces}}
+			<tr>
+				<td>{{if .Name}}{{.Name}}{{else}}<em>(root)</em>{{end}}</td>
+				<td>{{range $i, $id := .Widgets}}{{if $i}}, {{end}}{{$id}}{{end}}</td>
+				<td>{{if .Public}}yes{{else}}no{{end}}</td>
+				<td>{{if .Template}}{{.Template}}{{else}}&mdash;{{end}}</td>
+				<td><a href="{{.ConfigHref}}">edit .namespace.yaml</a></td>
+			</tr>
 			{{end}}
-		</div>
+			</tbody>
+		</table>
 	</fieldset>
 
 	<div class="settings-actions settings-actions-sticky">
@@ -231,14 +206,6 @@
 		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
 	});
 
-	// Widget previews reuse the real widget partials, some of which carry
-	// ids (e.g. #recent-list) that the real, mounted copy elsewhere on this
-	// same page also uses. Strip them so a preview never fights the real
-	// widget — and never appears twice — for the same id.
-	document.querySelectorAll('.widget-preview [id]').forEach(function (el) {
-		el.removeAttribute('id');
-	});
-
 	[['font_ui', '--font-ui'], ['font_mono', '--font-mono']].forEach(function (pair) {
 		var sel = document.getElementById(pair[0]);
 		if (!sel) return;
@@ -284,10 +251,7 @@
 		});
 	});
 
-	// Keep the .selected outline in sync and preview the skin. On a skin change,
-	// the server resets widgets to that skin's defaults, so update the checklist
-	// to match.
-	var skinWidgets = {{.Settings.SkinWidgets}};
+	// Keep the .selected outline in sync and preview the skin.
 	var skinPalettes = {{.Settings.SkinPalettes}};
 	var paletteExplicit = document.getElementById('palette-explicit');
 	function syncCards(name) {
@@ -302,9 +266,9 @@
 			previewPalette(input.value);
 		});
 	});
-	// Choosing a skin resets the palette and the widget checklist to that
-	// skin's own defaults — mirror server-side behaviour here so the form
-	// shows what will actually be saved.
+	// Choosing a skin resets the palette to its own default — mirror
+	// server-side behaviour here so the form shows what will actually be
+	// saved.
 	document.querySelectorAll('input[name="skin"]').forEach(function (input) {
 		input.addEventListener('change', function () {
 			paletteExplicit.value = '';
@@ -317,11 +281,6 @@
 				syncCards('palette');
 				previewPalette(skinPalettes[input.value]);
 			}
-
-			var ids = skinWidgets[input.value] || [];
-			document.querySelectorAll('input[name="widgets"]').forEach(function (box) {
-				box.checked = ids.indexOf(box.value) !== -1;
-			});
 		});
 	});
 })();

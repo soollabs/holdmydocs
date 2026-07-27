@@ -1,10 +1,10 @@
 package main
 
-// A skin is the one presentation knob: it decides how the app looks
-// (typography, spacing, borders, markers — the :root[data-skin] blocks in
-// web/static/skins.css), how it is composed (which widgets mount where,
-// where "/" lands, whether ctrl-j is live, which statusline segments show),
-// and which colour palette it arrives with.
+// A skin is the presentation knob: it decides how the app looks (typography,
+// spacing, borders, markers — the :root[data-skin] blocks in
+// web/static/skins.css), where "/" lands, whether ctrl-j is live, which
+// statusline segments show, and which colour palette it arrives with. Widget
+// composition is a namespace property (namespace.go), not a skin one.
 //
 // That last one is a pairing, not a merge: skins.css still contains no
 // colour at all (TestSkinsNoRawHex), and Palette here is just the name of
@@ -12,14 +12,10 @@ package main
 // it — a newspaper that opened in terminal green wasn't a newspaper — and
 // the palette picker stays live afterwards for anyone who wants a different
 // one.
-//
-// skin and composition deliberately use one setting; the widget
-// checklist is the opt-in mechanism for individual widget changes.
 type skin struct {
 	Label   string
-	Note    string                  // one-line hint in the settings picker
-	Palette string                  // default colour preset; choosing this skin resets to it
-	Widgets map[widgetSlot][]string // ordered widget ids per slot
+	Note    string // one-line hint in the settings picker
+	Palette string // default colour preset; choosing this skin resets to it
 
 	Landing  string // route for "/": home | daily
 	DailyKey string // what ctrl-j opens; "" = disabled
@@ -33,66 +29,41 @@ var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
 
 var skins = map[string]skin{
 	"phosphor": {
-		Label:   "phosphor",
-		Note:    "terminal green, monospace, # markers — the default",
-		Palette: "phosphor",
-		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags", "log"},
-			slotRail:     {"outline"},
-			slotPageHead: {"page-meta"},
-			slotPageFoot: {"backlinks"},
-		},
+		Label:    "phosphor",
+		Note:     "terminal green, monospace, # markers — the default",
+		Palette:  "phosphor",
 		Landing:  "home",
 		DailyKey: "daily",
 		Status:   "full",
 	},
 	"newsprint": {
-		Label:   "newsprint",
-		Note:    "broadsheet — masthead, serif, justified columns, ink on paper",
-		Palette: "solarized",
-		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags"},
-			slotRail:     {"outline"},
-			slotPageHead: {"page-meta"},
-			slotPageFoot: {"backlinks"},
-		},
+		Label:    "newsprint",
+		Note:     "broadsheet — masthead, serif, justified columns, ink on paper",
+		Palette:  "solarized",
 		Landing:  "home",
 		DailyKey: "daily",
 		Status:   "full",
 	},
 	"journal": {
-		Label:   "journal",
-		Note:    "writing first — serif, wide measure, no chrome; lands on today's entry",
-		Palette: "everforest",
-		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "calendar", "writing-stats", "pages"},
-			slotPageFoot: {"prev-entries"},
-		},
+		Label:    "journal",
+		Note:     "writing first — serif, wide measure, no chrome; lands on today's entry",
+		Palette:  "everforest",
 		Landing:  "daily",
 		DailyKey: "daily",
 		Status:   "write",
 	},
 	"soft": {
-		Label:   "soft",
-		Note:    "rounded and low-contrast — warm sans, roomy leading, filled panels",
-		Palette: "rosé pine",
-		Widgets: map[widgetSlot][]string{
-			slotSidebar:  {"identity", "pages", "tags"},
-			slotRail:     {"outline"},
-			slotPageHead: {"page-meta"},
-			slotPageFoot: {"backlinks"},
-		},
+		Label:    "soft",
+		Note:     "rounded and low-contrast — warm sans, roomy leading, filled panels",
+		Palette:  "rosé pine",
 		Landing:  "home",
 		DailyKey: "daily",
 		Status:   "full",
 	},
 	"bare": {
-		Label:   "bare",
-		Note:    "subtraction only — no borders, no markers, wide margins",
-		Palette: "one dark",
-		Widgets: map[widgetSlot][]string{
-			slotSidebar: {"identity", "pages"},
-		},
+		Label:    "bare",
+		Note:     "subtraction only — no borders, no markers, wide margins",
+		Palette:  "one dark",
 		Landing:  "home",
 		DailyKey: "",
 		Status:   "quiet",
@@ -100,9 +71,7 @@ var skins = map[string]skin{
 }
 
 // resolveSkin returns the skin for name, falling back to phosphor for an
-// unknown or empty name. Unlike the old contract this always resolves to a
-// real skin: the name now decides widget composition too, so there is no
-// "render no attribute" state to fall back to.
+// unknown or empty name.
 func resolveSkin(name string) skin {
 	if s, ok := skins[name]; ok {
 		return s
@@ -146,27 +115,6 @@ func skinPalettes() map[string]string {
 	m := make(map[string]string, len(skins))
 	for name, s := range skins {
 		m[name] = s.Palette
-	}
-	return m
-}
-
-// skinWidgetIDs is the settings page's skin -> widget ids map, JSON-encoded
-// so choosing a skin can re-tick the widget checklist client-side without a
-// round trip.
-func skinWidgetIDs() map[string][]string {
-	m := make(map[string][]string, len(skins))
-	for name, s := range skins {
-		ids := []string{}
-		for _, id := range widgetIDs {
-			for _, slotIDs := range s.Widgets {
-				for _, mounted := range slotIDs {
-					if mounted == id {
-						ids = append(ids, id)
-					}
-				}
-			}
-		}
-		m[name] = ids
 	}
 	return m
 }

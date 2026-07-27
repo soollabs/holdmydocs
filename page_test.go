@@ -71,25 +71,19 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 		t.Errorf("Tags = %v, want [go wiki]", got.Tags)
 	}
 
-	t.Run("widget frontmatter keys round-trip", func(t *testing.T) {
-		p := Page{
-			Slug: "clip", Title: "Clip", Body: "Body.",
-			Pin: true, Unread: true, Source: "https://example.com/a", Author: "Jane", ReadTime: "4 min",
-		}
+	t.Run("pin frontmatter key round-trips", func(t *testing.T) {
+		p := Page{Slug: "clip", Title: "Clip", Body: "Body.", Pin: true}
 		reparsed := ParsePage("clip", p.Encode())
-		if !reparsed.Pin || !reparsed.Unread || reparsed.Source != p.Source || reparsed.Author != p.Author || reparsed.ReadTime != p.ReadTime {
-			t.Errorf("round-trip mismatch: got %+v, want Pin/Unread=true Source=%q Author=%q ReadTime=%q",
-				reparsed, p.Source, p.Author, p.ReadTime)
+		if !reparsed.Pin {
+			t.Errorf("round-trip mismatch: got %+v, want Pin=true", reparsed)
 		}
 	})
 
-	t.Run("widget frontmatter keys omitted when unset", func(t *testing.T) {
+	t.Run("pin frontmatter key omitted when unset", func(t *testing.T) {
 		p := Page{Slug: "plain", Title: "Plain", Body: "Body."}
 		encoded := string(p.Encode())
-		for _, key := range []string{"pin:", "unread:", "source:", "author:", "read_time:"} {
-			if strings.Contains(encoded, key) {
-				t.Errorf("Encode() with unset %s should omit it, got:\n%s", key, encoded)
-			}
+		if strings.Contains(encoded, "pin:") {
+			t.Errorf("Encode() with unset pin: should omit it, got:\n%s", encoded)
 		}
 	})
 

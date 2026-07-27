@@ -9,16 +9,14 @@ import (
 	"testing"
 )
 
-// TestWidgetFrontmatterPreservedAcrossSave asserts that pin/unread/source/
-// author/read_time — which have no dedicated editor UI — survive a normal
-// web-editor save untouched, per the spec's "must round-trip through the
-// editor untouched" requirement.
+// TestWidgetFrontmatterPreservedAcrossSave asserts that pin — which has no
+// dedicated editor UI — survives a normal web-editor save untouched.
 func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: "clip", Title: "Clip", Body: "Original body.", Unread: true, Source: "https://example.com/x", Author: "Jane", ReadTime: "3 min"}
+	page := Page{Slug: "clip", Title: "Clip", Body: "Original body.", Pin: true}
 	if _, err := app.Store.Save("clip.md", page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
@@ -55,8 +53,8 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 		t.Fatalf("reading saved page: %v", err)
 	}
 	saved := ParsePage("clip", content)
-	if !saved.Unread || saved.Source != "https://example.com/x" || saved.Author != "Jane" || saved.ReadTime != "3 min" {
-		t.Errorf("widget frontmatter not preserved across editor save: %+v", saved)
+	if !saved.Pin {
+		t.Errorf("pin not preserved across editor save: %+v", saved)
 	}
 	if !strings.Contains(saved.Body, "Edited body.") {
 		t.Errorf("body edit didn't take effect: %q", saved.Body)

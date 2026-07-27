@@ -29,13 +29,14 @@ var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
 
 type App struct {
-	cfg    atomic.Pointer[Config]
-	Store  *Store
-	Auth   *Auth
-	Index  *Index
-	Render *Renderer
-	Tmpl   map[string]*template.Template
-	OIDC   *OIDCAuth // nil when OIDC is disabled
+	cfg        atomic.Pointer[Config]
+	namespaces atomic.Pointer[NamespaceRegistry]
+	Store      *Store
+	Auth       *Auth
+	Index      *Index
+	Render     *Renderer
+	Tmpl       map[string]*template.Template
+	OIDC       *OIDCAuth // nil when OIDC is disabled
 }
 
 // config returns the current configuration value.
@@ -46,6 +47,18 @@ func (app *App) config() Config {
 // SetConfig stores a new configuration value atomically.
 func (app *App) SetConfig(cfg Config) {
 	app.cfg.Store(&cfg)
+}
+
+// Namespaces returns the current namespace registry.
+func (app *App) Namespaces() NamespaceRegistry {
+	return *app.namespaces.Load()
+}
+
+// SetNamespaces stores a newly rebuilt namespace registry atomically —
+// called at startup and on every pollFS tick (search.go), since the repo
+// mutates underneath the app via sync and external edits.
+func (app *App) SetNamespaces(reg NamespaceRegistry) {
+	app.namespaces.Store(&reg)
 }
 
 type BacklinkEntry struct{ Slug, Title string }
@@ -139,12 +152,9 @@ type TemplateData struct {
 	// actually reads it (see populateWidgetData).
 	Calendar     CalendarMonth
 	WritingStats WritingStats
-	Inbox        []UnreadEntry
-	Sources      []SourceCount
 	PinnedPages  []BacklinkEntry
 	PrevEntries  []PrevEntry
-	SourceMeta   widgetMeta // current page's pin/unread/source/author/read_time, for source-card
-	DailyEnabled bool       // skin.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
+	DailyEnabled bool // skin.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -183,11 +193,8 @@ type SettingsData struct {
 	Skin             string
 	SkinNames        []string
 	Skins            map[string]skin
-	SkinWidgets      map[string][]string // skin -> widget ids, JSON-encoded to re-tick the checklist on change
-	SkinPalettes     map[string]string   // skin -> default palette, JSON-encoded to move the selection on change
-	WidgetIDs        []string            // fixed display order for the widget checklist
-	Widgets          map[string]widget   // id -> definition, for labels
-	CheckedWidgets   map[string]bool     // id -> currently active for this user (skin defaults + their add/remove)
+	SkinPalettes     map[string]string // skin -> default palette, JSON-encoded to move the selection on change
+	Namespaces       []NamespaceListEntry
 	HelpDrifted      bool
 	UserGitAuthor    string        // current user's per-user git author override
 	HomeFilename     string        // read-only display; restart required to change
@@ -266,7 +273,7 @@ func remoteHost(raw string) string {
 // The config file itself is always writable (created on first save if
 // missing) — a field is read-only only when an env var overrides it
 // (cfg.EnvOverrides, keyed by fileConfig field name) or it's bootstrap-only.
-func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
+func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry) SettingsData {
 	fields := make(map[string]FieldState)
 
 	// mkField: editable = no env var and not bootstrap-only.
@@ -328,12 +335,6 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
 
 	activeName, activeSkin := effectiveSkin(cfg, prefs)
-	checkedWidgets := make(map[string]bool)
-	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
-		for _, w := range widgetsForSlot(slot, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove) {
-			checkedWidgets[w.ID] = true
-		}
-	}
 
 	return SettingsData{
 		Fields:           fields,
@@ -353,11 +354,8 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		Skin:             activeName,
 		SkinNames:        skinNames,
 		Skins:            skins,
-		SkinWidgets:      skinWidgetIDs(),
 		SkinPalettes:     skinPalettes(),
-		WidgetIDs:        widgetIDs,
-		Widgets:          widgets,
-		CheckedWidgets:   checkedWidgets,
+		Namespaces:       namespaceListEntries(ns),
 		HomeFilename:     cfg.HomeFilename,
 		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
 		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
@@ -452,10 +450,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.NeedsSetup = data.NeedsHomeSetup || data.NeedsHelpSetup
 		}
 
-		data.SidebarWidgets = widgetsForSlot(slotSidebar, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.RailWidgets = widgetsForSlot(slotRail, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.PageHeadWidgets = widgetsForSlot(slotPageHead, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
-		data.PageFootWidgets = widgetsForSlot(slotPageFoot, activeSkin, prefs.WidgetsAdd, prefs.WidgetsRemove)
+		nsCfg := app.Namespaces().Resolve(data.Slug)
+		data.SidebarWidgets = widgetsForSlot(slotSidebar, nsCfg.Widgets)
+		data.RailWidgets = widgetsForSlot(slotRail, nsCfg.Widgets)
+		data.PageHeadWidgets = widgetsForSlot(slotPageHead, nsCfg.Widgets)
+		data.PageFootWidgets = widgetsForSlot(slotPageFoot, nsCfg.Widgets)
 
 		app.populateWidgetData(&data, activeSkin)
 	}
@@ -614,9 +613,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/auth/oidc/callback", app.handleOIDCCallback)
 	mux.HandleFunc("GET /_/auth/oidc/icon", app.handleOIDCIcon)
 
-	// Tags, inbox: page indexes, not real content.
+	// Tags: page index, not real content.
 	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)
-	mux.HandleFunc("GET /_/inbox", app.handleInboxIndex)
 	mux.HandleFunc("GET /_/tags/{tag}", app.handleTagPages)
 
 	// Settings
@@ -1051,11 +1049,11 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	}
 
 	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body, Public: public}
-	// pin/unread/source/author/read_time have no editor UI yet — round-trip
-	// them from whatever was on disk before this save, untouched.
+	// pin has no editor UI yet — round-trip it from whatever was on disk
+	// before this save, untouched.
 	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
 		old := ParsePage(slug, oldContent)
-		page.Pin, page.Unread, page.Source, page.Author, page.ReadTime = old.Pin, old.Unread, old.Source, old.Author, old.ReadTime
+		page.Pin = old.Pin
 	}
 
 	message := "Update " + title
@@ -1257,18 +1255,6 @@ func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 		Authed:  true,
 		Title:   "Tags",
 		AllTags: app.Index.Tags(),
-	})
-}
-
-// handleInboxIndex lists every page marked `unread: true`, newest first.
-// Not skin-gated — reachable from any skin, same as /tags. No skin lands
-// here by default; it's for whoever mounts the inbox widget or sets the
-// frontmatter over MCP.
-func (app *App) handleInboxIndex(w http.ResponseWriter, r *http.Request) {
-	app.render(w, r, http.StatusOK, "inbox", TemplateData{
-		Authed: true,
-		Title:  "Inbox",
-		Inbox:  app.Index.UnreadPages(),
 	})
 }
 
@@ -1865,7 +1851,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
 	user := app.currentUser(r)
 
-	sd := buildSettingsData(cfg, app.Auth.prefs(user))
+	sd := buildSettingsData(cfg, app.Auth.prefs(user), app.Namespaces())
 	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
 	sd.Users = app.Auth.Users()
@@ -1902,7 +1888,6 @@ func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd Settin
 		StatusContext: "config",
 		Settings:      &sd,
 	}
-	app.populateWidgetPreviews(&data)
 	app.render(w, r, http.StatusOK, tmpl, data)
 }
 
@@ -2182,28 +2167,18 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := app.currentUser(r)
-	prevName, prevSkin := effectiveSkin(app.config(), app.Auth.prefs(user))
+	prevName, _ := effectiveSkin(app.config(), app.Auth.prefs(user))
 	switchingSkin := skinName(chosenSkin) != prevName
 
 	// Everything the settings form submits alongside the skin was rendered
-	// against the skin the user was *on*. On a skin change those values
-	// describe the old look, so they are discarded in favour of the new
-	// skin's own defaults unless the browser marks a later palette choice.
-	//
-	// Widgets: diffing the old checked set against the new skin's defaults
-	// would write every widget that defines the new skin into
-	// widgets_remove — switching skin would silently cancel itself out.
-	// Palette: a skin arrives in the colours it was designed for.
-	var widgetsAdd, widgetsRemove []string
-	if switchingSkin {
-		if r.FormValue("palette_explicit") != "1" {
-			palette = resolveSkin(chosenSkin).Palette
-		}
-	} else {
-		widgetsAdd, widgetsRemove = computeWidgetOverrides(prevSkin, r.Form["widgets"])
+	// against the skin the user was *on*. On a skin change the palette
+	// describes the old look, so it's discarded in favour of the new skin's
+	// own default unless the browser marks a later palette choice.
+	if switchingSkin && r.FormValue("palette_explicit") != "1" {
+		palette = resolveSkin(chosenSkin).Palette
 	}
 
-	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, chosenSkin, widgetsAdd, widgetsRemove); err != nil {
+	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, chosenSkin); err != nil {
 		http.Error(w, "failed to save appearance", http.StatusInternalServerError)
 		return
 	}

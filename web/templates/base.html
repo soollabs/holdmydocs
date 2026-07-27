@@ -41,8 +41,16 @@
 	</div>
 	<nav class="sidebar" id="sidebar">
 		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar"></button>
+		{{/* Identity is who-and-where chrome, not a mountable widget: it must
+		     always render regardless of namespace widget picks. */}}
+		<div class="prompt identity">
+			<a href="/" class="prompt-link identity-prompt"><span class="user">{{.Username}}</span>@<span class="host">{{.SiteName}}</span></a>
+			<a href="/" class="identity-masthead">
+				<span class="masthead-name">{{.SiteName}}</span>
+				<span class="masthead-byline">{{.Username}}</span>
+			</a>
+		</div>
 		{{range .SidebarWidgets}}
-		{{if eq .ID "identity"}}{{template "widget-identity" $}}{{end}}
 		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
 		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}
 		{{if eq .ID "pinned"}}{{template "widget-pinned" $}}{{end}}
@@ -51,8 +59,6 @@
 		{{if eq .ID "health"}}{{template "widget-health" $}}{{end}}
 		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
 		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
-		{{if eq .ID "inbox"}}{{template "widget-inbox" $}}{{end}}
-		{{if eq .ID "sources"}}{{template "widget-sources" $}}{{end}}
 		{{end}}
 		{{/* Settings/help/health access is not a toggleable widget: it must
 		     always be reachable regardless of skin or widget picks. */}}

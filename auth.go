@@ -60,19 +60,15 @@ var allScopes = []scope{scopeRead, scopeWrite, scopeSettings}
 // identity in "Name <email>" form and overrides the global default.
 // Palette/FontUI/FontMono/Skin are that user's cosmetic preferences,
 // editable from /settings; zero values fall back to the built-in defaults.
-// WidgetsAdd/WidgetsRemove let a user tweak a single widget without leaving
-// their skin.
 type userRecord struct {
-	Hash          string        `json:"hash"`
-	GitAuthor     string        `json:"git_author,omitempty"`
-	Tokens        []tokenRecord `json:"tokens,omitempty"`
-	Palette       string        `json:"palette,omitempty"`
-	FontUI        string        `json:"font_ui,omitempty"`
-	FontMono      string        `json:"font_mono,omitempty"`
-	Skin          string        `json:"skin,omitempty"`
-	WidgetsAdd    []string      `json:"widgets_add,omitempty"`
-	WidgetsRemove []string      `json:"widgets_remove,omitempty"`
-	Scopes        []string      `json:"scopes,omitempty"` // empty = full access (default, and every user before scopes existed)
+	Hash      string        `json:"hash"`
+	GitAuthor string        `json:"git_author,omitempty"`
+	Tokens    []tokenRecord `json:"tokens,omitempty"`
+	Palette   string        `json:"palette,omitempty"`
+	FontUI    string        `json:"font_ui,omitempty"`
+	FontMono  string        `json:"font_mono,omitempty"`
+	Skin      string        `json:"skin,omitempty"`
+	Scopes    []string      `json:"scopes,omitempty"` // empty = full access (default, and every user before scopes existed)
 }
 
 // hasScope reports whether the user may perform an action requiring s. An
@@ -97,9 +93,8 @@ func (a *Auth) prefs(name string) userRecord {
 	return a.users[name]
 }
 
-// SetPrefs stores name's display preferences (palette, fonts, skin and the
-// per-widget add/remove overrides).
-func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string, widgetsAdd, widgetsRemove []string) error {
+// SetPrefs stores name's display preferences (palette, fonts, skin).
+func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	rec, ok := a.users[name]
@@ -110,8 +105,6 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string, widgetsAdd
 	rec.FontUI = fontUI
 	rec.FontMono = fontMono
 	rec.Skin = skin
-	rec.WidgetsAdd = widgetsAdd
-	rec.WidgetsRemove = widgetsRemove
 	a.users[name] = rec
 	return a.save()
 }

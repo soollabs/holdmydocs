@@ -60,8 +60,14 @@ func newMCPTestApp(t *testing.T, mcpEnabled bool) (*httptest.Server, string) {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
 
+	namespaces, err := BuildNamespaceRegistry(cfg.RepoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+	}
+
 	app := &App{Store: store, Auth: auth, Index: index, Render: NewRenderer(index.Exists), Tmpl: tmpl}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
 
 	server := httptest.NewServer(auth.Middleware(app.Routes()))
 	t.Cleanup(server.Close)

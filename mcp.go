@@ -36,17 +36,13 @@ type mcpSlugIn struct {
 }
 
 type mcpPageOut struct {
-	Slug     string   `json:"slug"`
-	Title    string   `json:"title"`
-	Tags     []string `json:"tags,omitempty"`
-	Body     string   `json:"body"`
-	Public   bool     `json:"public,omitempty"`
-	Pin      bool     `json:"pin,omitempty"`
-	Unread   bool     `json:"unread,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Author   string   `json:"author,omitempty"`
-	ReadTime string   `json:"read_time,omitempty"`
-	Hash     string   `json:"hash"`
+	Slug   string   `json:"slug"`
+	Title  string   `json:"title"`
+	Tags   []string `json:"tags,omitempty"`
+	Body   string   `json:"body"`
+	Public bool     `json:"public,omitempty"`
+	Pin    bool     `json:"pin,omitempty"`
+	Hash   string   `json:"hash"`
 }
 
 type mcpSaveIn struct {
@@ -56,10 +52,6 @@ type mcpSaveIn struct {
 	Body     string   `json:"body" jsonschema:"raw markdown body (frontmatter is managed by hmd)"`
 	Public   bool     `json:"public,omitempty" jsonschema:"serve unauthenticated in the public garden; preserve the value from read_page when updating"`
 	Pin      bool     `json:"pin,omitempty" jsonschema:"surfaced by the pinned sidebar widget; preserve the value from read_page when updating"`
-	Unread   bool     `json:"unread,omitempty" jsonschema:"surfaced by the inbox widget; preserve the value from read_page when updating"`
-	Source   string   `json:"source,omitempty" jsonschema:"origin URL, for clipped pages; preserve the value from read_page when updating"`
-	Author   string   `json:"author,omitempty" jsonschema:"preserve the value from read_page when updating"`
-	ReadTime string   `json:"read_time,omitempty" jsonschema:"e.g. '4 min'; preserve the value from read_page when updating"`
 	BaseHash string   `json:"basehash,omitempty" jsonschema:"hash from read_page; omit to create a new page"`
 }
 
@@ -165,8 +157,7 @@ func (app *App) mcpHandler() http.Handler {
 		p := ParsePage(in.Slug, content)
 		return nil, mcpPageOut{
 			Slug: p.Slug, Title: p.Title, Tags: p.Tags, Body: p.Body, Public: p.Public,
-			Pin: p.Pin, Unread: p.Unread, Source: p.Source, Author: p.Author, ReadTime: p.ReadTime,
-			Hash: hash,
+			Pin: p.Pin, Hash: hash,
 		}, nil
 	})
 
@@ -185,7 +176,7 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		page := Page{
 			Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body, Public: in.Public,
-			Pin: in.Pin, Unread: in.Unread, Source: in.Source, Author: in.Author, ReadTime: in.ReadTime,
+			Pin: in.Pin,
 		}
 
 		cfg := app.config()

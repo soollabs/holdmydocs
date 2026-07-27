@@ -20,15 +20,14 @@ var webFS embed.FS
 func parseTemplates() (map[string]*template.Template, error) {
 	tmpl := make(map[string]*template.Template)
 	widgetFiles := []string{
-		"web/templates/widgets/identity.html", "web/templates/widgets/search.html", "web/templates/widgets/pages.html",
+		"web/templates/widgets/search.html", "web/templates/widgets/pages.html",
 		"web/templates/widgets/pinned.html", "web/templates/widgets/tags.html", "web/templates/widgets/log.html",
 		"web/templates/widgets/health.html", "web/templates/widgets/keys.html",
 		"web/templates/widgets/calendar.html", "web/templates/widgets/writing-stats.html",
-		"web/templates/widgets/inbox.html", "web/templates/widgets/sources.html",
-		"web/templates/widgets/outline.html", "web/templates/widgets/source-card.html",
+		"web/templates/widgets/outline.html",
 		"web/templates/widgets/page-meta.html", "web/templates/widgets/backlinks.html", "web/templates/widgets/prev-entries.html",
 	}
-	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "admin", "hidden", "inbox"} {
+	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "admin", "hidden"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
 		t, err := template.ParseFS(webFS, files...)
 		if err != nil {
@@ -105,10 +104,10 @@ func main() {
 	}
 	slog.Info("index built", "pages", len(pages))
 
-	// Pages can be added or edited directly on disk (outside the UI, e.g. by
-	// git pull), so poll for changes rather than relying solely on handler
-	// updates.
-	go pollFS(store, index, hashes)
+	namespaces, err := BuildNamespaceRegistry(cfg.RepoDir)
+	if err != nil {
+		log.Fatalf("build namespace registry failed: %v", err)
+	}
 
 	// Create renderer and auth
 	renderer := NewRenderer(index.Exists)
@@ -131,6 +130,12 @@ func main() {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
+
+	// Pages can be added or edited directly on disk (outside the UI, e.g. by
+	// git pull), so poll for changes rather than relying solely on handler
+	// updates.
+	go pollFS(store, index, hashes, app.SetNamespaces)
 
 	// OIDC: run discovery at startup when configured; fail loudly if the
 	// issuer is unreachable rather than serving a broken SSO button.

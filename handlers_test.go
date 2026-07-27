@@ -91,6 +91,11 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
 
+	namespaces, err := BuildNamespaceRegistry(repoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+	}
+
 	app := &App{
 		Store:  store,
 		Auth:   auth,
@@ -99,6 +104,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
 
 	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
 
@@ -181,7 +187,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	slug := "test-page"
 
 	// GET edit page for new slug
-	resp, err := client.Get(server.URL + "/"+slug+"?do=edit")
+	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -216,7 +222,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	}
 
 	// GET page, verify content
-	resp, err = client.Get(server.URL + "/"+slug)
+	resp, err = client.Get(server.URL + "/" + slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -243,7 +249,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 	slug := "lock-test"
 
 	// Get the hash for a new page
-	resp, err := client.Get(server.URL + "/"+slug+"?do=edit")
+	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
@@ -611,7 +617,7 @@ func TestHistoryListAndRevert(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	// GET history
-	resp, err = client.Get(server.URL + "/"+slug+"?do=history")
+	resp, err = client.Get(server.URL + "/" + slug + "?do=history")
 	if err != nil {
 		t.Fatalf("GET history failed: %v", err)
 	}
@@ -651,7 +657,7 @@ func TestRevertToOldVersion(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	// Verify page shows v1
-	resp, err = client.Get(server.URL + "/"+slug)
+	resp, err = client.Get(server.URL + "/" + slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
@@ -971,6 +977,11 @@ func TestAppConfigPointer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
+	namespaces, err := BuildNamespaceRegistry(repoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+	}
+
 	app := &App{
 		Store:  store,
 		Auth:   auth,
@@ -979,6 +990,7 @@ func TestAppConfigPointer(t *testing.T) {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
 
 	got := app.config()
 	if got.SiteName != "TestWiki" {
@@ -1005,7 +1017,7 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 		SiteName:   "My Wiki",
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
 
 	if !sd.Fields["Bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
@@ -1050,7 +1062,7 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
 
 	if sd.Fields["Bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
@@ -1077,7 +1089,7 @@ func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
 
 	if sd.Fields["GitToken"].Editable {
 		t.Error("GitToken should be read-only when token file is set")
@@ -1692,6 +1704,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
+	namespaces, err := BuildNamespaceRegistry(repoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+	}
+
 	app := &App{
 		Store:  store,
 		Auth:   auth,
@@ -1700,6 +1717,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
 
 	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
 	defer server.Close()
@@ -1837,8 +1855,14 @@ func TestCustomHomeFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
+	namespaces, err := BuildNamespaceRegistry(repoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+	}
+
 	app := &App{Store: store, Auth: auth, Index: index, Render: renderer, Tmpl: tmpl}
 	app.SetConfig(cfg)
+	app.SetNamespaces(namespaces)
 
 	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
 	defer server.Close()

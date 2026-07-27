@@ -2,22 +2,15 @@ package main
 
 import (
 	"io"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
-// TestWidgetRegistry checks every id referenced by a skin exists in the
-// widgets registry, and every widgetIDs entry has a registry definition.
+// TestWidgetRegistry checks every widgetIDs entry has a registry
+// definition, and vice versa.
 func TestWidgetRegistry(t *testing.T) {
-	for sname, sk := range skins {
-		for slot, ids := range sk.Widgets {
-			for _, id := range ids {
-				if _, ok := widgets[id]; !ok {
-					t.Errorf("skin %q slot %q references unknown widget %q", sname, slot, id)
-				}
-			}
-		}
-	}
 	for _, id := range widgetIDs {
 		w, ok := widgets[id]
 		if !ok {
@@ -42,99 +35,87 @@ func TestWidgetRegistry(t *testing.T) {
 	}
 }
 
-func TestWidgetsForSlotAddRemove(t *testing.T) {
-	p := skins["phosphor"]
-	got := widgetsForSlot(slotSidebar, p, nil, []string{"log"})
-	for _, w := range got {
-		if w.ID == "log" {
-			t.Error("expected 'log' to be removed")
+// TestWidgetsForSlotSlotAssignment checks that widgetsForSlot resolves a
+// flat id list to the correct slot, preserving within-slot order, and that
+// an id belonging to a different slot (per the registry) never leaks in —
+// a page-foot id listed alongside sidebar ids must not appear in the
+// sidebar.
+func TestWidgetsForSlotSlotAssignment(t *testing.T) {
+	ids := []string{"tags", "backlinks", "search", "log"}
+
+	sidebar := widgetsForSlot(slotSidebar, ids)
+	var got []string
+	for _, w := range sidebar {
+		got = append(got, w.ID)
+	}
+	want := []string{"tags", "search", "log"}
+	if len(got) != len(want) {
+		t.Fatalf("sidebar = %v, want %v", got, want)
+	}
+	for i, id := range want {
+		if got[i] != id {
+			t.Errorf("sidebar[%d] = %q, want %q (order should match input list)", i, got[i], id)
+		}
+	}
+	for _, w := range sidebar {
+		if w.ID == "backlinks" {
+			t.Error("backlinks is a page-foot widget and must not appear in the sidebar")
 		}
 	}
 
-	got = widgetsForSlot(slotSidebar, p, []string{"inbox"}, nil)
-	found := false
-	for _, w := range got {
-		if w.ID == "inbox" {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("expected 'inbox' to be added")
-	}
-
-	// Removing an id that isn't present is a no-op, not an error.
-	got = widgetsForSlot(slotSidebar, p, nil, []string{"nonexistent"})
-	if len(got) != len(p.Widgets[slotSidebar]) {
-		t.Errorf("removing a nonexistent id changed the count: got %d, want %d", len(got), len(p.Widgets[slotSidebar]))
+	pageFoot := widgetsForSlot(slotPageFoot, ids)
+	if len(pageFoot) != 1 || pageFoot[0].ID != "backlinks" {
+		t.Errorf("page-foot = %v, want [backlinks]", pageFoot)
 	}
 }
 
-// TestPopulateWidgetPreviews checks that the settings page's widget preview
-// data is built from the wiki's real home page and doesn't depend on
-// whether the corresponding widget is actually mounted — the whole point of
-// letting a user preview widgets they haven't turned on yet.
-func TestPopulateWidgetPreviews(t *testing.T) {
-	app, server, _ := newTestAppFull(t)
-	defer server.Close()
-
-	var data TemplateData
-	app.populateWidgetPreviews(&data)
-
-	if data.Calendar.MonthName == "" {
-		t.Error("Calendar not populated (should always be, regardless of mounted widgets)")
-	}
-	if data.RevisionCount != 1 {
-		t.Errorf("RevisionCount = %d, want 1 (readme.md's single seed commit)", data.RevisionCount)
-	}
-	if data.HeadAuthor != "test" {
-		t.Errorf("HeadAuthor = %q, want %q", data.HeadAuthor, "test")
-	}
-	if len(data.RecentCommits) != 1 {
-		t.Errorf("RecentCommits = %v, want 1 entry", data.RecentCommits)
-	}
-	if data.PrevEntries != nil {
-		t.Errorf("PrevEntries = %v, want nil (no daily pages exist)", data.PrevEntries)
+// TestWidgetsForSlotUnknownIDIgnored checks an id with no registry
+// definition is silently dropped rather than erroring.
+func TestWidgetsForSlotUnknownIDIgnored(t *testing.T) {
+	got := widgetsForSlot(slotSidebar, []string{"search", "not-a-real-widget"})
+	if len(got) != 1 || got[0].ID != "search" {
+		t.Errorf("widgetsForSlot with unknown id = %v, want [search]", got)
 	}
 }
 
-// TestSettingsAppearanceFormNotNested is the regression test for a bug
-// where the widget checklist's live preview boxes (which reuse the real
-// widget partials verbatim) put the "search" widget's own <form> inside
-// #appearance-form. A browser silently detaches everything after a nested
-// <form>, including the save button — so clicking "save appearance" did
-// nothing. The fix moved the widgets fieldset outside #appearance-form and
-// associated its checkboxes/button via form="appearance-form" instead of
-// DOM nesting; this guards against a future widget partial reintroducing
-// the same nesting.
-func TestSettingsAppearanceFormNotNested(t *testing.T) {
-	_, server, client := newTestAppFull(t)
+// TestStatuslineDataSurvivesWidgetRemoval: the write statusline reads
+// WritingStats directly, so a namespace whose widget list doesn't mount
+// writing-stats must not silently zero the statusline.
+func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
+	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/settings")
+	authorName, authorEmail := app.gitAuthor("admin")
+	today := time.Now().Format("2006-01-02")
+	page := Page{Slug: "daily/" + today, Title: today, Body: "one two three four five"}
+	if _, err := app.Store.Save("daily/"+today+".md", page.Encode(), "seed", authorName, authorEmail); err != nil {
+		t.Fatalf("seeding daily page: %v", err)
+	}
+
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"journal"}})
 	if err != nil {
-		t.Fatalf("GET /settings: %v", err)
+		t.Fatalf("setting skin: %v", err)
 	}
-	body, err := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
+
+	// journal's Status is "write"; the root namespace's widget list (no
+	// .namespace.yaml) is the built-in default, which doesn't include
+	// writing-stats — confirming the statusline still reads it regardless.
+	resp2, err := client.Get(server.URL + "/daily/" + today)
 	if err != nil {
-		t.Fatalf("reading body: %v", err)
+		t.Fatalf("GET daily page: %v", err)
 	}
-	html := string(body)
-
-	start := strings.Index(html, `id="appearance-form"`)
-	if start == -1 {
-		t.Fatal(`no element with id="appearance-form" found`)
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Errorf("closing daily response body: %v", err)
+		}
+	}()
+	body, _ := io.ReadAll(resp2.Body)
+	if strings.Contains(string(body), ">0 words today<") {
+		t.Error("words-today read 0 with the writing-stats widget unmounted; statusline data must not depend on the widget")
 	}
-	end := strings.Index(html[start:], "</form>")
-	if end == -1 {
-		t.Fatal("no closing </form> found after #appearance-form")
-	}
-	if inner := html[start : start+end]; strings.Count(inner, "<form") > 0 {
-		t.Error("#appearance-form contains a nested <form> — this breaks the save button in real browsers")
-	}
-
-	if !strings.Contains(html, `form="appearance-form"`) {
-		t.Error(`expected a form="appearance-form" attribute associating the save button/checkboxes with #appearance-form`)
+	if !strings.Contains(string(body), "words today") {
+		t.Error("journal statusline should still show a words-today segment")
 	}
 }
 

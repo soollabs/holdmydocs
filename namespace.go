@@ -161,3 +161,40 @@ func (r NamespaceRegistry) Names() []string {
 	})
 	return names
 }
+
+// NamespaceListEntry is one row of the read-only namespace list shown in
+// settings: name, resolved widgets, public flag and new-page template, with
+// a link to edit the namespace's .namespace.yaml as a page.
+type NamespaceListEntry struct {
+	Name       string
+	Widgets    []string
+	Public     bool
+	Template   string
+	ConfigHref string
+}
+
+// namespaceListEntries builds the settings-page namespace list from r,
+// sorted the same way as Names (root first).
+func namespaceListEntries(r NamespaceRegistry) []NamespaceListEntry {
+	names := r.Names()
+	entries := make([]NamespaceListEntry, 0, len(names))
+	for _, name := range names {
+		cfg := r[name]
+		template := ""
+		if cfg.New != nil {
+			template = cfg.New.Template
+		}
+		configPath := namespaceConfigFile
+		if name != "" {
+			configPath = name + "/" + namespaceConfigFile
+		}
+		entries = append(entries, NamespaceListEntry{
+			Name:       name,
+			Widgets:    cfg.Widgets,
+			Public:     cfg.Public,
+			Template:   template,
+			ConfigHref: "/" + configPath + "?do=edit",
+		})
+	}
+	return entries
+}

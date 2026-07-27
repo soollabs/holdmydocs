@@ -2,7 +2,6 @@ package main
 
 import (
 	"log/slog"
-	"net/url"
 	"sort"
 	"sync"
 	"time"
@@ -25,18 +24,7 @@ type Index struct {
 	tags     map[string]map[string]bool
 	tagNames map[string]string
 	pageTags map[string][]string
-	widget   map[string]widgetMeta // slug -> pin/unread/source/author/read_time, for the widgets that read frontmatter directly
-}
-
-// widgetMeta is the subset of a page's frontmatter the widgets in
-// specs/2026-07-25-profiles-widgets.md widget implementation read: pin, unread, source,
-// author, read_time.
-type widgetMeta struct {
-	Pin      bool
-	Unread   bool
-	Source   string
-	Author   string
-	ReadTime string
+	pinned   map[string]bool // slug -> pin: true, for the pinned widget
 }
 
 type SearchHit struct {
@@ -61,12 +49,12 @@ func BuildIndex(pages []Page) (*Index, error) {
 		tags:     make(map[string]map[string]bool),
 		tagNames: make(map[string]string),
 		pageTags: make(map[string][]string),
-		widget:   make(map[string]widgetMeta),
+		pinned:   make(map[string]bool),
 	}
 
 	for _, p := range pages {
 		ix.titles[p.Slug] = p.Title
-		ix.widget[p.Slug] = widgetMeta{Pin: p.Pin, Unread: p.Unread, Source: p.Source, Author: p.Author, ReadTime: p.ReadTime}
+		ix.pinned[p.Slug] = p.Pin
 
 		// Index the page
 		doc := map[string]interface{}{
@@ -112,9 +100,15 @@ func BuildIndex(pages []Page) (*Index, error) {
 //
 // polling, not fsnotify — this is a personal wiki, a 5s lag on
 // externally-written pages is fine. Switch to fsnotify if that stops being true.
-func pollFS(store *Store, ix *Index, hashes map[string]string) {
+func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry)) {
 	for range time.Tick(5 * time.Second) {
 		store.DropHistoryOnExternalCommit()
+
+		if reg, err := BuildNamespaceRegistry(store.dir); err != nil {
+			slog.Warn("pollFS: namespace registry rebuild failed", "err", err)
+		} else {
+			setNamespaces(reg)
+		}
 
 		paths, err := store.List()
 		if err != nil {
@@ -170,7 +164,7 @@ func (ix *Index) Update(p Page) error {
 	defer ix.mu.Unlock()
 
 	ix.titles[p.Slug] = p.Title
-	ix.widget[p.Slug] = widgetMeta{Pin: p.Pin, Unread: p.Unread, Source: p.Source, Author: p.Author, ReadTime: p.ReadTime}
+	ix.pinned[p.Slug] = p.Pin
 
 	// Remove old forward links from backward map
 	if oldLinks, ok := ix.forward[p.Slug]; ok {
@@ -237,7 +231,7 @@ func (ix *Index) Remove(slug string) {
 		slog.Error("removing page from search index", "slug", slug, "err", err)
 	}
 	delete(ix.titles, slug)
-	delete(ix.widget, slug)
+	delete(ix.pinned, slug)
 
 	if oldLinks, ok := ix.forward[slug]; ok {
 		for _, link := range oldLinks {
@@ -424,100 +418,17 @@ func (ix *Index) TagName(tagSlug string) string {
 	return ix.tagNames[tagSlug]
 }
 
-// MetaFor returns the widget-relevant frontmatter (pin/unread/source/
-// author/read_time) for slug, or a zero widgetMeta if the page doesn't
-// exist or has none of those keys set.
-func (ix *Index) MetaFor(slug string) widgetMeta {
-	ix.mu.RLock()
-	defer ix.mu.RUnlock()
-	return ix.widget[slug]
-}
-
 // PinnedPages returns pages with `pin: true`, sorted by title.
 func (ix *Index) PinnedPages() []BacklinkEntry {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
 	var result []BacklinkEntry
-	for slug, m := range ix.widget {
-		if m.Pin {
+	for slug, pinned := range ix.pinned {
+		if pinned {
 			result = append(result, BacklinkEntry{Slug: slug, Title: ix.titles[slug]})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Title < result[j].Title })
 	return result
-}
-
-// UnreadEntry is one row in the inbox widget.
-type UnreadEntry struct {
-	Slug     string
-	Title    string
-	Source   string
-	ReadTime string
-}
-
-// UnreadPages returns pages with `unread: true`, newest-looking first
-// (sorted by slug descending — daily/clip slugs sort newest-first lexically
-// when date-prefixed, otherwise this is just a stable order).
-func (ix *Index) UnreadPages() []UnreadEntry {
-	ix.mu.RLock()
-	defer ix.mu.RUnlock()
-
-	var result []UnreadEntry
-	for slug, m := range ix.widget {
-		if m.Unread {
-			result = append(result, UnreadEntry{Slug: slug, Title: ix.titles[slug], Source: m.Source, ReadTime: m.ReadTime})
-		}
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Slug > result[j].Slug })
-	return result
-}
-
-// SourceCount is one row in the sources widget: a clipped page's origin
-// host, and how many pages carry it.
-type SourceCount struct {
-	Host  string
-	Count int
-}
-
-// SourceCounts returns the distinct hosts among pages' `source:` frontmatter,
-// counted and sorted by count descending then host ascending. Pages with an
-// unparseable or empty source are skipped.
-func (ix *Index) SourceCounts() []SourceCount {
-	ix.mu.RLock()
-	defer ix.mu.RUnlock()
-
-	counts := make(map[string]int)
-	for _, m := range ix.widget {
-		host := sourceHost(m.Source)
-		if host == "" {
-			continue
-		}
-		counts[host]++
-	}
-	result := make([]SourceCount, 0, len(counts))
-	for host, n := range counts {
-		result = append(result, SourceCount{Host: host, Count: n})
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Count != result[j].Count {
-			return result[i].Count > result[j].Count
-		}
-		return result[i].Host < result[j].Host
-	})
-	return result
-}
-
-// sourceHost extracts the host from a source URL, e.g.
-// "https://example.com/a/b" -> "example.com". Returns "" for an empty or
-// unparseable source.
-func sourceHost(source string) string {
-	if source == "" {
-		return ""
-	}
-	u, err := url.Parse(source)
-	if err != nil || u.Host == "" {
-		return ""
-	}
-	return u.Host
 }

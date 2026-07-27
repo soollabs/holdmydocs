@@ -36,15 +36,10 @@ func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
 }
 
 // TestNoSkinTogglesSettingsWidget guards against "keys" (the settings/help
-// link) re-entering the skin/widget-checklist system: it must always render,
-// regardless of skin or the user's widget picks, so settings can never be
-// toggled out of reach.
+// link) re-entering the namespace widget-list system: it must always
+// render, regardless of skin or a namespace's widget picks, so settings can
+// never be toggled out of reach.
 func TestNoSkinTogglesSettingsWidget(t *testing.T) {
-	for name := range skins {
-		if skinDefaultIDs(skins[name])["keys"] {
-			t.Errorf("skin %q lists \"keys\" as a widget; settings must render unconditionally instead", name)
-		}
-	}
 	if _, ok := widgets["keys"]; ok {
 		t.Error("\"keys\" must not be a toggleable widget; settings must always be visible")
 	}
@@ -334,5 +329,110 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte(`data-skin="`+defaultSkin+`"`)) {
 		t.Errorf("unknown stored skin should render the default skin, body: %s", body)
+	}
+}
+
+// TestSkinSwitchResetsPalette: a skin ships with the colours it was designed
+// for. Switching skin therefore also moves the palette, even if the user had
+// picked one — a broadsheet that opened in terminal green isn't a broadsheet.
+// Picking a palette afterwards (same skin) still sticks.
+func TestSkinSwitchResetsPalette(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+		"skin": {"phosphor"}, "palette": {"dracula"},
+	})
+	if err != nil {
+		t.Fatalf("setting palette: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if got := app.Auth.prefs("admin").Palette; got != "dracula" {
+		t.Fatalf("palette = %q, want dracula", got)
+	}
+
+	// Switching skin overrides the stale palette from the form.
+	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+		"skin": {"newsprint"}, "palette": {"dracula"},
+	})
+	if err != nil {
+		t.Fatalf("switching skin: %v", err)
+	}
+	if err := resp2.Body.Close(); err != nil {
+		t.Fatalf("closing skin switch response body: %v", err)
+	}
+	if got := app.Auth.prefs("admin").Palette; got != skins["newsprint"].Palette {
+		t.Errorf("palette after skin switch = %q, want %q", got, skins["newsprint"].Palette)
+	}
+	rendered, err := client.Get(server.URL + "/_/settings")
+	if err != nil {
+		t.Fatalf("rendering switched skin: %v", err)
+	}
+	body, err := io.ReadAll(rendered.Body)
+	if err := rendered.Body.Close(); err != nil {
+		t.Fatalf("closing settings response body: %v", err)
+	}
+	if err != nil {
+		t.Fatalf("reading switched skin: %v", err)
+	}
+	if !strings.Contains(string(body), `data-skin="newsprint"`) ||
+		!strings.Contains(string(body), `--primary:#268bd2;`) {
+		t.Errorf("newsprint response did not render its skin and Solarized primary")
+	}
+
+	// Staying on the same skin leaves the choice alone.
+	resp3, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+		"skin": {"newsprint"}, "palette": {"gruvbox"},
+	})
+	if err != nil {
+		t.Fatalf("repicking palette: %v", err)
+	}
+	if err := resp3.Body.Close(); err != nil {
+		t.Fatalf("closing appearance response body: %v", err)
+	}
+	if got := app.Auth.prefs("admin").Palette; got != "gruvbox" {
+		t.Errorf("palette = %q, want gruvbox — an explicit pick on the same skin must stick", got)
+	}
+}
+
+func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+		"skin": {"newsprint"}, "palette": {"gruvbox"}, "palette_explicit": {"1"},
+	})
+	if err != nil {
+		t.Fatalf("switching skin with explicit palette: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if got := app.Auth.prefs("admin").Palette; got != "gruvbox" {
+		t.Errorf("palette = %q, want gruvbox chosen after the skin", got)
+	}
+}
+
+// TestSkinDefaultPalettesExist guards the pairing: every skin names a real
+// preset, so no skin can ship pointing at a palette that was renamed away.
+func TestSkinDefaultPalettesExist(t *testing.T) {
+	for name, s := range skins {
+		if s.Palette == "" {
+			t.Errorf("skin %q has no default palette", name)
+			continue
+		}
+		if _, ok := themePresets[s.Palette]; !ok {
+			t.Errorf("skin %q names palette %q, which is not a preset", name, s.Palette)
+		}
+	}
+}
+
+func TestNewsprintUsesSolarizedBlueAsPrimary(t *testing.T) {
+	preset := themePresets[skins["newsprint"].Palette]
+	for mode, colours := range map[string]map[string]string{"dark": preset.Dark, "light": preset.Light} {
+		if got := colours["primary"]; got != "#268bd2" {
+			t.Errorf("newsprint %s primary = %q, want Solarized blue", mode, got)
+		}
+		if got := colours["accent"]; got != "#6c71c4" {
+			t.Errorf("newsprint %s accent = %q, want Solarized violet", mode, got)
+		}
 	}
 }
