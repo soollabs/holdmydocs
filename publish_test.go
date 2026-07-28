@@ -9,30 +9,39 @@ import (
 	"testing"
 )
 
-// setNamespacePublic writes <repoDir>/<ns>/.namespace.yaml with public: true
-// (or removes it for false, since absence already means private) and
-// rebuilds the app's namespace registry so the change takes effect
-// immediately, without waiting on pollFS.
-func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
+// writeNamespaceConfig writes <repoDir>/<ns>/.namespace.yaml (creating the
+// namespace directory if needed) and rebuilds the app's namespace registry
+// so the change takes effect immediately, without waiting on pollFS.
+func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
 	t.Helper()
 	dir := app.config().RepoDir
 	if ns != "" {
 		dir = filepath.Join(dir, ns)
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("mkdir %s: %v", ns, err)
+			return err
 		}
 	}
-	if public {
-		yaml := "public: true\n"
-		if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte(yaml), 0644); err != nil {
-			t.Fatalf("writing .namespace.yaml: %v", err)
-		}
+	if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte(yaml), 0644); err != nil {
+		return err
 	}
 	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry: %v", err)
+		return err
 	}
 	app.SetNamespaces(reg)
+	return nil
+}
+
+// setNamespacePublic writes <repoDir>/<ns>/.namespace.yaml with public: true
+// (or does nothing for false, since absence already means private).
+func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
+	t.Helper()
+	if !public {
+		return
+	}
+	if err := writeNamespaceConfig(t, app, ns, "public: true\n"); err != nil {
+		t.Fatalf("writing .namespace.yaml: %v", err)
+	}
 }
 
 // seedPage saves slug directly through the store/index, bypassing HTTP (the

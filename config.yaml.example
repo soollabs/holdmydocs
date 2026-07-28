@@ -57,6 +57,9 @@ sync_poll_ms: 10000
 # Home page file. Must end in .md, no path separators, not dot-prefixed.
 # Default readme.md renders on the git host front page (GitHub, git, Gitea).
 # home_filename: readme.md
+# Page slug "/" redirects to. Default: the home page above. Point it at a
+# namespaced slug (e.g. journal/2026-07-24) or anything else you like.
+# landing: journal/2026-07-24
 # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
 # A skin controls presentation and widget arrangement, not storage. Users can
 # override it from /settings.

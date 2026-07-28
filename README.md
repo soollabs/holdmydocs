@@ -270,24 +270,24 @@ the install-wide `skin:` default (see Skins, below).
 
 ## Skins
 
-A skin controls the app's presentation: typography, spacing, borders, markers,
-mounted widgets, the `/` landing page, ctrl-j, statusline segments, and colour
-palette. It does not change how or where pages are stored; the same repo works
-under any skin, and `git log` remains byte-identical.
+A skin controls the app's presentation: typography, spacing, borders,
+markers, statusline segments, and colour palette. It does not decide which
+widgets mount (that's a namespace property, see Namespaces), where `/`
+lands or whether ctrl-j is live (both config/namespace properties, see
+below). The same repo works under any skin, and `git log` remains
+byte-identical.
 
 - **`phosphor`** (default, phosphor palette) — terminal: green, monospace,
-  `#` markers, a `<user>@<site_name>$` prompt. Pages list, tags, recent
-  commits, outline rail, backlinks.
+  `#` markers, a `<user>@<site_name>$` prompt.
 - **`newsprint`** (solarized) — broadsheet: a masthead instead of a prompt,
   serif, justified columns, drop cap, kicker headings in place of `##`.
 - **`journal`** (everforest) — writing first: serif, a wide relaxed measure,
-  generous leading, no panel chrome. Calendar, writing stats and previous
-  entries; lands on today's entry in edit mode.
+  generous leading, no panel chrome.
 - **`soft`** (rosé pine) — rounded and low-contrast: a warm sans, roomy
   leading, filled panels with their borders mixed back toward the fill, no
   markers or prompt. The one skin here that isn't austere.
 - **`bare`** (one dark) — subtraction only: no borders, no markers, wide
-  margins, identity and a pages list, ctrl-j disabled.
+  margins.
 
 Each skin names its default **palette**, and choosing a skin switches to that
 palette. The palette picker remains available, so every skin × palette
@@ -412,12 +412,17 @@ them by hand in the frontmatter block, or via the MCP `save_page` tool.
 - `author: Jane Doe` — shown on the source-card widget.
 - `read_time: 4 min` — shown on the source-card and inbox widgets.
 
-### Daily pages
+### Journal
 
-Pages under `daily/YYYY-MM-DD` (e.g. `daily/2026-07-24`) are journal
-entries — the only slug convention in the app with a `/` in it. ctrl-j opens
-today's entry (except on the `bare` skin, which disables it); the
-calendar widget (`journal` skin) marks which days have one.
+A journal is an ordinary namespace directory with an optional
+`.namespace.yaml` declaring a `new:` block (`template`, the hidden page to
+seed from, and `slug`, a `text/template` pattern with `.Now`/`.User`/
+`.Namespace` available) and the calendar/writing-stats/prev-entries widgets.
+ctrl-j (and the `>new` palette verb) opens today's entry in the `journal`
+namespace, creating it from that namespace's template on first use each day
+via `POST /_/new?ns=journal`; both are disabled if no namespace named
+`journal` declares a `new:` block. The calendar widget marks which days
+already have one.
 
 ### Editor extras
 - **Hide preview:** the `preview` toolbar button collapses the preview pane so the source editor fills the width. Useful on smaller screens or when you just want more writing space. Persists across pages (`localStorage`).

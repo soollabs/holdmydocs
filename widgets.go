@@ -81,10 +81,16 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 		return hasWidget(all, id) || (s.Status == "write" && id == "writing-stats")
 	}
 
-	needsDaily := needs("calendar") || needs("writing-stats") || needs("prev-entries")
-	var dailySlugs []string
-	if needsDaily {
-		dailySlugs, _ = app.Store.DailyPages()
+	ns, _ := namespaceFor(data.Slug)
+	needsDates := needs("calendar") || needs("writing-stats") || needs("prev-entries")
+	var dates []string
+	if needsDates {
+		titles := app.Index.Titles()
+		slugs := make([]string, 0, len(titles))
+		for slug := range titles {
+			slugs = append(slugs, slug)
+		}
+		dates = datesInNamespace(ns, slugs)
 	}
 
 	bodyWords := func(slug string) int {
@@ -104,13 +110,13 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 
 	now := time.Now()
 	if needs("calendar") {
-		data.Calendar = buildCalendarMonth(now, dailySlugs)
+		data.Calendar = buildCalendarMonth(now, ns, dates)
 	}
 	if needs("writing-stats") {
-		data.WritingStats = buildWritingStats(now, dailySlugs, bodyWords)
+		data.WritingStats = buildWritingStats(now, ns, dates, bodyWords)
 	}
 	if needs("prev-entries") {
-		data.PrevEntries = buildPrevEntries(data.Slug, dailySlugs, 3, firstLine)
+		data.PrevEntries = buildPrevEntries(data.Slug, dates, 3, firstLine)
 	}
 	if needs("pinned") {
 		data.PinnedPages = app.Index.PinnedPages()

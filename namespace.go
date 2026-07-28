@@ -127,6 +127,15 @@ func namespaceFor(slug string) (ns, rest string) {
 	return slug[:i], slug[i+1:]
 }
 
+// namespaceSlug builds a full page slug from a namespace name and the
+// remainder of the slug within it — the inverse of namespaceFor.
+func namespaceSlug(ns, rest string) string {
+	if ns == "" {
+		return rest
+	}
+	return ns + "/" + rest
+}
+
 // Resolve returns the config for the namespace slug belongs to, or the
 // built-in defaults if that namespace isn't in the registry (e.g. it has no
 // .namespace.yaml and hasn't been scanned yet).

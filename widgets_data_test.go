@@ -7,9 +7,9 @@ import (
 
 func TestBuildCalendarMonth(t *testing.T) {
 	ref := time.Date(2026, 7, 24, 10, 0, 0, 0, time.UTC)
-	daily := []string{"daily/2026-07-01", "daily/2026-07-24", "daily/2026-08-01", "not-daily"}
+	dates := []string{"2026-07-01", "2026-07-24", "2026-08-01"}
 
-	cal := buildCalendarMonth(ref, daily)
+	cal := buildCalendarMonth(ref, "journal", dates)
 	if cal.MonthName != "July 2026" {
 		t.Errorf("MonthName = %q, want July 2026", cal.MonthName)
 	}
@@ -29,6 +29,9 @@ func TestBuildCalendarMonth(t *testing.T) {
 	if !byDate["2026-07-24"].Today {
 		t.Error("2026-07-24 should be marked Today")
 	}
+	if byDate["2026-07-24"].Slug != "journal/2026-07-24" {
+		t.Errorf("2026-07-24 Slug = %q, want journal/2026-07-24", byDate["2026-07-24"].Slug)
+	}
 	if byDate["2026-07-02"].Lit {
 		t.Error("2026-07-02 should not be lit")
 	}
@@ -40,31 +43,45 @@ func TestBuildCalendarMonth(t *testing.T) {
 	}
 }
 
+func TestBuildCalendarMonthRootNamespace(t *testing.T) {
+	ref := time.Date(2026, 7, 24, 10, 0, 0, 0, time.UTC)
+	cal := buildCalendarMonth(ref, "", []string{"2026-07-24"})
+	byDate := map[string]CalendarDay{}
+	for _, d := range cal.Days {
+		if d.Date != "" {
+			byDate[d.Date] = d
+		}
+	}
+	if byDate["2026-07-24"].Slug != "2026-07-24" {
+		t.Errorf("root-namespace Slug = %q, want 2026-07-24 (no leading slash)", byDate["2026-07-24"].Slug)
+	}
+}
+
 func TestBuildCalendarMonthEmpty(t *testing.T) {
 	ref := time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC)
-	cal := buildCalendarMonth(ref, nil)
+	cal := buildCalendarMonth(ref, "journal", nil)
 	for _, d := range cal.Days {
 		if d.Lit {
-			t.Errorf("expected no lit days with no daily pages, got %+v", d)
+			t.Errorf("expected no lit days with no dated pages, got %+v", d)
 		}
 	}
 }
 
 func TestBuildWritingStats(t *testing.T) {
 	ref := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	daily := []string{
-		"daily/2026-07-22", "daily/2026-07-23", "daily/2026-07-24", // 3-day streak ending today
-		"daily/2026-07-01", // earlier this month, breaks streak count but not DaysWritten
-		"daily/2026-06-30", // last month, shouldn't count toward DaysWritten
+	dates := []string{
+		"2026-07-22", "2026-07-23", "2026-07-24", // 3-day streak ending today
+		"2026-07-01", // earlier this month, breaks streak count but not DaysWritten
+		"2026-06-30", // last month, shouldn't count toward DaysWritten
 	}
 	words := func(slug string) int {
-		if slug == "daily/2026-07-24" {
+		if slug == "journal/2026-07-24" {
 			return 42
 		}
 		return 10
 	}
 
-	stats := buildWritingStats(ref, daily, words)
+	stats := buildWritingStats(ref, "journal", dates, words)
 	if stats.DaysWritten != 4 {
 		t.Errorf("DaysWritten = %d, want 4", stats.DaysWritten)
 	}
@@ -85,46 +102,45 @@ func TestBuildWritingStats(t *testing.T) {
 func TestBuildWritingStatsNoStreak(t *testing.T) {
 	ref := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
 	// Yesterday has no entry, so streak must be 0 even though today does.
-	daily := []string{"daily/2026-07-24"}
-	stats := buildWritingStats(ref, daily, func(string) int { return 5 })
+	stats := buildWritingStats(ref, "journal", []string{"2026-07-24"}, func(string) int { return 5 })
 	if stats.Streak != 1 {
 		t.Errorf("Streak = %d, want 1 (today only)", stats.Streak)
 	}
 
-	daily2 := []string{"daily/2026-07-20"}
-	stats2 := buildWritingStats(ref, daily2, func(string) int { return 5 })
+	stats2 := buildWritingStats(ref, "journal", []string{"2026-07-20"}, func(string) int { return 5 })
 	if stats2.Streak != 0 {
 		t.Errorf("Streak = %d, want 0 (no entry today)", stats2.Streak)
 	}
 }
 
 func TestBuildPrevEntries(t *testing.T) {
-	daily := []string{
-		"daily/2026-07-20", "daily/2026-07-21", "daily/2026-07-22", "daily/2026-07-23", "daily/2026-07-24",
-	}
+	dates := []string{"2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"}
 	lines := map[string]string{
-		"daily/2026-07-23": "Wrote some code.",
-		"daily/2026-07-22": "Read a book.",
-		"daily/2026-07-21": "Went for a walk.",
+		"journal/2026-07-23": "Wrote some code.",
+		"journal/2026-07-22": "Read a book.",
+		"journal/2026-07-21": "Went for a walk.",
 	}
 	firstLine := func(slug string) string { return lines[slug] }
 
-	entries := buildPrevEntries("daily/2026-07-24", daily, 3, firstLine)
+	entries := buildPrevEntries("journal/2026-07-24", dates, 3, firstLine)
 	if len(entries) != 3 {
 		t.Fatalf("len(entries) = %d, want 3", len(entries))
 	}
 	if entries[0].Date != "2026-07-23" || entries[0].FirstLine != "Wrote some code." {
 		t.Errorf("entries[0] = %+v", entries[0])
 	}
+	if entries[0].Slug != "journal/2026-07-23" {
+		t.Errorf("entries[0].Slug = %q, want journal/2026-07-23", entries[0].Slug)
+	}
 	if entries[2].Date != "2026-07-21" {
 		t.Errorf("entries[2].Date = %q, want 2026-07-21 (oldest of the 3)", entries[2].Date)
 	}
 }
 
-func TestBuildPrevEntriesNonDailyPage(t *testing.T) {
-	entries := buildPrevEntries("readme", []string{"daily/2026-07-24"}, 3, func(string) string { return "" })
+func TestBuildPrevEntriesNonDatedPage(t *testing.T) {
+	entries := buildPrevEntries("readme", []string{"2026-07-24"}, 3, func(string) string { return "" })
 	if entries != nil {
-		t.Errorf("expected nil for a non-daily current page, got %v", entries)
+		t.Errorf("expected nil for a non-dated current page, got %v", entries)
 	}
 }
 
@@ -151,11 +167,20 @@ func TestCountWords(t *testing.T) {
 	}
 }
 
-func TestDailyDate(t *testing.T) {
-	if got := dailyDate("daily/2026-07-24"); got != "2026-07-24" {
-		t.Errorf("dailyDate = %q, want 2026-07-24", got)
+func TestDatesInNamespace(t *testing.T) {
+	slugs := []string{
+		"journal/2026-07-01", "journal/2026-07-24", "journal/not-a-date",
+		"blog/2026-07-24", // different namespace, excluded
+		"readme",          // root, no namespace match
 	}
-	if got := dailyDate("readme"); got != "" {
-		t.Errorf("dailyDate(readme) = %q, want empty", got)
+	got := datesInNamespace("journal", slugs)
+	want := []string{"2026-07-01", "2026-07-24"}
+	if len(got) != len(want) {
+		t.Fatalf("datesInNamespace = %v, want %v", got, want)
+	}
+	for i, d := range want {
+		if got[i] != d {
+			t.Errorf("datesInNamespace[%d] = %q, want %q", i, got[i], d)
+		}
 	}
 }

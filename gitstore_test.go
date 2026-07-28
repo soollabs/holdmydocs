@@ -94,6 +94,66 @@ func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	}
 }
 
+// TestListRecurses checks Store.List() walks into namespace subdirectories
+// (arbitrarily deep, since filing within a namespace isn't bounded to one
+// level) while excluding attachments/, dot-prefixed directories and files,
+// and non-.md files — this is what lets any namespace's pages reach the
+// search index and startup page list generically, not just a hardcoded one.
+func TestListRecurses(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := Config{
+		RepoDir:      tmpDir,
+		AppDir:       t.TempDir(),
+		Git:          GitConfig{User: "test"},
+		HomeFilename: "readme.md",
+	}
+
+	write := func(rel string) {
+		full := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte("---\ntitle: x\n---\n\nbody\n"), 0644); err != nil {
+			t.Fatalf("writing %s: %v", rel, err)
+		}
+	}
+	write("readme.md")
+	write("blog/post.md")
+	write("blog/drafts/deep-post.md")
+	write("attachments/blog/post/pic.png") // not .md, and under attachments/ anyway
+	write(".help.md")                      // hidden page, top-level
+	write(".journal/entry.md")             // hidden page, nested
+	if err := os.MkdirAll(filepath.Join(tmpDir, ".git-like-dir"), 0755); err != nil {
+		t.Fatalf("mkdir .git-like-dir: %v", err)
+	}
+
+	store, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	paths, err := store.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	want := map[string]bool{"readme.md": true, "blog/post.md": true, "blog/drafts/deep-post.md": true}
+	got := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		got[p] = true
+	}
+	for p := range want {
+		if !got[p] {
+			t.Errorf("List() missing %q, got %v", p, paths)
+		}
+	}
+	for p := range got {
+		if !want[p] {
+			t.Errorf("List() unexpectedly included %q (attachments/dot-prefixed should be excluded)", p)
+		}
+	}
+}
+
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	// Pre-create a git repo with a commit (content but no readme.md).
 	tmpDir := t.TempDir()

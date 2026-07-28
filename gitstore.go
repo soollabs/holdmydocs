@@ -193,11 +193,11 @@ whitelist and SVG exclusion above are only enforced by the upload
 endpoint, not when serving, so stick to them by convention on direct
 writes too.
 
-## Daily pages
+## Journal
 
-Pages under ` + "`daily/YYYY-MM-DD`" + ` (e.g. ` + "`daily/2026-07-24`" + `) are
-journal entries. ctrl-j opens today's entry; the calendar widget marks which
-days have one.
+ctrl-j (or the ` + "`>new`" + ` palette verb) opens today's entry in the
+` + "`journal`" + ` namespace, creating it from that namespace's template on
+first use each day. The calendar widget marks which days already have one.
 
 ## Skins
 
@@ -585,52 +585,48 @@ func (s *Store) push() {
 	}
 }
 
+// List returns every ordinary page path in the store (repo-relative,
+// "/"-separated), sorted: top-level .md files plus, recursively, .md files
+// inside any non-dot-prefixed subdirectory other than attachments/ (assets,
+// not pages). Namespaces are exactly one level deep for config purposes, but
+// filing subdirectories within a namespace ("blog/drafts/post.md") are part
+// of the slug — namespaceFor is what decides namespace membership, not how
+// deep this walk goes, so the walk itself is unbounded.
 func (s *Store) List() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	entries, err := os.ReadDir(s.dir)
+	var paths []string
+	err := filepath.WalkDir(s.dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == s.dir {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if strings.HasPrefix(name, ".") || name == "attachments" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(name, ".") || filepath.Ext(name) != ".md" {
+			return nil
+		}
+		rel, err := filepath.Rel(s.dir, path)
+		if err != nil {
+			return err
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("reading directory: %w", err)
 	}
 
-	var paths []string
-	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".md" && !strings.HasPrefix(e.Name(), ".") {
-			paths = append(paths, e.Name())
-		}
-	}
-
 	sort.Strings(paths)
 	return paths, nil
-}
-
-// DailyPages returns the "daily/YYYY-MM-DD" slugs found under the daily/
-// subdirectory, sorted ascending. Returns an empty slice, not an error, if
-// the daily/ directory doesn't exist yet — journalling skins are usable
-// from the very first entry.
-func (s *Store) DailyPages() ([]string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	dir := filepath.Join(s.dir, "daily")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("reading daily directory: %w", err)
-	}
-
-	var slugs []string
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		slugs = append(slugs, "daily/"+strings.TrimSuffix(e.Name(), ".md"))
-	}
-	sort.Strings(slugs)
-	return slugs, nil
 }
 
 // ListHidden returns dot-prefixed .md files (hidden pages).

@@ -78,6 +78,7 @@ type Config struct {
 	SyncMode       string
 	DefaultBranch  string
 	HomeFilename   string
+	Landing        string // slug "/" redirects to; empty = HomeSlug()
 	Skin           string
 	Debug          bool
 
@@ -96,6 +97,7 @@ type fileConfig struct {
 	SyncMode       string `yaml:"sync_mode"`
 	DefaultBranch  string `yaml:"default_branch"`
 	HomeFilename   string `yaml:"home_filename"`
+	Landing        string `yaml:"landing"`
 	Skin           string `yaml:"skin"`
 	Debug          bool   `yaml:"debug"`
 
@@ -242,6 +244,7 @@ func LoadConfig() (Config, error) {
 		SyncMode:       or(file.SyncMode, "push"),
 		DefaultBranch:  or(file.DefaultBranch, "main"),
 		HomeFilename:   or(file.HomeFilename, "readme.md"),
+		Landing:        file.Landing,
 		Skin:           or(file.Skin, defaultSkin),
 		Debug:          file.Debug,
 
@@ -323,6 +326,15 @@ func (c Config) HomeSlug() string {
 	return strings.ToLower(strings.TrimSuffix(c.HomeFilename, ".md"))
 }
 
+// LandingSlug returns the page slug "/" redirects to: the configured
+// landing slug if set, else the home page.
+func (c Config) LandingSlug() string {
+	if c.Landing != "" {
+		return c.Landing
+	}
+	return c.HomeSlug()
+}
+
 // toFileConfig snapshots the currently effective config (file values plus
 // any env var overrides) into the shape written to config.yaml. Used by
 // the "export" settings action to bake env-sourced values into the file.
@@ -346,6 +358,7 @@ func (c Config) toFileConfig() fileConfig {
 		SyncMode:       c.SyncMode,
 		DefaultBranch:  c.DefaultBranch,
 		HomeFilename:   c.HomeFilename,
+		Landing:        c.Landing,
 		Skin:           c.Skin,
 		Debug:          c.Debug,
 		Git:            git,

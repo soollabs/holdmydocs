@@ -2,24 +2,23 @@ package main
 
 // A skin is the presentation knob: it decides how the app looks (typography,
 // spacing, borders, markers — the :root[data-skin] blocks in
-// web/static/skins.css), where "/" lands, whether ctrl-j is live, which
-// statusline segments show, and which colour palette it arrives with. Widget
-// composition is a namespace property (namespace.go), not a skin one.
+// web/static/skins.css), which statusline segments show, and which colour
+// palette it arrives with. Widget composition is a namespace property
+// (namespace.go); where "/" lands is a config property (Config.Landing);
+// whether ctrl-j is live depends on whether the journal namespace has a
+// `new:` template (namespace.go) — none of those are a skin's decision.
 //
-// That last one is a pairing, not a merge: skins.css still contains no
-// colour at all (TestSkinsNoRawHex), and Palette here is just the name of
-// the preset a skin looks right in. Choosing a skin resets the palette to
-// it — a newspaper that opened in terminal green wasn't a newspaper — and
-// the palette picker stays live afterwards for anyone who wants a different
-// one.
+// The palette pairing is not a merge: skins.css still contains no colour at
+// all (TestSkinsNoRawHex), and Palette here is just the name of the preset a
+// skin looks right in. Choosing a skin resets the palette to it — a
+// newspaper that opened in terminal green wasn't a newspaper — and the
+// palette picker stays live afterwards for anyone who wants a different one.
 type skin struct {
 	Label   string
 	Note    string // one-line hint in the settings picker
 	Palette string // default colour preset; choosing this skin resets to it
 
-	Landing  string // route for "/": home | daily
-	DailyKey string // what ctrl-j opens; "" = disabled
-	Status   string // statusline variant: full | write | quiet
+	Status string // statusline variant: full | write | quiet
 }
 
 // defaultSkin is what an unset or unknown skin name resolves to.
@@ -29,44 +28,34 @@ var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
 
 var skins = map[string]skin{
 	"phosphor": {
-		Label:    "phosphor",
-		Note:     "terminal green, monospace, # markers — the default",
-		Palette:  "phosphor",
-		Landing:  "home",
-		DailyKey: "daily",
-		Status:   "full",
+		Label:   "phosphor",
+		Note:    "terminal green, monospace, # markers — the default",
+		Palette: "phosphor",
+		Status:  "full",
 	},
 	"newsprint": {
-		Label:    "newsprint",
-		Note:     "broadsheet — masthead, serif, justified columns, ink on paper",
-		Palette:  "solarized",
-		Landing:  "home",
-		DailyKey: "daily",
-		Status:   "full",
+		Label:   "newsprint",
+		Note:    "broadsheet — masthead, serif, justified columns, ink on paper",
+		Palette: "solarized",
+		Status:  "full",
 	},
 	"journal": {
-		Label:    "journal",
-		Note:     "writing first — serif, wide measure, no chrome; lands on today's entry",
-		Palette:  "everforest",
-		Landing:  "daily",
-		DailyKey: "daily",
-		Status:   "write",
+		Label:   "journal",
+		Note:    "writing first — serif, wide measure, no chrome",
+		Palette: "everforest",
+		Status:  "write",
 	},
 	"soft": {
-		Label:    "soft",
-		Note:     "rounded and low-contrast — warm sans, roomy leading, filled panels",
-		Palette:  "rosé pine",
-		Landing:  "home",
-		DailyKey: "daily",
-		Status:   "full",
+		Label:   "soft",
+		Note:    "rounded and low-contrast — warm sans, roomy leading, filled panels",
+		Palette: "rosé pine",
+		Status:  "full",
 	},
 	"bare": {
-		Label:    "bare",
-		Note:     "subtraction only — no borders, no markers, wide margins",
-		Palette:  "one dark",
-		Landing:  "home",
-		DailyKey: "",
-		Status:   "quiet",
+		Label:   "bare",
+		Note:    "subtraction only — no borders, no markers, wide margins",
+		Palette: "one dark",
+		Status:  "quiet",
 	},
 }
 

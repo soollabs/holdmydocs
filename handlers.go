@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	texttemplate "text/template"
 	"time"
 )
 
@@ -27,6 +28,12 @@ import (
 // if set. Shown on the login screen and sidebar footer.
 var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
+
+// journalNamespace is the one namespace name ctrl-j (and the palette's
+// >new verb) is wired to — the successor to the old hardcoded daily/
+// directory, now expressed as an ordinary namespace with a `new:` template
+// instead of code-level special-casing.
+const journalNamespace = "journal"
 
 type App struct {
 	cfg        atomic.Pointer[Config]
@@ -149,11 +156,11 @@ type TemplateData struct {
 
 	// Widget data — populated in app.render only when something on the page
 	// actually reads it (see populateWidgetData).
-	Calendar     CalendarMonth
-	WritingStats WritingStats
-	PinnedPages  []BacklinkEntry
-	PrevEntries  []PrevEntry
-	DailyEnabled bool // skin.DailyKey != "" — gates the ctrl-j shortcut and >daily verb client-side
+	Calendar       CalendarMonth
+	WritingStats   WritingStats
+	PinnedPages    []BacklinkEntry
+	PrevEntries    []PrevEntry
+	JournalEnabled bool // journal namespace has a `new:` template — gates the ctrl-j shortcut and >new verb client-side
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -423,7 +430,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.ThemeStyle = buildThemeStyle(themePrefs)
 		data.Skin = activeName
 		data.StatusVariant = activeSkin.Status
-		data.DailyEnabled = activeSkin.DailyKey != ""
+		if nsCfg, ok := app.Namespaces()[journalNamespace]; ok && nsCfg.New != nil {
+			data.JournalEnabled = true
+		}
 		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
@@ -563,29 +572,17 @@ func injectTOC(body string, ix *Index, homeSlug string) string {
 	})
 }
 
-// handleRoot resolves the current user's skin (falling back to the
-// site-wide default) and redirects "/" to that skin's Landing target:
-// "home" -> the configured home page, "daily" -> today's daily entry (in
-// edit mode — journal is the only skin that sets this). An
-// unauthenticated request never reaches here (the auth
-// middleware redirects to /login first), so app.currentUser is always valid.
+// handleRoot redirects "/" to Config.LandingSlug() — the configured landing
+// slug if set, else the home page. An unauthenticated request never reaches
+// here (Auth.Middleware always requires auth for "/").
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
-	cfg := app.config()
-	prefs := app.Auth.prefs(app.currentUser(r))
-	_, s := effectiveSkin(cfg, prefs)
-
-	switch s.Landing {
-	case "daily":
-		http.Redirect(w, r, "/daily/"+time.Now().Format("2006-01-02")+"?do=edit", http.StatusSeeOther)
-	default:
-		http.Redirect(w, r, "/"+cfg.HomeSlug(), http.StatusSeeOther)
-	}
+	http.Redirect(w, r, "/"+app.config().LandingSlug(), http.StatusSeeOther)
 }
 
 func (app *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Root: redirect to the current user's skin landing target.
+	// Root: redirect to the configured landing slug.
 	mux.HandleFunc("GET /{$}", app.handleRoot)
 
 	// Everything under /_/ is the app itself — the one reserved top-level
@@ -593,6 +590,10 @@ func (app *App) Routes() http.Handler {
 
 	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
 	mux.HandleFunc("POST /_/setup", app.handleSetup)
+
+	// New-page-from-template: ctrl-j and the palette's >new verb both call
+	// this with ns=journal; generic over any namespace with a `new:` block.
+	mux.HandleFunc("POST /_/new", app.handleNewPage)
 
 	// Static files. embed.FS carries no real mtime/ETag, so browsers have
 	// nothing to conditionally revalidate against and can cache a stale
@@ -829,6 +830,100 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
+// newPageTemplateData is what a namespace's `new.slug`/entry-template
+// text/template gets to work with: .Now as a plain time.Time (so
+// `{{.Now.Format "2006-01-02"}}` works natively, no FuncMap needed), the
+// acting user, and the target namespace name.
+type newPageTemplateData struct {
+	Now       time.Time
+	User      string
+	Namespace string
+}
+
+// renderNewPageText renders src (a slug pattern, or a template page's title
+// or body) as text/template — not html/template: the output is markdown
+// source, and page bodies are already trusted (the same WithUnsafe()
+// discipline as everywhere else).
+func renderNewPageText(src string, data newPageTemplateData) (string, error) {
+	t, err := texttemplate.New("new").Parse(src)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// handleNewPage implements POST /_/new?ns=<namespace>: renders that
+// namespace's `new.slug` template against today's date, creating the page
+// from the namespace's `new.template` hidden page on first use and never
+// overwriting an existing one. ctrl-j and the palette's >new verb call this
+// with ns=journal; the endpoint itself is generic over any namespace that
+// declares a `new:` block.
+func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
+	ns := r.URL.Query().Get("ns")
+	nsCfg, ok := app.Namespaces()[ns]
+	if !ok || nsCfg.New == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	username := app.currentUser(r)
+	tmplData := newPageTemplateData{Now: time.Now(), User: username, Namespace: ns}
+
+	slugRel, err := renderNewPageText(nsCfg.New.Slug, tmplData)
+	if err != nil {
+		http.Error(w, "invalid slug template", http.StatusInternalServerError)
+		return
+	}
+	// The rendered slug is a trust boundary, like MCP input: validated
+	// after rendering so a template can never write outside its own
+	// namespace (no separators, no dot prefix, non-empty).
+	if !validMCPSlug(slugRel) {
+		http.Error(w, "invalid generated slug", http.StatusBadRequest)
+		return
+	}
+	slug := namespaceSlug(ns, slugRel)
+
+	if _, _, err := app.Store.Read(pageFile(slug)); err == nil {
+		http.Redirect(w, r, "/"+slug+"?do=edit", http.StatusSeeOther)
+		return
+	}
+
+	templateSlug := namespaceSlug(ns, nsCfg.New.Template)
+	tplContent, _, err := app.Store.Read(hiddenFile(templateSlug))
+	if err != nil {
+		http.Error(w, "namespace template page not found", http.StatusInternalServerError)
+		return
+	}
+	tplPage := ParsePage(templateSlug, tplContent)
+
+	title, err := renderNewPageText(tplPage.Title, tmplData)
+	if err != nil {
+		http.Error(w, "invalid title template", http.StatusInternalServerError)
+		return
+	}
+	body, err := renderNewPageText(tplPage.Body, tmplData)
+	if err != nil {
+		http.Error(w, "invalid body template", http.StatusInternalServerError)
+		return
+	}
+
+	newPage := Page{Slug: slug, Title: title, Tags: tplPage.Tags, Body: body}
+	authorName, authorEmail := app.gitAuthor(username)
+	if _, err := app.Store.Save(pageFile(slug), newPage.Encode(), "Create "+slug, authorName, authorEmail); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if err := app.Index.Update(newPage); err != nil {
+		slog.Error("updating search index", "slug", slug, "err", err)
+	}
+
+	http.Redirect(w, r, "/"+slug+"?do=edit", http.StatusSeeOther)
+}
+
 // handleViewPage serves a page's own URL with no ?do=. An unauthenticated
 // request is only ever routed here for a page whose slug isn't under /_/
 // (see Auth.Middleware); this handler makes the actual public-or-404 call by
@@ -1036,8 +1131,6 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	if content != nil {
 		page = ParsePage(slug, content)
 		baseHash = hash
-	} else if strings.HasPrefix(slug, dailyDatePrefix) {
-		page.Tags = []string{"daily"}
 	}
 
 	app.render(w, r, http.StatusOK, "edit", TemplateData{

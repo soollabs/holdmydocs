@@ -6,24 +6,14 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 )
 
-// TestLandingRouteBySkin checks "/" redirects to each skin's Landing
-// target: everything but journal goes to the home page; journal goes to
-// today's daily entry in edit mode.
-func TestLandingRouteBySkin(t *testing.T) {
-	server, client := newTestApp(t)
+// TestLandingRoute checks "/" redirects to Config.LandingSlug(): the home
+// page by default, or the configured Landing slug when set — independent of
+// skin, since Landing moved from a per-skin enum to a plain config slug.
+func TestLandingRoute(t *testing.T) {
+	app, server, client := newTestAppFull(t)
 	defer server.Close()
-
-	setSkin := func(name string) {
-		form := url.Values{"skin": {name}}
-		resp, err := client.PostForm(server.URL+"/_/settings/appearance", form)
-		if err != nil {
-			t.Fatalf("setting skin %s: %v", name, err)
-		}
-		closeTestBody(t, resp.Body)
-	}
 
 	noRedirectClient := &http.Client{
 		Jar: client.Jar,
@@ -32,42 +22,54 @@ func TestLandingRouteBySkin(t *testing.T) {
 		},
 	}
 
-	today := time.Now().Format("2006-01-02")
-	tests := []struct {
-		skin     string
-		wantPath string
-	}{
-		{"phosphor", "/readme"},
-		{"newsprint", "/readme"},
-		{"soft", "/readme"},
-		{"bare", "/readme"},
-		{"journal", "/daily/" + today + "?do=edit"},
+	get := func() string {
+		resp, err := noRedirectClient.Get(server.URL + "/")
+		if err != nil {
+			t.Fatalf("GET /: %v", err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303", resp.StatusCode)
+		}
+		return resp.Header.Get("Location")
 	}
-	for _, tt := range tests {
-		t.Run(tt.skin, func(t *testing.T) {
-			setSkin(tt.skin)
-			resp, err := noRedirectClient.Get(server.URL + "/")
-			if err != nil {
-				t.Fatalf("GET /: %v", err)
-			}
-			closeTestBody(t, resp.Body)
-			if resp.StatusCode != http.StatusSeeOther {
-				t.Fatalf("status = %d, want 303", resp.StatusCode)
-			}
-			loc := resp.Header.Get("Location")
-			if loc != tt.wantPath {
-				t.Errorf("skin=%s: Location = %q, want %q", tt.skin, loc, tt.wantPath)
-			}
-		})
+
+	if loc := get(); loc != "/readme" {
+		t.Errorf("default Location = %q, want /readme", loc)
+	}
+
+	cfg := app.config()
+	cfg.Landing = "journal/2026-07-24"
+	app.SetConfig(cfg)
+
+	if loc := get(); loc != "/journal/2026-07-24" {
+		t.Errorf("configured Landing Location = %q, want /journal/2026-07-24", loc)
 	}
 }
 
-// TestDailyEnabledJSGlobal checks the window.hmdDailyEnabled flag rendered
-// into the page matches each skin's DailyKey (bare has none, so ctrl-j and
-// the >daily palette verb must be disabled client-side there).
-func TestDailyEnabledJSGlobal(t *testing.T) {
-	server, client := newTestApp(t)
+// TestJournalEnabledJSGlobal checks window.hmdJournalEnabled reflects
+// whether the journal namespace has a `new:` template, independent of skin.
+func TestJournalEnabledJSGlobal(t *testing.T) {
+	app, server, client := newTestAppFull(t)
 	defer server.Close()
+
+	get := func() string {
+		resp, err := client.Get(server.URL + "/readme")
+		if err != nil {
+			t.Fatalf("GET /readme: %v", err)
+		}
+		defer closeTestBody(t, resp.Body)
+		body, _ := io.ReadAll(resp.Body)
+		return string(body)
+	}
+
+	if body := get(); !strings.Contains(body, "hmdJournalEnabled =  false") {
+		t.Errorf("expected hmdJournalEnabled false with no journal namespace configured, body: %s", body)
+	}
+
+	if err := writeNamespaceConfig(t, app, "journal", "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
+		t.Fatalf("writing namespace config: %v", err)
+	}
 
 	setSkin := func(name string) {
 		resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {name}})
@@ -76,33 +78,10 @@ func TestDailyEnabledJSGlobal(t *testing.T) {
 		}
 		closeTestBody(t, resp.Body)
 	}
-	get := func(path string) string {
-		resp, err := client.Get(server.URL + path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
+	for _, s := range skinNames {
+		setSkin(s)
+		if body := get(); !strings.Contains(body, "hmdJournalEnabled =  true") {
+			t.Errorf("skin=%s: expected hmdJournalEnabled true once journal has a new: template, body: %s", s, body)
 		}
-		defer closeTestBody(t, resp.Body)
-		body, _ := io.ReadAll(resp.Body)
-		return string(body)
-	}
-
-	tests := []struct {
-		skin string
-		want string
-	}{
-		{"phosphor", "hmdDailyEnabled =  true"},
-		{"newsprint", "hmdDailyEnabled =  true"},
-		{"soft", "hmdDailyEnabled =  true"},
-		{"journal", "hmdDailyEnabled =  true"},
-		{"bare", "hmdDailyEnabled =  false"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.skin, func(t *testing.T) {
-			setSkin(tt.skin)
-			body := get("/readme")
-			if !strings.Contains(body, tt.want) {
-				t.Errorf("skin=%s: expected %q in page, not found", tt.skin, tt.want)
-			}
-		})
 	}
 }

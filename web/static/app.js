@@ -283,14 +283,19 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
-  // ---- Daily note shortcut (ctrl-j) ---- disabled per-skin (bare has no DailyKey)
+  // ---- Journal entry shortcut (ctrl-j) ---- disabled unless the journal
+  // namespace has a `new:` template (window.hmdJournalEnabled)
+  function openTodaysEntry() {
+    fetch('/_/new?ns=journal', { method: 'POST' }).then(r => {
+      if (r.ok || r.redirected) window.location.href = r.url;
+    });
+  }
   document.addEventListener('keydown', e => {
-    if (!window.hmdDailyEnabled) return;
+    if (!window.hmdJournalEnabled) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
-      const today = new Date().toISOString().split('T')[0];
-      window.location.href = `/daily/${today}?do=edit`;
+      openTodaysEntry();
     }
   });
 
@@ -503,11 +508,11 @@
     { name: 'rename', desc: 'rename this page', action: 'rename' },
     { name: 'tag', desc: 'edit tags', action: 'tag' },
     { name: 'hist', desc: 'view history', action: 'hist' },
-    { name: 'daily', desc: 'today note', action: 'daily' },
+    { name: 'new', desc: "today's journal entry", action: 'new' },
     { name: 'health', desc: 'wiki health', action: 'health' },
     { name: 'sync', desc: 'push now', action: 'sync' },
     { name: 'pin', desc: 'pin this page', action: 'pin' },
-  ].filter(v => v.action !== 'daily' || window.hmdDailyEnabled);
+  ].filter(v => v.action !== 'new' || window.hmdJournalEnabled);
 
   function syncVerbDesc() {
     const seg = $('#status-sync');
@@ -562,12 +567,10 @@
         closePalette();
         window.location.href = `/${slug}?do=history`;
         break;
-      case 'daily': {
+      case 'new':
         closePalette();
-        const today = new Date().toISOString().split('T')[0];
-        window.location.href = `/daily/${today}?do=edit`;
+        openTodaysEntry();
         break;
-      }
       case 'health':
         closePalette();
         window.location.href = '/_/health-report';

@@ -115,19 +115,11 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 			slog.Warn("pollFS: list failed", "err", err)
 			continue
 		}
-		dailySlugs, err := store.DailyPages()
-		if err != nil {
-			slog.Warn("pollFS: daily list failed", "err", err)
-			dailySlugs = nil
-		}
 
 		type entry struct{ slug, path string }
-		entries := make([]entry, 0, len(paths)+len(dailySlugs))
+		entries := make([]entry, 0, len(paths))
 		for _, path := range paths {
 			entries = append(entries, entry{slug: path[:len(path)-3], path: path})
-		}
-		for _, slug := range dailySlugs {
-			entries = append(entries, entry{slug: slug, path: pageFile(slug)})
 		}
 
 		seen := make(map[string]bool, len(entries))
