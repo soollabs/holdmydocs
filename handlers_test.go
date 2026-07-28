@@ -24,6 +24,17 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	return server, client
 }
 
+// adminLogin logs client in as the bootstrap admin, for tests exercising
+// handlers behind the settings scope.
+func adminLogin(t *testing.T, server *httptest.Server, client *http.Client) {
+	t.Helper()
+	resp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+}
+
 func closeTestBody(t *testing.T, closer io.Closer) {
 	t.Helper()
 	if err := closer.Close(); err != nil {
@@ -1030,7 +1041,7 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 		SiteName:   "My Wiki",
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
 
 	if !sd.Fields["Bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
@@ -1075,7 +1086,7 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
 
 	if sd.Fields["Bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
@@ -1102,7 +1113,7 @@ func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{})
+	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
 
 	if sd.Fields["GitToken"].Editable {
 		t.Error("GitToken should be read-only when token file is set")

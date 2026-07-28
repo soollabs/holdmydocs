@@ -152,6 +152,29 @@ func TestListRecurses(t *testing.T) {
 			t.Errorf("List() unexpectedly included %q (attachments/dot-prefixed should be excluded)", p)
 		}
 	}
+
+	// ListHidden is List's complement, and has to reach into dot-prefixed
+	// directories: hiddenFile puts the dot at the front of the whole slug, so
+	// hidden page "journal/entry" is the file ".journal/entry.md".
+	hidden, err := store.ListHidden()
+	if err != nil {
+		t.Fatalf("ListHidden failed: %v", err)
+	}
+	wantHidden := map[string]bool{".help.md": true, ".journal/entry.md": true}
+	gotHidden := make(map[string]bool, len(hidden))
+	for _, p := range hidden {
+		gotHidden[p] = true
+	}
+	for p := range wantHidden {
+		if !gotHidden[p] {
+			t.Errorf("ListHidden() missing %q, got %v", p, hidden)
+		}
+	}
+	for p := range gotHidden {
+		if !wantHidden[p] {
+			t.Errorf("ListHidden() unexpectedly included %q (ordinary pages and .git are not hidden pages)", p)
+		}
+	}
 }
 
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {

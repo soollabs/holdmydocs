@@ -201,6 +201,10 @@ type SettingsData struct {
 	Skins            map[string]skin
 	SkinPalettes     map[string]string // skin -> default palette, JSON-encoded to move the selection on change
 	Namespaces       []NamespaceListEntry
+	NamespaceError   string            // namespace save validation error
+	WidgetGroups     []widgetSlotGroup // every widget, grouped by slot, for the namespace widget picker
+	SlugPresets      []slugPresetView  // named new-page slug patterns, with today's example
+	Now              time.Time         // for date-format examples in the namespace panel
 	HelpDrifted      bool
 	UserGitAuthor    string        // current user's per-user git author override
 	HomeFilename     string        // read-only display; restart required to change
@@ -279,7 +283,7 @@ func remoteHost(raw string) string {
 // The config file itself is always writable (created on first save if
 // missing) — a field is read-only only when an env var overrides it
 // (cfg.EnvOverrides, keyed by fileConfig field name) or it's bootstrap-only.
-func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry) SettingsData {
+func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry, user string) SettingsData {
 	fields := make(map[string]FieldState)
 
 	// mkField: editable = no env var and not bootstrap-only.
@@ -361,7 +365,10 @@ func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry) Setti
 		SkinNames:        skinNames,
 		Skins:            skins,
 		SkinPalettes:     skinPalettes(),
-		Namespaces:       namespaceListEntries(ns),
+		Namespaces:       namespaceListEntries(ns, user),
+		WidgetGroups:     widgetSlotGroups(),
+		SlugPresets:      slugPresetViews(user),
+		Now:              time.Now(),
 		HomeFilename:     cfg.HomeFilename,
 		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
 		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
@@ -626,6 +633,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/settings/author", app.handleSetAuthor)
 	mux.HandleFunc("POST /_/settings/tokens", app.handleCreateToken)
 	mux.HandleFunc("POST /_/settings/tokens/revoke", app.handleRevokeToken)
+	mux.HandleFunc("POST /_/settings/namespaces", app.handleSaveNamespace)
+	mux.HandleFunc("POST /_/settings/namespaces/delete", app.handleDeleteNamespace)
 	mux.HandleFunc("POST /_/settings/users", app.handleCreateUser)
 	mux.HandleFunc("POST /_/settings/users/scopes", app.handleSetUserScopes)
 	mux.HandleFunc("POST /_/settings/setup", app.handleRerunSetup)
@@ -892,13 +901,17 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A missing template page is not an error: the namespace's declared
+	// template may have been deleted, or written into .namespace.yaml by
+	// hand without creating it. Fall back to a bare page titled after the
+	// slug rather than failing the one keystroke that creates pages here.
 	templateSlug := namespaceSlug(ns, nsCfg.New.Template)
-	tplContent, _, err := app.Store.Read(hiddenFile(templateSlug))
-	if err != nil {
-		http.Error(w, "namespace template page not found", http.StatusInternalServerError)
-		return
+	tplPage := Page{Slug: templateSlug, Title: slugRel}
+	if tplContent, _, err := app.Store.Read(hiddenFile(templateSlug)); err == nil {
+		tplPage = ParsePage(templateSlug, tplContent)
+	} else {
+		slog.Warn("namespace template page missing, creating a bare page", "namespace", ns, "template", templateSlug)
 	}
-	tplPage := ParsePage(templateSlug, tplContent)
 
 	title, err := renderNewPageText(tplPage.Title, tmplData)
 	if err != nil {
@@ -910,8 +923,20 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body template", http.StatusInternalServerError)
 		return
 	}
+	// Tags go through the same substitution as the title and body: a template
+	// where `{{.Now.Format "2006-01"}}` works in two of the three fields and
+	// silently doesn't in the last one is just a trap.
+	tags := make([]string, 0, len(tplPage.Tags))
+	for _, tag := range tplPage.Tags {
+		rendered, err := renderNewPageText(tag, tmplData)
+		if err != nil {
+			http.Error(w, "invalid tag template", http.StatusInternalServerError)
+			return
+		}
+		tags = append(tags, rendered)
+	}
 
-	newPage := Page{Slug: slug, Title: title, Tags: tplPage.Tags, Body: body}
+	newPage := Page{Slug: slug, Title: title, Tags: tags, Body: body}
 	authorName, authorEmail := app.gitAuthor(username)
 	if _, err := app.Store.Save(pageFile(slug), newPage.Encode(), "Create "+slug, authorName, authorEmail); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -1994,7 +2019,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
 	user := app.currentUser(r)
 
-	sd := buildSettingsData(cfg, app.Auth.prefs(user), app.Namespaces())
+	sd := buildSettingsData(cfg, app.Auth.prefs(user), app.Namespaces(), user)
 	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
 	sd.Users = app.Auth.Users()
@@ -2101,6 +2126,227 @@ func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("token revoked", "user", user, "label", label)
 	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
+}
+
+// handleSaveNamespace implements POST /_/settings/namespaces: writes one
+// namespace's .namespace.yaml from the system-configuration form, creating
+// the namespace (i.e. its directory) on first save. Both the "new namespace"
+// row and the per-namespace rows post here — an existing namespace is just a
+// save whose name already exists.
+func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
+	fail := func(msg string) {
+		sd := app.settingsData(r)
+		sd.NamespaceError = msg
+		app.renderSettings(w, r, sd, "admin")
+	}
+
+	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
+	// "" is the root namespace, always present — any other name is a single
+	// directory segment, and must be one a namespace may actually take.
+	if name != "" && (strings.Contains(name, "/") || !validNamespaceName(name)) {
+		fail(fmt.Sprintf("%q is not a valid namespace name: one path segment, not %q, not dot-prefixed", name, reservedNamespace))
+		return
+	}
+
+	var ids []string
+	for _, id := range strings.Split(r.FormValue("widgets"), ",") {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := widgets[id]; !ok {
+			fail(fmt.Sprintf("unknown widget %q", id))
+			return
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		ids = builtinWidgets
+	}
+
+	// The template page name is a convention, not a question the form asks: it
+	// arrives as a hidden field so a hand-written config naming something
+	// other than defaultNewPageTemplate survives a save here.
+	template := strings.TrimSpace(r.FormValue("template"))
+	if template == "" {
+		template = defaultNewPageTemplate
+	}
+	// It names a hidden page inside the namespace — the same one-segment shape
+	// handleNewPage's rendered slug has to satisfy.
+	if !validMCPSlug(template) {
+		fail(fmt.Sprintf("%q is not a valid template page name: one segment, no slashes, no leading dot", template))
+		return
+	}
+	// Whether this save is what brings the namespace into being, which decides
+	// if it gets a template page seeded below.
+	creating := !app.Namespaces()[name].Configured
+
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on"}
+	if r.FormValue("new_enabled") == "on" {
+		// The slug comes from the preset select; only "custom" falls through
+		// to the raw pattern field.
+		slug := slugPatternFor(r.FormValue("slug_preset"))
+		if slug == "" {
+			slug = strings.TrimSpace(r.FormValue("slug_custom"))
+		}
+		if slug == "" {
+			fail("choose how new pages here are named, or give a custom pattern")
+			return
+		}
+		// Reject a pattern that doesn't parse (or renders to something
+		// unusable) here, at the form, rather than at ctrl-j time.
+		rendered, err := renderNewPageText(slug, newPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
+		if err != nil {
+			fail("slug pattern is not a valid template: " + err.Error())
+			return
+		}
+		if !validMCPSlug(rendered) {
+			fail(fmt.Sprintf("that pattern names a page %q, which isn't usable: no slashes, no leading dot, not empty", rendered))
+			return
+		}
+		cfg.New = &NewPageConfig{Template: template, Slug: slug}
+	}
+
+	data, err := cfg.Encode()
+	if err != nil {
+		fail("encoding namespace config: " + err.Error())
+		return
+	}
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	path := namespaceConfigPath(name)
+	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
+		slog.Error("saving namespace config", "namespace", name, "err", err)
+		fail("failed to save namespace config: " + err.Error())
+		return
+	}
+
+	// Every namespace born here gets a template page, and so does one that has
+	// new pages switched on — the first so there's something to edit and read
+	// before ctrl-j is ever involved, the second so the first ctrl-j doesn't
+	// land in a namespace whose declared template doesn't exist. Never
+	// overwrites, so this can't resurrect a template someone deleted.
+	if creating || cfg.New != nil {
+		if err := app.ensureNewPageTemplate(name, template, authorName, authorEmail); err != nil {
+			slog.Warn("seeding namespace template page", "namespace", name, "err", err)
+		}
+	}
+
+	app.refreshNamespaces()
+	slog.Info("namespace configured", "namespace", name, "by", app.currentUser(r))
+	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
+}
+
+// handleDeleteNamespace implements POST /_/settings/namespaces/delete: drops
+// a namespace's .namespace.yaml, which returns it to the built-in widgets and
+// private visibility. Pages are never touched — the directory only stops
+// being a *configured* namespace. If removing the config leaves the directory
+// empty, the (now meaningless) directory goes too, which is what makes a
+// namespace created here disappear again.
+func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
+	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
+	if name != "" && (strings.Contains(name, "/") || !validNamespaceName(name)) {
+		http.Error(w, "invalid namespace name", http.StatusBadRequest)
+		return
+	}
+
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	path := namespaceConfigPath(name)
+	if err := app.Store.Remove(path, "Remove namespace config "+path, authorName, authorEmail); err != nil {
+		slog.Error("removing namespace config", "namespace", name, "err", err)
+		sd := app.settingsData(r)
+		sd.NamespaceError = "failed to remove namespace config: " + err.Error()
+		app.renderSettings(w, r, sd, "admin")
+		return
+	}
+	if name != "" {
+		// Only ever succeeds on an empty directory, so this can't take
+		// content with it.
+		if err := os.Remove(filepath.Join(app.config().RepoDir, name)); err != nil && !os.IsNotExist(err) {
+			slog.Debug("namespace directory kept, still has content", "namespace", name, "err", err)
+		}
+	}
+
+	app.refreshNamespaces()
+	slog.Info("namespace config removed", "namespace", name, "by", app.currentUser(r))
+	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
+}
+
+// refreshNamespaces rebuilds the registry from disk immediately. pollFS does
+// this on its own timer anyway; the settings handlers call it so the redirect
+// they issue already reflects the save.
+func (app *App) refreshNamespaces() {
+	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
+	if err != nil {
+		slog.Warn("rebuilding namespace registry", "err", err)
+		return
+	}
+	app.SetNamespaces(reg)
+}
+
+// ensureNewPageTemplate creates a namespace's new-page template as a hidden
+// page if it doesn't exist yet, with a body that documents the template data
+// available to it. A no-op when the page is already there — an existing
+// template is never overwritten.
+func (app *App) ensureNewPageTemplate(ns, template, authorName, authorEmail string) error {
+	slug := namespaceSlug(ns, template)
+	if _, _, err := app.Store.Read(hiddenFile(slug)); err == nil {
+		return nil
+	}
+	page := Page{
+		Slug:  slug,
+		Title: `{{.Now.Format "Monday, 2 January 2006"}}`,
+		Body:  newPageTemplateBody(ns),
+	}
+	if ns != "" {
+		page.Tags = []string{ns}
+	}
+	_, err := app.Store.Save(hiddenFile(slug), page.Encode(), "Add new-page template "+slug, authorName, authorEmail)
+	return err
+}
+
+// newPageTemplateFields is every field a template page can use — the whole of
+// newPageTemplateData, which is deliberately small. Named without braces so
+// the seeded body can list them as inert text and still show them working in
+// the column beside.
+var newPageTemplateFields = []string{
+	`.Now.Format "2006-01-02"`,
+	`.Now.Format "Monday, 2 January 2006"`,
+	`.Now.Format "15:04"`,
+	`.User`,
+	`.Namespace`,
+}
+
+// newPageTemplateBody is the body every seeded template page starts with: it
+// explains what a template page is and lists the available fields beside what
+// each one produces. The left column names fields without braces, so it reads
+// the same in the template's own editor as in a page created from it; the right
+// column is live, so opening the template shows the syntax and opening a
+// created page shows the values.
+func newPageTemplateBody(ns string) string {
+	where := "the root of the wiki"
+	if ns != "" {
+		where = "`" + ns + "/`"
+	}
+
+	var table strings.Builder
+	table.WriteString("| field | what it puts on the page |\n| --- | --- |\n")
+	for _, f := range newPageTemplateFields {
+		table.WriteString("| `" + f + "` | {{" + f + "}} |\n")
+	}
+
+	return "This is the template page for " + where + ". Every page created here " +
+		"starts as a copy of it, so whatever you leave in it — headings, a " +
+		"checklist, tags — is what a new page begins with.\n\n" +
+		"Wrap a field in double braces to have it filled in when the page is " +
+		"created; the title of this page does exactly that. Title, tags and " +
+		"body are all substituted, and these are the only fields there are:\n\n" +
+		table.String() +
+		"\nDates use Go's layout syntax: write out the reference time " +
+		"`2006-01-02 15:04` in the shape you want it, so `02/01/2006` gives " +
+		`{{.Now.Format "02/01/2006"}}` + " and `Jan 2` gives " +
+		`{{.Now.Format "Jan 2"}}` + ".\n\n" +
+		"This page is hidden — it never shows up in the page list, search, tags " +
+		"or backlinks. Delete all of this and make it yours.\n"
 }
 
 // handleCreateUser adds a new user from the settings page, with the scopes

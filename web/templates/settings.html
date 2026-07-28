@@ -20,7 +20,6 @@
 
 	<div class="settings-tabs">
 		<button type="button" class="settings-tab" data-tab="appearance">appearance</button>
-		<button type="button" class="settings-tab" data-tab="namespaces">namespaces</button>
 		<button type="button" class="settings-tab" data-tab="git-author">git author</button>
 		<button type="button" class="settings-tab" data-tab="access-tokens">access tokens</button>
 	</div>
@@ -64,7 +63,7 @@
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>skin</legend>
-			<p class="settings-note">Skins control appearance, widgets, and the landing page. The same repository works with any skin.</p>
+			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace (system configuration &rarr; namespaces); the "/" landing page is a system-configuration setting. The same repository works under any skin.</p>
 			<div class="skin-picker">
 				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
@@ -93,25 +92,6 @@
 		</fieldset>
 
 	</form>
-
-	<fieldset class="settings-section settings-panel" data-panel="namespaces">
-		<legend>namespaces</legend>
-		<p class="settings-note">Composition is a property of where a page lives, not a per-user preference. Widgets, visibility and the new-page template are set per namespace via <code>.namespace.yaml</code> &mdash; there's no form here, the repo is the editor.</p>
-		<table class="namespace-list">
-			<thead><tr><th>namespace</th><th>widgets</th><th>public</th><th>template</th><th></th></tr></thead>
-			<tbody>
-			{{range .Settings.Namespaces}}
-			<tr>
-				<td>{{if .Name}}{{.Name}}{{else}}<em>(root)</em>{{end}}</td>
-				<td>{{range $i, $id := .Widgets}}{{if $i}}, {{end}}{{$id}}{{end}}</td>
-				<td>{{if .Public}}yes{{else}}no{{end}}</td>
-				<td>{{if .Template}}{{.Template}}{{else}}&mdash;{{end}}</td>
-				<td><a href="{{.ConfigHref}}">edit .namespace.yaml</a></td>
-			</tr>
-			{{end}}
-			</tbody>
-		</table>
-	</fieldset>
 
 	<div class="settings-actions settings-actions-sticky">
 		<button type="submit" form="appearance-form" class="primary">save appearance</button>

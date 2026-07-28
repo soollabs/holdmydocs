@@ -510,6 +510,7 @@
     { name: 'hist', desc: 'view history', action: 'hist' },
     { name: 'new', desc: "today's journal entry", action: 'new' },
     { name: 'health', desc: 'wiki health', action: 'health' },
+    { name: 'ns', desc: 'namespaces & templates', action: 'ns' },
     { name: 'sync', desc: 'push now', action: 'sync' },
     { name: 'pin', desc: 'pin this page', action: 'pin' },
   ].filter(v => v.action !== 'new' || window.hmdJournalEnabled);
@@ -574,6 +575,10 @@
       case 'health':
         closePalette();
         window.location.href = '/_/health-report';
+        break;
+      case 'ns':
+        closePalette();
+        window.location.href = '/_/admin#namespaces';
         break;
       case 'sync':
         closePalette();

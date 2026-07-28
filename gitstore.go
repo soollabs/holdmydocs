@@ -120,15 +120,20 @@ Use ` + "`cmd`" + ` instead of ` + "`ctrl`" + ` on macOS.
 
 A filename starting with a dot (` + "`.help.md`" + `) is a "hidden page": excluded
 from the page list, search, tags, and backlinks, but still viewable and
-editable through the UI at ` + "`/hidden/<slug>`" + `. The ` + "`/hidden`" + ` index lists
-them all. Toggle the "hidden" checkbox in the editor to move a page in or
-out of this namespace.
+editable through the UI at ` + "`/_/hidden/<slug>`" + `. The ` + "`/_/hidden`" + ` index
+lists them all. Toggle the "hidden" checkbox in the editor to move a page in
+or out of this set.
 
 ## Settings
 
-The settings page (` + "`/settings`" + `) covers git remote, theme colours, and
-behaviour like upload limits. "Re-run setup" there reopens the home page
-setup prompt if you ever need to re-add it.
+Two pages, both behind the "settings" scope. ` + "`/_/settings`" + ` is personal:
+skin, palette, fonts, your git author and your access tokens.
+` + "`/_/admin`" + ` is the wiki: git remote, site name, behaviour like upload
+limits, namespaces and users. "Re-run setup" on ` + "`/_/admin`" + ` reopens the
+home page setup prompt if you ever need to re-add it.
+
+Everything else the app owns lives under ` + "`/_/`" + ` too — no page can ever
+take those URLs.
 
 ## Sync status
 
@@ -157,12 +162,6 @@ untouched by an ordinary editor save even though there's no dedicated UI
 for them yet:
 
 - ` + "`pin: true`" + ` — surfaces the page in the pinned sidebar widget.
-- ` + "`unread: true`" + ` — surfaces the page in the inbox widget/page and
-  the ` + "`/inbox`" + ` route.
-- ` + "`source: https://example.com/article`" + ` — the page's origin URL;
-  grouped by host in the sources widget and shown on the source-card widget.
-- ` + "`author: Jane Doe`" + ` — shown on the source-card widget.
-- ` + "`read_time: 4 min`" + ` — shown on the source-card and inbox widgets.
 
 ## Body
 
@@ -185,7 +184,7 @@ Mermaid code fences render as diagrams:
 
 Permitted types: png, jpg, jpeg, gif, webp, pdf. SVG is excluded (XSS risk).
 Paste or drag an image into the editor to upload it, or reference one
-already uploaded by its served URL: ` + "`/attachments/<slug>/<file>`" + `.
+already uploaded by its served URL: ` + "`/_/attachments/<slug>/<file>`" + `.
 
 Editing the repo directly (agents, scripts): commit the file straight to
 ` + "`attachments/<slug>/<file>`" + `, no upload API call needed. The type
@@ -193,25 +192,73 @@ whitelist and SVG exclusion above are only enforced by the upload
 endpoint, not when serving, so stick to them by convention on direct
 writes too.
 
+## Namespaces
+
+A namespace is a top-level directory in the repo: ` + "`blog/post.md`" + ` is in
+the ` + "`blog`" + ` namespace, ` + "`readme.md`" + ` is in the root one. Anything
+deeper (` + "`blog/drafts/post.md`" + `) is just filing — namespaces are exactly
+one level deep.
+
+A namespace decides three things for the pages in it, via an optional
+` + "`.namespace.yaml`" + ` beside them:
+
+    widgets: [search, pages, tags, log, outline, page-meta, backlinks]
+    public: true
+    new:
+      template: entry
+      slug: '{{.Now.Format "2006-01-02"}}'
+
+- ` + "`widgets`" + ` — which widgets mount, in this order within each slot.
+  Omit it for the built-in set.
+- ` + "`public: true`" + ` — pages here are readable without logging in.
+  Everything is private by default, and a private page is indistinguishable
+  from one that doesn't exist to an anonymous visitor.
+- ` + "`new`" + ` — what ctrl-j creates here: ` + "`template`" + ` names a hidden
+  page in the namespace to copy, ` + "`slug`" + ` names the page it creates.
+
+## Template pages
+
+Every namespace made from the settings page gets a hidden template page
+(` + "`template`" + `, so ` + "`.blog/template.md`" + ` for ` + "`blog`" + `). Pages
+created in that namespace start as a copy of it, with its **title, tags and
+body** substituted through Go's ` + "`text/template`" + `. Three fields exist,
+and nothing else:
+
+- ` + "`{{.Now}}`" + ` — the moment the page is created. Format it with Go's
+  layout syntax, which is the reference time written in the shape you want:
+  ` + "`{{.Now.Format \"2006-01-02\"}}`" + ` for 2026-07-28,
+  ` + "`{{.Now.Format \"Monday, 2 January 2006\"}}`" + ` for the long date,
+  ` + "`{{.Now.Format \"15:04\"}}`" + ` for the time.
+- ` + "`{{.User}}`" + ` — who pressed ctrl-j.
+- ` + "`{{.Namespace}}`" + ` — the namespace name.
+
+The same fields name the page itself, via the namespace's slug pattern. The
+seeded template documents all of this in its own body — read it, then delete
+it and write yours.
+
+Edit all of this on ` + "`/_/admin`" + ` under "namespaces" — saving a name that
+doesn't exist yet creates the namespace, and removing a namespace's config
+only deletes that file, never the pages filed under it. Writing
+` + "`.namespace.yaml`" + ` by hand works exactly the same; the app rescans on a
+timer.
+
 ## Journal
 
 ctrl-j (or the ` + "`>new`" + ` palette verb) opens today's entry in the
 ` + "`journal`" + ` namespace, creating it from that namespace's template on
-first use each day. The calendar widget marks which days already have one.
+first use each day. It does nothing until that namespace has a ` + "`new:`" + `
+block. The calendar widget marks which days already have one.
 
 ## Skins
 
-A skin is how the app looks *and* what it puts on screen — typography,
-spacing and markers, plus which widgets mount where, what ` + "`/`" + ` opens
-and what the statusline shows. It never changes how or where pages are
-stored, so the same repo opens correctly under any of them. Pick one on
-` + "`/settings`" + `: ` + "`phosphor`" + ` (default, terminal),
-` + "`newsprint`" + ` (broadsheet serif), ` + "`journal`" + ` (writing first —
-serif, wide measure, lands on today's entry), ` + "`soft`" + ` (rounded,
-low-contrast sans), ` + "`bare`" + ` (stripped down). Each skin arrives in the colour **palette**
-it was designed for; you can pick a different one afterwards.
-Add or remove a single widget without leaving your skin from the widgets
-checklist on ` + "`/settings`" + `.
+A skin is how the app looks: typography, spacing, markers and what the
+statusline shows. It does not decide which widgets mount — that's the
+namespace — and it never changes how or where pages are stored, so the same
+repo opens correctly under any of them. Pick one on ` + "`/_/settings`" + `:
+` + "`phosphor`" + ` (default, terminal), ` + "`newsprint`" + ` (broadsheet
+serif), ` + "`journal`" + ` (writing first — serif, wide measure),
+` + "`soft`" + ` (rounded, low-contrast sans), ` + "`bare`" + ` (stripped down). Each skin arrives in the colour
+**palette** it was designed for; you can pick a different one afterwards.
 
 ## History
 
@@ -629,21 +676,45 @@ func (s *Store) List() ([]string, error) {
 	return paths, nil
 }
 
-// ListHidden returns dot-prefixed .md files (hidden pages).
+// ListHidden returns every hidden page's path (repo-relative,
+// "/"-separated), sorted. hiddenFile puts the dot at the front of the whole
+// slug, so a hidden page in a namespace lands in a dot-prefixed sibling
+// directory (`.journal/entry.md` is hidden page "journal/entry") — this walks
+// into those, or the new-page templates the namespace editor writes there
+// would exist with no way to reach them from the UI. `.git` is skipped: it's
+// not content.
 func (s *Store) ListHidden() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	entries, err := os.ReadDir(s.dir)
+	var paths []string
+	err := filepath.WalkDir(s.dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == s.dir {
+			return nil
+		}
+		rel, err := filepath.Rel(s.dir, path)
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			// Only dot-prefixed top-level directories hold hidden pages;
+			// ordinary ones hold ordinary pages, and are List's business.
+			if !strings.HasPrefix(rel, ".") || rel == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(rel) != ".md" || !strings.HasPrefix(rel, ".") {
+			return nil
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("reading directory: %w", err)
-	}
-
-	var paths []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), ".") && filepath.Ext(e.Name()) == ".md" {
-			paths = append(paths, e.Name())
-		}
 	}
 
 	sort.Strings(paths)

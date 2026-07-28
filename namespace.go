@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 )
@@ -29,9 +30,109 @@ type NewPageConfig struct {
 // repo-root .namespace.yaml for root-level pages). Every field is optional;
 // its absence is not an error, it just means the built-in defaults apply.
 type NamespaceConfig struct {
-	Widgets []string       `yaml:"widgets"`
-	Public  bool           `yaml:"public"`
-	New     *NewPageConfig `yaml:"new"`
+	Widgets []string       `yaml:"widgets,omitempty"`
+	Public  bool           `yaml:"public,omitempty"`
+	New     *NewPageConfig `yaml:"new,omitempty"`
+
+	// Configured records whether this config came from a .namespace.yaml on
+	// disk or is just the built-in defaults — the settings UI needs to know
+	// which namespaces actually have a file it could remove. LoadError holds
+	// why a file that does exist was ignored in favour of the defaults, so
+	// that's visible in the UI instead of only in the logs. Neither is ever
+	// serialised: they're provenance, not configuration.
+	Configured bool   `yaml:"-"`
+	LoadError  string `yaml:"-"`
+}
+
+// Encode marshals cfg back to .namespace.yaml bytes — the write half of
+// parseNamespaceConfig, used by the admin namespaces form.
+func (c NamespaceConfig) Encode() ([]byte, error) {
+	return yaml.Marshal(c)
+}
+
+// defaultNewPageTemplate is the template page every namespace configured
+// through the UI uses: hidden page "<ns>/template", i.e. the file
+// `.<ns>/template.md`. The name is a convention, not a choice — the settings
+// form never asks for one. A hand-written .namespace.yaml naming something
+// else still works, and the form preserves whatever it finds.
+const defaultNewPageTemplate = "template"
+
+// slugPreset is one option in the settings form's "slug" select: a named
+// pattern for what ctrl-j calls the page it creates. Anything the presets
+// don't cover is still writable as a custom pattern (or by hand in
+// .namespace.yaml) — these are the shapes worth one click.
+type slugPreset struct {
+	Key     string // form value
+	Label   string // what the option says
+	Pattern string // the Go template written to new.slug
+}
+
+// slugPresetCustom is the select's escape hatch, which reveals the raw
+// pattern field instead of naming a preset.
+const slugPresetCustom = "custom"
+
+var slugPresets = []slugPreset{
+	{"daily", "one page per day", `{{.Now.Format "2006-01-02"}}`},
+	{"monthly", "one page per month", `{{.Now.Format "2006-01"}}`},
+	{"timestamped", "one page per keystroke, date and time", `{{.Now.Format "2006-01-02-1504"}}`},
+	{"daily-per-user", "one page per day, per user", `{{.User}}-{{.Now.Format "2006-01-02"}}`},
+}
+
+// slugPresetFor returns the preset key matching pattern, or slugPresetCustom
+// if no preset produces it — how the form decides which option to select for
+// a namespace's existing config.
+func slugPresetFor(pattern string) string {
+	for _, p := range slugPresets {
+		if p.Pattern == pattern {
+			return p.Key
+		}
+	}
+	return slugPresetCustom
+}
+
+// slugPresetView is one rendered option of the slug select: the label plus
+// what the pattern produces right now, so the choice is concrete ("one page
+// per day — 2026-07-28") instead of asking anyone to read a Go template.
+type slugPresetView struct {
+	Key     string
+	Label   string
+	Example string
+}
+
+// slugPresetViews renders every preset for the acting user. No preset
+// mentions .Namespace, so one list serves every namespace's form.
+func slugPresetViews(user string) []slugPresetView {
+	data := newPageTemplateData{Now: time.Now(), User: user}
+	views := make([]slugPresetView, 0, len(slugPresets))
+	for _, p := range slugPresets {
+		example, err := renderNewPageText(p.Pattern, data)
+		if err != nil {
+			example = p.Pattern // never happens for a built-in preset
+		}
+		views = append(views, slugPresetView{Key: p.Key, Label: p.Label, Example: example})
+	}
+	return views
+}
+
+// slugPatternFor resolves a submitted preset key to its pattern. The custom
+// key (and any unknown one) resolves to nothing, leaving the caller to use
+// the form's custom field.
+func slugPatternFor(key string) string {
+	for _, p := range slugPresets {
+		if p.Key == key {
+			return p.Pattern
+		}
+	}
+	return ""
+}
+
+// namespaceConfigPath is the repo-relative path of ns's config file ("" is
+// the root namespace, whose config sits at the repo root).
+func namespaceConfigPath(ns string) string {
+	if ns == "" {
+		return namespaceConfigFile
+	}
+	return ns + "/" + namespaceConfigFile
 }
 
 // builtinWidgets is the default composition used when a namespace has no
@@ -67,10 +168,19 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 	if err != nil {
 		return defaultNamespaceConfig()
 	}
+	// The file exists from here on, so every fallback below still reports
+	// itself as configured — a malformed file is a namespace the settings UI
+	// must be able to show and overwrite, not one that looks untouched.
+	broken := func(reason string) NamespaceConfig {
+		cfg := defaultNamespaceConfig()
+		cfg.Configured, cfg.LoadError = true, reason
+		return cfg
+	}
+
 	cfg, err := parseNamespaceConfig(data)
 	if err != nil {
 		slog.Warn("malformed namespace config, using defaults", "namespace", name, "err", err)
-		return defaultNamespaceConfig()
+		return broken(err.Error())
 	}
 	if len(cfg.Widgets) == 0 {
 		cfg.Widgets = builtinWidgets
@@ -78,9 +188,10 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 	for _, id := range cfg.Widgets {
 		if _, ok := widgets[id]; !ok {
 			slog.Warn("unknown widget id in namespace config, using defaults", "namespace", name, "widget", id)
-			return defaultNamespaceConfig()
+			return broken(fmt.Sprintf("unknown widget %q — using the built-in widgets instead", id))
 		}
 	}
+	cfg.Configured = true
 	return cfg
 }
 
@@ -171,39 +282,62 @@ func (r NamespaceRegistry) Names() []string {
 	return names
 }
 
-// NamespaceListEntry is one row of the read-only namespace list shown in
-// settings: name, resolved widgets, public flag and new-page template, with
-// a link to edit the namespace's .namespace.yaml as a page.
+// NamespaceListEntry is one row of the namespace editor in system
+// configuration: the resolved config of one namespace, as the form fields
+// that POST back to /_/settings/namespaces.
 type NamespaceListEntry struct {
 	Name       string
 	Widgets    []string
 	Public     bool
-	Template   string
-	ConfigHref string
+	Configured bool   // has a .namespace.yaml — i.e. there is something to remove
+	LoadError  string // why an existing .namespace.yaml was ignored, if it was
+
+	// New-page (ctrl-j) state. Template is carried through the form as a
+	// hidden field rather than asked for: it's a convention, and a
+	// hand-written config naming something else must survive a save here.
+	NewEnabled   bool
+	Template     string
+	TemplateHref string // editor URL for the template page, as a hidden page
+	SlugPreset   string // which slugPresets option matches, or slugPresetCustom
+	SlugPattern  string // the raw pattern, for the custom field
+	SlugExample  string // what SlugPattern renders to right now
+}
+
+// WidgetsCSV renders Widgets as the comma-separated value of the row's
+// widgets input.
+func (e NamespaceListEntry) WidgetsCSV() string {
+	return strings.Join(e.Widgets, ", ")
 }
 
 // namespaceListEntries builds the settings-page namespace list from r,
 // sorted the same way as Names (root first).
-func namespaceListEntries(r NamespaceRegistry) []NamespaceListEntry {
+func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry {
 	names := r.Names()
 	entries := make([]NamespaceListEntry, 0, len(names))
 	for _, name := range names {
 		cfg := r[name]
-		template := ""
-		if cfg.New != nil {
-			template = cfg.New.Template
-		}
-		configPath := namespaceConfigFile
-		if name != "" {
-			configPath = name + "/" + namespaceConfigFile
-		}
-		entries = append(entries, NamespaceListEntry{
+		e := NamespaceListEntry{
 			Name:       name,
 			Widgets:    cfg.Widgets,
 			Public:     cfg.Public,
-			Template:   template,
-			ConfigHref: "/" + configPath + "?do=edit",
-		})
+			Configured: cfg.Configured,
+			LoadError:  cfg.LoadError,
+			Template:   defaultNewPageTemplate,
+			SlugPreset: slugPresets[0].Key,
+		}
+		if cfg.New != nil {
+			e.NewEnabled = true
+			e.Template = cfg.New.Template
+			e.SlugPattern = cfg.New.Slug
+			e.SlugPreset = slugPresetFor(cfg.New.Slug)
+			// Best effort: a pattern that doesn't render has nothing to show
+			// as an example, and the save path is what reports why.
+			if rendered, err := renderNewPageText(cfg.New.Slug, newPageTemplateData{Now: time.Now(), User: user, Namespace: name}); err == nil {
+				e.SlugExample = rendered
+			}
+		}
+		e.TemplateHref = "/_/hidden/" + namespaceSlug(name, e.Template) + "?do=edit"
+		entries = append(entries, e)
 	}
 	return entries
 }

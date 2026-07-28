@@ -2024,6 +2024,102 @@ body.zen-manuscript .zen-status.visible {
 	margin-top: 0.5rem;
 }
 
+/* Namespace editor: one bordered block per namespace, since each is its own
+   form with its own save and its own widget picker. */
+.namespace-form {
+	max-width: 48rem;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius-lg);
+	padding: 0.75rem 1rem 1rem;
+	margin-bottom: 1rem;
+}
+
+.namespace-head {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	margin-bottom: 0.5rem;
+}
+
+.namespace-head h3 {
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--fg-strong);
+	margin: 0;
+}
+
+.namespace-head .scope-check {
+	margin-left: auto;
+}
+
+.badge-default {
+	font-size: 0.75rem;
+	color: var(--fg-faint);
+}
+
+.namespace-actions {
+	justify-content: flex-end;
+}
+
+.danger-btn {
+	color: var(--danger);
+	border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+.widget-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin: 0.25rem 0 0.75rem;
+}
+
+.widget-group {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+}
+
+.widget-slot {
+	font-size: 0.75rem;
+	color: var(--fg-faint);
+	width: 5.5rem;
+	flex: none;
+}
+
+.widget-chip {
+	background: none;
+	border: var(--border-w) solid var(--chrome-border);
+	border-radius: var(--radius);
+	color: var(--fg-muted);
+	font-family: inherit;
+	font-size: 0.8rem;
+	padding: 1px 6px;
+	cursor: pointer;
+}
+
+.widget-chip:hover {
+	color: var(--fg-strong);
+	border-color: var(--border-strong);
+}
+
+.new-page-fields {
+	padding-left: 1rem;
+	border-left: var(--border-w) solid var(--chrome-border);
+	margin-bottom: 0.5rem;
+}
+
+.new-page-fields .settings-note {
+	margin-bottom: 0;
+}
+
+.widget-chip.on {
+	background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+	border-color: var(--accent);
+	color: var(--fg-strong);
+}
+
 .settings-actions-sticky {
 	position: sticky;
 	bottom: 0;

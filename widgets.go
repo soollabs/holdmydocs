@@ -45,6 +45,31 @@ var widgets = map[string]widget{
 	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot, Description: "the daily entries just before this one."},
 }
 
+// widgetSlotGroup is every widget that can land in one slot, for the
+// namespace widget picker in system configuration — which slot a widget
+// renders in is fixed by the registry, so grouping by it is the only
+// arrangement of the picker that tells the truth about the layout.
+type widgetSlotGroup struct {
+	Slot    widgetSlot
+	Widgets []widget
+}
+
+// widgetSlotGroups lists every registered widget grouped by slot, slots in
+// layout order and widgets in widgetIDs order.
+func widgetSlotGroups() []widgetSlotGroup {
+	groups := make([]widgetSlotGroup, 0, 4)
+	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
+		g := widgetSlotGroup{Slot: slot}
+		for _, id := range widgetIDs {
+			if w := widgets[id]; w.Slot == slot {
+				g.Widgets = append(g.Widgets, w)
+			}
+		}
+		groups = append(groups, g)
+	}
+	return groups
+}
+
 // widgetsForSlot resolves a flat namespace widget-id list to the ordered
 // *widgets that render in slot: the list controls membership and
 // within-slot order, but which slot a widget lands in always comes from the
