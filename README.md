@@ -58,7 +58,7 @@ override those values, allowing Docker/k8s secret injection.
 
 ### Configuration file
 
-Every other setting is a key in `config.yaml`, with git, garden, MCP, and
+Every other setting is a key in `config.yaml`, with git, MCP, and
 OIDC settings grouped under their own section. See
 [`config.yaml.example`](config.yaml.example) for a fully-commented copy.
 

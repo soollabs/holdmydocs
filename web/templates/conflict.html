@@ -20,7 +20,6 @@
 			<input type="hidden" name="tags" value="{{.TagsInput}}">
 			<input type="hidden" name="basehash" value="{{.BaseHash}}">
 			{{if .IsHidden}}<input type="hidden" name="hidden" value="on">{{end}}
-			{{if .IsPublic}}<input type="hidden" name="public" value="on">{{end}}
 			<button type="submit" class="btn-danger">overwrite with mine</button>
 		</form>
 	</div>

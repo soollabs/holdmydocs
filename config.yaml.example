@@ -80,14 +80,12 @@ sync_poll_ms: 10000
 #   icon: authelia
 #   # icon: /etc/hmd/sso-icon.svg
 
-# --- Digital garden ---
-# Serve pages with `public: true` frontmatter read-only and unauthenticated
-# under /garden/ (index, pages, RSS at /garden/feed.xml). Restart required.
-# Note: markdown bodies may contain raw HTML, so publishing a page publishes
-# its raw HTML too.
-# garden:
-#   enabled: true
-#   title: My Garden   # defaults to site_name
+# --- Publishing ---
+# Publishing is a namespace property, not a config-file setting: set
+# `public: true` in a namespace's .namespace.yaml (e.g. blog/.namespace.yaml)
+# to serve every page in that namespace read-only and unauthenticated at its
+# normal URL. See .namespace.yaml docs. Note: markdown bodies may contain raw
+# HTML, so publishing a page publishes its raw HTML too.
 
 # --- MCP server ---
 # Expose the wiki to AI agents over MCP (streamable HTTP at /mcp).

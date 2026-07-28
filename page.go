@@ -7,12 +7,11 @@ import (
 )
 
 type Page struct {
-	Slug   string
-	Title  string
-	Tags   []string
-	Body   string
-	Public bool // frontmatter `public: true` — served unauthenticated under /garden/
-	Pin    bool // frontmatter `pin: true` — surfaced by the pinned widget
+	Slug  string
+	Title string
+	Tags  []string
+	Body  string
+	Pin   bool // frontmatter `pin: true` — surfaced by the pinned widget
 }
 
 // pageFile maps a slug to its on-disk filename for regular pages.
@@ -105,9 +104,6 @@ func ParsePage(slug string, raw []byte) Page {
 		if strings.HasPrefix(line, "tags:") {
 			page.Tags = ParseTags(strings.TrimPrefix(line, "tags:"))
 		}
-		if strings.HasPrefix(line, "public:") {
-			page.Public = strings.TrimSpace(strings.TrimPrefix(line, "public:")) == "true"
-		}
 		if strings.HasPrefix(line, "pin:") {
 			page.Pin = strings.TrimSpace(strings.TrimPrefix(line, "pin:")) == "true"
 		}
@@ -130,9 +126,6 @@ func (p Page) Encode() []byte {
 	result += "title: " + p.Title + "\n"
 	if len(p.Tags) > 0 {
 		result += "tags: " + strings.Join(p.Tags, ", ") + "\n"
-	}
-	if p.Public {
-		result += "public: true\n"
 	}
 	if p.Pin {
 		result += "pin: true\n"

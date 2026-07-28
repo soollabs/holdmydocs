@@ -36,13 +36,12 @@ type mcpSlugIn struct {
 }
 
 type mcpPageOut struct {
-	Slug   string   `json:"slug"`
-	Title  string   `json:"title"`
-	Tags   []string `json:"tags,omitempty"`
-	Body   string   `json:"body"`
-	Public bool     `json:"public,omitempty"`
-	Pin    bool     `json:"pin,omitempty"`
-	Hash   string   `json:"hash"`
+	Slug  string   `json:"slug"`
+	Title string   `json:"title"`
+	Tags  []string `json:"tags,omitempty"`
+	Body  string   `json:"body"`
+	Pin   bool     `json:"pin,omitempty"`
+	Hash  string   `json:"hash"`
 }
 
 type mcpSaveIn struct {
@@ -50,7 +49,6 @@ type mcpSaveIn struct {
 	Title    string   `json:"title,omitempty" jsonschema:"page title; defaults to the slug"`
 	Tags     []string `json:"tags,omitempty"`
 	Body     string   `json:"body" jsonschema:"raw markdown body (frontmatter is managed by hmd)"`
-	Public   bool     `json:"public,omitempty" jsonschema:"serve unauthenticated in the public garden; preserve the value from read_page when updating"`
 	Pin      bool     `json:"pin,omitempty" jsonschema:"surfaced by the pinned sidebar widget; preserve the value from read_page when updating"`
 	BaseHash string   `json:"basehash,omitempty" jsonschema:"hash from read_page; omit to create a new page"`
 }
@@ -156,7 +154,7 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		p := ParsePage(in.Slug, content)
 		return nil, mcpPageOut{
-			Slug: p.Slug, Title: p.Title, Tags: p.Tags, Body: p.Body, Public: p.Public,
+			Slug: p.Slug, Title: p.Title, Tags: p.Tags, Body: p.Body,
 			Pin: p.Pin, Hash: hash,
 		}, nil
 	})
@@ -175,7 +173,7 @@ func (app *App) mcpHandler() http.Handler {
 			title = in.Slug
 		}
 		page := Page{
-			Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body, Public: in.Public,
+			Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body,
 			Pin: in.Pin,
 		}
 

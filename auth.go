@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -148,7 +149,6 @@ type Auth struct {
 	users        map[string]userRecord  // username -> record
 	sessions     map[string]string      // token -> username
 	tokenCache   map[string]cachedToken // verified PAT value -> user + expiry
-	garden       bool                   // allow /garden/ through unauthenticated (restart-required flag)
 	mu           sync.RWMutex
 }
 
@@ -166,7 +166,6 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		users:        make(map[string]userRecord),
 		sessions:     make(map[string]string),
 		tokenCache:   make(map[string]cachedToken),
-		garden:       cfg.Garden.Enabled,
 	}
 
 	// Try to load existing users file
@@ -522,17 +521,34 @@ func requiredScope(r *http.Request) scope {
 	return scopeWrite
 }
 
+// anonymousEligible reports whether an unauthenticated GET to path (with
+// query q) may reach its handler at all, deferring the public-or-404
+// decision to the handler itself rather than redirecting to login. That
+// keeps the decision in one place (namespace lookup + existence check) so a
+// private page and a nonexistent page come out byte-identical — a redirect
+// here for one case and a 404 there for the other would itself be an
+// existence oracle.
+//
+// Eligible: a plain page view (no ?do=, not under the reserved /_/ subtree)
+// and page attachments (/_/attachments/{slug}/{file}), which live under
+// /_/ but belong to a page like any other. Everything else — POSTs, ?do=
+// actions, the rest of the /_/ subtree, and the site root ("/", so a login
+// wall stays reachable even on an all-private wiki) — stays behind auth.
+func anonymousEligible(path string, q url.Values) bool {
+	if rest, ok := strings.CutPrefix(path, "/_/attachments/"); ok && strings.Contains(rest, "/") {
+		return true
+	}
+	p := strings.TrimPrefix(path, "/")
+	if p == "" || reservedPath(p) {
+		return false
+	}
+	return q.Get("do") == ""
+}
+
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow /_/login, the OIDC flow and /_/static/ without authentication
 		if r.URL.Path == "/_/login" || strings.HasPrefix(r.URL.Path, "/_/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/_/static/") {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// The public garden namespace, only when enabled — disabled means
-		// /garden/ stays behind the login redirect like everything else
-		if a.garden && (r.URL.Path == "/garden" || strings.HasPrefix(r.URL.Path, "/garden/")) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -568,6 +584,10 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			user, authed = a.UserFor(cookie.Value)
 		}
 		if !authed {
+			if r.Method == http.MethodGet && anonymousEligible(r.URL.Path, r.URL.Query()) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			deny(http.StatusUnauthorized, "unauthorized")
 			return
 		}

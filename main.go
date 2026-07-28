@@ -35,14 +35,28 @@ func parseTemplates() (map[string]*template.Template, error) {
 		}
 		tmpl[name] = t
 	}
-	// The garden template is deliberately standalone (not on base.html) so
-	// nothing internal can leak into the public pages.
-	t, err := template.ParseFS(webFS, "web/templates/garden.html")
-	if err != nil {
-		return nil, fmt.Errorf("parsing garden: %w", err)
-	}
-	tmpl["garden"] = t
 	return tmpl, nil
+}
+
+// logPublicNamespaces logs at info, one line per namespace with public:
+// true, with its page count. Publishing is the one setting where silence is
+// the wrong default.
+func logPublicNamespaces(namespaces NamespaceRegistry, pages []Page) {
+	counts := make(map[string]int)
+	for _, p := range pages {
+		ns, _ := namespaceFor(p.Slug)
+		counts[ns]++
+	}
+	for _, name := range namespaces.Names() {
+		if !namespaces[name].Public {
+			continue
+		}
+		label := name
+		if label == "" {
+			label = "(root)"
+		}
+		slog.Info("namespace is public", "namespace", label, "pages", counts[name])
+	}
 }
 
 func main() {
@@ -108,6 +122,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("build namespace registry failed: %v", err)
 	}
+	logPublicNamespaces(namespaces, pages)
 
 	// Create renderer and auth
 	renderer := NewRenderer(index.Exists)

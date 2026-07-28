@@ -86,6 +86,35 @@ func (r *Renderer) processWikiLinks(body string) string {
 	})
 }
 
+// RenderPublic renders a page body for an anonymous viewer. isPublicLink
+// reports whether a wiki-link's target may be advertised to that viewer — a
+// link to anything else (private or nonexistent) unwraps to plain text so no
+// private slug or its existence leaks. hmd:toc is deliberately NOT expanded
+// here (the caller must not run injectTOC on this body first) since a TOC
+// would leak private page titles by construction.
+func (r *Renderer) RenderPublic(body string, isPublicLink func(slug string) bool) (htmltemplate.HTML, error) {
+	body = wikiLinkOrCodeRe.ReplaceAllStringFunc(body, func(match string) string {
+		if !strings.HasPrefix(match, "[[") {
+			return match // fenced/inline code — leave untouched, not a real link
+		}
+		title := match[2 : len(match)-2]
+		slug := Slugify(title)
+		escaped := html.EscapeString(title)
+		if isPublicLink(slug) {
+			return fmt.Sprintf(`<a class="wiki" href="/%s">%s</a>`, slug, escaped)
+		}
+		return escaped
+	})
+
+	var buf bytes.Buffer
+	if err := r.md.Convert([]byte(body), &buf); err != nil {
+		return "", fmt.Errorf("rendering markdown: %w", err)
+	}
+	htmlStr := r.processMermaidBlocks(buf.String())
+	htmlStr = sanitizePolicy.Sanitize(htmlStr)
+	return htmltemplate.HTML(htmlStr), nil
+}
+
 func (r *Renderer) processMermaidBlocks(htmlStr string) string {
 	// string post-processing, swap for a goldmark AST extension if it ever misfires
 	// Replace <pre><code class="language-mermaid">...</code></pre> with <pre class="mermaid">...</pre>

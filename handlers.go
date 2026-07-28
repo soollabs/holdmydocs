@@ -136,7 +136,6 @@ type TemplateData struct {
 	HomeFilename     string
 	RoutePrefix      string
 	IsHidden         bool
-	IsPublic         bool       // frontmatter public flag, drives the editor checkbox
 	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
 	HealthMissing    int
 	HealthOrphans    int
@@ -642,13 +641,6 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/hidden/{path...}", app.handleHiddenGet)
 	mux.HandleFunc("POST /_/hidden/{path...}", app.handleHiddenPost)
 
-	// Digital garden: public read-only namespace. 404s unless
-	// HMD_GARDEN_ENABLED (and stays behind the auth redirect when disabled).
-	mux.HandleFunc("GET /garden", app.handleGardenIndex)
-	mux.HandleFunc("GET /garden/{slug}", app.handleGardenPage)
-	mux.HandleFunc("GET /garden/feed.xml", app.handleGardenFeed)
-	mux.HandleFunc("GET /garden/attachments/{slug}/{file}", app.handleGardenAttachment)
-
 	// MCP server (opt-in, restart-required): agents read and write the wiki
 	// over streamable HTTP. Same middleware as /_/api/ — Bearer PAT, 401 JSON.
 	if app.config().MCP.Enabled {
@@ -668,8 +660,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/api/sync/push-now", app.handleSyncPushNow)
 	mux.HandleFunc("GET /_/api/preview/{slug}", app.handleAPIPreview)
 	mux.HandleFunc("POST /_/api/preview", app.handlePreview)
-	mux.HandleFunc("POST /_/api/attachments/{slug}", app.handleUploadAttachment)
-	mux.HandleFunc("GET /_/attachments/{slug}/{file}", app.handleServeAttachment)
+	mux.HandleFunc("POST /_/api/attachments/{slug...}", app.handleUploadAttachment)
+	mux.HandleFunc("GET /_/attachments/{path...}", app.handleServeAttachment)
 
 	// Content owns the root: one dispatcher for every page, GET and POST,
 	// actions selected by ?do= rather than a path suffix. Go's ServeMux
@@ -837,12 +829,23 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
+// handleViewPage serves a page's own URL with no ?do=. An unauthenticated
+// request is only ever routed here for a page whose slug isn't under /_/
+// (see Auth.Middleware); this handler makes the actual public-or-404 call by
+// checking both existence and the owning namespace's public flag together,
+// so a private page and a nonexistent page come out byte-identical — no
+// existence oracle in a redirect-vs-404 split across two code paths.
 func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	authed := app.currentUser(r) != ""
 
 	content, blobHash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if !authed {
+				http.NotFound(w, r)
+				return
+			}
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
 				Authed: true,
 				Title:  "Page not found",
@@ -851,6 +854,11 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if !authed {
+		app.handlePublicPage(w, r, slug, ParsePage(slug, content))
 		return
 	}
 
@@ -903,6 +911,35 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		BlobHash:      blobHash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
 		RecentCommits: recentCommits,
+	})
+}
+
+// handlePublicPage renders page for an anonymous viewer: content only, no
+// widgets, no chrome that would call an authenticated endpoint. 404s
+// (identically to a nonexistent slug — see handleViewPage) unless the
+// page's namespace is public. hmd:toc is deliberately left unexpanded — a
+// TOC would leak private page titles by construction — and wiki-links are
+// rendered through Renderer.RenderPublic so a link to a private or
+// nonexistent page unwraps to plain text instead of advertising it.
+func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug string, page Page) {
+	ns := app.Namespaces()
+	if !ns.IsPublic(slug) {
+		http.NotFound(w, r)
+		return
+	}
+
+	isPublicLink := func(s string) bool { return app.Index.Exists(s) && ns.IsPublic(s) }
+	renderedBody, err := app.Render.RenderPublic(page.Body, isPublicLink)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	app.render(w, r, http.StatusOK, "page", TemplateData{
+		Authed:  false,
+		Title:   page.Title,
+		Slug:    slug,
+		Content: renderedBody,
 	})
 }
 
@@ -1012,7 +1049,6 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 		TagsInput:  strings.Join(page.Tags, ", "),
 		StatusMode: "edit",
 		IsHidden:   false,
-		IsPublic:   page.Public,
 	})
 }
 
@@ -1031,7 +1067,6 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	tagsInput := r.FormValue("tags")
 	basehash := r.FormValue("basehash")
 	hidden := r.FormValue("hidden") == "on"
-	public := r.FormValue("public") == "on"
 	username := app.currentUser(r)
 
 	newFile := pageFile(slug)
@@ -1048,7 +1083,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body, Public: public}
+	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body}
 	// pin has no editor UI yet — round-trip it from whatever was on disk
 	// before this save, untouched.
 	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
@@ -1098,7 +1133,6 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 			StatusMode:    "conflict",
 			RoutePrefix:   oldPrefix,
 			IsHidden:      hidden,
-			IsPublic:      public,
 		})
 		return
 	}
@@ -1228,9 +1262,26 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleServeAttachment serves a page's attachment. Auth.Middleware lets an
+// anonymous request through unconditionally (it can't know which namespace
+// owns the attachment without a lookup of its own), so the public-or-404
+// call is made here — identically whether the attachment is missing or the
+// owning page's namespace just isn't public.
 func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	file := r.PathValue("file")
+	// {path...} is "{slug}/{file}"; slug itself may contain "/" for a
+	// namespaced page, so only the last segment is ever the filename.
+	path := r.PathValue("path")
+	i := strings.LastIndex(path, "/")
+	if i < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	slug, file := path[:i], path[i+1:]
+
+	if app.currentUser(r) == "" && !app.Namespaces().IsPublic(slug) {
+		http.NotFound(w, r)
+		return
+	}
 
 	// Sanitise path - prevent directory traversal
 	cleanPath := filepath.Join("attachments", slug, file)
@@ -1836,7 +1887,6 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 		StatusMode:  "edit",
 		RoutePrefix: "/_/hidden",
 		IsHidden:    true,
-		IsPublic:    page.Public,
 	})
 }
 

@@ -188,7 +188,7 @@
 		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
 	</script>
 	{{end}}
-	<script src="/_/static/app.js?v=2"></script>
+	{{if .Authed}}<script src="/_/static/app.js?v=2"></script>{{end}}
 </body>
 </html>
 {{end}}

@@ -22,12 +22,6 @@ type GitConfig struct {
 	Author    string `yaml:"author"`
 }
 
-// GardenConfig groups the public-garden settings. Restart-required.
-type GardenConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Title   string `yaml:"title"`
-}
-
 // MCPConfig groups the MCP-server settings. Restart-required.
 type MCPConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -87,10 +81,9 @@ type Config struct {
 	Skin           string
 	Debug          bool
 
-	Git    GitConfig
-	Garden GardenConfig
-	MCP    MCPConfig
-	OIDC   OIDCConfig
+	Git  GitConfig
+	MCP  MCPConfig
+	OIDC OIDCConfig
 }
 
 // fileConfig mirrors Config with the YAML keys accepted in the config file.
@@ -106,10 +99,9 @@ type fileConfig struct {
 	Skin           string `yaml:"skin"`
 	Debug          bool   `yaml:"debug"`
 
-	Git    GitConfig      `yaml:"git"`
-	Garden GardenConfig   `yaml:"garden"`
-	MCP    MCPConfig      `yaml:"mcp"`
-	OIDC   oidcFileConfig `yaml:"oidc"`
+	Git  GitConfig      `yaml:"git"`
+	MCP  MCPConfig      `yaml:"mcp"`
+	OIDC oidcFileConfig `yaml:"oidc"`
 }
 
 func envOr(key, def string) string {
@@ -260,8 +252,7 @@ func LoadConfig() (Config, error) {
 			TokenFile: file.Git.TokenFile,
 			Author:    file.Git.Author,
 		},
-		Garden: file.Garden,
-		MCP:    file.MCP,
+		MCP: file.MCP,
 		OIDC: OIDCConfig{
 			Issuer:       file.OIDC.Issuer,
 			ClientID:     file.OIDC.ClientID,
@@ -280,10 +271,6 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("reading git token file: %w", err)
 		}
 		cfg.Git.Token = strings.TrimSpace(string(b))
-	}
-
-	if cfg.Garden.Title == "" {
-		cfg.Garden.Title = cfg.SiteName
 	}
 
 	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {
@@ -362,7 +349,6 @@ func (c Config) toFileConfig() fileConfig {
 		Skin:           c.Skin,
 		Debug:          c.Debug,
 		Git:            git,
-		Garden:         c.Garden,
 		MCP:            c.MCP,
 		OIDC: oidcFileConfig{
 			Issuer:       c.OIDC.Issuer,

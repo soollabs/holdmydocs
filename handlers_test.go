@@ -323,7 +323,12 @@ func TestPreview(t *testing.T) {
 	}
 }
 
-func TestUnauthenticatedRedirect(t *testing.T) {
+// TestUnauthenticatedAccess covers the two anonymous outcomes on a wiki with
+// no public namespaces: the site root still redirects to login (so a login
+// wall stays reachable), while a specific content page — private, like
+// every namespace here — 404s rather than redirecting. See
+// TestAnonymousPublicNamespace for the public-namespace case.
+func TestUnauthenticatedAccess(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
 
@@ -334,24 +339,32 @@ func TestUnauthenticatedRedirect(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Get(server.URL + "/readme")
-	if err != nil {
-		t.Fatalf("GET failed: %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing unauthenticated response body: %v", err)
+	t.Run("root redirects to login", func(t *testing.T) {
+		resp, err := client.Get(server.URL + "/")
+		if err != nil {
+			t.Fatalf("GET failed: %v", err)
 		}
-	}()
+		defer closeTestBody(t, resp.Body)
 
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Unauthenticated request status = %d, want 303", resp.StatusCode)
-	}
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Errorf("status = %d, want 303", resp.StatusCode)
+		}
+		if location := resp.Header.Get("Location"); !bytes.Contains([]byte(location), []byte("/_/login")) {
+			t.Errorf("Should redirect to /login, got %q", location)
+		}
+	})
 
-	location := resp.Header.Get("Location")
-	if !bytes.Contains([]byte(location), []byte("/_/login")) {
-		t.Errorf("Should redirect to /login, got %q", location)
-	}
+	t.Run("private page 404s", func(t *testing.T) {
+		resp, err := client.Get(server.URL + "/readme")
+		if err != nil {
+			t.Fatalf("GET failed: %v", err)
+		}
+		defer closeTestBody(t, resp.Body)
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", resp.StatusCode)
+		}
+	})
 }
 
 func TestAttachmentUploadAndServe(t *testing.T) {
