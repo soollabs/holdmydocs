@@ -303,7 +303,7 @@ func TestNamespaceManagement(t *testing.T) {
 	content, err = io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 	body = string(content)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/delete-all`) {
 		t.Errorf("namespace editor = %d, body missing focused form: %s", resp.StatusCode, body)
 	}
 
@@ -327,6 +327,15 @@ func postNamespaceDelete(t *testing.T, server *httptest.Server, client *http.Cli
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces/delete", url.Values{"name": {name}})
 	if err != nil {
 		t.Fatalf("deleting %q: %v", name, err)
+	}
+	return resp
+}
+
+func postNamespaceDeleteAll(t *testing.T, server *httptest.Server, client *http.Client, name string) *http.Response {
+	t.Helper()
+	resp, err := client.PostForm(server.URL+"/_/settings/namespaces/delete-all", url.Values{"name": {name}})
+	if err != nil {
+		t.Fatalf("deleting all of %q: %v", name, err)
 	}
 	return resp
 }
@@ -464,6 +473,46 @@ func TestNamespaceManagementDeletesGenuinelyEmptyConfiguredNamespace(t *testing.
 	}
 	if _, ok := app.Namespaces()["empty"]; ok {
 		t.Fatal("successfully deleted namespace remains in registry")
+	}
+}
+
+func TestNamespaceManagementDeletesAllFiles(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	adminLogin(t, server, client)
+
+	saveConfiguredEmptyNamespace(t, app, "blog")
+	page := Page{Slug: "blog/post", Title: "Post", Body: "content"}
+	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "Add blog/post", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("saving namespace page: %v", err)
+	}
+	if err := app.Index.Update(page); err != nil {
+		t.Fatalf("indexing namespace page: %v", err)
+	}
+	if _, err := app.Store.Save("blog/drafts/note.txt", []byte("note"), "Add namespace file", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("saving nested namespace file: %v", err)
+	}
+	if _, err := app.Store.Save(hiddenFile("blog/template"), Page{Slug: "blog/template", Title: "Template"}.Encode(), "Add namespace template", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("saving namespace template: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(app.config().RepoDir, "blog", "upload.bin"), []byte("upload"), 0644); err != nil {
+		t.Fatalf("saving untracked namespace file: %v", err)
+	}
+
+	resp := postNamespaceDeleteAll(t, server, client, "blog")
+	location := resp.Header.Get("Location")
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(location, "/_/namespaces") {
+		t.Fatalf("delete all = %d %q, want 303 /_/namespaces", resp.StatusCode, location)
+	}
+	if _, err := os.Stat(filepath.Join(app.config().RepoDir, "blog")); !os.IsNotExist(err) {
+		t.Fatalf("namespace directory stat = %v, want not exist", err)
+	}
+	if app.Index.Exists(page.Slug) {
+		t.Fatal("deleted namespace page remains in the index")
+	}
+	if _, ok := app.Namespaces()["blog"]; ok {
+		t.Fatal("deleted namespace remains in the registry")
 	}
 }
 

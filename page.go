@@ -19,9 +19,22 @@ func pageFile(slug string) string {
 	return slug + ".md"
 }
 
-// hiddenFile maps a slug to its dot-prefixed filename for hidden pages.
+// hiddenFile maps a slug to a filename whose basename is dot-prefixed.
 func hiddenFile(slug string) string {
-	return "." + slug + ".md"
+	i := strings.LastIndexByte(slug, '/')
+	if i == -1 {
+		return "." + slug + ".md"
+	}
+	return slug[:i+1] + "." + slug[i+1:] + ".md"
+}
+
+func hiddenSlug(path string) string {
+	path = strings.TrimSuffix(path, ".md")
+	i := strings.LastIndexByte(path, '/')
+	if i == -1 {
+		return strings.TrimPrefix(path, ".")
+	}
+	return path[:i+1] + strings.TrimPrefix(path[i+1:], ".")
 }
 
 func Slugify(title string) string {

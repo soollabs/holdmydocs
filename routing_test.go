@@ -138,6 +138,30 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 }
 
+func TestNewPageCanChooseFilename(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	resp, err := client.PostForm(server.URL+"/ai/new?do=save", url.Values{
+		"new_slug": {"ai/actual-name"},
+		"title":    {"Actual name"},
+		"body":     {"content"},
+	})
+	if err != nil {
+		t.Fatalf("POST new page: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/ai/actual-name" {
+		t.Fatalf("save redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if _, _, err := app.Store.Read(pageFile("ai/actual-name")); err != nil {
+		t.Fatalf("reading chosen filename: %v", err)
+	}
+	if _, _, err := app.Store.Read(pageFile("ai/new")); err == nil {
+		t.Fatal("placeholder filename should not remain")
+	}
+}
+
 // TestUnrecognisedDoValue404s asserts a typoed ?do= value doesn't silently
 // fall back to view.
 func TestUnrecognisedDoValue404s(t *testing.T) {

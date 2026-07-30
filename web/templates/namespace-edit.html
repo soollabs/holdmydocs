@@ -24,7 +24,7 @@
 <div class="settings-row"><label for="namespace-widgets">widget order</label><input id="namespace-widgets" name="widgets" value="{{$form.WidgetsCSV}}" class="widget-input" placeholder="built-in widgets"></div>
 <p class="settings-note">Use the choices above to include widgets. This field remains available for exact ordering and works without JavaScript; leave it empty for the built-in set.</p>
 </details>
-<div class="settings-actions"><button type="submit" class="primary">Save namespace</button><a class="ghost-btn" href="/_/namespaces">Cancel</a>{{if $form.Configured}}<button type="submit" formaction="/_/settings/namespaces/reset" class="ghost-btn">Reset namespace settings</button><button type="submit" formaction="/_/settings/namespaces/delete" class="ghost-btn danger-btn">Delete namespace</button>{{end}}</div>
+<div class="settings-actions"><button type="submit" class="primary">Save namespace</button><a class="ghost-btn" href="/_/namespaces">Cancel</a>{{if $form.Configured}}<button type="submit" formaction="/_/settings/namespaces/reset" class="ghost-btn">Reset namespace settings</button><button type="submit" formaction="/_/settings/namespaces/delete" class="ghost-btn danger-btn">Delete empty namespace</button><button type="submit" formaction="/_/settings/namespaces/delete-all" class="ghost-btn danger-btn" onclick="return confirm('Delete this namespace and every file in it?')">Delete namespace and all files</button>{{end}}</div>
 </form>
 <script>
 (function () {

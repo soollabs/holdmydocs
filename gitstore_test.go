@@ -137,8 +137,9 @@ func TestListRecurses(t *testing.T) {
 	write("blog/post.md")
 	write("blog/drafts/deep-post.md")
 	write("attachments/blog/post/pic.png") // not .md, and under attachments/ anyway
+	write("attachments/.note.md")          // an attachment, not a hidden page
 	write(".help.md")                      // hidden page, top-level
-	write(".journal/entry.md")             // hidden page, nested
+	write("journal/.entry.md")             // hidden page, nested
 	if err := os.MkdirAll(filepath.Join(tmpDir, ".git-like-dir"), 0755); err != nil {
 		t.Fatalf("mkdir .git-like-dir: %v", err)
 	}
@@ -169,14 +170,12 @@ func TestListRecurses(t *testing.T) {
 		}
 	}
 
-	// ListHidden is List's complement, and has to reach into dot-prefixed
-	// directories: hiddenFile puts the dot at the front of the whole slug, so
-	// hidden page "journal/entry" is the file ".journal/entry.md".
+	// ListHidden is List's complement, including hidden pages inside namespaces.
 	hidden, err := store.ListHidden()
 	if err != nil {
 		t.Fatalf("ListHidden failed: %v", err)
 	}
-	wantHidden := map[string]bool{".help.md": true, ".journal/entry.md": true}
+	wantHidden := map[string]bool{".help.md": true, "journal/.entry.md": true}
 	gotHidden := make(map[string]bool, len(hidden))
 	for _, p := range hidden {
 		gotHidden[p] = true
@@ -413,6 +412,27 @@ func TestSaveCheckedConcurrentSameBasehash(t *testing.T) {
 	}
 	if conflicts != writers-1 {
 		t.Errorf("conflicts = %d, want %d", conflicts, writers-1)
+	}
+}
+
+func TestSaveCheckedMoveDoesNotOverwriteDestination(t *testing.T) {
+	store, err := OpenStore(Config{RepoDir: t.TempDir(), AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	hash, err := store.Save("old.md", []byte("old"), "seed old", "alice", "alice@hmd.local")
+	if err != nil {
+		t.Fatalf("seeding old path: %v", err)
+	}
+	if _, err := store.Save("new.md", []byte("new"), "seed new", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("seeding destination: %v", err)
+	}
+	if _, err := store.SaveChecked("old.md", "new.md", hash, []byte("replacement"), "move", "alice", "alice@hmd.local"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("move to existing destination = %v, want ErrConflict", err)
+	}
+	content, _, err := store.Read("new.md")
+	if err != nil || string(content) != "new" {
+		t.Fatalf("destination after rejected move = %q, %v", content, err)
 	}
 }
 

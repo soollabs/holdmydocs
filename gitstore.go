@@ -474,6 +474,16 @@ func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byt
 		return "", ErrConflict
 	}
 
+	if oldPath != newPath {
+		newHash, err := s.readHashLocked(newPath)
+		if err != nil {
+			return "", err
+		}
+		if newHash != "" {
+			return "", ErrConflict
+		}
+	}
+
 	blobHash, err = s.saveLocked(newPath, content, message, authorName, authorEmail)
 	if err != nil {
 		return "", err
@@ -568,9 +578,8 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 var errInvalidNamespaceName = errors.New("invalid namespace name")
 
 // DeleteNamespace removes a configured namespace only when its configuration
-// is the directory's sole regular entry and its hidden storage is empty. The
-// inspection and mutation share s.mu so a Store save cannot add content after
-// preflight has passed.
+// is the directory's sole regular entry. The inspection and mutation share
+// s.mu so a Store save cannot add content after preflight has passed.
 func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -608,23 +617,6 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 		return errors.New("This namespace has no configuration to delete.")
 	}
 
-	hiddenDir := filepath.Join(s.dir, "."+name)
-	hiddenInfo, err := os.Lstat(hiddenDir)
-	if err == nil {
-		if hiddenInfo.Mode()&os.ModeSymlink != 0 || !hiddenInfo.IsDir() {
-			return errors.New("The namespace has hidden content; deletion was not performed.")
-		}
-		hidden, readErr := os.ReadDir(hiddenDir)
-		if readErr != nil {
-			return errors.New("Unable to inspect hidden namespace files; deletion was not performed.")
-		}
-		if len(hidden) > 0 {
-			return errors.New("This namespace still contains hidden files; deletion was not performed.")
-		}
-	} else if !os.IsNotExist(err) {
-		return errors.New("Unable to inspect hidden namespace files; deletion was not performed.")
-	}
-
 	config, err := os.ReadFile(filepath.Join(s.dir, configPath))
 	if err != nil {
 		return errors.New("Unable to read namespace configuration; deletion was not performed.")
@@ -647,6 +639,86 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 			return fmt.Errorf("failed to remove namespace directory: %w (restoring namespace config: %v)", err, restoreErr)
 		}
 		return fmt.Errorf("failed to remove namespace directory: %w", err)
+	}
+	return nil
+}
+
+// DeleteNamespaceAll removes a configured namespace and every file beneath it
+// in one commit. The namespace name is validated before joining it to s.dir.
+func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !validNamespaceName(name) {
+		return errInvalidNamespaceName
+	}
+	namespaceDir := filepath.Join(s.dir, name)
+	info, err := os.Lstat(namespaceDir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+	}
+	config := filepath.Join(namespaceDir, namespaceConfigFile)
+	if info, err := os.Lstat(config); err != nil || !info.Mode().IsRegular() {
+		return errors.New("This namespace has no configuration to delete.")
+	}
+
+	var paths []string
+	err = filepath.WalkDir(namespaceDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(s.dir, path)
+		if err != nil {
+			return err
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("reading namespace contents: %w", err)
+	}
+
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("getting worktree: %w", err)
+	}
+	for _, path := range paths {
+		if err := os.Remove(filepath.Join(s.dir, path)); err != nil {
+			return fmt.Errorf("removing namespace file: %w", err)
+		}
+		status, err := wt.Status()
+		if err != nil {
+			return fmt.Errorf("getting worktree status: %w", err)
+		}
+		if _, tracked := status[path]; !tracked {
+			continue
+		}
+		if _, err := wt.Remove(path); err != nil {
+			return fmt.Errorf("removing namespace file from index: %w", err)
+		}
+		delete(s.historyCache, path)
+	}
+	if err := os.RemoveAll(namespaceDir); err != nil {
+		return fmt.Errorf("removing namespace directory: %w", err)
+	}
+
+	preHead := s.headHash()
+	commitHash, err := wt.Commit(message, &git.CommitOptions{
+		Author: &object.Signature{Name: authorName, Email: authorEmail, When: time.Now()},
+	})
+	if errors.Is(err, git.ErrEmptyCommit) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("committing: %w", err)
+	}
+	s.noteCommit(commitHash, preHead)
+	if s.remote != "" {
+		s.syncState = "pending"
+		go s.push()
 	}
 	return nil
 }
@@ -777,12 +849,9 @@ func (s *Store) List() ([]string, error) {
 }
 
 // ListHidden returns every hidden page's path (repo-relative,
-// "/"-separated), sorted. hiddenFile puts the dot at the front of the whole
-// slug, so a hidden page in a namespace lands in a dot-prefixed sibling
-// directory (`.journal/entry.md` is hidden page "journal/entry") — this walks
-// into those, or the new-page templates the namespace editor writes there
-// would exist with no way to reach them from the UI. `.git` is skipped: it's
-// not content.
+// "/"-separated), sorted. Hidden pages have a dot-prefixed basename, including
+// namespace templates such as `ai/.template.md`. `.git` is skipped: it's not
+// content.
 func (s *Store) ListHidden() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -800,14 +869,13 @@ func (s *Store) ListHidden() ([]string, error) {
 			return err
 		}
 		if d.IsDir() {
-			// Only dot-prefixed top-level directories hold hidden pages;
-			// ordinary ones hold ordinary pages, and are List's business.
-			if !strings.HasPrefix(rel, ".") || rel == ".git" {
+			if rel == ".git" || rel == "attachments" {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if filepath.Ext(rel) != ".md" || !strings.HasPrefix(rel, ".") {
+		base := filepath.Base(rel)
+		if filepath.Ext(rel) != ".md" || !strings.HasPrefix(base, ".") {
 			return nil
 		}
 		paths = append(paths, filepath.ToSlash(rel))

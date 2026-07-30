@@ -771,6 +771,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/settings/namespaces", app.handleSaveNamespace)
 	mux.HandleFunc("POST /_/settings/namespaces/reset", app.handleResetNamespace)
 	mux.HandleFunc("POST /_/settings/namespaces/delete", app.handleDeleteNamespace)
+	mux.HandleFunc("POST /_/settings/namespaces/delete-all", app.handleDeleteNamespaceAll)
 	mux.HandleFunc("POST /_/settings/users", app.handleCreateUser)
 	mux.HandleFunc("POST /_/settings/users/scopes", app.handleSetUserScopes)
 	mux.HandleFunc("POST /_/settings/setup", app.handleRerunSetup)
@@ -1403,12 +1404,34 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	basehash := r.FormValue("basehash")
 	hidden := r.FormValue("hidden") == "on"
 	username := app.currentUser(r)
+	targetSlug := slug
+	if basehash == "" && strings.TrimSpace(r.FormValue("new_slug")) != "" {
+		targetSlug = strings.TrimSpace(r.FormValue("new_slug"))
+		oldNamespace, _ := namespaceFor(slug)
+		newNamespace, newPage := namespaceFor(targetSlug)
+		if oldNamespace != newNamespace || !validMCPPageSegment(newPage) {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
+		if targetSlug != slug {
+			if _, _, err := app.Store.Read(pageFile(targetSlug)); err == nil {
+				http.Error(w, "a page with that filename already exists", http.StatusConflict)
+				return
+			}
+		}
+	}
+	if targetSlug != slug && !app.requireTokenSlug(w, r, targetSlug) {
+		return
+	}
 
 	newFile := pageFile(slug)
 	newPrefix := ""
 	if hidden {
-		newFile = hiddenFile(slug)
+		newFile = hiddenFile(targetSlug)
 		newPrefix = "/_/hidden"
+	}
+	if !hidden {
+		newFile = pageFile(targetSlug)
 	}
 
 	cfg := app.config()
@@ -1418,7 +1441,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	page := Page{Slug: slug, Title: title, Tags: ParseTags(tagsInput), Body: body}
+	page := Page{Slug: targetSlug, Title: title, Tags: ParseTags(tagsInput), Body: body}
 	// pin has no editor UI yet — round-trip it from whatever was on disk
 	// before this save, untouched.
 	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
@@ -1486,7 +1509,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	http.Redirect(w, r, newPrefix+"/"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, newPrefix+"/"+targetSlug, http.StatusSeeOther)
 }
 
 func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
@@ -2195,8 +2218,7 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	var pages []BacklinkEntry
 	for _, p := range paths {
-		slug := strings.TrimPrefix(p, ".")
-		slug = slug[:len(slug)-3] // strip .md
+		slug := hiddenSlug(p)
 		if !tokenAllowsSlug(r.Context(), slug) {
 			continue
 		}
@@ -2675,8 +2697,8 @@ func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDeleteNamespace implements POST /_/settings/namespaces/delete. True
-// deletion is only allowed for a configured namespace whose directory and
-// hidden namespace storage contain no other content.
+// deletion is only allowed for a configured namespace whose directory contains
+// no pages or hidden files.
 func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	if !app.requireTokenNamespace(w, r, name) {
@@ -2695,6 +2717,31 @@ func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
 
 	app.refreshNamespaces()
 	slog.Info("namespace config removed", "namespace", name, "by", app.currentUser(r))
+	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
+}
+
+func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	if err := app.Store.DeleteNamespaceAll(name, "Delete namespace "+name, authorName, authorEmail); err != nil {
+		if errors.Is(err, errInvalidNamespaceName) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
+		return
+	}
+	for slug := range app.Index.Titles() {
+		ns, _ := namespaceFor(slug)
+		if ns == name {
+			app.Index.Remove(slug)
+		}
+	}
+	app.refreshNamespaces()
+	slog.Info("namespace deleted with all files", "namespace", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
