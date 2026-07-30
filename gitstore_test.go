@@ -559,10 +559,12 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 }
 
 // TestPushTimeoutReleasesLock reproduces the "app freezes" scenario: a
-// remote that accepts the connection but never responds. Without a bounded
-// context, push() would hold s.mu until the OS-level TCP timeout (minutes),
-// blocking every other Store operation. SyncState() itself needs s.mu, so
-// polling it here also proves the lock gets released.
+// remote that accepts the connection but never responds. push() runs the
+// network call under pushMu, never s.mu, so this now passes for a better
+// reason than before: SyncState() (mu-guarded) was never blocked by the
+// stalled push in the first place. Without gitNetworkTimeout bounding the
+// push itself, though, syncState would never flip to "failed" and the loop
+// below would just hit its own deadline instead.
 func TestPushTimeoutReleasesLock(t *testing.T) {
 	block := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -896,6 +898,120 @@ func TestFetchAndFFDivergent(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dirB, "page3.md")); err != nil {
 		t.Errorf("page3.md should still exist after failed ff (working tree untouched): %v", err)
+	}
+}
+
+// TestStalledPushDoesNotBlockReadOrSave is the regression guard for holding
+// pushMu (not s.mu) across the push network call: with a push stalled
+// against a dead remote, a concurrent Read and a second Save must both
+// return well inside gitNetworkTimeout instead of queuing behind it.
+func TestStalledPushDoesNotBlockReadOrSave(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+	defer srv.Close()
+	defer close(block)
+
+	origTimeout := gitNetworkTimeout
+	gitNetworkTimeout = 5 * time.Second
+	defer func() { gitNetworkTimeout = origTimeout }()
+
+	repoDir := t.TempDir()
+	cfg := Config{
+		RepoDir: repoDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
+	}
+
+	store, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	cfg.Git.RemoteURL = srv.URL + "/repo.git"
+	if err := store.UpdateRemote(cfg); err != nil {
+		t.Fatalf("UpdateRemote failed: %v", err)
+	}
+
+	// This save's async push will stall against the hung server for the
+	// full gitNetworkTimeout.
+	if _, err := store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local"); err != nil {
+		t.Fatalf("Save should succeed: %v", err)
+	}
+
+	done := make(chan error, 2)
+	start := time.Now()
+	go func() {
+		_, _, err := store.Read("page.md")
+		done <- err
+	}()
+	go func() {
+		_, err := store.Save("page2.md", []byte("more"), "add page2", "bob", "bob@hmd.local")
+		done <- err
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("op failed: %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("Read/Save did not return within 2s; still queued behind the stalled push")
+		}
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("Read/Save took %v, want well under gitNetworkTimeout (%v)", elapsed, gitNetworkTimeout)
+	}
+}
+
+// TestFetchThrottle covers the fetch coalescing added to remove FetchAndFF
+// from the per-tab sync-poll storm: a second call within fetchThrottle of a
+// successful fetch must return immediately without a network round trip.
+func TestFetchThrottle(t *testing.T) {
+	origThrottle := fetchThrottle
+	fetchThrottle = 200 * time.Millisecond
+	defer func() { fetchThrottle = origThrottle }()
+
+	bareDir := t.TempDir()
+	if _, err := initBareRepo(bareDir); err != nil {
+		t.Fatalf("init bare: %v", err)
+	}
+
+	dirA := t.TempDir()
+	cfgA := Config{RepoDir: dirA, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "A"}}
+	storeA, err := OpenStore(cfgA)
+	if err != nil {
+		t.Fatalf("OpenStore A: %v", err)
+	}
+	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("save A: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	dirB := t.TempDir()
+	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
+	storeB, err := OpenStore(cfgB)
+	if err != nil {
+		t.Fatalf("OpenStore B: %v", err)
+	}
+
+	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("save A 2: %v", err)
+	}
+	waitForSync(storeA, 2*time.Second)
+
+	if _, err := storeB.FetchAndFF(); err != nil {
+		t.Fatalf("first FetchAndFF: %v", err)
+	}
+
+	result, err := storeB.FetchAndFF()
+	if err != nil {
+		t.Fatalf("second FetchAndFF: %v", err)
+	}
+	if len(result.ChangedPaths) != 0 || len(result.Commits) != 0 {
+		t.Errorf("throttled FetchAndFF = %+v, want empty result", result)
 	}
 }
 

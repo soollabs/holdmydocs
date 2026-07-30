@@ -61,7 +61,26 @@ type Store struct {
 	// which only reflects files actually missing.
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
+
+	// pushMu serializes pushes against each other; it is held for the
+	// network round trip instead of mu, so reads and saves never queue
+	// behind a push. pushDirty is set when a save arrives while a push is
+	// already running, so that push loops once more instead of a second
+	// goroutine piling onto pushMu.
+	pushMu    sync.Mutex
+	pushDirty atomic.Bool
+
+	// fetchMu serializes fetches against each other. lastFetchNano throttles
+	// FetchAndFF so a burst of sync polls across open tabs collapses to one
+	// network call every fetchThrottle.
+	fetchMu       sync.Mutex
+	lastFetchNano atomic.Int64
 }
+
+// fetchThrottle is the minimum interval between two FetchAndFF network
+// calls; a call inside the window returns immediately with an empty result.
+// A var (not const) so tests can shrink it.
+var fetchThrottle = 2 * time.Second
 
 // defaultHomeMD is the clean welcome page seeded into any repo that does not
 // already contain the configured home file (HMD_HOME_FILENAME, default
@@ -532,7 +551,10 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 		return "", fmt.Errorf("getting worktree: %w", err)
 	}
 
-	_, err = wt.Add(path)
+	// SkipStatus: we just wrote path ourselves, so there's no need for Add's
+	// default full-worktree Status() scan (which hashes every file in the
+	// repo) to discover what changed.
+	err = wt.AddWithOptions(&git.AddOptions{Path: path, SkipStatus: true})
 	if err != nil {
 		return "", fmt.Errorf("adding file to index: %w", err)
 	}
@@ -685,15 +707,24 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	if err != nil {
 		return fmt.Errorf("getting worktree: %w", err)
 	}
+	// wt.Status() only lists paths that differ from HEAD, so computed before
+	// any of these files are removed it would omit every unmodified tracked
+	// file. The index itself lists every tracked path regardless of
+	// modification state, and reading it once is cheap (no per-file
+	// hashing), unlike calling Status() again on each loop iteration.
+	idx, err := s.repo.Storer.Index()
+	if err != nil {
+		return fmt.Errorf("reading index: %w", err)
+	}
+	tracked := make(map[string]bool, len(idx.Entries))
+	for _, e := range idx.Entries {
+		tracked[e.Name] = true
+	}
 	for _, path := range paths {
 		if err := os.Remove(filepath.Join(s.dir, path)); err != nil {
 			return fmt.Errorf("removing namespace file: %w", err)
 		}
-		status, err := wt.Status()
-		if err != nil {
-			return fmt.Errorf("getting worktree status: %w", err)
-		}
-		if _, tracked := status[path]; !tracked {
+		if !tracked[path] {
 			continue
 		}
 		if _, err := wt.Remove(path); err != nil {
@@ -774,20 +805,45 @@ func (s *Store) prependHistory(path string, entry CommitInfo) {
 	s.historyCache[path] = append([]CommitInfo{entry}, cached...)
 }
 
+// push serializes on pushMu (held for the network round trip) rather than
+// s.mu, so a stalled remote never blocks reads or saves. A save that arrives
+// while a push is already running sets pushDirty instead of starting a
+// second goroutine; the running push loops once more to pick it up.
 func (s *Store) push() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if !s.pushMu.TryLock() {
+		s.pushDirty.Store(true)
+		return
+	}
+	defer s.pushMu.Unlock()
 
-	// Bound how long a stalled remote can hold s.mu — every save, read, and
-	// sync-status check serializes on this lock while a push is in flight.
+	for {
+		s.pushDirty.Store(false)
+		s.pushOnce()
+		if !s.pushDirty.Load() {
+			return
+		}
+	}
+}
+
+// pushOnce runs a single push network round trip. repo/auth/remote are
+// immutable after OpenStore except via UpdateRemote (which takes s.mu), so a
+// snapshot read under RLock is enough — no lock is held across the network
+// call itself.
+func (s *Store) pushOnce() {
+	s.mu.RLock()
+	repo, auth := s.repo, s.auth
+	s.mu.RUnlock()
+
 	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
 	defer cancel()
 
-	err := s.repo.PushContext(ctx, &git.PushOptions{
+	err := repo.PushContext(ctx, &git.PushOptions{
 		RemoteName: "origin",
-		Auth:       s.auth,
+		Auth:       auth,
 	})
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err == git.NoErrAlreadyUpToDate || err == nil {
 		s.syncState = "ok"
 		s.syncErr = ""
@@ -890,10 +946,19 @@ func (s *Store) ListHidden() ([]string, error) {
 }
 
 func (s *Store) History(path string) ([]CommitInfo, error) {
-	// The walk runs under mu so a concurrent Save can't commit mid-walk and
-	// then have its prependHistory no-op'd by us caching a pre-commit result.
-	// mu is already held across network pushes, so a one-time cold walk here
-	// is no worse.
+	// Fast path: a cache hit only needs a read lock, so a page view never
+	// queues behind a push/fetch holding mu for a network round trip.
+	s.mu.RLock()
+	cached, ok := s.historyCache[path]
+	s.mu.RUnlock()
+	if ok {
+		return cached, nil
+	}
+
+	// Cold path: the walk runs under the write lock so a concurrent Save
+	// can't commit mid-walk and then have its prependHistory no-op'd by us
+	// caching a pre-commit result. Pushes and fetches no longer hold mu
+	// across the network, so this is now just the walk itself.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1032,8 +1097,8 @@ func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
 }
 
 func (s *Store) SyncState() (state, detail string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.syncState, s.syncErr
 }
 
@@ -1052,7 +1117,14 @@ func (s *Store) PushNow() (state, detail string) {
 	}
 	s.mu.Unlock()
 	if !noRemote {
-		s.push()
+		// Block on pushMu rather than going through push()'s TryLock+dirty
+		// coalescing: the caller is waiting synchronously for a result, so
+		// wait out any in-flight push, then run one guaranteed push of our
+		// own rather than piggy-backing on whichever state the other push
+		// observed.
+		s.pushMu.Lock()
+		s.pushOnce()
+		s.pushMu.Unlock()
 	}
 	return s.SyncState()
 }
@@ -1125,25 +1197,45 @@ type FetchResult struct {
 // remote are equal or local is ahead, returns empty. If divergent, sets
 // syncState to "failed" and returns an error.
 func (s *Store) FetchAndFF() (FetchResult, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	remote, repo, auth := s.remote, s.repo, s.auth
+	s.mu.RUnlock()
 
-	if s.remote == "" {
+	if remote == "" {
+		return FetchResult{}, nil
+	}
+
+	if !s.fetchMu.TryLock() {
+		// A fetch is already in flight; its result will cover us too.
+		return FetchResult{}, nil
+	}
+	defer s.fetchMu.Unlock()
+
+	if time.Since(time.Unix(0, s.lastFetchNano.Load())) < fetchThrottle {
 		return FetchResult{}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
 	defer cancel()
 
-	err := s.repo.FetchContext(ctx, &git.FetchOptions{
+	err := repo.FetchContext(ctx, &git.FetchOptions{
 		RemoteName: "origin",
-		Auth:       s.auth,
+		Auth:       auth,
 	})
+	s.lastFetchNano.Store(time.Now().UnixNano())
 	if err != nil && err != git.NoErrAlreadyUpToDate {
+		s.mu.Lock()
 		s.syncState = "failed"
 		s.syncErr = err.Error()
+		s.mu.Unlock()
 		return FetchResult{}, err
 	}
+
+	// The rest (HEAD comparison through worktree reset) is local and fast,
+	// so it runs under the full write lock like the rest of Store's mutating
+	// operations.
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	headRef, err := s.repo.Head()
 	if err != nil {
@@ -1216,7 +1308,12 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		return FetchResult{}, err
 	}
 
-	s.historyCache = nil
+	// Only the paths this fast-forward actually touched can be stale;
+	// dropping the whole cache would force a full path-filtered git log walk
+	// on the next view of every other page too.
+	for _, p := range result.ChangedPaths {
+		delete(s.historyCache, p)
+	}
 	s.knownHead = remoteHash
 	s.syncState = "ok"
 	s.syncErr = ""
