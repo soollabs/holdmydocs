@@ -228,7 +228,7 @@ type SettingsData struct {
 	HomeFilename     string        // read-only display; restart required to change
 	HomeFilenameEnv  string        // env var name if it overrides the file, else ""
 	Tokens           []TokenView   // current user's personal access tokens
-	TokenNamespaces  []string      // selectable namespace names for new tokens
+	TokenNamespaces  []string      // selectable non-root namespace names for new tokens
 	NewToken         string        // freshly minted token value, shown exactly once
 	TokenError       string        // token create/revoke validation error
 	HasEnvOverrides  bool          // any field currently sourced from an env var — shows the "export to file" action
@@ -2318,7 +2318,13 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 		if isAdmin {
 			namespaceLabel = "Administrator"
 		} else if len(t.Namespaces) > 0 {
-			namespaceLabel = strings.Join(t.Namespaces, ", ") + " only"
+			labels := append([]string(nil), t.Namespaces...)
+			for i, namespace := range labels {
+				if namespace == "" {
+					labels[i] = "root"
+				}
+			}
+			namespaceLabel = strings.Join(labels, ", ") + " only"
 		}
 		scopeLabel := "Inherited scopes"
 		if t.Scopes != nil {
@@ -2419,9 +2425,16 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	}
 	namespaces := make([]string, 0, len(r.Form["namespaces"]))
 	for _, raw := range r.Form["namespaces"] {
+		if raw == "" {
+			namespaces = append(namespaces, "")
+			continue
+		}
 		namespace := strings.TrimSpace(raw)
 		if namespace == "" {
-			continue
+			sd := app.settingsData(r)
+			sd.TokenError = "invalid namespace"
+			app.renderSettings(w, r, sd, "settings")
+			return
 		}
 		if _, ok := knownNamespaces[namespace]; !ok {
 			sd := app.settingsData(r)

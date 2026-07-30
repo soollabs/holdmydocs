@@ -156,12 +156,13 @@
 				</span>
 			</div>
 			<div class="settings-row">
-				<label for="token_namespaces">namespaces</label>
-				<select id="token_namespaces" name="namespaces" multiple>
-					{{range .Settings.TokenNamespaces}}<option value="{{.}}">{{.}}</option>{{end}}
-				</select>
+				<label>namespace access</label>
+				<span class="scope-checks">
+					<label class="scope-check"><input type="checkbox" name="namespaces" value=""> root</label>
+					{{range .Settings.TokenNamespaces}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{end}}
+				</span>
 			</div>
-			<p class="settings-note">Select one or more scopes. <code>settings</code> grants Administrator access to every namespace; <code>read</code> and <code>write</code> tokens can be limited to selected namespaces. Leave namespaces empty for all namespaces.</p>
+			<p class="settings-note">Select one or more scopes. Check namespaces to restrict access, or leave every box unchecked for all namespaces. <code>settings</code> grants Administrator access to every namespace.</p>
 			<div class="settings-actions">
 				<button type="submit" class="primary">create token</button>
 			</div>

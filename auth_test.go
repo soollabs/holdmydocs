@@ -238,11 +238,18 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rootOnly, err := auth.AddToken("alice", "root", time.Time{}, []string{"read"}, []string{""})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if p, ok := auth.UserForBearer(unrestricted); !ok || p.User != "alice" || p.Restricted() {
 		t.Fatalf("unrestricted principal = %#v, %v", p, ok)
 	}
 	if p, ok := auth.UserForBearer(restricted); !ok || !p.AllowsNamespace("notes") || p.AllowsNamespace("private") {
 		t.Fatalf("restricted principal = %#v, %v", p, ok)
+	}
+	if p, ok := auth.UserForBearer(rootOnly); !ok || !p.AllowsSlug("readme") || p.AllowsSlug("notes/page") {
+		t.Fatalf("root-only principal = %#v, %v", p, ok)
 	}
 
 	// A cache hit keeps the policy that was verified with the token, rather
@@ -263,8 +270,11 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 	if p, ok := reloaded.UserForBearer(restricted); !ok || !p.AllowsNamespace("notes") || p.AllowsNamespace("private") {
 		t.Fatalf("reloaded principal = %#v, %v", p, ok)
 	}
+	if p, ok := reloaded.UserForBearer(rootOnly); !ok || !p.AllowsSlug("readme") || p.AllowsSlug("notes/page") {
+		t.Fatalf("reloaded root-only principal = %#v, %v", p, ok)
+	}
 	metadata := reloaded.TokensFor("alice")
-	if len(metadata) != 2 || len(metadata[1].Scopes) != 2 || metadata[1].Namespaces[0] != "notes" {
+	if len(metadata) != 3 || len(metadata[1].Scopes) != 2 || metadata[1].Namespaces[0] != "notes" || len(metadata[2].Namespaces) != 1 || metadata[2].Namespaces[0] != "" {
 		t.Fatalf("token metadata = %#v, want copied scopes and namespaces", metadata)
 	}
 }

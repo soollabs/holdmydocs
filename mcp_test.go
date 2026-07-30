@@ -952,6 +952,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		name string
 		args map[string]any
 	}{
+		{"read_page", map[string]any{"slug": "readme"}},
 		{"read_page", map[string]any{"slug": "private/denied"}},
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
@@ -1066,6 +1067,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	app.refreshNamespaces()
 
 	token := createTokenViaUI(t, server, client, "laptop", "30d", []string{"read"}, []string{"notes"})
+	rootToken := createTokenViaUI(t, server, client, "root-pages", "30d", []string{"read"}, []string{""})
 
 	// The token authenticates API requests.
 	req, _ := http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
@@ -1088,6 +1090,24 @@ func TestTokenSettingsUI(t *testing.T) {
 	closeTestBody(t, pageResp.Body)
 	if pageResp.StatusCode != http.StatusOK {
 		t.Fatalf("selected namespace request = %d, want 200", pageResp.StatusCode)
+	}
+	for _, tc := range []struct {
+		path string
+		want int
+	}{
+		{"/readme", http.StatusOK},
+		{"/notes/allowed", http.StatusForbidden},
+	} {
+		req, _ := http.NewRequest(http.MethodGet, server.URL+tc.path, nil)
+		req.Header.Set("Authorization", "Bearer "+rootToken)
+		rootResp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("root-only request %s failed: %v", tc.path, err)
+		}
+		closeTestBody(t, rootResp.Body)
+		if rootResp.StatusCode != tc.want {
+			t.Errorf("root-only request %s = %d, want %d", tc.path, rootResp.StatusCode, tc.want)
+		}
 	}
 
 	allNamespacesToken := createTokenViaUI(t, server, client, "all-pages", "30d", []string{"read"}, nil)
@@ -1120,6 +1140,9 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 	if selected.ScopeLabel != "read" {
 		t.Errorf("selected token scope label = %q, want read", selected.ScopeLabel)
+	}
+	if root := findToken("root-pages"); len(root.Namespaces) != 1 || root.Namespaces[0] != "" || root.NamespaceLabel != "root only" {
+		t.Errorf("root token = %#v, want root-only namespace access", root)
 	}
 	if all := findToken("all-pages"); all.NamespaceLabel != "All namespaces" {
 		t.Errorf("unrestricted token namespace label = %q, want All namespaces", all.NamespaceLabel)
@@ -1177,8 +1200,8 @@ func TestTokenSettingsUI(t *testing.T) {
 			t.Errorf("%s response exposed a token value", tc.name)
 		}
 	}
-	if len(app.Auth.TokensFor("admin")) != 3 {
-		t.Errorf("invalid forms created tokens: got %d, want 3", len(app.Auth.TokensFor("admin")))
+	if len(app.Auth.TokensFor("admin")) != 4 {
+		t.Errorf("invalid forms created tokens: got %d, want 4", len(app.Auth.TokensFor("admin")))
 	}
 
 	for _, path := range []string{"/readme", "/private/denied"} {
@@ -1214,6 +1237,9 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 	if !strings.Contains(string(pageBody), "laptop") {
 		t.Error("settings page missing token row")
+	}
+	if !strings.Contains(string(pageBody), `name="namespaces" value=""`) {
+		t.Error("settings page missing root namespace toggle")
 	}
 	if !strings.Contains(string(pageBody), time.Now().Add(30*24*time.Hour).Format("2006-01-02")) {
 		t.Error("settings page missing 30-day expiry date")
