@@ -213,58 +213,6 @@ func TestMCPInvalidBearer401(t *testing.T) {
 	}
 }
 
-func TestMCPRequiresModernProtocolHeader(t *testing.T) {
-	server, token := newMCPTestApp(t, true)
-	for _, tc := range []struct {
-		name, version, requested string
-	}{
-		{name: "missing"},
-		{name: "legacy", version: "2025-11-25", requested: "2025-11-25"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`))
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("Content-Type", "application/json")
-			if tc.version != "" {
-				req.Header.Set("MCP-Protocol-Version", tc.version)
-			}
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer closeTestBody(t, resp.Body)
-			if resp.StatusCode != http.StatusBadRequest {
-				t.Fatalf("%s protocol header: got status %d, want %d", tc.name, resp.StatusCode, http.StatusBadRequest)
-			}
-			var body struct {
-				Error struct {
-					Code int `json:"code"`
-					Data struct {
-						Supported []string `json:"supported"`
-						Requested string   `json:"requested"`
-					} `json:"data"`
-				} `json:"error"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			if body.Error.Code != -32022 {
-				t.Errorf("%s protocol header: got error code %d, want -32022", tc.name, body.Error.Code)
-			}
-			if len(body.Error.Data.Supported) != 1 || body.Error.Data.Supported[0] != mcpProtocolVersion {
-				t.Errorf("%s protocol header: got supported %v, want [%s]", tc.name, body.Error.Data.Supported, mcpProtocolVersion)
-			}
-			if body.Error.Data.Requested != tc.requested {
-				t.Errorf("%s protocol header: got requested %q, want %q", tc.name, body.Error.Data.Requested, tc.requested)
-			}
-		})
-	}
-}
-
 func TestMCPRequiresModernRequestMetadata(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`))
@@ -369,6 +317,30 @@ func TestMCPRejectsLegacyInitialise(t *testing.T) {
 	}
 }
 
+func TestMCPAcceptsLegacyInitialise(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	body := `{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{}},"clientInfo":{"name":"opencode","version":"1.18.9"}}}`
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy initialise: got status %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if resp.Header.Get("Mcp-Session-Id") == "" {
+		t.Fatal("legacy initialise response missing Mcp-Session-Id")
+	}
+}
+
 func TestMCPOnlyAllowsPost(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	for _, method := range []string{http.MethodGet, http.MethodDelete, http.MethodPut} {
@@ -378,6 +350,7 @@ func TestMCPOnlyAllowsPost(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("MCP-Protocol-Version", mcpProtocolVersion)
 
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {

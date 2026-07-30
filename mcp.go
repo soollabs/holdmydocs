@@ -213,12 +213,20 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 }
 
 func newMCPHTTPHandler(serverForRequest func(*http.Request) *mcp.Server) http.Handler {
-	handler := mcp.NewStreamableHTTPHandler(serverForRequest, &mcp.StreamableHTTPOptions{
+	legacy := mcp.NewStreamableHTTPHandler(serverForRequest, nil)
+	modern := mcp.NewStreamableHTTPHandler(serverForRequest, &mcp.StreamableHTTPOptions{
 		// stateless — no session state to time out or resume; revisit if a client needs server-initiated messages
 		Stateless:                    true,
 		PropagateRequestCancellation: true,
 	})
-	return http.NewCrossOriginProtection().Handler(mcpProtocolGate(handler))
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("MCP-Protocol-Version") == mcpProtocolVersion {
+			mcpProtocolGate(modern).ServeHTTP(w, r)
+			return
+		}
+		legacy.ServeHTTP(w, r)
+	})
+	return http.NewCrossOriginProtection().Handler(handler)
 }
 
 // mcpUser returns the authenticated request user, which Auth.Middleware has
