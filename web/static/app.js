@@ -514,9 +514,10 @@
     { name: 'ns', desc: 'namespaces & templates', action: 'ns' },
     { name: 'sync', desc: 'push now', action: 'sync' },
     { name: 'pin', desc: 'pin this page', action: 'pin' },
+    { name: 'delete', desc: 'delete this page', action: 'delete' },
   ].filter(v => {
     if (v.action === 'new') return window.hmdNewEnabled;
-    return !window.hmdNamespaceIndex || !['rename', 'tag', 'hist', 'pin'].includes(v.action);
+    return !window.hmdNamespaceIndex || !['rename', 'tag', 'hist', 'pin', 'delete'].includes(v.action);
   });
 
   function syncVerbDesc() {
@@ -611,6 +612,13 @@
       case 'rename':
       case 'tag':
         enterVerbInput(action);
+        break;
+      case 'delete':
+        closePalette();
+        if (!slug || !window.confirm(`Delete "${slug}"? Its history stays in git, but it disappears from the wiki.`)) return;
+        fetch(`/${slug}?do=delete`, { method: 'POST' })
+          .then(r => { if (r.ok) window.location.href = '/'; })
+          .catch(() => {});
         break;
     }
   }

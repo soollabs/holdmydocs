@@ -1323,9 +1323,28 @@ func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
 		app.handleRenamePage(w, r)
 	case "tags":
 		app.handleSetTags(w, r)
+	case "delete":
+		app.handleDeletePage(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// handleDeletePage implements POST /{slug}?do=delete. Git history keeps the
+// content recoverable, mirroring the MCP delete_page tool.
+func (app *App) handleDeletePage(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	if err := app.Store.Remove(pageFile(slug), "Delete "+slug, authorName, authorEmail); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	app.Index.Remove(slug)
+	slog.Info("deleted", "slug", slug, "by", app.currentUser(r))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // handleHiddenGet/Post mirror handlePageGet/Post for the /_/hidden/{path...}

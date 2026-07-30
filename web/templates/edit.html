@@ -27,6 +27,7 @@
 		</label>
 		<button type="submit" form="edit-form" id="save-btn" class="save-btn">SAVE ctrl-s</button>
 		<a href="{{.RoutePrefix}}/{{.Slug}}" class="cancel-link">cancel</a>
+		{{if ne .BaseHash ""}}<button type="submit" form="delete-form" class="ghost-btn danger-btn">delete</button>{{end}}
 	</div>
 
 	<div class="toolbar" role="toolbar" aria-label="Formatting">
@@ -55,6 +56,8 @@
 	<textarea name="body" id="editor-src" rows="16" style="display:none">{{.Body}}</textarea>
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
+
+{{if ne .BaseHash ""}}<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=delete" id="delete-form" onsubmit="return confirm('Delete this page? History stays in git, but it disappears from the wiki.')"></form>{{end}}
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>

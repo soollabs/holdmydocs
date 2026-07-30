@@ -136,6 +136,24 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if renameResp.StatusCode != http.StatusOK {
 		t.Errorf("?do=rename: status = %d, want 200", renameResp.StatusCode)
 	}
+
+	// POST ?do=delete, on the renamed slug.
+	deleteResp, err := client.Post(server.URL+"/routing-target-renamed?do=delete", "", nil)
+	if err != nil {
+		t.Fatalf("POST ?do=delete: %v", err)
+	}
+	closeTestBody(t, deleteResp.Body)
+	if deleteResp.StatusCode != http.StatusSeeOther {
+		t.Errorf("?do=delete: status = %d, want 303", deleteResp.StatusCode)
+	}
+	if app.Index.Exists("routing-target-renamed") {
+		t.Error("?do=delete: page still in search index")
+	}
+	resp = get("/routing-target-renamed")
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("view after delete: status = %d, want 404", resp.StatusCode)
+	}
 }
 
 func TestNewPageCanChooseFilename(t *testing.T) {
