@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestHasScopeDefaultsToFullAccess(t *testing.T) {
@@ -60,7 +65,7 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 // scope model: a read-only user can view pages but is denied at the
 // middleware for anything write- or settings-shaped.
 func TestScopeEnforcementIntegration(t *testing.T) {
-	app, server, _ := newTestAppFull(t)
+	app, server, settingsClient := newTestAppFull(t)
 	defer server.Close()
 
 	if err := app.Auth.AddUser("reader", "secret"); err != nil {
@@ -110,6 +115,214 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	closeTestBody(t, settingsResp.Body)
 	if settingsResp.StatusCode != http.StatusForbidden {
 		t.Errorf("read-scoped user GET /settings = %d, want 403", settingsResp.StatusCode)
+	}
+
+	if err := app.Auth.AddUser("settings-only", "secret"); err != nil {
+		t.Fatalf("AddUser(settings-only): %v", err)
+	}
+	if err := app.Auth.SetScopes("settings-only", []string{"settings"}); err != nil {
+		t.Fatalf("SetScopes(settings-only): %v", err)
+	}
+	settingsToken, err := app.Auth.AddToken("settings-only", "namespace-management", time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("AddToken(settings-only): %v", err)
+	}
+	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+		settingsReq, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		if err != nil {
+			t.Fatalf("new settings PAT request: %v", err)
+		}
+		settingsReq.Header.Set("Authorization", "Bearer "+settingsToken)
+		settingsPATResp, err := http.DefaultClient.Do(settingsReq)
+		if err != nil {
+			t.Fatalf("settings PAT GET %s: %v", path, err)
+		}
+		closeTestBody(t, settingsPATResp.Body)
+		if settingsPATResp.StatusCode != http.StatusOK {
+			t.Errorf("settings-only PAT GET %s = %d, want 200", path, settingsPATResp.StatusCode)
+		}
+	}
+
+	readerToken, err := app.Auth.AddToken("reader", "read-only", time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("AddToken(reader): %v", err)
+	}
+	readerReq, err := http.NewRequest(http.MethodGet, server.URL+"/_/namespaces", nil)
+	if err != nil {
+		t.Fatalf("new reader PAT request: %v", err)
+	}
+	readerReq.Header.Set("Authorization", "Bearer "+readerToken)
+	readerPATResp, err := http.DefaultClient.Do(readerReq)
+	if err != nil {
+		t.Fatalf("reader PAT GET /_/namespaces: %v", err)
+	}
+	closeTestBody(t, readerPATResp.Body)
+	if readerPATResp.StatusCode != http.StatusForbidden {
+		t.Errorf("read-only PAT GET /_/namespaces = %d, want 403", readerPATResp.StatusCode)
+	}
+
+	adminLogin(t, server, settingsClient)
+	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+		resp, err := settingsClient.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("settings GET %s: %v", path, err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("settings GET %s = %d, want 200", path, resp.StatusCode)
+		}
+	}
+
+	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+		resp, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("reader GET %s: %v", path, err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("reader GET %s = %d, want 403", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestRestrictedTokenHTTP(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	defer server.Close()
+
+	seed := func(page Page) {
+		t.Helper()
+		if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "Seed "+page.Slug, "test", "test@hmd.local"); err != nil {
+			t.Fatalf("seed %s: %v", page.Slug, err)
+		}
+		if err := app.Index.Update(page); err != nil {
+			t.Fatalf("index %s: %v", page.Slug, err)
+		}
+	}
+	seed(Page{Slug: "notes/allowed", Title: "Notes allowed", Tags: []string{"shared"}, Body: "notes content [[missing-notes]]"})
+	seed(Page{Slug: "private/denied", Title: "Private denied", Tags: []string{"shared"}, Body: "private content [[missing-private]]"})
+	for _, page := range []Page{
+		{Slug: "notes/draft", Title: "Notes draft"},
+		{Slug: "private/denied", Title: "Private hidden"},
+	} {
+		if _, err := app.Store.Save(hiddenFile(page.Slug), page.Encode(), "Seed hidden "+page.Slug, "test", "test@hmd.local"); err != nil {
+			t.Fatalf("seed hidden %s: %v", page.Slug, err)
+		}
+	}
+	if _, err := app.Store.Save("attachments/private/denied/file.txt", []byte("private attachment"), "Seed attachment", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("seed attachment: %v", err)
+	}
+	notesConfig, err := (NamespaceConfig{New: &NewPageConfig{Template: "template", Slug: "created"}}).Encode()
+	if err != nil {
+		t.Fatalf("encode notes config: %v", err)
+	}
+	if _, err := app.Store.Save(namespaceConfigPath("notes"), notesConfig, "Configure notes", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("seed notes config: %v", err)
+	}
+	app.refreshNamespaces()
+
+	token, err := app.Auth.AddToken("admin", "notes-http", time.Time{}, []string{"read", "write"}, []string{"notes"})
+	if err != nil {
+		t.Fatalf("AddToken: %v", err)
+	}
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+
+	do := func(method, path string, body io.Reader) (int, []byte) {
+		t.Helper()
+		req, err := http.NewRequest(method, server.URL+path, body)
+		if err != nil {
+			t.Fatalf("new request %s %s: %v", method, path, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("request %s %s: %v", method, path, err)
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		closeTestBody(t, resp.Body)
+		if readErr != nil {
+			t.Fatalf("read response %s %s: %v", method, path, readErr)
+		}
+		return resp.StatusCode, data
+	}
+
+	for _, tc := range []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodGet, "/notes/allowed", http.StatusOK},
+		{http.MethodGet, "/private/denied", http.StatusForbidden},
+		{http.MethodGet, "/readme", http.StatusForbidden},
+		{http.MethodGet, "/_/settings", http.StatusForbidden},
+		{http.MethodGet, "/_/api/preview/private/denied", http.StatusForbidden},
+		{http.MethodGet, "/_/attachments/private/denied/file.txt", http.StatusForbidden},
+	} {
+		if got, _ := do(tc.method, tc.path, nil); got != tc.want {
+			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, got, tc.want)
+		}
+	}
+	if status, body := do(http.MethodGet, "/_/api/preview/private/denied", nil); status != http.StatusForbidden || string(body) != `{"error":"namespace access denied"}` {
+		t.Errorf("API namespace denial = %d %q, want 403 JSON error", status, body)
+	}
+
+	for _, path := range []string{
+		"/_/api/search?q=private",
+		"/_/search?q=denied",
+		"/_/tags",
+		"/_/tags/shared",
+		"/_/health-report",
+		"/_/hidden",
+		"/_/namespaces",
+	} {
+		status, body := do(http.MethodGet, path, nil)
+		if path != "/_/namespaces" && status != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", path, status)
+		}
+		if strings.Contains(string(body), "private/denied") || strings.Contains(string(body), "private") {
+			t.Errorf("GET %s leaked a restricted namespace: %s", path, body)
+		}
+	}
+
+	if got, _ := do(http.MethodPost, "/_/new?ns=private", nil); got != http.StatusForbidden {
+		t.Errorf("POST /_/new?ns=private = %d, want 403", got)
+	}
+	if got, _ := do(http.MethodPost, "/_/new?ns=notes", nil); got != http.StatusSeeOther {
+		t.Errorf("POST /_/new?ns=notes = %d, want 303", got)
+	}
+
+	upload := func(slug string) int {
+		t.Helper()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", "file.png")
+		if err != nil {
+			t.Fatalf("create upload part: %v", err)
+		}
+		if _, err := part.Write([]byte("png")); err != nil {
+			t.Fatalf("write upload: %v", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatalf("close upload: %v", err)
+		}
+		req, err := http.NewRequest(http.MethodPost, server.URL+"/_/api/attachments/"+slug, body)
+		if err != nil {
+			t.Fatalf("new upload request: %v", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("upload %s: %v", slug, err)
+		}
+		closeTestBody(t, resp.Body)
+		return resp.StatusCode
+	}
+	if got := upload("private/denied"); got != http.StatusForbidden {
+		t.Errorf("upload private/denied = %d, want 403", got)
+	}
+	if got := upload("notes/allowed"); got != http.StatusOK {
+		t.Errorf("upload notes/allowed = %d, want 200", got)
 	}
 }
 

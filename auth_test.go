@@ -2,7 +2,9 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestBootstrapAdmin(t *testing.T) {
@@ -215,5 +217,218 @@ func TestUserGitAuthorPersists(t *testing.T) {
 	}
 	if _, ok := auth2.Login("admin", "pw"); !ok {
 		t.Errorf("login should still work after author set")
+	}
+}
+
+func TestTokenNamespacesPersistAndCache(t *testing.T) {
+	cfg := Config{AppDir: t.TempDir()}
+	auth, err := OpenAuth(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("alice", "secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	unrestricted, err := auth.AddToken("alice", "all", time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restricted, err := auth.AddToken("alice", "notes", time.Time{}, []string{"read", "write"}, []string{" notes ", "notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := auth.UserForBearer(unrestricted); !ok || p.User != "alice" || p.Restricted() {
+		t.Fatalf("unrestricted principal = %#v, %v", p, ok)
+	}
+	if p, ok := auth.UserForBearer(restricted); !ok || !p.AllowsNamespace("notes") || p.AllowsNamespace("private") {
+		t.Fatalf("restricted principal = %#v, %v", p, ok)
+	}
+
+	// A cache hit keeps the policy that was verified with the token, rather
+	// than reading a changed stored record.
+	auth.mu.Lock()
+	stored := auth.users["alice"]
+	stored.Tokens[1].Namespaces = []string{"private"}
+	auth.users["alice"] = stored
+	auth.mu.Unlock()
+	if p, ok := auth.UserForBearer(restricted); !ok || !p.AllowsNamespace("notes") || p.AllowsNamespace("private") {
+		t.Fatalf("cached restricted principal = %#v, %v", p, ok)
+	}
+
+	reloaded, err := OpenAuth(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := reloaded.UserForBearer(restricted); !ok || !p.AllowsNamespace("notes") || p.AllowsNamespace("private") {
+		t.Fatalf("reloaded principal = %#v, %v", p, ok)
+	}
+	metadata := reloaded.TokensFor("alice")
+	if len(metadata) != 2 || len(metadata[1].Scopes) != 2 || metadata[1].Namespaces[0] != "notes" {
+		t.Fatalf("token metadata = %#v, want copied scopes and namespaces", metadata)
+	}
+}
+
+func TestTokenInputValidation(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("alice", "secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := auth.AddToken("alice", "", time.Time{}, nil, nil); err == nil {
+		t.Error("blank token name was accepted")
+	}
+	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, nil, nil); err == nil {
+		t.Error("duplicate token name was accepted")
+	}
+
+	for _, namespaces := range [][]string{{" "}, {"_"}, {".private"}, {"notes/private"}} {
+		if _, err := auth.AddToken("alice", "invalid-namespace-"+namespaces[0], time.Time{}, nil, namespaces); err == nil {
+			t.Errorf("invalid namespaces %v were accepted", namespaces)
+		}
+	}
+	if _, err := auth.AddToken("alice", "unknown-scope", time.Time{}, []string{"admin"}, nil); err == nil {
+		t.Error("unknown token scope was accepted")
+	}
+	if _, err := auth.AddToken("alice", "empty-scopes", time.Time{}, []string{}, nil); err == nil {
+		t.Error("empty new-token scopes were accepted")
+	}
+
+	if _, err := auth.AddToken("alice", "normalised", time.Time{}, []string{"write", "read", "read"}, []string{" notes ", "notes"}); err != nil {
+		t.Fatalf("normalisable token rejected: %v", err)
+	}
+	metadata := auth.TokensFor("alice")
+	got := metadata[len(metadata)-1]
+	if len(got.Scopes) != 2 || got.Scopes[0] != "read" || got.Scopes[1] != "write" || len(got.Namespaces) != 1 || got.Namespaces[0] != "notes" {
+		t.Fatalf("normalised token metadata = %#v", got)
+	}
+
+	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.AddToken("alice", "exceeds-user", time.Time{}, []string{"read", "write"}, nil); err == nil {
+		t.Error("token scopes exceeding user scopes were accepted")
+	}
+}
+
+func TestTokenScopeIntersectionAndSettingsBypass(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("reader", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SetScopes("reader", []string{"read", "write"}); err != nil {
+		t.Fatal(err)
+	}
+	readToken, err := auth.AddToken("reader", "read-only", time.Time{}, []string{"read"}, []string{"notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readPrincipal, ok := auth.UserForBearer(readToken)
+	if !ok || !readPrincipal.HasScope(scopeRead) || readPrincipal.HasScope(scopeWrite) {
+		t.Fatalf("read token principal = %#v, %v", readPrincipal, ok)
+	}
+
+	if err := auth.AddUser("manager", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {
+		t.Fatal(err)
+	}
+	settingsToken, err := auth.AddToken("manager", "admin", time.Time{}, []string{"settings"}, []string{"notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settingsPrincipal, ok := auth.UserForBearer(settingsToken)
+	if !ok || !settingsPrincipal.HasScope(scopeRead) || !settingsPrincipal.HasScope(scopeWrite) || !settingsPrincipal.HasScope(scopeSettings) || settingsPrincipal.Restricted() || !settingsPrincipal.AllowsNamespace("private") {
+		t.Fatalf("settings token principal = %#v, %v", settingsPrincipal, ok)
+	}
+}
+
+func TestBearerScopesUseCurrentUserScopes(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("alice", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	token, err := auth.AddToken("alice", "writer", time.Time{}, []string{"write"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	protected := auth.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := tokenPrincipalFromContext(r.Context())
+		if !ok || principal.User != "alice" || !principal.HasScope(scopeWrite) {
+			t.Errorf("request principal = %#v, %v", principal, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	request := func() *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/readme", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+		protected.ServeHTTP(rr, r)
+		return rr
+	}
+	if response := request(); response.Code != http.StatusNoContent {
+		t.Fatalf("initial Bearer request = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	if response := request(); response.Code != http.StatusForbidden {
+		t.Fatalf("Bearer request after scope change = %d, want %d", response.Code, http.StatusForbidden)
+	}
+}
+
+func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("manager", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {
+		t.Fatal(err)
+	}
+	token, err := auth.AddToken("manager", "read-only", time.Time{}, []string{"read"}, []string{"notes"})
+	if err != nil {
+		t.Fatalf("AddToken: %v", err)
+	}
+
+	protected := auth.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := tokenPrincipalFromContext(r.Context())
+		if !ok {
+			t.Fatal("request had no token principal")
+		}
+		if !principal.HasScope(scopeRead) {
+			t.Error("read-only token lost read access")
+		}
+		if principal.HasScope(scopeWrite) || principal.HasScope(scopeSettings) {
+			t.Error("read-only token gained write or settings access")
+		}
+		if !principal.AllowsNamespace("notes") || principal.AllowsNamespace("private") {
+			t.Error("read-only token lost its namespace restriction")
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	r := httptest.NewRequest(http.MethodGet, "/notes/page", nil)
+	r.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, r)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("read-only token GET = %d, want %d", rr.Code, http.StatusNoContent)
 	}
 }

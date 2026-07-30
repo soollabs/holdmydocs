@@ -1041,7 +1041,7 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 		SiteName:   "My Wiki",
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
+	sd := buildSettingsData(cfg, userRecord{})
 
 	if !sd.Fields["Bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
@@ -1086,7 +1086,7 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
+	sd := buildSettingsData(cfg, userRecord{})
 
 	if sd.Fields["Bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
@@ -1113,7 +1113,7 @@ func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{}, NamespaceRegistry{}, "admin")
+	sd := buildSettingsData(cfg, userRecord{})
 
 	if sd.Fields["GitToken"].Editable {
 		t.Error("GitToken should be read-only when token file is set")

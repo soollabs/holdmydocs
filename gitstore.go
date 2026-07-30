@@ -129,8 +129,10 @@ or out of this set.
 Two pages, both behind the "settings" scope. ` + "`/_/settings`" + ` is personal:
 skin, palette, fonts, your git author and your access tokens.
 ` + "`/_/admin`" + ` is the wiki: git remote, site name, behaviour like upload
-limits, namespaces and users. "Re-run setup" on ` + "`/_/admin`" + ` reopens the
+limits and users. "Re-run setup" on ` + "`/_/admin`" + ` reopens the
 home page setup prompt if you ever need to re-add it.
+
+Namespace management has its own settings page at ` + "`/_/namespaces`" + `.
 
 Everything else the app owns lives under ` + "`/_/`" + ` too — no page can ever
 take those URLs.
@@ -199,6 +201,11 @@ the ` + "`blog`" + ` namespace, ` + "`readme.md`" + ` is in the root one. Anythi
 deeper (` + "`blog/drafts/post.md`" + `) is just filing — namespaces are exactly
 one level deep.
 
+The public namespace index is ` + "`/<namespace>/`" + ` and a namespace page is
+` + "`/<namespace>/<page>`" + `. A bare ` + "`/<namespace>`" + ` remains a root
+page URL, never an index alias. Public namespaces are visible without signing
+in; private and unknown namespace indexes both return the same not-found page.
+
 A namespace decides three things for the pages in it, via an optional
 ` + "`.namespace.yaml`" + ` beside them:
 
@@ -213,8 +220,9 @@ A namespace decides three things for the pages in it, via an optional
 - ` + "`public: true`" + ` — pages here are readable without logging in.
   Everything is private by default, and a private page is indistinguishable
   from one that doesn't exist to an anonymous visitor.
-- ` + "`new`" + ` — what ctrl-j creates here: ` + "`template`" + ` names a hidden
-  page in the namespace to copy, ` + "`slug`" + ` names the page it creates.
+- ` + "`new`" + ` — what the **Quick-create page** setting (ctrl-j) creates here:
+  ` + "`template`" + ` names a hidden page in the namespace to copy, ` + "`slug`" + `
+  names the page it creates.
 
 ## Template pages
 
@@ -236,11 +244,17 @@ The same fields name the page itself, via the namespace's slug pattern. The
 seeded template documents all of this in its own body — read it, then delete
 it and write yours.
 
-Edit all of this on ` + "`/_/admin`" + ` under "namespaces" — saving a name that
-doesn't exist yet creates the namespace, and removing a namespace's config
-only deletes that file, never the pages filed under it. Writing
-` + "`.namespace.yaml`" + ` by hand works exactly the same; the app rescans on a
-timer.
+Manage namespaces at ` + "`/_/namespaces`" + `. Saving a new name creates its
+configuration. **Reset namespace settings** removes only ` + "`.namespace.yaml`" + `;
+it keeps every page and hidden template. True deletion is available only when
+there are no pages or hidden files, so move or remove those first. Writing
+` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
+
+MCP clients use the same model: page tools accept a root page or one
+` + "`namespace/page`" + ` slug; ` + "`list_namespaces`" + ` lists namespaces;
+` + "`read_namespace`" + `, ` + "`save_namespace`" + ` and ` + "`delete_namespace`" + `
+manage their settings. Page reads require read scope, page writes require write
+scope, and namespace settings tools require settings scope.
 
 ## Journal
 
@@ -549,6 +563,92 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.removeLocked(path, message, authorName, authorEmail)
+}
+
+var errInvalidNamespaceName = errors.New("invalid namespace name")
+
+// DeleteNamespace removes a configured namespace only when its configuration
+// is the directory's sole regular entry and its hidden storage is empty. The
+// inspection and mutation share s.mu so a Store save cannot add content after
+// preflight has passed.
+func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !validNamespaceName(name) {
+		return errInvalidNamespaceName
+	}
+
+	namespaceDir := filepath.Join(s.dir, name)
+	info, err := os.Lstat(namespaceDir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+	}
+	entries, err := os.ReadDir(namespaceDir)
+	if err != nil {
+		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+	}
+
+	configPath := namespaceConfigPath(name)
+	configFound := false
+	for _, entry := range entries {
+		if entry.Name() == namespaceConfigFile {
+			if !entry.Type().IsRegular() {
+				return errors.New("The namespace configuration is not a regular file; deletion was not performed.")
+			}
+			configFound = true
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".md") {
+			return errors.New("This namespace still contains indexed pages; deletion was not performed.")
+		}
+		return errors.New("This namespace still contains directory content; deletion was not performed.")
+	}
+	if !configFound {
+		return errors.New("This namespace has no configuration to delete.")
+	}
+
+	hiddenDir := filepath.Join(s.dir, "."+name)
+	hiddenInfo, err := os.Lstat(hiddenDir)
+	if err == nil {
+		if hiddenInfo.Mode()&os.ModeSymlink != 0 || !hiddenInfo.IsDir() {
+			return errors.New("The namespace has hidden content; deletion was not performed.")
+		}
+		hidden, readErr := os.ReadDir(hiddenDir)
+		if readErr != nil {
+			return errors.New("Unable to inspect hidden namespace files; deletion was not performed.")
+		}
+		if len(hidden) > 0 {
+			return errors.New("This namespace still contains hidden files; deletion was not performed.")
+		}
+	} else if !os.IsNotExist(err) {
+		return errors.New("Unable to inspect hidden namespace files; deletion was not performed.")
+	}
+
+	config, err := os.ReadFile(filepath.Join(s.dir, configPath))
+	if err != nil {
+		return errors.New("Unable to read namespace configuration; deletion was not performed.")
+	}
+	restore := func() error {
+		_, restoreErr := s.saveLocked(configPath, config, "Restore namespace config "+configPath, authorName, authorEmail)
+		return restoreErr
+	}
+	if err := s.removeLocked(configPath, message, authorName, authorEmail); err != nil {
+		if restoreErr := restore(); restoreErr != nil {
+			return fmt.Errorf("failed to remove namespace config: %w (restoring namespace config: %v)", err, restoreErr)
+		}
+		return fmt.Errorf("failed to remove namespace config: %w", err)
+	}
+	if err := os.Remove(namespaceDir); err != nil && !os.IsNotExist(err) {
+		// The Store lock prevents another Store operation from changing the
+		// directory, but restore the config if an external filesystem change
+		// made the final directory removal fail.
+		if restoreErr := restore(); restoreErr != nil {
+			return fmt.Errorf("failed to remove namespace directory: %w (restoring namespace config: %v)", err, restoreErr)
+		}
+		return fmt.Errorf("failed to remove namespace directory: %w", err)
+	}
+	return nil
 }
 
 // removeLocked is Remove's body. Callers must hold s.mu.

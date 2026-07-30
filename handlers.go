@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,70 +90,76 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
-	SiteName         string
-	Authed           bool
-	Title            string
-	Slug             string
-	Content          template.HTML
-	Body             string
-	BaseHash         string
-	Backlinks        []BacklinkEntry
-	TagsInput        string
-	PageTags         []TagChip
-	AllTags          []TagCount
-	TagName          string
-	TagPages         []BacklinkEntry
-	SyncState        string
-	Error            string
-	Query            string
-	SearchResults    []SearchResult
-	HistoryEntries   []HistoryEntry
-	RevHash          string
-	OldVersionDate   string
-	TotalHistory     int
-	MermaidNeeded    bool
-	RevisionCount    int
-	HeadShortHash    string
-	HeadAuthor       string
-	HeadWhen         string // relative, e.g. "3 hours ago"
-	Username         string
-	StatusMode       string // view|edit|search|log|conflict, drives the statusline mode block
-	StatusContext    string // right-aligned context: revision count / word counts
-	Version          string // shown on login intro
-	RemoteHost       string // host of the git remote, for login intro (empty if none)
-	OIDCEnabled      bool   // show the SSO button on the login page
-	OIDCButtonText   string // SSO button label
-	OIDCLocalLogin   bool   // show the password form alongside SSO
-	OIDCIcon         bool   // show the icon (served at /auth/oidc/icon) on the SSO button
-	SearchElapsed    string // search timing, e.g. "3ms"
-	SearchPages      int    // total pages, for search stats
-	SearchHits       int    // match count, for search stats
-	SyncPollMs       int    // injected as a JS global for sync polling
-	SyncMode         string
-	BlobHash         string // current page blob hash, for client-side change detection
-	ThemeStyle       template.CSS
-	Skin             string // structural skin name; empty = default, only ever a known skinNames entry
-	Settings         *SettingsData
-	SetupHomePreview template.HTML
-	SetupHelpPreview template.HTML
-	NeedsSetup       bool
-	NeedsHomeSetup   bool
-	NeedsHelpSetup   bool
-	HomeFileExists   bool
-	HelpFileExists   bool
-	HomeFilename     string
-	RoutePrefix      string
-	IsHidden         bool
-	RecentCommits    []LogEntry // sidebar LOG section: last commits for the current page
-	HealthMissing    int
-	HealthOrphans    int
-	SyncAge          string // relative age of the last successful sync, e.g. "12 seconds ago"
-	SyncLastUnix     int64  // raw timestamp for the client-side sync-age ticker
-	SidebarWidgets   []*widget
-	RailWidgets      []*widget
-	PageHeadWidgets  []*widget
-	PageFootWidgets  []*widget
-	StatusVariant    string // skin.Status: full | write | quiet
+	SiteName            string
+	Authed              bool
+	Title               string
+	Slug                string
+	Content             template.HTML
+	Body                string
+	BaseHash            string
+	Backlinks           []BacklinkEntry
+	TagsInput           string
+	PageTags            []TagChip
+	AllTags             []TagCount
+	TagName             string
+	TagPages            []BacklinkEntry
+	SyncState           string
+	Error               string
+	Query               string
+	SearchResults       []SearchResult
+	HistoryEntries      []HistoryEntry
+	RevHash             string
+	OldVersionDate      string
+	TotalHistory        int
+	MermaidNeeded       bool
+	RevisionCount       int
+	HeadShortHash       string
+	HeadAuthor          string
+	HeadWhen            string // relative, e.g. "3 hours ago"
+	Username            string
+	StatusMode          string // view|edit|search|log|conflict, drives the statusline mode block
+	StatusContext       string // right-aligned context: revision count / word counts
+	Version             string // shown on login intro
+	RemoteHost          string // host of the git remote, for login intro (empty if none)
+	OIDCEnabled         bool   // show the SSO button on the login page
+	OIDCButtonText      string // SSO button label
+	OIDCLocalLogin      bool   // show the password form alongside SSO
+	OIDCIcon            bool   // show the icon (served at /auth/oidc/icon) on the SSO button
+	SearchElapsed       string // search timing, e.g. "3ms"
+	SearchPages         int    // total pages, for search stats
+	SearchHits          int    // match count, for search stats
+	SyncPollMs          int    // injected as a JS global for sync polling
+	SyncMode            string
+	BlobHash            string // current page blob hash, for client-side change detection
+	ThemeStyle          template.CSS
+	Skin                string // structural skin name; empty = default, only ever a known skinNames entry
+	Settings            *SettingsData
+	SetupHomePreview    template.HTML
+	SetupHelpPreview    template.HTML
+	NeedsSetup          bool
+	NeedsHomeSetup      bool
+	NeedsHelpSetup      bool
+	HomeFileExists      bool
+	HelpFileExists      bool
+	HomeFilename        string
+	RoutePrefix         string
+	IsHidden            bool
+	IsNamespaceIndex    bool
+	CanWrite            bool
+	CanSettings         bool
+	NamespaceManagement *NamespaceManagementData
+	Namespace           string // namespace index page: the namespace being listed
+	NamespacePublic     bool
+	RecentCommits       []LogEntry // sidebar LOG section: last commits for the current page
+	HealthMissing       int
+	HealthOrphans       int
+	SyncAge             string // relative age of the last successful sync, e.g. "12 seconds ago"
+	SyncLastUnix        int64  // raw timestamp for the client-side sync-age ticker
+	SidebarWidgets      []*widget
+	RailWidgets         []*widget
+	PageHeadWidgets     []*widget
+	PageFootWidgets     []*widget
+	StatusVariant       string // skin.Status: full | write | quiet
 
 	// Widget data — populated in app.render only when something on the page
 	// actually reads it (see populateWidgetData).
@@ -160,7 +167,23 @@ type TemplateData struct {
 	WritingStats   WritingStats
 	PinnedPages    []BacklinkEntry
 	PrevEntries    []PrevEntry
-	JournalEnabled bool // journal namespace has a `new:` template — gates the ctrl-j shortcut and >new verb client-side
+	NamespaceNav   []NamespaceNavEntry
+	NewPageEnabled bool   // a namespace with a `new:` template is in reach — gates the ctrl-j shortcut and >new verb client-side
+	NewNamespace   string // which one ctrl-j targets: this page's, else the journal fallback
+}
+
+// NamespaceManagementData is deliberately smaller than SettingsData: the
+// namespace directory and editor do not need the system configuration model.
+type NamespaceManagementData struct {
+	CanWrite     bool
+	CanSettings  bool
+	Rows         []NamespaceSummary
+	Form         NamespaceListEntry
+	WidgetGroups []widgetSlotGroup
+	SlugPresets  []slugPresetView
+	Now          time.Time
+	Error        string
+	Flash        string
 }
 
 // LogEntry is one row in the sidebar LOG section.
@@ -200,16 +223,12 @@ type SettingsData struct {
 	SkinNames        []string
 	Skins            map[string]skin
 	SkinPalettes     map[string]string // skin -> default palette, JSON-encoded to move the selection on change
-	Namespaces       []NamespaceListEntry
-	NamespaceError   string            // namespace save validation error
-	WidgetGroups     []widgetSlotGroup // every widget, grouped by slot, for the namespace widget picker
-	SlugPresets      []slugPresetView  // named new-page slug patterns, with today's example
-	Now              time.Time         // for date-format examples in the namespace panel
 	HelpDrifted      bool
 	UserGitAuthor    string        // current user's per-user git author override
 	HomeFilename     string        // read-only display; restart required to change
 	HomeFilenameEnv  string        // env var name if it overrides the file, else ""
 	Tokens           []TokenView   // current user's personal access tokens
+	TokenNamespaces  []string      // selectable namespace names for new tokens
 	NewToken         string        // freshly minted token value, shown exactly once
 	TokenError       string        // token create/revoke validation error
 	HasEnvOverrides  bool          // any field currently sourced from an env var — shows the "export to file" action
@@ -222,9 +241,13 @@ type SettingsData struct {
 
 // TokenView is a PAT as listed on the settings page (metadata only).
 type TokenView struct {
-	Name    string
-	Created string
-	Expires string // "never", a date, or "expired"
+	Name           string
+	Created        string
+	Expires        string // "never", a date, or "expired"
+	Scopes         []string
+	Namespaces     []string
+	ScopeLabel     string
+	NamespaceLabel string
 }
 
 // relativeTime renders t as a short "N units ago" string, falling back to
@@ -283,7 +306,7 @@ func remoteHost(raw string) string {
 // The config file itself is always writable (created on first save if
 // missing) — a field is read-only only when an env var overrides it
 // (cfg.EnvOverrides, keyed by fileConfig field name) or it's bootstrap-only.
-func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry, user string) SettingsData {
+func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields := make(map[string]FieldState)
 
 	// mkField: editable = no env var and not bootstrap-only.
@@ -365,10 +388,6 @@ func buildSettingsData(cfg Config, prefs userRecord, ns NamespaceRegistry, user 
 		SkinNames:        skinNames,
 		Skins:            skins,
 		SkinPalettes:     skinPalettes(),
-		Namespaces:       namespaceListEntries(ns, user),
-		WidgetGroups:     widgetSlotGroups(),
-		SlugPresets:      slugPresetViews(user),
-		Now:              time.Now(),
 		HomeFilename:     cfg.HomeFilename,
 		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
 		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
@@ -408,8 +427,10 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	if data.Authed {
 		missing, orphans := app.Index.Health(app.config().HomeSlug())
+		missing, orphans = filterHealth(r.Context(), missing, orphans)
 		data.HealthMissing = len(missing)
 		data.HealthOrphans = len(orphans)
+		data.AllTags = filterTagCounts(r.Context(), app.Index, data.AllTags)
 	}
 	if data.Authed && data.StatusMode == "" {
 		data.StatusMode = "view"
@@ -429,6 +450,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed {
 		cfg := app.config()
 		prefs := app.Auth.prefs(app.currentUser(r))
+		data.CanWrite = prefs.hasScope(scopeWrite)
+		data.CanSettings = prefs.hasScope(scopeSettings)
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		activeName, activeSkin := effectiveSkin(cfg, prefs)
@@ -437,8 +460,18 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.ThemeStyle = buildThemeStyle(themePrefs)
 		data.Skin = activeName
 		data.StatusVariant = activeSkin.Status
-		if nsCfg, ok := app.Namespaces()[journalNamespace]; ok && nsCfg.New != nil {
-			data.JournalEnabled = true
+		// ctrl-j creates in the namespace you are standing in when it has a
+		// `new:` block, falling back to the journal namespace — otherwise the
+		// per-namespace "ctrl-j creates a page here" checkbox would be a lie
+		// everywhere except journal.
+		nsRegistry := app.Namespaces()
+		target, _ := namespaceFor(data.Slug)
+		if cfg, ok := nsRegistry[target]; !ok || cfg.New == nil {
+			target = journalNamespace
+		}
+		if cfg, ok := nsRegistry[target]; ok && cfg.New != nil {
+			data.NewPageEnabled = true
+			data.NewNamespace = target
 		}
 		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
@@ -472,6 +505,12 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.PageFootWidgets = widgetsForSlot(slotPageFoot, nsCfg.Widgets)
 
 		app.populateWidgetData(&data, activeSkin)
+		for i := len(data.NamespaceNav) - 1; i >= 0; i-- {
+			if !tokenAllowsNamespace(r.Context(), data.NamespaceNav[i].Name) {
+				data.NamespaceNav = append(data.NamespaceNav[:i], data.NamespaceNav[i+1:]...)
+			}
+		}
+		data.PinnedPages = filterBacklinkEntries(r.Context(), data.PinnedPages)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -513,6 +552,99 @@ func (app *App) currentUser(r *http.Request) string {
 	}
 	user, _ := app.Auth.UserFor(cookie.Value)
 	return user
+}
+
+func tokenNamespaceDenied(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/_/api/") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		if _, err := w.Write([]byte(`{"error":"namespace access denied"}`)); err != nil {
+			slog.Debug("writing namespace error response", "err", err)
+		}
+		return
+	}
+	http.Error(w, "403 Forbidden: namespace access denied", http.StatusForbidden)
+}
+
+func (app *App) requireTokenNamespace(w http.ResponseWriter, r *http.Request, namespace string) bool {
+	if tokenAllowsNamespace(r.Context(), namespace) {
+		return true
+	}
+	tokenNamespaceDenied(w, r)
+	return false
+}
+
+func (app *App) requireTokenSlug(w http.ResponseWriter, r *http.Request, slug string) bool {
+	if tokenAllowsSlug(r.Context(), slug) {
+		return true
+	}
+	tokenNamespaceDenied(w, r)
+	return false
+}
+
+func filterBacklinkEntries(ctx context.Context, entries []BacklinkEntry) []BacklinkEntry {
+	filtered := make([]BacklinkEntry, 0, len(entries))
+	for _, entry := range entries {
+		if tokenAllowsSlug(ctx, entry.Slug) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+func filterTagCounts(ctx context.Context, ix *Index, tags []TagCount) []TagCount {
+	filtered := make([]TagCount, 0, len(tags))
+	for _, tag := range tags {
+		count := 0
+		for _, slug := range ix.PagesForTag(tag.Slug) {
+			if tokenAllowsSlug(ctx, slug) {
+				count++
+			}
+		}
+		if count > 0 {
+			tag.Count = count
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
+}
+
+func filterNamespaceSummaries(ctx context.Context, summaries []NamespaceSummary) []NamespaceSummary {
+	filtered := make([]NamespaceSummary, 0, len(summaries))
+	for _, summary := range summaries {
+		if !tokenAllowsNamespace(ctx, summary.Name) {
+			continue
+		}
+		summary.Pages = filterBacklinkEntries(ctx, summary.Pages)
+		summary.Count = len(summary.Pages)
+		filtered = append(filtered, summary)
+	}
+	return filtered
+}
+
+func filterHealth(ctx context.Context, missing map[string][]string, orphans []string) (map[string][]string, []string) {
+	filteredMissing := make(map[string][]string, len(missing))
+	for slug, sources := range missing {
+		if !tokenAllowsSlug(ctx, slug) {
+			continue
+		}
+		allowedSources := make([]string, 0, len(sources))
+		for _, source := range sources {
+			if tokenAllowsSlug(ctx, source) {
+				allowedSources = append(allowedSources, source)
+			}
+		}
+		if len(allowedSources) > 0 {
+			filteredMissing[slug] = allowedSources
+		}
+	}
+	filteredOrphans := make([]string, 0, len(orphans))
+	for _, slug := range orphans {
+		if tokenAllowsSlug(ctx, slug) {
+			filteredOrphans = append(filteredOrphans, slug)
+		}
+	}
+	return filteredMissing, filteredOrphans
 }
 
 // gitAuthor resolves the commit identity for username: the user's own override,
@@ -627,6 +759,9 @@ func (app *App) Routes() http.Handler {
 	// Settings
 	mux.HandleFunc("GET /_/settings", app.handleSettingsGet)
 	mux.HandleFunc("GET /_/admin", app.handleAdminGet)
+	mux.HandleFunc("GET /_/namespaces", app.handleNamespacesGet)
+	mux.HandleFunc("GET /_/namespaces/new", app.handleNamespaceNewGet)
+	mux.HandleFunc("GET /_/namespaces/{name}/edit", app.handleNamespaceEditGet)
 	mux.HandleFunc("POST /_/admin", app.handleSettingsPost)
 	mux.HandleFunc("POST /_/settings/appearance", app.handleSettingsAppearance)
 	mux.HandleFunc("POST /_/settings/export", app.handleSettingsExport)
@@ -634,6 +769,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/settings/tokens", app.handleCreateToken)
 	mux.HandleFunc("POST /_/settings/tokens/revoke", app.handleRevokeToken)
 	mux.HandleFunc("POST /_/settings/namespaces", app.handleSaveNamespace)
+	mux.HandleFunc("POST /_/settings/namespaces/reset", app.handleResetNamespace)
 	mux.HandleFunc("POST /_/settings/namespaces/delete", app.handleDeleteNamespace)
 	mux.HandleFunc("POST /_/settings/users", app.handleCreateUser)
 	mux.HandleFunc("POST /_/settings/users/scopes", app.handleSetUserScopes)
@@ -668,7 +804,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/api/search", app.handleSearchAPI)
 	mux.HandleFunc("GET /_/api/sync", app.handleSyncAPI)
 	mux.HandleFunc("POST /_/api/sync/push-now", app.handleSyncPushNow)
-	mux.HandleFunc("GET /_/api/preview/{slug}", app.handleAPIPreview)
+	mux.HandleFunc("GET /_/api/preview/{slug...}", app.handleAPIPreview)
 	mux.HandleFunc("POST /_/api/preview", app.handlePreview)
 	mux.HandleFunc("POST /_/api/attachments/{slug...}", app.handleUploadAttachment)
 	mux.HandleFunc("GET /_/attachments/{path...}", app.handleServeAttachment)
@@ -873,6 +1009,9 @@ func renderNewPageText(src string, data newPageTemplateData) (string, error) {
 // declares a `new:` block.
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("ns")
+	if !app.requireTokenNamespace(w, r, ns) {
+		return
+	}
 	nsCfg, ok := app.Namespaces()[ns]
 	if !ok || nsCfg.New == nil {
 		http.NotFound(w, r)
@@ -890,11 +1029,14 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	// The rendered slug is a trust boundary, like MCP input: validated
 	// after rendering so a template can never write outside its own
 	// namespace (no separators, no dot prefix, non-empty).
-	if !validMCPSlug(slugRel) {
+	if !validMCPPageSegment(slugRel) {
 		http.Error(w, "invalid generated slug", http.StatusBadRequest)
 		return
 	}
 	slug := namespaceSlug(ns, slugRel)
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 
 	if _, _, err := app.Store.Read(pageFile(slug)); err == nil {
 		http.Redirect(w, r, "/"+slug+"?do=edit", http.StatusSeeOther)
@@ -993,7 +1135,9 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	titles := app.Index.Titles()
 	var backlinks []BacklinkEntry
 	for _, bslug := range app.Index.Backlinks(slug) {
-		backlinks = append(backlinks, BacklinkEntry{Slug: bslug, Title: titles[bslug]})
+		if tokenAllowsSlug(r.Context(), bslug) {
+			backlinks = append(backlinks, BacklinkEntry{Slug: bslug, Title: titles[bslug]})
+		}
 	}
 
 	var pageTags []TagChip
@@ -1078,13 +1222,21 @@ func reservedPath(path string) bool {
 // the path. No do= at all means view. Any other value 404s rather than
 // silently falling back to view, so a typoed ?do= doesn't look like success.
 func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
-	if reservedPath(r.PathValue("path")) {
+	slug := r.PathValue("path")
+	if reservedPath(slug) {
 		http.NotFound(w, r)
 		return
 	}
-	r.SetPathValue("slug", r.PathValue("path"))
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	r.SetPathValue("slug", slug)
 	switch r.URL.Query().Get("do") {
 	case "":
+		if name, ok := app.namespaceIndexName(slug); ok {
+			app.handleNamespaceIndex(w, r, name)
+			return
+		}
 		app.handleViewPage(w, r)
 	case "edit":
 		app.handleEditPage(w, r)
@@ -1099,14 +1251,68 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePagePost dispatches every write to a page's own URL, selected by
-// ?do=.
-func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
-	if reservedPath(r.PathValue("path")) {
+// namespaceIndexName reports whether path addresses a namespace's index: an
+// exact one-segment name with a trailing slash that is present in the
+// catalogue. Bare paths remain root-page URLs.
+func (app *App) namespaceIndexName(path string) (string, bool) {
+	name, slashed := strings.CutSuffix(path, "/")
+	if !slashed || name == "" || strings.Contains(name, "/") {
+		return "", false
+	}
+	for _, entry := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+		if entry.Name == name {
+			return entry.Name, true
+		}
+	}
+	return "", false
+}
+
+// handleNamespaceIndex lists the pages in one namespace — the browsable
+// counterpart to the sidebar's namespace list. Anonymous visitors see it only
+// for a public namespace, and get the same 404 as a private page otherwise.
+func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, name string) {
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	authed := app.currentUser(r) != ""
+	var summary *NamespaceSummary
+	for _, entry := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+		if entry.Name == name {
+			entryCopy := entry
+			summary = &entryCopy
+			break
+		}
+	}
+	if summary == nil || (!authed && !summary.Config.Public) {
 		http.NotFound(w, r)
 		return
 	}
-	r.SetPathValue("slug", r.PathValue("path"))
+
+	app.render(w, r, http.StatusOK, "namespace", TemplateData{
+		Authed:           authed,
+		Title:            name,
+		Slug:             name + "/",
+		StatusMode:       "view",
+		StatusContext:    fmt.Sprintf("%d pages", summary.Count),
+		Namespace:        name,
+		NamespacePublic:  summary.Config.Public,
+		IsNamespaceIndex: true,
+		TagPages:         filterBacklinkEntries(r.Context(), summary.Pages),
+	})
+}
+
+// handlePagePost dispatches every write to a page's own URL, selected by
+// ?do=.
+func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("path")
+	if reservedPath(slug) {
+		http.NotFound(w, r)
+		return
+	}
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	r.SetPathValue("slug", slug)
 	switch r.URL.Query().Get("do") {
 	case "save":
 		app.handleSavePage(w, r)
@@ -1125,7 +1331,11 @@ func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
 // subtree: only view/edit/save make sense for a hidden page (no history,
 // diff, revert or rename UI exists for it today).
 func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
-	r.SetPathValue("slug", r.PathValue("path"))
+	slug := r.PathValue("path")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	r.SetPathValue("slug", slug)
 	switch r.URL.Query().Get("do") {
 	case "":
 		app.handleViewHidden(w, r)
@@ -1137,7 +1347,11 @@ func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleHiddenPost(w http.ResponseWriter, r *http.Request) {
-	r.SetPathValue("slug", r.PathValue("path"))
+	slug := r.PathValue("path")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	r.SetPathValue("slug", slug)
 	switch r.URL.Query().Get("do") {
 	case "save":
 		app.handleSaveHidden(w, r)
@@ -1180,6 +1394,9 @@ func (app *App) handleSavePage(w http.ResponseWriter, r *http.Request) {
 // search index is updated or cleared to match).
 func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile string) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	title := r.FormValue("title")
 	body := r.FormValue("body")
 	tagsInput := r.FormValue("tags")
@@ -1301,6 +1518,9 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	username := app.currentUser(r)
 
 	// Limit request body to the configured maximum
@@ -1395,6 +1615,9 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug, file := path[:i], path[i+1:]
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 
 	if app.currentUser(r) == "" && !app.Namespaces().IsPublic(slug) {
 		http.NotFound(w, r)
@@ -1423,7 +1646,7 @@ func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
 		Authed:  true,
 		Title:   "Tags",
-		AllTags: app.Index.Tags(),
+		AllTags: filterTagCounts(r.Context(), app.Index, app.Index.Tags()),
 	})
 }
 
@@ -1437,7 +1660,9 @@ func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 	titles := app.Index.Titles()
 	var pages []BacklinkEntry
 	for _, slug := range app.Index.PagesForTag(tagSlug) {
-		pages = append(pages, BacklinkEntry{Slug: slug, Title: titles[slug]})
+		if tokenAllowsSlug(r.Context(), slug) {
+			pages = append(pages, BacklinkEntry{Slug: slug, Title: titles[slug]})
+		}
 	}
 
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
@@ -1460,6 +1685,9 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]SearchResult, 0, len(hits))
 	for _, hit := range hits {
+		if !tokenAllowsSlug(r.Context(), hit.Slug) {
+			continue
+		}
 		results = append(results, SearchResult{
 			Slug:    hit.Slug,
 			Title:   hit.Title,
@@ -1468,7 +1696,12 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	pageCount := len(app.Index.Titles())
+	pageCount := 0
+	for slug := range app.Index.Titles() {
+		if tokenAllowsSlug(r.Context(), slug) {
+			pageCount++
+		}
+	}
 	title := "Search"
 	if q != "" {
 		title = q
@@ -1502,6 +1735,9 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]AutocompleteResult, 0, len(hits))
 	for _, hit := range hits {
+		if !tokenAllowsSlug(r.Context(), hit.Slug) {
+			continue
+		}
 		results = append(results, AutocompleteResult(hit))
 	}
 
@@ -1542,6 +1778,9 @@ func extractSnippet(body string, wordCount int) string {
 
 func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 
 	content, _, err := app.Store.Read(pageFile(slug))
 	if err != nil || content == nil {
@@ -1632,6 +1871,9 @@ var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
 // verb), moving the file and rewriting wiki-links in every referencing page.
 func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	newTitle := strings.TrimSpace(r.FormValue("title"))
 	if newTitle == "" {
 		http.Error(w, "missing title", http.StatusBadRequest)
@@ -1640,6 +1882,9 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	newSlug := Slugify(newTitle)
 	if newSlug == "" {
 		http.Error(w, "invalid title", http.StatusBadRequest)
+		return
+	}
+	if !app.requireTokenSlug(w, r, newSlug) {
 		return
 	}
 
@@ -1655,6 +1900,11 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 
 	// Capture backlinks before touching the index — Index.Remove drops them.
 	sources := app.Index.Backlinks(slug)
+	for _, source := range sources {
+		if !app.requireTokenSlug(w, r, source) {
+			return
+		}
+	}
 
 	page := ParsePage(slug, content)
 	oldTitle := page.Title
@@ -1707,6 +1957,9 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 // handleSetTags replaces a page's tags (the ">tag" palette verb).
 func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	content, hash, err := app.Store.Read(pageFile(slug))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -1731,6 +1984,7 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	titles := app.Index.Titles()
 	missing, orphans := app.Index.Health(app.config().HomeSlug())
+	missing, orphans = filterHealth(r.Context(), missing, orphans)
 
 	missingSlugs := make([]string, 0, len(missing))
 	for slug := range missing {
@@ -1785,6 +2039,9 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	hashA := r.URL.Query().Get("a")
 	hashB := r.URL.Query().Get("b")
 
@@ -1807,6 +2064,9 @@ func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 
 	// Get page to get title
 	content, _, err := app.Store.Read(pageFile(slug))
@@ -1853,6 +2113,9 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	hash := r.URL.Query().Get("hash")
 
 	// Get old version
@@ -1892,6 +2155,9 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	hash := r.FormValue("hash")
 	username := app.currentUser(r)
 
@@ -1931,6 +2197,9 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 	for _, p := range paths {
 		slug := strings.TrimPrefix(p, ".")
 		slug = slug[:len(slug)-3] // strip .md
+		if !tokenAllowsSlug(r.Context(), slug) {
+			continue
+		}
 		content, _, err := app.Store.Read(p)
 		if err != nil {
 			continue
@@ -1949,6 +2218,9 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	file := hiddenFile(slug)
 
 	content, _, err := app.Store.Read(file)
@@ -1984,6 +2256,9 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
 	file := hiddenFile(slug)
 
 	page := Page{Slug: slug, Title: slug}
@@ -2018,13 +2293,17 @@ func (app *App) handleSaveHidden(w http.ResponseWriter, r *http.Request) {
 func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
 	user := app.currentUser(r)
+	prefs := app.Auth.prefs(user)
 
-	sd := buildSettingsData(cfg, app.Auth.prefs(user), app.Namespaces(), user)
+	sd := buildSettingsData(cfg, prefs)
 	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
 	sd.Users = app.Auth.Users()
 	sd.AllScopes = []string{string(scopeRead), string(scopeWrite), string(scopeSettings)}
 	sd.CurrentUser = user
+	for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
+	}
 	for _, t := range app.Auth.TokensFor(user) {
 		expires := "never"
 		switch {
@@ -2033,7 +2312,27 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 		case !t.Expires.IsZero():
 			expires = t.Expires.Format("2006-01-02")
 		}
-		sd.Tokens = append(sd.Tokens, TokenView{Name: t.Name, Created: relativeTime(t.Created), Expires: expires})
+		effectiveScopes := effectiveTokenScopes(prefs.Scopes, t.Scopes)
+		isAdmin := userRecord{Scopes: effectiveScopes}.hasScope(scopeSettings)
+		namespaceLabel := "All namespaces"
+		if isAdmin {
+			namespaceLabel = "Administrator"
+		} else if len(t.Namespaces) > 0 {
+			namespaceLabel = strings.Join(t.Namespaces, ", ") + " only"
+		}
+		scopeLabel := "Inherited scopes"
+		if t.Scopes != nil {
+			scopeLabel = strings.Join(t.Scopes, ", ")
+		}
+		sd.Tokens = append(sd.Tokens, TokenView{
+			Name:           t.Name,
+			Created:        relativeTime(t.Created),
+			Expires:        expires,
+			Scopes:         append([]string(nil), t.Scopes...),
+			Namespaces:     append([]string(nil), t.Namespaces...),
+			ScopeLabel:     scopeLabel,
+			NamespaceLabel: namespaceLabel,
+		})
 	}
 	return sd
 }
@@ -2085,6 +2384,12 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 // handleCreateToken mints a PAT for the current user and re-renders the
 // settings page with the value — the only time it is ever displayed.
 func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		sd := app.settingsData(r)
+		sd.TokenError = "Could not read token form"
+		app.renderSettings(w, r, sd, "settings")
+		return
+	}
 	label := strings.TrimSpace(r.FormValue("label"))
 	if label == "" {
 		sd := app.settingsData(r)
@@ -2100,8 +2405,37 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	if ttl > 0 {
 		expires = time.Now().Add(ttl)
 	}
+	scopes := append([]string(nil), r.Form["scopes"]...)
+	if len(scopes) == 0 {
+		sd := app.settingsData(r)
+		sd.TokenError = "Token needs at least one scope"
+		app.renderSettings(w, r, sd, "settings")
+		return
+	}
+
+	knownNamespaces := make(map[string]struct{})
+	for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+		knownNamespaces[summary.Name] = struct{}{}
+	}
+	namespaces := make([]string, 0, len(r.Form["namespaces"]))
+	for _, raw := range r.Form["namespaces"] {
+		namespace := strings.TrimSpace(raw)
+		if namespace == "" {
+			continue
+		}
+		if _, ok := knownNamespaces[namespace]; !ok {
+			sd := app.settingsData(r)
+			sd.TokenError = fmt.Sprintf("unknown namespace %q", namespace)
+			app.renderSettings(w, r, sd, "settings")
+			return
+		}
+		namespaces = append(namespaces, namespace)
+	}
+	if len(namespaces) == 0 {
+		namespaces = nil
+	}
 	user := app.currentUser(r)
-	token, err := app.Auth.AddToken(user, label, expires)
+	token, err := app.Auth.AddToken(user, label, expires, scopes, namespaces)
 	if err != nil {
 		sd := app.settingsData(r)
 		sd.TokenError = err.Error()
@@ -2128,19 +2462,83 @@ func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
 }
 
+func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) NamespaceManagementData {
+	user := app.currentUser(r)
+	prefs := app.Auth.prefs(user)
+	data := NamespaceManagementData{
+		CanWrite:     prefs.hasScope(scopeWrite),
+		CanSettings:  prefs.hasScope(scopeSettings),
+		Rows:         filterNamespaceSummaries(r.Context(), namespaceSummaries(app.Namespaces(), app.Index.Titles())),
+		WidgetGroups: widgetSlotGroups(),
+		SlugPresets:  slugPresetViews(user),
+		Now:          time.Now(),
+		Error:        errMsg,
+	}
+	for _, entry := range namespaceListEntries(app.Namespaces(), user) {
+		if entry.Name == name && tokenAllowsNamespace(r.Context(), entry.Name) {
+			data.Form = entry
+			break
+		}
+	}
+	return data
+}
+
+func (app *App) renderNamespace(w http.ResponseWriter, r *http.Request, status int, templateName, name, errMsg string) {
+	app.render(w, r, status, templateName, TemplateData{
+		Authed:              true,
+		Title:               "Namespaces",
+		StatusMode:          "settings",
+		NamespaceManagement: ptrNamespaceManagement(app.namespaceManagementData(r, name, errMsg)),
+	})
+}
+
+func ptrNamespaceManagement(data NamespaceManagementData) *NamespaceManagementData { return &data }
+
+func (app *App) handleNamespacesGet(w http.ResponseWriter, r *http.Request) {
+	data := app.namespaceManagementData(r, "", "")
+	if r.URL.Query().Get("saved") == "1" {
+		data.Flash = "Namespace settings saved"
+	}
+	app.render(w, r, http.StatusOK, "namespaces", TemplateData{Authed: true, Title: "Namespaces", StatusMode: "settings", NamespaceManagement: &data})
+}
+
+func (app *App) handleNamespaceNewGet(w http.ResponseWriter, r *http.Request) {
+	data := app.namespaceManagementData(r, "", "")
+	data.Form = NamespaceListEntry{Template: defaultNewPageTemplate, SlugPreset: slugPresets[0].Key}
+	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: "New namespace", StatusMode: "settings", NamespaceManagement: &data})
+}
+
+func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	if !validNamespaceName(name) {
+		http.NotFound(w, r)
+		return
+	}
+	data := app.namespaceManagementData(r, name, "")
+	if data.Form.Name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data})
+}
+
 // handleSaveNamespace implements POST /_/settings/namespaces: writes one
 // namespace's .namespace.yaml from the system-configuration form, creating
 // the namespace (i.e. its directory) on first save. Both the "new namespace"
 // row and the per-namespace rows post here — an existing namespace is just a
 // save whose name already exists.
 func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
+	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
 	fail := func(msg string) {
-		sd := app.settingsData(r)
-		sd.NamespaceError = msg
-		app.renderSettings(w, r, sd, "admin")
+		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, msg)
 	}
 
-	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
 	// "" is the root namespace, always present — any other name is a single
 	// directory segment, and must be one a namespace may actually take.
 	if name != "" && (strings.Contains(name, "/") || !validNamespaceName(name)) {
@@ -2173,7 +2571,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	}
 	// It names a hidden page inside the namespace — the same one-segment shape
 	// handleNewPage's rendered slug has to satisfy.
-	if !validMCPSlug(template) {
+	if !validMCPPageSegment(template) {
 		fail(fmt.Sprintf("%q is not a valid template page name: one segment, no slashes, no leading dot", template))
 		return
 	}
@@ -2200,11 +2598,17 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 			fail("slug pattern is not a valid template: " + err.Error())
 			return
 		}
-		if !validMCPSlug(rendered) {
+		if !validMCPPageSegment(rendered) {
 			fail(fmt.Sprintf("that pattern names a page %q, which isn't usable: no slashes, no leading dot, not empty", rendered))
 			return
 		}
 		cfg.New = &NewPageConfig{Template: template, Slug: slug}
+	}
+	var err error
+	cfg, err = normaliseNamespaceConfig(name, cfg, newPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
+	if err != nil {
+		fail(err.Error())
+		return
 	}
 
 	data, err := cfg.Encode()
@@ -2233,42 +2637,52 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 
 	app.refreshNamespaces()
 	slog.Info("namespace configured", "namespace", name, "by", app.currentUser(r))
-	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
-// handleDeleteNamespace implements POST /_/settings/namespaces/delete: drops
-// a namespace's .namespace.yaml, which returns it to the built-in widgets and
-// private visibility. Pages are never touched — the directory only stops
-// being a *configured* namespace. If removing the config leaves the directory
-// empty, the (now meaningless) directory goes too, which is what makes a
-// namespace created here disappear again.
-func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
+// handleResetNamespace removes only the namespace configuration. Pages and
+// hidden files remain available, so reset can never be mistaken for deletion.
+func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
-	if name != "" && (strings.Contains(name, "/") || !validNamespaceName(name)) {
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	if name != "" && !validNamespaceName(name) {
 		http.Error(w, "invalid namespace name", http.StatusBadRequest)
 		return
 	}
-
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
 	path := namespaceConfigPath(name)
-	if err := app.Store.Remove(path, "Remove namespace config "+path, authorName, authorEmail); err != nil {
-		slog.Error("removing namespace config", "namespace", name, "err", err)
-		sd := app.settingsData(r)
-		sd.NamespaceError = "failed to remove namespace config: " + err.Error()
-		app.renderSettings(w, r, sd, "admin")
+	if err := app.Store.Remove(path, "Reset namespace settings "+path, authorName, authorEmail); err != nil {
+		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, "failed to reset namespace settings: "+err.Error())
 		return
 	}
-	if name != "" {
-		// Only ever succeeds on an empty directory, so this can't take
-		// content with it.
-		if err := os.Remove(filepath.Join(app.config().RepoDir, name)); err != nil && !os.IsNotExist(err) {
-			slog.Debug("namespace directory kept, still has content", "namespace", name, "err", err)
+	app.refreshNamespaces()
+	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
+}
+
+// handleDeleteNamespace implements POST /_/settings/namespaces/delete. True
+// deletion is only allowed for a configured namespace whose directory and
+// hidden namespace storage contain no other content.
+func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	path := namespaceConfigPath(name)
+	if err := app.Store.DeleteNamespace(name, "Remove namespace config "+path, authorName, authorEmail); err != nil {
+		if errors.Is(err, errInvalidNamespaceName) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
+		return
 	}
 
 	app.refreshNamespaces()
 	slog.Info("namespace config removed", "namespace", name, "by", app.currentUser(r))
-	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
 // refreshNamespaces rebuilds the registry from disk immediately. pollFS does

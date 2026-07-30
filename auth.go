@@ -23,10 +23,12 @@ import (
 // once at creation; only its bcrypt hash is kept. A zero Expires means the
 // token never expires.
 type tokenRecord struct {
-	Name    string    `json:"name"`
-	Hash    string    `json:"hash"`
-	Created time.Time `json:"created"`
-	Expires time.Time `json:"expires,omitzero"`
+	Name       string    `json:"name"`
+	Hash       string    `json:"hash"`
+	Created    time.Time `json:"created"`
+	Expires    time.Time `json:"expires,omitzero"`
+	Scopes     []string  `json:"scopes,omitempty"`
+	Namespaces []string  `json:"namespaces,omitempty"`
 }
 
 // expired reports whether the token is past its expiry (never, if unset).
@@ -37,8 +39,44 @@ func (t tokenRecord) expired() bool {
 // cachedToken is a verified PAT in the in-memory cache; expiry still has to
 // be checked on every use, so it rides along with the username.
 type cachedToken struct {
-	user    string
-	expires time.Time
+	user       string
+	scopes     []string
+	namespaces []string
+	expires    time.Time
+}
+
+type tokenPrincipal struct {
+	User       string
+	Namespaces []string
+	Scopes     []string
+}
+
+func (p tokenPrincipal) HasScope(need scope) bool {
+	if p.Scopes != nil && len(p.Scopes) == 0 {
+		return false
+	}
+	return userRecord{Scopes: p.Scopes}.hasScope(need)
+}
+
+func (p tokenPrincipal) Restricted() bool {
+	return !p.HasScope(scopeSettings) && p.Namespaces != nil
+}
+
+func (p tokenPrincipal) AllowsNamespace(namespace string) bool {
+	if !p.Restricted() {
+		return true
+	}
+	for _, allowed := range p.Namespaces {
+		if allowed == namespace {
+			return true
+		}
+	}
+	return false
+}
+
+func (p tokenPrincipal) AllowsSlug(slug string) bool {
+	namespace, _ := namespaceFor(slug)
+	return p.AllowsNamespace(namespace)
 }
 
 // A scope gates one slice of the app: scopeRead covers viewing pages and
@@ -78,6 +116,11 @@ type userRecord struct {
 func (u userRecord) hasScope(s scope) bool {
 	if len(u.Scopes) == 0 {
 		return true
+	}
+	for _, have := range u.Scopes {
+		if have == string(scopeSettings) {
+			return true
+		}
 	}
 	for _, have := range u.Scopes {
 		if have == string(s) {
@@ -142,6 +185,23 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 // ctxUserKey carries the Bearer-authenticated username through the request
 // context; currentUser checks it before falling back to the session cookie.
 type ctxUserKey struct{}
+
+type ctxTokenPrincipalKey struct{}
+
+func tokenPrincipalFromContext(ctx context.Context) (tokenPrincipal, bool) {
+	principal, ok := ctx.Value(ctxTokenPrincipalKey{}).(tokenPrincipal)
+	return principal, ok
+}
+
+func tokenAllowsNamespace(ctx context.Context, namespace string) bool {
+	principal, ok := tokenPrincipalFromContext(ctx)
+	return !ok || principal.AllowsNamespace(namespace)
+}
+
+func tokenAllowsSlug(ctx context.Context, slug string) bool {
+	principal, ok := tokenPrincipalFromContext(ctx)
+	return !ok || principal.AllowsSlug(slug)
+}
 
 type Auth struct {
 	usersFile    string
@@ -253,21 +313,109 @@ func (a *Auth) Users() []UserSummary {
 	return out
 }
 
+func normaliseTokenNamespaces(namespaces []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(namespaces))
+	for _, raw := range namespaces {
+		namespace := strings.TrimSpace(raw)
+		if !validNamespaceName(namespace) {
+			return nil, fmt.Errorf("invalid namespace %q", namespace)
+		}
+		seen[namespace] = struct{}{}
+	}
+	if len(seen) == 0 {
+		return nil, nil
+	}
+	normalised := make([]string, 0, len(seen))
+	for namespace := range seen {
+		normalised = append(normalised, namespace)
+	}
+	sort.Strings(normalised)
+	return normalised, nil
+}
+
+func normaliseTokenScopes(scopes []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(scopes))
+	for _, raw := range scopes {
+		name := strings.TrimSpace(raw)
+		valid := false
+		for _, allowed := range allScopes {
+			if name == string(allowed) {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("unknown scope %q", name)
+		}
+		seen[name] = struct{}{}
+	}
+	if len(seen) == 0 {
+		return nil, nil
+	}
+	normalised := make([]string, 0, len(seen))
+	for name := range seen {
+		normalised = append(normalised, name)
+	}
+	sort.Strings(normalised)
+	return normalised, nil
+}
+
+func effectiveTokenScopes(userScopes, tokenScopes []string) []string {
+	if tokenScopes == nil {
+		if len(userScopes) == 0 {
+			return nil
+		}
+		return append([]string(nil), userScopes...)
+	}
+	if len(userScopes) == 0 {
+		return append([]string(nil), tokenScopes...)
+	}
+	user := userRecord{Scopes: userScopes}
+	result := make([]string, 0, len(tokenScopes))
+	for _, name := range tokenScopes {
+		if user.hasScope(scope(name)) {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
 // AddToken mints a personal access token for name, labelled label, expiring
 // at expires (zero = never). The token value is returned exactly once; only
 // its bcrypt hash is stored. Labels are unique per user — they are the
-// revocation key.
-func (a *Auth) AddToken(name, label string, expires time.Time) (string, error) {
+// revocation key. A nil scope list preserves the legacy unrestricted-token
+// behaviour; a non-nil empty list is invalid for a newly scoped token.
+func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespaces []string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	rec, ok := a.users[name]
 	if !ok {
 		return "", fmt.Errorf("unknown user %q", name)
 	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return "", fmt.Errorf("token name cannot be blank")
+	}
 	for _, t := range rec.Tokens {
 		if t.Name == label {
 			return "", fmt.Errorf("a token named %q already exists", label)
 		}
+	}
+	normalisedScopes, err := normaliseTokenScopes(scopes)
+	if err != nil {
+		return "", err
+	}
+	if scopes != nil && len(normalisedScopes) == 0 {
+		return "", fmt.Errorf("token scopes cannot be empty")
+	}
+	for _, scopeName := range normalisedScopes {
+		if !rec.hasScope(scope(scopeName)) {
+			return "", fmt.Errorf("user %q does not have scope %q", name, scopeName)
+		}
+	}
+	normalisedNamespaces, err := normaliseTokenNamespaces(namespaces)
+	if err != nil {
+		return "", err
 	}
 
 	b := make([]byte, 32)
@@ -280,7 +428,14 @@ func (a *Auth) AddToken(name, label string, expires time.Time) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("hashing token: %w", err)
 	}
-	rec.Tokens = append(rec.Tokens, tokenRecord{Name: label, Hash: string(hash), Created: time.Now(), Expires: expires})
+	rec.Tokens = append(rec.Tokens, tokenRecord{
+		Name:       label,
+		Hash:       string(hash),
+		Created:    time.Now(),
+		Expires:    expires,
+		Scopes:     normalisedScopes,
+		Namespaces: normalisedNamespaces,
+	})
 	a.users[name] = rec
 	if err := a.save(); err != nil {
 		return "", err
@@ -295,7 +450,13 @@ func (a *Auth) TokensFor(name string) []tokenRecord {
 	defer a.mu.RUnlock()
 	tokens := make([]tokenRecord, 0, len(a.users[name].Tokens))
 	for _, t := range a.users[name].Tokens {
-		tokens = append(tokens, tokenRecord{Name: t.Name, Created: t.Created, Expires: t.Expires})
+		tokens = append(tokens, tokenRecord{
+			Name:       t.Name,
+			Created:    t.Created,
+			Expires:    t.Expires,
+			Scopes:     append([]string(nil), t.Scopes...),
+			Namespaces: append([]string(nil), t.Namespaces...),
+		})
 	}
 	return tokens
 }
@@ -330,12 +491,13 @@ func (a *Auth) RemoveToken(name, label string) error {
 	return a.save()
 }
 
-// UserForBearer resolves a Bearer PAT value to its username. Verified tokens
-// are cached so bcrypt runs once per token per process, not per request.
+// UserForBearer resolves a Bearer PAT value to its raw policy. Verified tokens
+// are cached so bcrypt runs once per token per process, not per request; the
+// current user's scopes are deliberately not cached here.
 // linear scan over users' tokens on first use; fine for a handful of users
-func (a *Auth) UserForBearer(token string) (string, bool) {
+func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
 	if !strings.HasPrefix(token, "hmd_") {
-		return "", false
+		return tokenPrincipal{}, false
 	}
 
 	a.mu.RLock()
@@ -344,9 +506,13 @@ func (a *Auth) UserForBearer(token string) (string, bool) {
 		// Expiry is wall-clock, so the cache can't answer it once and for
 		// all — check on every use.
 		if !cached.expires.IsZero() && time.Now().After(cached.expires) {
-			return "", false
+			return tokenPrincipal{}, false
 		}
-		return cached.user, true
+		return tokenPrincipal{
+			User:       cached.user,
+			Scopes:     append([]string(nil), cached.scopes...),
+			Namespaces: append([]string(nil), cached.namespaces...),
+		}, true
 	}
 	// Snapshot the candidate tokens so the slow bcrypt compares run unlocked.
 	type candidate struct {
@@ -364,15 +530,24 @@ func (a *Auth) UserForBearer(token string) (string, bool) {
 	for _, c := range candidates {
 		if bcrypt.CompareHashAndPassword([]byte(c.tok.Hash), []byte(token)) == nil {
 			if c.tok.expired() {
-				return "", false
+				return tokenPrincipal{}, false
 			}
 			a.mu.Lock()
-			a.tokenCache[token] = cachedToken{user: c.user, expires: c.tok.Expires}
+			a.tokenCache[token] = cachedToken{
+				user:       c.user,
+				scopes:     append([]string(nil), c.tok.Scopes...),
+				namespaces: append([]string(nil), c.tok.Namespaces...),
+				expires:    c.tok.Expires,
+			}
 			a.mu.Unlock()
-			return c.user, true
+			return tokenPrincipal{
+				User:       c.user,
+				Scopes:     append([]string(nil), c.tok.Scopes...),
+				Namespaces: append([]string(nil), c.tok.Namespaces...),
+			}, true
 		}
 	}
-	return "", false
+	return tokenPrincipal{}, false
 }
 
 // AuthorFor returns the user's stored git author string, or "" if unset.
@@ -503,16 +678,16 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 
 // requiredScope reports which scope r needs. /settings and /admin (any
 // method) need "settings". Everything else follows HTTP method: a
-// body-carrying method needs "write", a safe one needs "read". /mcp bundles
-// read and write tools behind a single JSON-RPC endpoint with no per-tool
-// scoping yet, so it checked separately, below, against both.
+// body-carrying method needs "write", a safe one needs "read". MCP scopes
+// are checked by each tool because its JSON-RPC endpoint carries all actions.
 //
 // method-based, not route-based, so a handful of read-only-looking
 // POSTs (e.g. /search) don't exist — check with the route table in
 // handlers.go if a new write-shaped GET or read-shaped POST is ever added.
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
-		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") {
+		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
+		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") {
 		return scopeSettings
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -545,6 +720,27 @@ func anonymousEligible(path string, q url.Values) bool {
 	return q.Get("do") == ""
 }
 
+func restrictedTokenPathAllowed(path string) bool {
+	if path == "/_/mcp" {
+		return true
+	}
+	if !strings.HasPrefix(path, "/_/") {
+		return path != "/"
+	}
+
+	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	for _, exact := range []string{"/_/api/preview", "/_/search", "/_/api/search", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"} {
+		if path == exact {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow /_/login, the OIDC flow and /_/static/ without authentication
@@ -575,11 +771,17 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 
 		var user string
 		var authed bool
+		var bearer bool
+		var rawPrincipal tokenPrincipal
 
 		// Bearer PAT: an explicit credential, so a bad one is denied rather
 		// than falling through to the cookie check.
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			user, authed = a.UserForBearer(strings.TrimPrefix(h, "Bearer "))
+			rawPrincipal, authed = a.UserForBearer(strings.TrimPrefix(h, "Bearer "))
+			if authed {
+				user = rawPrincipal.User
+				bearer = true
+			}
 		} else if cookie, err := r.Cookie("hmd_session"); err == nil && cookie.Value != "" {
 			user, authed = a.UserFor(cookie.Value)
 		}
@@ -593,17 +795,36 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		}
 
 		prefs := a.prefs(user)
-		need := "mcp (read+write)"
-		authorized := prefs.hasScope(scopeRead) && prefs.hasScope(scopeWrite)
-		if r.URL.Path != "/_/mcp" {
+		need := "mcp authentication"
+		authorized := r.URL.Path == "/_/mcp"
+		principal := rawPrincipal
+		if !authorized {
 			need = string(requiredScope(r))
-			authorized = prefs.hasScope(requiredScope(r))
+			if bearer {
+				principal.Scopes = effectiveTokenScopes(prefs.Scopes, rawPrincipal.Scopes)
+				authorized = principal.HasScope(requiredScope(r))
+			} else {
+				authorized = prefs.hasScope(requiredScope(r))
+			}
 		}
 		if !authorized {
 			deny(http.StatusForbidden, need)
 			return
 		}
+		if bearer && principal.Restricted() && !restrictedTokenPathAllowed(r.URL.Path) {
+			deny(http.StatusForbidden, "namespace")
+			return
+		}
 
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, user)))
+		ctx := context.WithValue(r.Context(), ctxUserKey{}, user)
+		if bearer {
+			if authorized {
+				// Resolve the effective policy even for the MCP authentication path;
+				// its tool-level checks can consume the request principal later.
+				principal.Scopes = effectiveTokenScopes(prefs.Scopes, rawPrincipal.Scopes)
+			}
+			ctx = context.WithValue(ctx, ctxTokenPrincipalKey{}, principal)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -16,7 +16,9 @@
 	<script>
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
-		window.hmdJournalEnabled = {{.JournalEnabled}};
+		window.hmdNewEnabled = {{.NewPageEnabled}};
+		window.hmdNewNamespace = {{.NewNamespace}};
+		window.hmdNamespaceIndex = {{.IsNamespaceIndex}};
 		window.HMDSyncThemeColor = function() {
 			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 		};
@@ -53,6 +55,7 @@
 		{{range .SidebarWidgets}}
 		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
 		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}
+		{{if eq .ID "namespaces"}}{{template "widget-namespaces" $}}{{end}}
 		{{if eq .ID "pinned"}}{{template "widget-pinned" $}}{{end}}
 		{{if eq .ID "tags"}}{{template "widget-tags" $}}{{end}}
 		{{if eq .ID "log"}}{{template "widget-log" $}}{{end}}
@@ -81,11 +84,11 @@
 		{{else}}
 			<div class="seg seg-mode" id="status-mode">{{.StatusMode}}</div>
 		{{end}}
-		<div class="seg seg-title" id="status-title">{{.Slug}}.md{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
+		<div class="seg seg-title" id="status-title">{{if .IsNamespaceIndex}}{{.Namespace}}{{else}}{{.Slug}}.md{{end}}{{if eq .StatusMode "edit"}}<span class="dirty" id="dirty-mark"> [+]</span>{{end}}</div>
 		{{if eq .StatusVariant "write"}}
 			<div class="seg seg-context">{{.WritingStats.WordsToday}} words today</div>
 		{{else if eq .StatusVariant "full"}}
-			<button type="button" class="seg seg-new" id="new-btn">+ new</button>
+			{{if not .IsNamespaceIndex}}<button type="button" class="seg seg-new" id="new-btn">+ new</button>{{end}}
 			<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
 			{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
 		{{end}}

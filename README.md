@@ -317,9 +317,8 @@ than the bootstrap admin has a `read`/`write`/`settings` checkbox row in the
 **users** tab, ticked to their current access; save with only some ticked to
 restrict them to exactly those scopes, or untick all three to restore full
 access. Valid scopes: `read` (view pages, search), `write` (save, rename,
-tag, upload), `settings` (`/settings` and `/admin`, including
-tokens and user management). A request outside a user's scopes gets `403
-Forbidden`.
+tag, upload), and `settings` (Administrator access: every scope, namespace,
+and settings route). A request outside a user's scopes gets `403 Forbidden`.
 
 The bootstrap admin (`HMD_ADMIN_USER`) always keeps full access and isn't
 listed with editable checkboxes — it's the one account that can't be
@@ -330,25 +329,53 @@ out with no CLI left to undo it.
 
 ### Personal access tokens
 API and MCP clients use Bearer tokens instead of the session cookie. Create one
-under **access tokens** on `/settings`, choose a name and expiry (1 day, 7
-days, 30 days — default, 1 year, or never), and copy it when shown; it appears
-only once. hmd stores only a hash. Revoke tokens from the same page; revocation
-is immediate.
+under **access tokens** on `/settings`, choose one or more scopes, a name and
+expiry (1 day, 7 days, 30 days — default, 1 year, or never), and copy it when
+shown; it appears only once. hmd stores only a hash. Revoke tokens from the
+same page; revocation is immediate.
+
+Token scopes can never exceed the owning user's scopes. A token with `read` or
+`write` may optionally be restricted to selected namespaces; leaving the
+namespace selection blank gives it all namespaces. A selected namespace list
+restricts every non-administrative Bearer request, including page, search and
+MCP access. Restricted tokens cannot access root pages or general settings.
+Selecting `settings` makes the token an unrestricted **Administrator**, even if
+namespaces were selected. Tokens created before per-token scopes were added
+retain their inherited user scopes and all namespaces.
 
 ## MCP server
 
-Set `HMD_MCP_ENABLED=true` (restart required) to serve the wiki over the
-[Model Context Protocol](https://modelcontextprotocol.io/) at `/mcp` (streamable
-HTTP). MCP clients can read and write pages; each save is a git
-commit attributed to the token owner.
+Set `HMD_MCP_ENABLED=true` (restart required) to serve the wiki over
+[Model Context Protocol](https://modelcontextprotocol.io/) at `POST /_/mcp`.
+HMD supports only MCP `2026-07-28`: clients must send
+`MCP-Protocol-Version: 2026-07-28`, request metadata, and use
+`server/discover`. Legacy `initialize`, sessions, `GET`, and `DELETE` are
+rejected. Disabled MCP returns `404`; every non-POST request returns `405`.
 
-Create a token on `/settings` (see [Personal access tokens](#personal-access-tokens)), then configure your MCP client to send it as a Bearer token.
+Use a client that supports this protocol revision and configure it with a
+Bearer token created under **access tokens** on `/settings` (see [Personal
+access tokens](#personal-access-tokens)). Agents can read and write pages; each
+save is a Git commit attributed to the token owner.
 
-Tools: `list_pages`, `read_page`, `save_page`, `delete_page`, `search`, `backlinks`, `recent_changes`. `save_page` uses the same optimistic locking as the web editor: pass the `hash` from `read_page`; a stale hash returns a conflict with the current content for merging and retrying.
+| Scope | Tools |
+| --- | --- |
+| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `list_namespaces` |
+| `write` | `save_page`, `delete_page` |
+| `settings` | `read_namespace`, `save_namespace`, `delete_namespace` |
 
-`/mcp` has no per-tool scoping yet, so it requires both `read` and `write` on the token's user (see [Scopes](#scopes)) — a read-only user can't use it.
+`save_page` and `save_namespace` use the same optimistic locking as the web
+editor: read first, then pass the returned hash as `basehash`. A stale hash
+returns current data for merging and retrying.
 
-hmd is a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): point your agent's instructions at the wiki conventions and let it build interlinked pages.
+Browser requests must use HMD's public Origin. A reverse proxy must preserve
+the public Host and Origin values so standard Origin protection can validate
+them; non-browser clients authenticate with their Bearer token.
+
+hmd is a persistent agent knowledge base ([LLM wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)-style memory): use `search` to find
+candidate pages through the derived Bleve index, `read_page` for canonical
+Markdown and its hash, then `save_page` with that hash. Markdown and Git remain
+canonical; Bleve is the rebuildable search projection, not a second memory
+store or vector database.
 
 ## Writing Pages
 

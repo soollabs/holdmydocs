@@ -47,9 +47,9 @@ func TestLandingRoute(t *testing.T) {
 	}
 }
 
-// TestJournalEnabledJSGlobal checks window.hmdJournalEnabled reflects
-// whether the journal namespace has a `new:` template, independent of skin.
-func TestJournalEnabledJSGlobal(t *testing.T) {
+// TestNewPageJSGlobals checks window.hmdNewEnabled reflects whether a
+// namespace with a `new:` template is in reach, independent of skin.
+func TestNewPageJSGlobals(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
@@ -63,8 +63,8 @@ func TestJournalEnabledJSGlobal(t *testing.T) {
 		return string(body)
 	}
 
-	if body := get(); !strings.Contains(body, "hmdJournalEnabled =  false") {
-		t.Errorf("expected hmdJournalEnabled false with no journal namespace configured, body: %s", body)
+	if body := get(); !strings.Contains(body, "hmdNewEnabled =  false") {
+		t.Errorf("expected hmdNewEnabled false with no journal namespace configured, body: %s", body)
 	}
 
 	if err := writeNamespaceConfig(t, app, "journal", "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
@@ -80,8 +80,58 @@ func TestJournalEnabledJSGlobal(t *testing.T) {
 	}
 	for _, s := range skinNames {
 		setSkin(s)
-		if body := get(); !strings.Contains(body, "hmdJournalEnabled =  true") {
-			t.Errorf("skin=%s: expected hmdJournalEnabled true once journal has a new: template, body: %s", s, body)
+		if body := get(); !strings.Contains(body, "hmdNewEnabled =  true") {
+			t.Errorf("skin=%s: expected hmdNewEnabled true once journal has a new: template, body: %s", s, body)
 		}
+	}
+}
+
+// TestNewNamespaceFollowsPage checks ctrl-j targets the namespace of the page
+// being viewed when it has its own `new:` block, rather than always journal —
+// which is what the admin form's per-namespace checkbox promises.
+func TestNewNamespaceFollowsPage(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	newBlock := "new:\n  template: template\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"
+	for _, ns := range []string{"journal", "blog"} {
+		if err := writeNamespaceConfig(t, app, ns, newBlock); err != nil {
+			t.Fatalf("writing %s config: %v", ns, err)
+		}
+	}
+	if _, err := app.Store.Save("blog/post.md", Page{Slug: "blog/post", Title: "Post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
+		t.Fatalf("saving blog page: %v", err)
+	}
+
+	nsGlobal := func(slug string) string {
+		resp, err := client.Get(server.URL + "/" + slug)
+		if err != nil {
+			t.Fatalf("GET /%s: %v", slug, err)
+		}
+		defer closeTestBody(t, resp.Body)
+		body, _ := io.ReadAll(resp.Body)
+		for _, line := range strings.Split(string(body), "\n") {
+			if strings.Contains(line, "hmdNewNamespace") {
+				return strings.TrimSpace(line)
+			}
+		}
+		return ""
+	}
+
+	if got := nsGlobal("blog/post"); !strings.Contains(got, `"blog"`) {
+		t.Errorf("on a blog page, ctrl-j target = %q, want blog", got)
+	}
+	if got := nsGlobal("readme"); !strings.Contains(got, `"journal"`) {
+		t.Errorf("on a root page with no root new: block, ctrl-j target = %q, want the journal fallback", got)
+	}
+
+	resp, err := client.Get(server.URL + "/_/static/app.js")
+	if err != nil {
+		t.Fatalf("GET app.js: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	asset, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(asset), "new page in the ${window.hmdNewNamespace || 'current'} namespace") {
+		t.Errorf("new verb description does not name its target namespace")
 	}
 }

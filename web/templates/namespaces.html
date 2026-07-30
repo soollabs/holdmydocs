@@ -1,0 +1,18 @@
+{{define "content"}}
+<div class="content-col settings-page namespace-management">
+	<div class="breadcrumb"><a href="/">{{.SiteName}}</a><span class="sep">/</span><span class="current">namespaces</span></div>
+	<h1 class="page-title"><span class="h"></span>namespaces</h1>
+	<p class="settings-zone-desc">Manage the top-level areas of your wiki. Each namespace can have its own visibility, page defaults and new-page behaviour.</p>
+	{{with .NamespaceManagement}}
+		{{if .Flash}}<div class="settings-flash">{{.Flash}}</div>{{end}}
+		<div class="settings-actions"><a class="primary" href="/_/namespaces/new">New namespace</a></div>
+		<section class="settings-zone" aria-labelledby="namespace-catalogue">
+			<h2 class="settings-zone-title" id="namespace-catalogue"><span class="h"></span>catalogue</h2>
+			{{if .Rows}}
+			<div class="table-wrap namespace-table"><table class="settings-table"><thead><tr><th scope="col">Name</th><th scope="col">Pages</th><th scope="col">Visibility</th><th scope="col">Actions</th></tr></thead><tbody>
+			{{range .Rows}}<tr><th scope="row"><a href="/{{.Name}}/">{{.Name}}/</a></th><td>{{.Count}} pages</td><td>{{if .Config.Public}}public{{else}}private{{end}}</td><td><a href="/_/namespaces/{{.Name}}/edit">Edit</a>{{if .Config.Public}} · <a href="/{{.Name}}/">Public index</a>{{end}}</td></tr>{{end}}
+			</tbody></table></div>
+			{{else}}<p class="settings-note">No namespaces yet. Create one when you need a separate area for pages.</p>{{end}}
+	{{end}}
+</div>
+{{end}}

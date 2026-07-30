@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="content-col settings-page namespace-management namespace-editor">
+{{with .NamespaceManagement}}
+<div class="breadcrumb"><a href="/_/namespaces">namespaces</a><span class="sep">/</span><span class="current">{{if .Form.Name}}{{.Form.Name}}{{else}}new{{end}}</span></div>
+<h1 class="page-title"><span class="h"></span>{{if .Form.Name}}edit {{.Form.Name}}{{else}}new namespace{{end}}</h1>
+{{if .Error}}<div class="settings-error" role="alert">{{.Error}}</div>{{end}}
+{{$form := .Form}}
+<form method="POST" action="/_/settings/namespaces" class="namespace-form settings-form">
+<input type="hidden" name="template" value="{{$form.Template}}">
+<fieldset class="settings-section settings-panel"><legend>directory</legend>
+<div class="settings-row"><label for="namespace-name">name</label><input id="namespace-name" name="name" value="{{$form.Name}}" placeholder="e.g. blog" autocomplete="off" required {{if $form.Name}}readonly{{end}}></div>
+<div class="settings-row"><label for="namespace-public">visibility</label><label class="scope-check"><input id="namespace-public" type="checkbox" name="public" {{if $form.Public}}checked{{end}}> public index</label></div>
+</fieldset>
+<fieldset class="settings-section settings-panel"><legend>quick-create page</legend>
+<div class="settings-row"><label for="new-enabled">quick-create</label><label class="scope-check"><input id="new-enabled" type="checkbox" name="new_enabled" class="new-toggle" {{if $form.NewEnabled}}checked{{end}}> Ctrl-J creates a page here</label></div>
+<div class="new-page-fields">
+<div class="settings-row"><label for="slug-preset">slug preset</label><select id="slug-preset" name="slug_preset" class="slug-preset">{{range .SlugPresets}}<option value="{{.Key}}" {{if eq $form.SlugPreset .Key}}selected{{end}}>{{.Label}} &mdash; {{.Example}}</option>{{end}}<option value="custom" {{if eq $form.SlugPreset "custom"}}selected{{end}}>custom pattern&hellip;</option></select></div>
+<div class="settings-row slug-custom-row"><label for="slug-custom">custom pattern</label><input id="slug-custom" name="slug_custom" class="slug-custom" value="{{$form.SlugPattern}}" placeholder="&#123;&#123;.Now.Format &quot;2006-01-02&quot;&#125;&#125;"></div>
+<p class="settings-note">New pages start from {{if $form.TemplateHref}}<a href="{{$form.TemplateHref}}">the namespace template</a>{{else}}the namespace template, available after this namespace is saved{{end}}. Date examples use {{.Now.Format "2006-01-02"}}.</p>
+</div>
+</fieldset>
+<details class="settings-section settings-panel"><summary>Advanced</summary>
+<div class="widget-picker" aria-label="Widget choices">{{range .WidgetGroups}}<div class="widget-group"><span class="widget-slot">{{.Slot}}</span>{{range .Widgets}}<button type="button" class="widget-chip" data-widget="{{.ID}}" title="{{.Description}}" aria-label="{{.ID}}: {{.Description}}" aria-pressed="false">{{.ID}}</button>{{end}}</div>{{end}}</div>
+<div class="settings-row"><label for="namespace-widgets">widget order</label><input id="namespace-widgets" name="widgets" value="{{$form.WidgetsCSV}}" class="widget-input" placeholder="built-in widgets"></div>
+<p class="settings-note">Use the choices above to include widgets. This field remains available for exact ordering and works without JavaScript; leave it empty for the built-in set.</p>
+</details>
+<div class="settings-actions"><button type="submit" class="primary">Save namespace</button><a class="ghost-btn" href="/_/namespaces">Cancel</a>{{if $form.Configured}}<button type="submit" formaction="/_/settings/namespaces/reset" class="ghost-btn">Reset namespace settings</button><button type="submit" formaction="/_/settings/namespaces/delete" class="ghost-btn danger-btn">Delete namespace</button>{{end}}</div>
+</form>
+<script>
+(function () {
+ var form=document.querySelector('.namespace-form'), input=form&&form.querySelector('.widget-input'); if(!form||!input)return;
+ var chips=Array.prototype.slice.call(form.querySelectorAll('.widget-chip'));
+ function sync(){var ids=input.value.split(',').map(function(s){return s.trim();}).filter(Boolean);chips.forEach(function(c){var on=ids.indexOf(c.dataset.widget)!==-1;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on?'true':'false');});}
+ chips.forEach(function(c){c.addEventListener('click',function(){var ids=input.value.split(',').map(function(s){return s.trim();}).filter(Boolean),i=ids.indexOf(c.dataset.widget);if(i===-1)ids.push(c.dataset.widget);else ids.splice(i,1);input.value=ids.join(', ');sync();});}); input.addEventListener('input',sync);sync();
+ var toggle=form.querySelector('.new-toggle'),fields=form.querySelector('.new-page-fields'),preset=form.querySelector('.slug-preset'),custom=form.querySelector('.slug-custom-row');
+ function syncNew(){fields.hidden=!toggle.checked;custom.hidden=preset.value!=='custom';} toggle.addEventListener('change',syncNew);preset.addEventListener('change',syncNew);syncNew();
+}());
+</script>
+{{end}}
+</div>
+{{end}}

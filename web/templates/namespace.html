@@ -1,0 +1,21 @@
+{{define "content"}}
+<div class="content-col namespace-index-page">
+<div class="breadcrumb">
+	<a href="/">{{.SiteName}}</a>
+	<span class="sep">/</span>
+	<span class="current">{{.Namespace}}</span>
+</div>
+<h1 class="page-title"><span class="h"></span>{{.Namespace}}</h1>
+<p class="namespace-index-meta">
+	{{len .TagPages}} page{{if ne (len .TagPages) 1}}s{{end}}{{if .NamespacePublic}} · public{{end}}
+	{{if .CanSettings}} · <a href="/_/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}
+</p>
+{{if .CanWrite}}<p class="namespace-index-actions"><a class="primary" href="/{{.Namespace}}/new?do=edit">Create page</a></p>{{end}}
+{{if not .TagPages}}<p class="namespace-index-empty">No pages in this namespace yet.</p>{{end}}
+<ul class="namespace-index">
+{{range .TagPages}}
+	<li><a href="/{{.Slug}}">{{.Title}}</a></li>
+{{end}}
+</ul>
+</div>
+{{end}}

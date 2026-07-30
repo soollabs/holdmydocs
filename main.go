@@ -21,13 +21,14 @@ func parseTemplates() (map[string]*template.Template, error) {
 	tmpl := make(map[string]*template.Template)
 	widgetFiles := []string{
 		"web/templates/widgets/search.html", "web/templates/widgets/pages.html",
+		"web/templates/widgets/namespaces.html",
 		"web/templates/widgets/pinned.html", "web/templates/widgets/tags.html", "web/templates/widgets/log.html",
 		"web/templates/widgets/health.html", "web/templates/widgets/keys.html",
 		"web/templates/widgets/calendar.html", "web/templates/widgets/writing-stats.html",
 		"web/templates/widgets/outline.html",
 		"web/templates/widgets/page-meta.html", "web/templates/widgets/backlinks.html", "web/templates/widgets/prev-entries.html",
 	}
-	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "admin", "hidden"} {
+	for _, name := range []string{"login", "page", "edit", "conflict", "create", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
 		t, err := template.ParseFS(webFS, files...)
 		if err != nil {

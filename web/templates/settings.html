@@ -127,6 +127,7 @@
 		{{range .Settings.Tokens}}
 		<div class="settings-row">
 			<label>{{.Name}}</label>
+			<span class="token-meta">{{.ScopeLabel}} &middot; {{.NamespaceLabel}}</span>
 			<span class="token-meta">created {{.Created}} &middot; expires {{.Expires}}</span>
 			<form method="POST" action="/_/settings/tokens/revoke" style="display:contents">
 				<input type="hidden" name="label" value="{{.Name}}">
@@ -146,6 +147,21 @@
 					<option value="never">never</option>
 				</select>
 			</div>
+			<div class="settings-row">
+				<label>scopes</label>
+				<span class="scope-checks">
+					{{range .Settings.AllScopes}}
+					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>
+					{{end}}
+				</span>
+			</div>
+			<div class="settings-row">
+				<label for="token_namespaces">namespaces</label>
+				<select id="token_namespaces" name="namespaces" multiple>
+					{{range .Settings.TokenNamespaces}}<option value="{{.}}">{{.}}</option>{{end}}
+				</select>
+			</div>
+			<p class="settings-note">Select one or more scopes. <code>settings</code> grants Administrator access to every namespace; <code>read</code> and <code>write</code> tokens can be limited to selected namespaces. Leave namespaces empty for all namespaces.</p>
 			<div class="settings-actions">
 				<button type="submit" class="primary">create token</button>
 			</div>

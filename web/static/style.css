@@ -320,8 +320,22 @@ body:not(.shell) {
 	background: var(--surface-raised);
 }
 
-.sidebar-tags li a .count {
+.sidebar-tags li a .count,
+.sidebar-namespaces li a .count {
 	color: var(--fg-faint);
+}
+
+.namespace-index {
+	list-style: none;
+	margin: 16px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.namespace-index-meta {
+	color: var(--fg-faint);
+	font-size: 13px;
 }
 
 .sidebar-hints {
@@ -337,8 +351,15 @@ body:not(.shell) {
 
 .sidebar-hints .hint-row {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 6px;
+}
+
+/* Wrap between hints, never inside one: a shortcut split over two lines
+   ("ctrl" / "j") is unreadable. */
+.sidebar-hints .hint {
+	white-space: nowrap;
 }
 
 .sidebar-collapse-toggle::before {
@@ -1004,6 +1025,100 @@ body.zen-manuscript .zen-status.visible {
 	font-family: var(--heading-family);
 	color: var(--fg-strong);
 	margin: 0 0 8px;
+}
+
+/* Namespace indexes keep their catalogue readable without borrowing page chrome. */
+.namespace-index-page {
+	max-width: var(--prose-measure);
+}
+
+.namespace-index-meta {
+	color: var(--fg-muted);
+	font-size: 0.85rem;
+	margin: -0.75rem 0 1.25rem;
+}
+
+.namespace-index-meta a {
+	color: var(--accent);
+}
+
+.namespace-index-actions {
+	margin: 0 0 1.25rem;
+}
+
+.namespace-index-empty {
+	border: var(--border-w) var(--rule-style) var(--border);
+	background: var(--surface);
+	color: var(--fg-muted);
+	padding: var(--pad);
+	border-radius: var(--radius);
+}
+
+.namespace-index {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+	gap: 0.5rem;
+	list-style: none;
+}
+
+.namespace-index a {
+	display: block;
+	border: var(--border-w) var(--rule-style) var(--border);
+	background: var(--surface);
+	color: var(--fg-strong);
+	padding: 0.8rem var(--pad);
+	border-radius: var(--radius);
+	text-decoration: none;
+	transition: border-color 120ms ease, background 120ms ease;
+}
+
+.namespace-index a:hover,
+.namespace-index a:focus-visible {
+	border-color: var(--primary);
+	background: var(--surface-raised);
+}
+
+.namespace-management {
+	width: min(100%, 900px);
+}
+
+.namespace-management .settings-zone-desc,
+.namespace-management .settings-note {
+	max-width: 70ch;
+}
+
+.namespace-table {
+	overflow-x: auto;
+}
+
+.namespace-table table {
+	min-width: 38rem;
+}
+
+.namespace-editor .settings-panel {
+	background: var(--surface);
+}
+
+@media (max-width: 600px) {
+	.namespace-management .settings-actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+	.namespace-management .settings-actions > * {
+		text-align: center;
+		min-height: 44px;
+	}
+}
+
+@media (max-width: 600px) {
+	.namespace-index-page {
+		padding-inline: var(--pad-tight);
+	}
+	.namespace-index-actions .primary {
+		display: inline-block;
+		min-height: 44px;
+		padding: 0.75rem 1rem;
+	}
 }
 
 .page-meta {

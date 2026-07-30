@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -91,6 +92,21 @@ func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	}
 	if string(after) != string(custom) {
 		t.Error("readme.md was overwritten on open; existing files must not be touched")
+	}
+}
+
+func TestBuiltInHelpDocumentsNamespaces(t *testing.T) {
+	for _, want := range []string{
+		"`/_/namespaces`",
+		"`/<namespace>/`",
+		"`/<namespace>/<page>`",
+		"Quick-create page",
+		"Reset namespace settings",
+		"`list_namespaces`",
+	} {
+		if !strings.Contains(defaultHelpMD, want) {
+			t.Errorf("built-in help missing %q", want)
+		}
 	}
 }
 

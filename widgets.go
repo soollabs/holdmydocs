@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"time"
 )
 
@@ -23,18 +24,19 @@ type widget struct {
 }
 
 var widgetIDs = []string{
-	"search", "pages", "pinned", "tags", "log", "health",
+	"search", "pages", "namespaces", "pinned", "tags", "log", "health",
 	"calendar", "writing-stats",
 	"outline", "page-meta", "backlinks", "prev-entries",
 }
 
 var widgets = map[string]widget{
-	"search": {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
-	"pages":  {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages, most recent first."},
-	"pinned": {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
-	"tags":   {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "every tag in the wiki, with page counts."},
-	"log":    {ID: "log", Title: "LOG", Slot: slotSidebar, Description: "the last few commits to the page you're viewing."},
-	"health": {ID: "health", Title: "HEALTH", Slot: slotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
+	"search":     {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
+	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages, most recent first."},
+	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
+	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
+	"tags":       {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "every tag in the wiki, with page counts."},
+	"log":        {ID: "log", Title: "LOG", Slot: slotSidebar, Description: "the last few commits to the page you're viewing."},
+	"health":     {ID: "health", Title: "HEALTH", Slot: slotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
 
 	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar, Description: "a month grid of daily pages, with entries highlighted."},
 	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar, Description: "days written, streak, and word count for this month."},
@@ -97,6 +99,24 @@ func hasWidget(list []*widget, id string) bool {
 	return false
 }
 
+// NamespaceNavEntry is one row in the sidebar NAMESPACES list.
+type NamespaceNavEntry struct {
+	Name   string
+	Count  int
+	Active bool
+}
+
+// namespaceNav renders catalogue entries in alphabetical order, marking the
+// namespace the current page lives in.
+func namespaceNav(summaries []NamespaceSummary, current string) []NamespaceNavEntry {
+	entries := make([]NamespaceNavEntry, 0, len(summaries))
+	for _, summary := range summaries {
+		entries = append(entries, NamespaceNavEntry{Name: summary.Name, Count: summary.Count, Active: summary.Name == current})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
+	return entries
+}
+
 // populateWidgetData fills only the data needed by mounted widgets and the
 // statusline.
 func (app *App) populateWidgetData(data *TemplateData, s skin) {
@@ -145,5 +165,8 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	}
 	if needs("pinned") {
 		data.PinnedPages = app.Index.PinnedPages()
+	}
+	if needs("namespaces") {
+		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), app.Index.Titles()), ns)
 	}
 }

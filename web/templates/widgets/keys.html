@@ -5,7 +5,7 @@
 		<a href="/_/settings">settings</a> · <a href="/_/admin">admin</a> · <a href="/_/hidden/help">? help</a> ·
 		<a href="/_/health-report" id="health-line" class="health-hint{{if .HealthMissing}} has-missing{{else if .HealthOrphans}} has-orphans{{end}}" title="{{.HealthMissing}} missing · {{.HealthOrphans}} orphan{{if ne .HealthOrphans 1}}s{{end}}">health</a>
 	</div>
-	<div class="hint-row">{{if .JournalEnabled}}<kbd>ctrl j</kbd> journal · {{end}}<kbd>ctrl k</kbd> jump / >verbs</div>
+	<div class="hint-row">{{if .NewPageEnabled}}<span class="hint"><kbd>ctrl j</kbd> new</span>{{end}}<span class="hint"><kbd>ctrl k</kbd> jump / &gt;verbs</span></div>
 	<div class="hint-row sidebar-version">{{.Version}}</div>
 </div>
 {{end}}

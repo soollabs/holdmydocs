@@ -24,14 +24,13 @@
 
 <section class="settings-zone">
 	<h2 class="settings-zone-title"><span class="h"></span>system configuration</h2>
-	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>.</p>
+	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>. <a href="/_/namespaces">Manage namespaces</a>.</p>
 
 	<div class="settings-tabs">
 		<button type="button" class="settings-tab" data-tab="server">server</button>
 		<button type="button" class="settings-tab" data-tab="git-remote">git remote</button>
 		<button type="button" class="settings-tab" data-tab="site">site</button>
 		<button type="button" class="settings-tab" data-tab="behaviour">behaviour</button>
-		<button type="button" class="settings-tab" data-tab="namespaces">namespaces</button>
 		<button type="button" class="settings-tab" data-tab="users">users</button>
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
 	</div>
@@ -138,115 +137,6 @@
 		</div>
 
 	</form>
-
-	{{/* Lives outside the form above: a <form> cannot nest inside another
-	     <form>, and this panel (like users, below) needs one form per
-	     namespace plus a create form. Each writes that namespace's
-	     .namespace.yaml in the content repo. */}}
-	<fieldset class="settings-section settings-panel" data-panel="namespaces">
-		<legend>namespaces</legend>
-		<p class="settings-note">A namespace is a top-level directory in the content repo; its <code>.namespace.yaml</code> sets which widgets pages in it get, whether they're published to anonymous visitors, and how ctrl-j creates a new page there. Saving a name that doesn't exist yet creates the namespace.</p>
-
-		{{if .Settings.NamespaceError}}
-		<p class="settings-error">{{.Settings.NamespaceError}}</p>
-		{{end}}
-
-		{{range .Settings.Namespaces}}
-		{{$ns := .}}
-		<form method="POST" action="/_/settings/namespaces" class="namespace-form">
-			<input type="hidden" name="name" value="{{.Name}}">
-			<div class="namespace-head">
-				<h3>{{if .Name}}{{.Name}}/{{else}}(root){{end}}</h3>
-				{{if not .Configured}}<span class="badge-default">no .namespace.yaml &mdash; showing defaults</span>{{end}}
-				<label class="scope-check"><input type="checkbox" name="public" {{if .Public}}checked{{end}}> public</label>
-			</div>
-			{{if .LoadError}}
-			<p class="settings-error">This namespace's <code>.namespace.yaml</code> is being ignored: {{.LoadError}}. Saving below overwrites it.</p>
-			{{end}}
-			<div class="settings-row">
-				<label>widgets</label>
-				<input type="text" name="widgets" value="{{.WidgetsCSV}}" class="widget-input" placeholder="empty for the built-in set">
-			</div>
-			<div class="widget-picker">
-				{{range $.Settings.WidgetGroups}}
-				<div class="widget-group">
-					<span class="widget-slot">{{.Slot}}</span>
-					{{range .Widgets}}<button type="button" class="widget-chip" data-widget="{{.ID}}" title="{{.Description}}">{{.ID}}</button>{{end}}
-				</div>
-				{{end}}
-			</div>
-			<input type="hidden" name="template" value="{{.Template}}">
-			<div class="settings-row">
-				<label>new page</label>
-				<label class="scope-check"><input type="checkbox" name="new_enabled" class="new-toggle" {{if .NewEnabled}}checked{{end}}> ctrl-j creates a page here</label>
-			</div>
-			<div class="new-page-fields">
-				<div class="settings-row">
-					<label>named</label>
-					<select name="slug_preset" class="slug-preset">
-						{{range $.Settings.SlugPresets}}<option value="{{.Key}}" {{if eq $ns.SlugPreset .Key}}selected{{end}}>{{.Label}} &mdash; {{.Example}}</option>{{end}}
-						<option value="custom" {{if eq $ns.SlugPreset "custom"}}selected{{end}}>custom pattern&hellip;</option>
-					</select>
-				</div>
-				<div class="settings-row slug-custom-row">
-					<label>pattern</label>
-					<input type="text" name="slug_custom" value="{{.SlugPattern}}" class="slug-custom" placeholder="&#123;&#123;.Now.Format &quot;2006-01-02&quot;&#125;&#125;">
-				</div>
-				<p class="settings-note">Starts from <a href="{{.TemplateHref}}">this namespace's template page</a>, created for you the first time you save this. Its title, tags and body are templates too, substituted when a page is created: <code>&#123;&#123;.User&#125;&#125;</code>, <code>&#123;&#123;.Namespace&#125;&#125;</code>, and <code>&#123;&#123;.Now.Format "…"&#125;&#125;</code> for the date &mdash; <code>2006-01-02</code> &rarr; {{$.Settings.Now.Format "2006-01-02"}}, <code>Monday, 2 January 2006</code> &rarr; {{$.Settings.Now.Format "Monday, 2 January 2006"}}, <code>15:04</code> &rarr; {{$.Settings.Now.Format "15:04"}}. The layout is a date written as itself &mdash; Go's reference time, always 2006-01-02 15:04.</p>
-			</div>
-			<div class="settings-actions namespace-actions">
-				<button type="submit" class="ghost-btn">save {{if .Name}}{{.Name}}{{else}}root{{end}}</button>
-				{{if .Configured}}
-				<button type="submit" formaction="/_/settings/namespaces/delete" class="ghost-btn danger-btn" data-confirm-namespace="{{if .Name}}{{.Name}}{{else}}root{{end}}">remove config</button>
-				{{end}}
-			</div>
-		</form>
-		{{end}}
-
-		<form method="POST" action="/_/settings/namespaces" class="namespace-form">
-			<div class="namespace-head">
-				<h3>new namespace</h3>
-				<label class="scope-check"><input type="checkbox" name="public"> public</label>
-			</div>
-			<div class="settings-row">
-				<label for="new_namespace">name</label>
-				<input type="text" id="new_namespace" name="name" placeholder="e.g. blog" autocomplete="off">
-			</div>
-			<div class="settings-row">
-				<label>widgets</label>
-				<input type="text" name="widgets" class="widget-input" placeholder="empty for the built-in set">
-			</div>
-			<div class="widget-picker">
-				{{range .Settings.WidgetGroups}}
-				<div class="widget-group">
-					<span class="widget-slot">{{.Slot}}</span>
-					{{range .Widgets}}<button type="button" class="widget-chip" data-widget="{{.ID}}" title="{{.Description}}">{{.ID}}</button>{{end}}
-				</div>
-				{{end}}
-			</div>
-			<div class="settings-row">
-				<label>new page</label>
-				<label class="scope-check"><input type="checkbox" name="new_enabled" class="new-toggle"> ctrl-j creates a page here</label>
-			</div>
-			<div class="new-page-fields">
-				<div class="settings-row">
-					<label>named</label>
-					<select name="slug_preset" class="slug-preset">
-						{{range .Settings.SlugPresets}}<option value="{{.Key}}">{{.Label}} &mdash; {{.Example}}</option>{{end}}
-						<option value="custom">custom pattern&hellip;</option>
-					</select>
-				</div>
-				<div class="settings-row slug-custom-row">
-					<label>pattern</label>
-					<input type="text" name="slug_custom" class="slug-custom" placeholder="&#123;&#123;.Now.Format &quot;2006-01-02&quot;&#125;&#125;">
-				</div>
-			</div>
-			<p class="settings-note">Click a widget to add or remove it; the order in the field is the order they render in, within each slot. Turning on "ctrl-j creates a page here" gives the namespace a template page (<code>template</code>, a hidden page inside it) that new pages start from &mdash; edit it from the namespace's own row once saved. Removing a namespace's config only deletes that file; pages in it are never touched.</p>
-			<div class="settings-actions">
-				<button type="submit" class="primary">create namespace</button>
-			</div>
-		</form>
-	</fieldset>
 
 	{{/* Lives outside the form above: a <form> cannot nest inside another
 	     <form>, and this panel needs its own per-user and create-user forms. */}}
@@ -378,68 +268,6 @@
 		});
 		var hashId = location.hash.slice(1);
 		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
-	});
-
-	// Namespace widget picker. The text field stays the source of truth —
-	// it carries the order widgets render in, and works on its own with JS
-	// off — and the chips just toggle ids in it.
-	document.querySelectorAll('.namespace-form').forEach(function (form) {
-		var input = form.querySelector('.widget-input');
-		var chips = Array.prototype.slice.call(form.querySelectorAll('.widget-chip'));
-		if (!input || !chips.length) return;
-
-		function ids() {
-			return input.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-		}
-		function sync() {
-			var current = ids();
-			chips.forEach(function (chip) {
-				chip.classList.toggle('on', current.indexOf(chip.dataset.widget) !== -1);
-			});
-		}
-		chips.forEach(function (chip) {
-			chip.addEventListener('click', function () {
-				var current = ids();
-				var at = current.indexOf(chip.dataset.widget);
-				if (at === -1) {
-					current.push(chip.dataset.widget);
-				} else {
-					current.splice(at, 1);
-				}
-				input.value = current.join(', ');
-				sync();
-			});
-		});
-		input.addEventListener('input', sync);
-		sync();
-	});
-
-	// New-page controls: the whole block only applies when ctrl-j is on, and
-	// the raw pattern field only when no preset covers it. Both default to
-	// visible in the markup, so with JS off everything is still reachable.
-	document.querySelectorAll('.namespace-form').forEach(function (form) {
-		var toggle = form.querySelector('.new-toggle');
-		var fields = form.querySelector('.new-page-fields');
-		var preset = form.querySelector('.slug-preset');
-		var customRow = form.querySelector('.slug-custom-row');
-		if (!toggle || !fields || !preset || !customRow) return;
-
-		function sync() {
-			fields.hidden = !toggle.checked;
-			customRow.hidden = preset.value !== 'custom';
-		}
-		toggle.addEventListener('change', sync);
-		preset.addEventListener('change', sync);
-		sync();
-	});
-
-	document.querySelectorAll('[data-confirm-namespace]').forEach(function (button) {
-		button.addEventListener('click', function (e) {
-			var name = button.dataset.confirmNamespace;
-			if (!confirm('Remove ' + name + '’s .namespace.yaml? Pages in it are kept, but it goes back to the built-in widgets and stops being published.')) {
-				e.preventDefault();
-			}
-		});
 	});
 
 	var exportForm = document.getElementById('export-config-form');

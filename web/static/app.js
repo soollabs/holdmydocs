@@ -283,15 +283,16 @@
     newBtn.addEventListener('click', () => openPalette(true));
   }
 
-  // ---- Journal entry shortcut (ctrl-j) ---- disabled unless the journal
-  // namespace has a `new:` template (window.hmdJournalEnabled)
+  // ---- New-page shortcut (ctrl-j) ---- targets this page's namespace when it
+  // has a `new:` template, else the journal fallback; disabled when neither
+  // does (window.hmdNewEnabled).
   function openTodaysEntry() {
-    fetch('/_/new?ns=journal', { method: 'POST' }).then(r => {
+    fetch('/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace), { method: 'POST' }).then(r => {
       if (r.ok || r.redirected) window.location.href = r.url;
     });
   }
   document.addEventListener('keydown', e => {
-    if (!window.hmdJournalEnabled) return;
+    if (!window.hmdNewEnabled) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
@@ -508,12 +509,15 @@
     { name: 'rename', desc: 'rename this page', action: 'rename' },
     { name: 'tag', desc: 'edit tags', action: 'tag' },
     { name: 'hist', desc: 'view history', action: 'hist' },
-    { name: 'new', desc: "today's journal entry", action: 'new' },
+    { name: 'new', desc: 'new page in this namespace', action: 'new' },
     { name: 'health', desc: 'wiki health', action: 'health' },
     { name: 'ns', desc: 'namespaces & templates', action: 'ns' },
     { name: 'sync', desc: 'push now', action: 'sync' },
     { name: 'pin', desc: 'pin this page', action: 'pin' },
-  ].filter(v => v.action !== 'new' || window.hmdJournalEnabled);
+  ].filter(v => {
+    if (v.action === 'new') return window.hmdNewEnabled;
+    return !window.hmdNamespaceIndex || !['rename', 'tag', 'hist', 'pin'].includes(v.action);
+  });
 
   function syncVerbDesc() {
     const seg = $('#status-sync');
@@ -529,7 +533,14 @@
       const verbQuery = q.slice(1).toLowerCase();
       paletteRows = verbs
         .filter(v => v.name.includes(verbQuery))
-        .map(v => ({ slug: v.action, title: '>' + v.name, snippet: v.action === 'sync' ? syncVerbDesc() : v.desc, verb: true }));
+        .map(v => ({
+          slug: v.action,
+          title: '>' + v.name,
+          snippet: v.action === 'new'
+            ? `new page in the ${window.hmdNewNamespace || 'current'} namespace`
+            : v.action === 'sync' ? syncVerbDesc() : v.desc,
+          verb: true
+        }));
       paletteSelected = 0;
       renderPaletteRows(q);
       paletteCount.textContent = paletteRows.length + ' verb' + (paletteRows.length === 1 ? '' : 's');
@@ -578,7 +589,7 @@
         break;
       case 'ns':
         closePalette();
-        window.location.href = '/_/admin#namespaces';
+        window.location.href = '/_/namespaces';
         break;
       case 'sync':
         closePalette();

@@ -22,8 +22,8 @@ const reservedNamespace = "_"
 // NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a
 // page in this namespace.
 type NewPageConfig struct {
-	Template string `yaml:"template"`
-	Slug     string `yaml:"slug"`
+	Template string `yaml:"template" json:"template"`
+	Slug     string `yaml:"slug" json:"slug"`
 }
 
 // NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml (or the
@@ -138,7 +138,7 @@ func namespaceConfigPath(ns string) string {
 // builtinWidgets is the default composition used when a namespace has no
 // widgets: key — roughly today's phosphor composition, so a fresh wiki does
 // not look broken.
-var builtinWidgets = []string{"search", "pages", "tags", "log", "outline", "page-meta", "backlinks"}
+var builtinWidgets = []string{"search", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
 
 // defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
 // built-in widgets, private.
@@ -198,13 +198,123 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 // validNamespaceName reports whether name can be a namespace: not the
 // reserved "_" segment, not dot-prefixed (ignored, like hidden files).
 func validNamespaceName(name string) bool {
-	return name != "" && name != reservedNamespace && !strings.HasPrefix(name, ".")
+	return name != "" && name != "/" && name != `\` && name != reservedNamespace &&
+		!strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".")
+}
+
+// validMCPPageSegment accepts one non-hidden page-name segment. It is kept
+// separate from validMCPPageSlug because namespace templates and generated
+// names must remain single-segment even though MCP pages may be namespaced.
+func validMCPPageSegment(name string) bool {
+	return name != "" && !strings.ContainsAny(name, `/\`) &&
+		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
+}
+
+// validMCPPageSlug accepts a root page or one namespace/page pair. MCP is a
+// trust boundary, so unlike regular URL routing it rejects traversal-shaped,
+// hidden and reserved path components explicitly.
+func validMCPPageSlug(slug string) bool {
+	parts := strings.Split(slug, "/")
+	switch len(parts) {
+	case 1:
+		return validMCPPageSegment(parts[0])
+	case 2:
+		return validNamespaceName(parts[0]) && !strings.HasPrefix(parts[0], reservedNamespace) && validMCPPageSegment(parts[1])
+	default:
+		return false
+	}
+}
+
+// normaliseNamespaceConfig validates the shared namespace-settings shape used
+// by both the web form and MCP before it is written to disk.
+func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemplateData) (NamespaceConfig, error) {
+	if name != "" && !validNamespaceName(name) {
+		return NamespaceConfig{}, fmt.Errorf("invalid namespace name %q", name)
+	}
+	if len(cfg.Widgets) == 0 {
+		cfg.Widgets = builtinWidgets
+	}
+	for _, id := range cfg.Widgets {
+		if _, ok := widgets[id]; !ok {
+			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
+		}
+	}
+	if cfg.New == nil {
+		return cfg, nil
+	}
+	cfg.New.Template = strings.TrimSpace(cfg.New.Template)
+	if cfg.New.Template == "" {
+		cfg.New.Template = defaultNewPageTemplate
+	}
+	if !validMCPPageSegment(cfg.New.Template) {
+		return NamespaceConfig{}, fmt.Errorf("%q is not a valid template page name", cfg.New.Template)
+	}
+	cfg.New.Slug = strings.TrimSpace(cfg.New.Slug)
+	if cfg.New.Slug == "" {
+		return NamespaceConfig{}, fmt.Errorf("new-page slug pattern is required")
+	}
+	rendered, err := renderNewPageText(cfg.New.Slug, data)
+	if err != nil {
+		return NamespaceConfig{}, fmt.Errorf("slug pattern is not a valid template: %w", err)
+	}
+	if !validMCPPageSegment(rendered) {
+		return NamespaceConfig{}, fmt.Errorf("slug pattern renders unusable page name %q", rendered)
+	}
+	return cfg, nil
 }
 
 // NamespaceRegistry maps a namespace name ("" for root-level pages) to its
 // resolved config. Rebuilt wholesale by BuildNamespaceRegistry — see
 // search.go's pollFS, which already rescans the repo on a timer.
 type NamespaceRegistry map[string]NamespaceConfig
+
+// NamespaceSummary is the shared catalogue entry for one non-root namespace.
+type NamespaceSummary struct {
+	Name   string
+	Config NamespaceConfig
+	Count  int
+	Pages  []BacklinkEntry
+}
+
+// namespaceSummaries combines configured namespaces with namespace prefixes
+// found in the page index. Root-level pages never create a catalogue entry.
+func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []NamespaceSummary {
+	entries := make(map[string]*NamespaceSummary)
+	include := func(name string, cfg NamespaceConfig) *NamespaceSummary {
+		if entry, ok := entries[name]; ok {
+			return entry
+		}
+		entry := &NamespaceSummary{Name: name, Config: cfg}
+		entries[name] = entry
+		return entry
+	}
+
+	for name, cfg := range reg {
+		if name != "" && cfg.Configured {
+			include(name, cfg)
+		}
+	}
+	for slug, title := range titles {
+		if name, _ := namespaceFor(slug); name != "" {
+			entry := include(name, reg.Resolve(slug))
+			if title == "" {
+				title = slug
+			}
+			entry.Pages = append(entry.Pages, BacklinkEntry{Slug: slug, Title: title})
+		}
+	}
+
+	result := make([]NamespaceSummary, 0, len(entries))
+	for _, entry := range entries {
+		sort.Slice(entry.Pages, func(i, j int) bool {
+			return entry.Pages[i].Slug < entry.Pages[j].Slug
+		})
+		entry.Count = len(entry.Pages)
+		result = append(result, *entry)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
 
 // BuildNamespaceRegistry scans repoDir for namespaces: the root config plus
 // one directory per non-dot-prefixed, non-reserved top-level subdirectory.
