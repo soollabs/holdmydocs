@@ -16,11 +16,14 @@ type TagCount struct {
 }
 
 type Index struct {
-	mu       sync.RWMutex
-	bleve    bleve.Index
+	mu    sync.RWMutex
+	bleve bleve.Index
+	// forward maps a page slug to the raw [[titles]] it links to. There is
+	// no backward map: link targets are resolved on read via ResolveLink, so
+	// backlinks agree with what the renderer actually linked to and start
+	// counting as soon as the target page exists.
 	titles   map[string]string
 	forward  map[string][]string
-	backward map[string]map[string]bool
 	tags     map[string]map[string]bool
 	tagNames map[string]string
 	pageTags map[string][]string
@@ -45,7 +48,6 @@ func BuildIndex(pages []Page) (*Index, error) {
 		bleve:    blevIdx,
 		titles:   make(map[string]string),
 		forward:  make(map[string][]string),
-		backward: make(map[string]map[string]bool),
 		tags:     make(map[string]map[string]bool),
 		tagNames: make(map[string]string),
 		pageTags: make(map[string][]string),
@@ -78,17 +80,7 @@ func BuildIndex(pages []Page) (*Index, error) {
 		}
 
 		// Build forward links
-		links := WikiLinks(p.Body)
-		ix.forward[p.Slug] = links
-
-		// Build backward links
-		for _, link := range links {
-			linkSlug := Slugify(link)
-			if ix.backward[linkSlug] == nil {
-				ix.backward[linkSlug] = make(map[string]bool)
-			}
-			ix.backward[linkSlug][p.Slug] = true
-		}
+		ix.forward[p.Slug] = WikiLinks(p.Body)
 	}
 
 	return ix, nil
@@ -158,14 +150,6 @@ func (ix *Index) Update(p Page) error {
 	ix.titles[p.Slug] = p.Title
 	ix.pinned[p.Slug] = p.Pin
 
-	// Remove old forward links from backward map
-	if oldLinks, ok := ix.forward[p.Slug]; ok {
-		for _, link := range oldLinks {
-			linkSlug := Slugify(link)
-			delete(ix.backward[linkSlug], p.Slug)
-		}
-	}
-
 	// Re-index the page
 	doc := map[string]interface{}{
 		"Title": p.Title,
@@ -198,17 +182,7 @@ func (ix *Index) Update(p Page) error {
 	}
 
 	// Build new forward links
-	newLinks := WikiLinks(p.Body)
-	ix.forward[p.Slug] = newLinks
-
-	// Add new backward links
-	for _, link := range newLinks {
-		linkSlug := Slugify(link)
-		if ix.backward[linkSlug] == nil {
-			ix.backward[linkSlug] = make(map[string]bool)
-		}
-		ix.backward[linkSlug][p.Slug] = true
-	}
+	ix.forward[p.Slug] = WikiLinks(p.Body)
 
 	return indexErr
 }
@@ -225,13 +199,7 @@ func (ix *Index) Remove(slug string) {
 	delete(ix.titles, slug)
 	delete(ix.pinned, slug)
 
-	if oldLinks, ok := ix.forward[slug]; ok {
-		for _, link := range oldLinks {
-			delete(ix.backward[Slugify(link)], slug)
-		}
-	}
 	delete(ix.forward, slug)
-	delete(ix.backward, slug)
 
 	if oldTags, ok := ix.pageTags[slug]; ok {
 		for _, tag := range oldTags {
@@ -251,6 +219,50 @@ func (ix *Index) Exists(slug string) bool {
 	defer ix.mu.RUnlock()
 	_, ok := ix.titles[slug]
 	return ok
+}
+
+// ResolveLink finds the slug a [[title]] wiki-link should point to: an exact
+// title match within ns wins, so a link on a namespace page resolves inside
+// that namespace first — matching injectTOC's self-containment — falling
+// back to any other namespace if ns has no match. Reports ok=false if no
+// page has that title anywhere. Ties (two pages sharing a title) resolve to
+// the lexicographically first slug — deterministic, since map iteration
+// order isn't — rather than picking arbitrarily per request.
+//
+// Titles must match exactly, so a link whose casing/punctuation differs from
+// the page title ([[overview]] → "Overview") falls back to the old
+// slug lookup, namespace first.
+func (ix *Index) ResolveLink(title, ns string) (slug string, ok bool) {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+	return ix.resolveLink(title, ns)
+}
+
+// resolveLink is ResolveLink's body, for callers already holding ix.mu —
+// sync.RWMutex isn't recursive, so re-taking RLock could deadlock against a
+// waiting writer.
+func (ix *Index) resolveLink(title, ns string) (slug string, ok bool) {
+	var matches []string
+	for s, t := range ix.titles {
+		if t == title {
+			matches = append(matches, s)
+		}
+	}
+	if len(matches) == 0 {
+		for _, s := range []string{namespaceSlug(ns, Slugify(title)), Slugify(title)} {
+			if _, exists := ix.titles[s]; exists {
+				return s, true
+			}
+		}
+		return "", false
+	}
+	sort.Strings(matches)
+	for _, s := range matches {
+		if pageNS, _ := namespaceFor(s); pageNS == ns {
+			return s, true
+		}
+	}
+	return matches[0], true
 }
 
 func (ix *Index) Titles() map[string]string {
@@ -302,13 +314,26 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 	return hits, nil
 }
 
+// Backlinks lists the pages whose wiki-links resolve to slug, resolved the
+// same way the renderer resolves them.
+// O(pages × links) scan per call, no backward map to keep in sync —
+// index it if a wiki ever gets big enough to notice.
 func (ix *Index) Backlinks(slug string) []string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	backlinks := make([]string, 0, len(ix.backward[slug]))
-	for source := range ix.backward[slug] {
-		backlinks = append(backlinks, source)
+	backlinks := make([]string, 0, 4)
+	for source, links := range ix.forward {
+		if source == slug {
+			continue // a page linking to itself isn't a backlink
+		}
+		sourceNS, _ := namespaceFor(source)
+		for _, link := range links {
+			if target, ok := ix.resolveLink(link, sourceNS); ok && target == slug {
+				backlinks = append(backlinks, source)
+				break
+			}
+		}
 	}
 	sort.Strings(backlinks)
 	return backlinks
@@ -397,12 +422,20 @@ func (ix *Index) Health(homeSlug string) (missing map[string][]string, orphans [
 	defer ix.mu.RUnlock()
 
 	sources := make(map[string]map[string]bool)
+	linked := make(map[string]bool)
 	for src, links := range ix.forward {
+		srcNS, _ := namespaceFor(src)
 		for _, link := range links {
-			target := Slugify(link)
-			if _, exists := ix.titles[target]; exists {
+			target, ok := ix.resolveLink(link, srcNS)
+			if ok {
+				if target != src {
+					linked[target] = true
+				}
 				continue
 			}
+			// Key the miss by the slug the renderer's "+" link points at,
+			// so the health report and the page it offers to create agree.
+			target = namespaceSlug(srcNS, Slugify(link))
 			if sources[target] == nil {
 				sources[target] = make(map[string]bool)
 			}
@@ -423,7 +456,7 @@ func (ix *Index) Health(homeSlug string) (missing map[string][]string, orphans [
 		if slug == homeSlug {
 			continue
 		}
-		if len(ix.backward[slug]) == 0 {
+		if !linked[slug] {
 			orphans = append(orphans, slug)
 		}
 	}

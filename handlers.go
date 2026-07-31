@@ -483,7 +483,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			if homeMissing || forced {
 				data.NeedsHomeSetup = true
 				data.HomeFileExists = !homeMissing
-				homePreview, _ := app.Render.Render(defaultHomeMD)
+				homePreview, _ := app.Render.Render(defaultHomeMD, "")
 				data.SetupHomePreview = template.HTML(homePreview)
 			}
 
@@ -492,7 +492,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			if helpMissing || forced {
 				data.NeedsHelpSetup = true
 				data.HelpFileExists = !helpMissing
-				helpPreview, _ := app.Render.Render(defaultHelpMD)
+				helpPreview, _ := app.Render.Render(defaultHelpMD, "")
 				data.SetupHelpPreview = template.HTML(helpPreview)
 			}
 
@@ -1135,7 +1135,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	page := ParsePage(slug, content)
 	ns, _ := namespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
-	renderedBody, err := app.Render.Render(page.Body)
+	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -1201,8 +1201,9 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		return
 	}
 
+	pageNS, _ := namespaceFor(slug)
 	isPublicLink := func(s string) bool { return app.Index.Exists(s) && ns.IsPublic(s) }
-	renderedBody, err := app.Render.RenderPublic(page.Body, isPublicLink)
+	renderedBody, err := app.Render.RenderPublic(page.Body, pageNS, isPublicLink)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -1567,7 +1568,8 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 		body = string(b)
 	}
 
-	html, err := app.Render.Render(body)
+	ns, _ := namespaceFor(r.URL.Query().Get("slug"))
+	html, err := app.Render.Render(body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -1942,11 +1944,14 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing title", http.StatusBadRequest)
 		return
 	}
-	newSlug := Slugify(newTitle)
-	if newSlug == "" {
+	// A rename retitles a page in place: keep it in its namespace instead of
+	// slugifying it out to the wiki root.
+	renameNS, _ := namespaceFor(slug)
+	if Slugify(newTitle) == "" {
 		http.Error(w, "invalid title", http.StatusBadRequest)
 		return
 	}
+	newSlug := namespaceSlug(renameNS, Slugify(newTitle))
 	if !app.requireTokenSlug(w, r, newSlug) {
 		return
 	}
@@ -1993,8 +1998,13 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		srcPage := ParsePage(src, srcContent)
+		srcNS, _ := namespaceFor(src)
 		updated := wikiLinkRe.ReplaceAllStringFunc(srcPage.Body, func(m string) string {
-			if Slugify(m[2:len(m)-2]) == slug {
+			// Mirror Index.ResolveLink: the link pointed at the old page by
+			// title, or — for casing that didn't match — by slug, namespace
+			// first. Title alone isn't enough now that a slug can be namespaced.
+			inner := m[2 : len(m)-2]
+			if inner == oldTitle || namespaceSlug(srcNS, Slugify(inner)) == slug || Slugify(inner) == slug {
 				return "[[" + newTitle + "]]"
 			}
 			return m
@@ -2191,7 +2201,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	page := ParsePage(slug, content)
 	ns, _ := namespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
-	renderedBody, err := app.Render.Render(page.Body)
+	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -2302,7 +2312,8 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	renderedBody, err := app.Render.Render(page.Body)
+	hiddenNS, _ := namespaceFor(slug)
+	renderedBody, err := app.Render.Render(page.Body, hiddenNS)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

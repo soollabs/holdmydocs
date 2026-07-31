@@ -182,6 +182,84 @@ func TestNamespaceIndexCustomPage(t *testing.T) {
 	}
 }
 
+// TestNamespaceWikiLinkResolvesWithinNamespace is the end-to-end regression
+// for the bug where a [[Title]] wiki-link on a namespaced page (e.g. one
+// produced by <!-- hmd:toc --> listing sibling pages) resolved to
+// Slugify(title) at the wiki root instead of the page's real namespaced
+// slug, so following it 404'd.
+func TestNamespaceWikiLinkResolvesWithinNamespace(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, p := range []Page{
+		{Slug: "health/overview", Title: "Overview", Body: "hi"},
+		{Slug: "health/plan", Title: "Plan", Body: "See [[Overview]] for context."},
+	} {
+		if _, err := app.Store.Save(pageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
+			t.Fatalf("saving %s: %v", p.Slug, err)
+		}
+		if err := app.Index.Update(p); err != nil {
+			t.Fatalf("indexing %s: %v", p.Slug, err)
+		}
+	}
+
+	resp, err := client.Get(server.URL + "/health/plan")
+	if err != nil {
+		t.Fatalf("GET /health/plan: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	b, _ := io.ReadAll(resp.Body)
+	body := string(b)
+
+	if !strings.Contains(body, `href="/health/overview"`) {
+		t.Fatalf("wiki-link should resolve to /health/overview, got: %s", body)
+	}
+	if strings.Contains(body, `class="missing`) {
+		t.Errorf("wiki-link to an existing sibling page must not render as missing: %s", body)
+	}
+}
+
+// TestRenameWithinNamespace covers the rename half of the same bug: a
+// namespaced page keeps its namespace when retitled (rather than slugifying
+// out to the root), and the [[Title]] links pointing at it get rewritten.
+func TestRenameWithinNamespace(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, p := range []Page{
+		{Slug: "health/overview", Title: "Overview", Body: "hi"},
+		{Slug: "health/plan", Title: "Plan", Body: "See [[Overview]] for context."},
+	} {
+		if _, err := app.Store.Save(pageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
+			t.Fatalf("saving %s: %v", p.Slug, err)
+		}
+		if err := app.Index.Update(p); err != nil {
+			t.Fatalf("indexing %s: %v", p.Slug, err)
+		}
+	}
+
+	resp, err := client.PostForm(server.URL+"/health/overview?do=rename", url.Values{"title": {"Summary"}})
+	if err != nil {
+		t.Fatalf("POST ?do=rename: %v", err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("?do=rename: status = %d, body = %s", resp.StatusCode, b)
+	}
+	if !strings.Contains(string(b), `"health/summary"`) {
+		t.Errorf("rename should stay in the namespace, got: %s", b)
+	}
+
+	content, _, err := app.Store.Read(pageFile("health/plan"))
+	if err != nil {
+		t.Fatalf("reading health/plan: %v", err)
+	}
+	if body := ParsePage("health/plan", content).Body; !strings.Contains(body, "[[Summary]]") {
+		t.Errorf("link in health/plan should have been rewritten, got: %s", body)
+	}
+}
+
 func savePage(t *testing.T, app *App, slug, body string) {
 	t.Helper()
 	page := Page{Slug: slug, Title: slug, Body: body}

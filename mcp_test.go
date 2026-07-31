@@ -71,7 +71,7 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
 	}
 
-	app := &App{Store: store, Auth: auth, Index: index, Render: NewRenderer(index.Exists), Tmpl: tmpl}
+	app := &App{Store: store, Auth: auth, Index: index, Render: NewRenderer(index.ResolveLink), Tmpl: tmpl}
 	app.SetConfig(cfg)
 	app.SetNamespaces(namespaces)
 

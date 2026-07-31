@@ -31,11 +31,14 @@ func newSanitizePolicy() *bluemonday.Policy {
 }
 
 type Renderer struct {
-	md     goldmark.Markdown
-	exists func(slug string) bool
+	md      goldmark.Markdown
+	resolve func(title, ns string) (slug string, ok bool)
 }
 
-func NewRenderer(exists func(slug string) bool) *Renderer {
+// NewRenderer takes resolve — how a [[title]] wiki-link is turned into a
+// slug — rather than a flat existence check, so link resolution can prefer a
+// match in the current page's own namespace (see Index.ResolveLink).
+func NewRenderer(resolve func(title, ns string) (slug string, ok bool)) *Renderer {
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -46,14 +49,18 @@ func NewRenderer(exists func(slug string) bool) *Renderer {
 		),
 	)
 	return &Renderer{
-		md:     md,
-		exists: exists,
+		md:      md,
+		resolve: resolve,
 	}
 }
 
-func (r *Renderer) Render(body string) (htmltemplate.HTML, error) {
+// Render renders body for an authenticated viewer. ns is the namespace of
+// the page being rendered (namespaceFor(slug)), used to scope wiki-link
+// resolution — pass "" for root-level pages or when no page context exists
+// (e.g. the raw markdown preview).
+func (r *Renderer) Render(body, ns string) (htmltemplate.HTML, error) {
 	// Pre-process wiki-links
-	body = r.processWikiLinks(body)
+	body = r.processWikiLinks(body, ns)
 
 	// Render markdown
 	var buf bytes.Buffer
@@ -70,18 +77,21 @@ func (r *Renderer) Render(body string) (htmltemplate.HTML, error) {
 	return htmltemplate.HTML(htmlStr), nil
 }
 
-func (r *Renderer) processWikiLinks(body string) string {
+func (r *Renderer) processWikiLinks(body, ns string) string {
 	return wikiLinkOrCodeRe.ReplaceAllStringFunc(body, func(match string) string {
 		if !strings.HasPrefix(match, "[[") {
 			return match // fenced/inline code — leave untouched, not a real link
 		}
 		title := match[2 : len(match)-2]
-		slug := Slugify(title)
 		escaped := html.EscapeString(title)
 
-		if r.exists(slug) {
+		if slug, ok := r.resolve(title, ns); ok {
 			return fmt.Sprintf(`<a class="wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
 		}
+		// No page has this title yet: guess a slug inside the current
+		// namespace (namespaceSlug is a no-op for ns == "") so following the
+		// link to create the page starts it in the right place.
+		slug := namespaceSlug(ns, Slugify(title))
 		return fmt.Sprintf(`<a class="missing wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
 	})
 }
@@ -92,15 +102,15 @@ func (r *Renderer) processWikiLinks(body string) string {
 // private slug or its existence leaks. hmd:toc is deliberately NOT expanded
 // here (the caller must not run injectTOC on this body first) since a TOC
 // would leak private page titles by construction.
-func (r *Renderer) RenderPublic(body string, isPublicLink func(slug string) bool) (htmltemplate.HTML, error) {
+func (r *Renderer) RenderPublic(body, ns string, isPublicLink func(slug string) bool) (htmltemplate.HTML, error) {
 	body = wikiLinkOrCodeRe.ReplaceAllStringFunc(body, func(match string) string {
 		if !strings.HasPrefix(match, "[[") {
 			return match // fenced/inline code — leave untouched, not a real link
 		}
 		title := match[2 : len(match)-2]
-		slug := Slugify(title)
 		escaped := html.EscapeString(title)
-		if isPublicLink(slug) {
+		slug, ok := r.resolve(title, ns)
+		if ok && isPublicLink(slug) {
 			return fmt.Sprintf(`<a class="wiki" href="/%s">%s</a>`, slug, escaped)
 		}
 		return escaped

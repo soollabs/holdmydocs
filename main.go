@@ -114,7 +114,7 @@ func main() {
 	logPublicNamespaces(namespaces, pages)
 
 	// Create renderer and auth
-	renderer := NewRenderer(index.Exists)
+	renderer := NewRenderer(index.ResolveLink)
 	auth, err := OpenAuth(cfg)
 	if err != nil {
 		log.Fatalf("open auth failed: %v", err)

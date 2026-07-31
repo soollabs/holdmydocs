@@ -916,7 +916,7 @@
       previewTimeout = setTimeout(() => {
         preview.classList.add('preview-loading');
         preview.classList.remove('preview-error');
-        fetch('/_/api/preview', {
+        fetch('/_/api/preview?slug=' + encodeURIComponent(document.body.dataset.slug || ''), {
           method: 'POST',
           body: textarea.value
         })

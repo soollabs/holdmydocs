@@ -5,6 +5,55 @@ import (
 	"testing"
 )
 
+// TestResolveLink covers the wiki-link/TOC bug where a namespaced page's
+// slug ("health/overview") never equals Slugify(its title) ("health-overview"),
+// so a naive lookup 404s at root. ResolveLink must find the real slug by
+// title, preferring a match in the caller's own namespace.
+func TestResolveLink(t *testing.T) {
+	pages := []Page{
+		{Slug: "health/overview", Title: "Overview"},
+		{Slug: "work/overview", Title: "Overview"},
+		{Slug: "solo", Title: "Solo"},
+	}
+	ix, _ := BuildIndex(pages)
+
+	if slug, ok := ix.ResolveLink("Overview", "health"); !ok || slug != "health/overview" {
+		t.Errorf("ResolveLink(Overview, health) = (%q, %v), want (health/overview, true)", slug, ok)
+	}
+	if slug, ok := ix.ResolveLink("Overview", "work"); !ok || slug != "work/overview" {
+		t.Errorf("ResolveLink(Overview, work) = (%q, %v), want (work/overview, true)", slug, ok)
+	}
+	// No page named "Overview" lives at root, so the namespace-scoped lookup
+	// falls back to whichever namespace has one, rather than 404ing.
+	if slug, ok := ix.ResolveLink("Overview", ""); !ok || (slug != "health/overview" && slug != "work/overview") {
+		t.Errorf("ResolveLink(Overview, \"\") = (%q, %v), want a fallback match", slug, ok)
+	}
+	// Casing/punctuation that doesn't match the title exactly still resolves
+	// via the slug, namespace first — as it did before ResolveLink existed.
+	if slug, ok := ix.ResolveLink("overview", "health"); !ok || slug != "health/overview" {
+		t.Errorf("ResolveLink(overview, health) = (%q, %v), want (health/overview, true)", slug, ok)
+	}
+	if slug, ok := ix.ResolveLink("SOLO", "health"); !ok || slug != "solo" {
+		t.Errorf("ResolveLink(SOLO, health) = (%q, %v), want (solo, true)", slug, ok)
+	}
+	if _, ok := ix.ResolveLink("Nowhere", "health"); ok {
+		t.Error("ResolveLink(Nowhere, health) = ok, want false")
+	}
+	if slug, ok := ix.ResolveLink("Solo", "health"); !ok || slug != "solo" {
+		t.Errorf("ResolveLink(Solo, health) = (%q, %v), want (solo, true)", slug, ok)
+	}
+
+	// Ambiguous fallback (no match in the caller's own namespace, two
+	// candidates elsewhere) must be deterministic across repeated calls,
+	// not whatever order Go's map iteration happens to produce.
+	for i := 0; i < 20; i++ {
+		slug, ok := ix.ResolveLink("Overview", "other")
+		if !ok || slug != "health/overview" {
+			t.Fatalf("ResolveLink(Overview, other) = (%q, %v), want (health/overview, true) every time", slug, ok)
+		}
+	}
+}
+
 func TestTags(t *testing.T) {
 	pages := []Page{
 		{Slug: "alpha", Title: "Alpha", Tags: []string{"go", "wiki"}, Body: "alpha body"},
@@ -74,6 +123,39 @@ func TestTagsInNamespace(t *testing.T) {
 	rootTags := ix.TagsInNamespace("")
 	if len(rootTags) != 1 || rootTags[0].Tag != "shared" || rootTags[0].Count != 1 {
 		t.Errorf("TagsInNamespace(\"\") = %+v, want [{shared shared 1}]", rootTags)
+	}
+}
+
+// TestBacklinksAndHealthNamespaced pins backlinks and Health to the same
+// resolution the renderer uses: [[Overview]] on health/plan points at
+// health/overview, so that's where the backlink lands — not at "overview",
+// which would leave health/overview a false orphan and "overview" a false
+// missing link.
+func TestBacklinksAndHealthNamespaced(t *testing.T) {
+	pages := []Page{
+		{Slug: "home", Title: "Home", Body: "start"},
+		{Slug: "health/overview", Title: "Overview", Body: "hi"},
+		{Slug: "health/plan", Title: "Plan", Body: "see [[Overview]] and [[Ghost]]"},
+	}
+	ix, _ := BuildIndex(pages)
+
+	if got := ix.Backlinks("health/overview"); len(got) != 1 || got[0] != "health/plan" {
+		t.Errorf("Backlinks(health/overview) = %v, want [health/plan]", got)
+	}
+	if got := ix.Backlinks("overview"); len(got) != 0 {
+		t.Errorf("Backlinks(overview) = %v, want none — nothing links to a root slug", got)
+	}
+
+	missing, orphans := ix.Health("home")
+	if got := missing["health/ghost"]; len(got) != 1 || got[0] != "health/plan" {
+		t.Errorf("missing[health/ghost] = %v, want [health/plan]", got)
+	}
+	if _, ok := missing["health/overview"]; ok {
+		t.Error("health/overview exists, must not be reported missing")
+	}
+	// health/plan is genuinely unlinked; health/overview and home are not.
+	if len(orphans) != 1 || orphans[0] != "health/plan" {
+		t.Errorf("orphans = %v, want [health/plan]", orphans)
 	}
 }
 

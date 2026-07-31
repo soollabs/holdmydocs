@@ -95,7 +95,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 
 	index, _ := BuildIndex(pageObjs)
 	auth, _ := OpenAuth(cfg)
-	renderer := NewRenderer(index.Exists)
+	renderer := NewRenderer(index.ResolveLink)
 
 	tmpl, err := parseTemplates()
 	if err != nil {
@@ -996,7 +996,7 @@ func TestAppConfigPointer(t *testing.T) {
 	}
 	auth, _ := OpenAuth(cfg)
 	index, _ := BuildIndex(nil)
-	renderer := NewRenderer(index.Exists)
+	renderer := NewRenderer(index.ResolveLink)
 	tmpl, err := parseTemplates()
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
@@ -1752,7 +1752,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	}
 	index, _ := BuildIndex(pageObjs)
 	auth, _ := OpenAuth(cfg)
-	renderer := NewRenderer(index.Exists)
+	renderer := NewRenderer(index.ResolveLink)
 	tmpl, err := parseTemplates()
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
@@ -1903,7 +1903,7 @@ func TestCustomHomeFilename(t *testing.T) {
 	}
 	index, _ := BuildIndex(pageObjs)
 	auth, _ := OpenAuth(cfg)
-	renderer := NewRenderer(index.Exists)
+	renderer := NewRenderer(index.ResolveLink)
 	tmpl, err := parseTemplates()
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
