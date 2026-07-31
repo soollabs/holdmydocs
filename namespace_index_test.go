@@ -140,6 +140,48 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 	}
 }
 
+// TestNamespaceIndexCustomPage covers the "index" config field: once set to
+// an existing page in the namespace, /{ns}/ serves that page instead of the
+// built-in listing; an index naming a page that doesn't exist falls back to
+// the listing rather than 404ing.
+func TestNamespaceIndexCustomPage(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	savePage(t, app, "docs/home", "Welcome to the docs")
+	savePage(t, app, "docs/other", "Another page")
+
+	get := func(path string) (int, string) {
+		resp, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		defer closeTestBody(t, resp.Body)
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+
+	// No index configured yet: the listing wins.
+	if code, body := get("/docs/"); code != http.StatusOK || strings.Contains(body, "Welcome to the docs") {
+		t.Fatalf("expected page list before index is configured, got %d: %s", code, body)
+	}
+
+	if err := writeNamespaceConfig(t, app, "docs", "index: home\n"); err != nil {
+		t.Fatalf("configuring index: %v", err)
+	}
+	if code, body := get("/docs/"); code != http.StatusOK || !strings.Contains(body, "Welcome to the docs") {
+		t.Fatalf("expected index page content, got %d: %s", code, body)
+	}
+
+	// An index naming a page that doesn't exist falls back to the listing.
+	if err := writeNamespaceConfig(t, app, "docs", "index: missing\n"); err != nil {
+		t.Fatalf("configuring missing index: %v", err)
+	}
+	if code, body := get("/docs/"); code != http.StatusOK || !strings.Contains(body, "/docs/other") {
+		t.Fatalf("expected fallback to page list, got %d: %s", code, body)
+	}
+}
+
 func savePage(t *testing.T, app *App, slug, body string) {
 	t.Helper()
 	page := Page{Slug: slug, Title: slug, Body: body}

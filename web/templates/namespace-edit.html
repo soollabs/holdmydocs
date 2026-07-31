@@ -10,6 +10,7 @@
 <fieldset class="settings-section settings-panel"><legend>directory</legend>
 <div class="settings-row"><label for="namespace-name">name</label><input id="namespace-name" name="name" value="{{$form.Name}}" placeholder="e.g. blog" autocomplete="off" required {{if $form.Name}}readonly{{end}}></div>
 <div class="settings-row"><label for="namespace-public">visibility</label><label class="scope-check"><input id="namespace-public" type="checkbox" name="public" {{if $form.Public}}checked{{end}}> public index</label></div>
+<div class="settings-row"><label for="namespace-index">index page</label><input id="namespace-index" name="index" value="{{$form.Index}}" placeholder="optional — page name shown at /{{if $form.Name}}{{$form.Name}}{{else}}ns{{end}}/ instead of the page list"></div>
 </fieldset>
 <fieldset class="settings-section settings-panel"><legend>quick-create page</legend>
 <div class="settings-row"><label for="new-enabled">quick-create</label><label class="scope-check"><input id="new-enabled" type="checkbox" name="new_enabled" class="new-toggle" {{if $form.NewEnabled}}checked{{end}}> Ctrl-J creates a page here</label></div>

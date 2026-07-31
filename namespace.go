@@ -34,6 +34,11 @@ type NamespaceConfig struct {
 	Public  bool           `yaml:"public,omitempty"`
 	New     *NewPageConfig `yaml:"new,omitempty"`
 
+	// Index names a page in this namespace (one segment, e.g. "home") that
+	// takes over /{namespace}/ in place of the built-in page-list view. Empty
+	// means no override — the default listing serves the index.
+	Index string `yaml:"index,omitempty" json:"index,omitempty"`
+
 	// Configured records whether this config came from a .namespace.yaml on
 	// disk or is just the built-in defaults — the settings UI needs to know
 	// which namespaces actually have a file it could remove. LoadError holds
@@ -239,6 +244,10 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
 		}
 	}
+	cfg.Index = strings.TrimSpace(cfg.Index)
+	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
+		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
+	}
 	if cfg.New == nil {
 		return cfg, nil
 	}
@@ -401,6 +410,7 @@ type NamespaceListEntry struct {
 	Public     bool
 	Configured bool   // has a .namespace.yaml — i.e. there is something to remove
 	LoadError  string // why an existing .namespace.yaml was ignored, if it was
+	Index      string // page name that replaces the page-list view at /{namespace}/, if any
 
 	// New-page (ctrl-j) state. Template is carried through the form as a
 	// hidden field rather than asked for: it's a convention, and a
@@ -432,6 +442,7 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 			Public:     cfg.Public,
 			Configured: cfg.Configured,
 			LoadError:  cfg.LoadError,
+			Index:      cfg.Index,
 			Template:   defaultNewPageTemplate,
 			SlugPreset: slugPresets[0].Key,
 		}

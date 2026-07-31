@@ -100,6 +100,7 @@ type mcpNamespaceIn struct {
 	Widgets  []string       `json:"widgets,omitempty"`
 	Public   bool           `json:"public,omitempty"`
 	New      *NewPageConfig `json:"new,omitempty"`
+	Index    string         `json:"index,omitempty" jsonschema:"page name in this namespace shown at /{namespace}/ instead of the page list"`
 	BaseHash string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
 }
 
@@ -112,6 +113,7 @@ type mcpNamespaceOut struct {
 	Widgets    []string       `json:"widgets"`
 	Public     bool           `json:"public"`
 	New        *NewPageConfig `json:"new,omitempty"`
+	Index      string         `json:"index,omitempty"`
 	Configured bool           `json:"configured"`
 	Hash       string         `json:"hash"`
 }
@@ -314,7 +316,7 @@ func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
 
 func mcpNamespaceOutput(name string, cfg NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
-		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, New: cfg.New,
+		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, New: cfg.New, Index: cfg.Index,
 		Configured: cfg.Configured, Hash: hash,
 	}
 }
@@ -600,7 +602,7 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpNamespaceOut{}, err
 		}
 		user := app.mcpUser(ctx)
-		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{Widgets: in.Widgets, Public: in.Public, New: in.New}, newPageTemplateData{Now: time.Now(), User: user, Namespace: in.Name})
+		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{Widgets: in.Widgets, Public: in.Public, New: in.New, Index: in.Index}, newPageTemplateData{Now: time.Now(), User: user, Namespace: in.Name})
 		if err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}

@@ -1297,6 +1297,19 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 
+	// A configured index page takes over the namespace root: hand off to the
+	// normal page-view handler for it rather than duplicating its rendering
+	// (auth, TOC, backlinks, ...) here. Falls back to the page list below if
+	// the configured page doesn't exist.
+	if summary.Config.Index != "" {
+		indexSlug := namespaceSlug(name, summary.Config.Index)
+		if _, ok := app.Index.Titles()[indexSlug]; ok {
+			r.SetPathValue("slug", indexSlug)
+			app.handleViewPage(w, r)
+			return
+		}
+	}
+
 	app.render(w, r, http.StatusOK, "namespace", TemplateData{
 		Authed:           authed,
 		Title:            name,
@@ -2642,7 +2655,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	// if it gets a template page seeded below.
 	creating := !app.Namespaces()[name].Configured
 
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on"}
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Index: strings.TrimSpace(r.FormValue("index"))}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.
