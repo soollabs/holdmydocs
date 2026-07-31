@@ -423,7 +423,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.Username = app.currentUser(r)
 	}
 	if data.Authed && data.AllTags == nil {
-		data.AllTags = app.Index.Tags()
+		ns, _ := namespaceFor(data.Slug)
+		data.AllTags = app.Index.TagsInNamespace(ns)
 	}
 	if data.Authed {
 		missing, orphans := app.Index.Health(app.config().HomeSlug())
@@ -661,16 +662,22 @@ func (app *App) gitAuthor(username string) (name, email string) {
 var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 
 // injectTOC replaces hmd:toc tokens in body with markdown bullet lists of
-// pages. With no tag list, all pages are listed (excluding the home page).
-// With a comma-separated tag list, only pages matching ANY tag are included
-// (OR). Results are sorted alphabetically by title; the home page is always
-// excluded. The list is built as [[wiki-links]] so the existing wiki-link
-// preprocessor renders the anchors.
-func injectTOC(body string, ix *Index, homeSlug string) string {
+// pages in ns, the namespace of the page the token appears on — namespace
+// content stays self-contained, so a token never reaches across into another
+// namespace's pages. With no tag list, every page in ns is listed (excluding
+// the home page). With a comma-separated tag list, only pages in ns matching
+// ANY tag are included (OR). Results are sorted alphabetically by title; the
+// home page is always excluded. The list is built as [[wiki-links]] so the
+// existing wiki-link preprocessor renders the anchors.
+func injectTOC(body string, ix *Index, homeSlug string, ns string) string {
 	if !strings.Contains(body, "hmd:toc") {
 		return body
 	}
 	titles := ix.Titles()
+	inNS := func(slug string) bool {
+		pageNS, _ := namespaceFor(slug)
+		return pageNS == ns
+	}
 	return tocToken.ReplaceAllStringFunc(body, func(match string) string {
 		tagList := ""
 		if m := tocToken.FindStringSubmatch(match); m != nil {
@@ -679,14 +686,14 @@ func injectTOC(body string, ix *Index, homeSlug string) string {
 		var slugs []string
 		if tagList == "" {
 			for slug := range titles {
-				if slug != homeSlug {
+				if slug != homeSlug && inNS(slug) {
 					slugs = append(slugs, slug)
 				}
 			}
 		} else {
 			tagSlugs := strings.Split(tagList, ",")
 			for _, s := range ix.PagesForTags(tagSlugs) {
-				if s != homeSlug {
+				if s != homeSlug && inNS(s) {
 					slugs = append(slugs, s)
 				}
 			}
@@ -1126,7 +1133,8 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug())
+	ns, _ := namespaceFor(slug)
+	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
 	renderedBody, err := app.Render.Render(page.Body)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -2168,7 +2176,8 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug())
+	ns, _ := namespaceFor(slug)
+	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
 	renderedBody, err := app.Render.Render(page.Body)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

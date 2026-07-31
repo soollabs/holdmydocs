@@ -1499,7 +1499,7 @@ func TestInjectTOC(t *testing.T) {
 	ix, _ := BuildIndex(pages)
 
 	t.Run("all pages token excludes_home", func(t *testing.T) {
-		out := injectTOC("head\n\n<!-- hmd:toc -->\ntail", ix, "home")
+		out := injectTOC("head\n\n<!-- hmd:toc -->\ntail", ix, "home", "")
 		want := "head\n\n- [[Alpha]]\n- [[Beta]]\n- [[Delta]]\n- [[Epsilon]]\n- [[Gamma]]\n\ntail"
 		if out != want {
 			t.Errorf("injectTOC all = %q, want %q", out, want)
@@ -1507,7 +1507,7 @@ func TestInjectTOC(t *testing.T) {
 	})
 
 	t.Run("tag filter OR semantics", func(t *testing.T) {
-		out := injectTOC("<!-- hmd:toc:meta,guide -->", ix, "home")
+		out := injectTOC("<!-- hmd:toc:meta,guide -->", ix, "home", "")
 		// meta: gamma, delta; guide: epsilon. Sorted by slug: delta, epsilon, gamma.
 		want := "- [[Delta]]\n- [[Epsilon]]\n- [[Gamma]]\n"
 		if out != want {
@@ -1517,13 +1517,13 @@ func TestInjectTOC(t *testing.T) {
 
 	t.Run("no token unchanged", func(t *testing.T) {
 		body := "just some markdown, no token here"
-		if got := injectTOC(body, ix, "home"); got != body {
+		if got := injectTOC(body, ix, "home", ""); got != body {
 			t.Errorf("injectTOC should be a no-op when no token present, got %q", got)
 		}
 	})
 
 	t.Run("multiple tokens", func(t *testing.T) {
-		out := injectTOC("A: <!-- hmd:toc:meta -->\nB: <!-- hmd:toc:guide -->", ix, "home")
+		out := injectTOC("A: <!-- hmd:toc:meta -->\nB: <!-- hmd:toc:guide -->", ix, "home", "")
 		want := "A: - [[Delta]]\n- [[Gamma]]\n\nB: - [[Epsilon]]\n"
 		if out != want {
 			t.Errorf("injectTOC multiple = %q, want %q", out, want)
@@ -1532,9 +1532,38 @@ func TestInjectTOC(t *testing.T) {
 
 	t.Run("empty index", func(t *testing.T) {
 		empty, _ := BuildIndex(nil)
-		out := injectTOC("<!-- hmd:toc -->", empty, "home")
+		out := injectTOC("<!-- hmd:toc -->", empty, "home", "")
 		if out != "" {
 			t.Errorf("injectTOC on empty index = %q, want empty", out)
+		}
+	})
+
+	t.Run("scoped to namespace, excludes other namespaces", func(t *testing.T) {
+		nsPages := []Page{
+			{Slug: "home", Title: "Home"},
+			{Slug: "blog/alpha", Title: "Blog Alpha"},
+			{Slug: "blog/beta", Title: "Blog Beta", Tags: []string{"meta"}},
+			{Slug: "journal/2026-07-31", Title: "Journal Entry", Tags: []string{"meta"}},
+			{Slug: "root-page", Title: "Root Page"},
+		}
+		nsIx, _ := BuildIndex(nsPages)
+
+		out := injectTOC("<!-- hmd:toc -->", nsIx, "home", "blog")
+		want := "- [[Blog Alpha]]\n- [[Blog Beta]]\n"
+		if out != want {
+			t.Errorf("injectTOC ns=blog all = %q, want %q", out, want)
+		}
+
+		out = injectTOC("<!-- hmd:toc:meta -->", nsIx, "home", "blog")
+		want = "- [[Blog Beta]]\n"
+		if out != want {
+			t.Errorf("injectTOC ns=blog tag=meta = %q, want %q", out, want)
+		}
+
+		out = injectTOC("<!-- hmd:toc -->", nsIx, "home", "")
+		want = "- [[Root Page]]\n"
+		if out != want {
+			t.Errorf("injectTOC ns=root = %q, want %q", out, want)
 		}
 	})
 }

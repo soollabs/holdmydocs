@@ -59,6 +59,10 @@
   // path with its leading slash stripped.
   const recentList = $('#recent-list');
   const currentSlug = window.location.pathname.startsWith('/_/') ? '' : window.location.pathname.slice(1).replace(/\/$/, '');
+  // Namespaces are one level deep (mirrors namespaceFor in namespace.go):
+  // "blog/drafts/post" belongs to "blog", a bare slug belongs to root ("").
+  const namespaceOf = slug => { const i = slug.indexOf('/'); return i === -1 ? '' : slug.slice(0, i); };
+  const currentNs = namespaceOf(document.body.dataset.slug || '');
 
   if (recentList) {
     try {
@@ -82,8 +86,12 @@
     let recent = [];
     try { recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]'); } catch (e) {}
     const recentBySlug = new Map(recent.map(e => [e.slug, e]));
-    const pinnedEntries = pinned.map(slug => ({slug, title: (recentBySlug.get(slug) || {}).title || slug, pinned: true}));
-    const recentEntries = recent.filter(e => !pinned.includes(e.slug)).map(e => ({slug: e.slug, title: e.title, pinned: false}));
+    const pinnedEntries = pinned
+      .filter(slug => namespaceOf(slug) === currentNs)
+      .map(slug => ({slug, title: (recentBySlug.get(slug) || {}).title || slug, pinned: true}));
+    const recentEntries = recent
+      .filter(e => !pinned.includes(e.slug) && namespaceOf(e.slug) === currentNs)
+      .map(e => ({slug: e.slug, title: e.title, pinned: false}));
     const entries = pinnedEntries.concat(recentEntries);
     recentList.innerHTML = entries.map(e => {
       const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;

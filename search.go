@@ -330,6 +330,33 @@ func (ix *Index) Tags() []TagCount {
 	return result
 }
 
+// TagsInNamespace is Tags scoped to pages belonging to namespace ns, so a
+// tag with no pages in ns is omitted and counts only reflect that namespace.
+func (ix *Index) TagsInNamespace(ns string) []TagCount {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+
+	result := make([]TagCount, 0, len(ix.tags))
+	for tagSlug, slugs := range ix.tags {
+		count := 0
+		for slug := range slugs {
+			if pageNS, _ := namespaceFor(slug); pageNS == ns {
+				count++
+			}
+		}
+		if count == 0 {
+			continue
+		}
+		result = append(result, TagCount{
+			Tag:   ix.tagNames[tagSlug],
+			Slug:  tagSlug,
+			Count: count,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Tag < result[j].Tag })
+	return result
+}
+
 func (ix *Index) PagesForTag(tagSlug string) []string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()

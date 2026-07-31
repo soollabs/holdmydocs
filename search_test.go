@@ -51,6 +51,32 @@ func TestTags(t *testing.T) {
 	}
 }
 
+func TestTagsInNamespace(t *testing.T) {
+	pages := []Page{
+		{Slug: "blog/alpha", Title: "Alpha", Tags: []string{"go", "shared"}},
+		{Slug: "blog/beta", Title: "Beta", Tags: []string{"go"}},
+		{Slug: "root-page", Title: "Root", Tags: []string{"shared"}},
+	}
+	ix, _ := BuildIndex(pages)
+
+	blogTags := ix.TagsInNamespace("blog")
+	sort.Slice(blogTags, func(i, j int) bool { return blogTags[i].Tag < blogTags[j].Tag })
+	if len(blogTags) != 2 {
+		t.Fatalf("TagsInNamespace(blog) length = %d, want 2: %+v", len(blogTags), blogTags)
+	}
+	if blogTags[0].Tag != "go" || blogTags[0].Count != 2 {
+		t.Errorf("TagsInNamespace(blog)[0] = %+v, want {go go 2}", blogTags[0])
+	}
+	if blogTags[1].Tag != "shared" || blogTags[1].Count != 1 {
+		t.Errorf("TagsInNamespace(blog)[1] = %+v, want {shared shared 1}", blogTags[1])
+	}
+
+	rootTags := ix.TagsInNamespace("")
+	if len(rootTags) != 1 || rootTags[0].Tag != "shared" || rootTags[0].Count != 1 {
+		t.Errorf("TagsInNamespace(\"\") = %+v, want [{shared shared 1}]", rootTags)
+	}
+}
+
 func TestSearchAndBacklinks(t *testing.T) {
 	pages := []Page{
 		{Slug: "alpha", Title: "Alpha", Body: "the quick brown fox, see [[Beta]]"},

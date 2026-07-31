@@ -31,10 +31,10 @@ var widgetIDs = []string{
 
 var widgets = map[string]widget{
 	"search":     {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
-	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages, most recent first."},
+	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages in this namespace, most recent first."},
 	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
 	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
-	"tags":       {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "every tag in the wiki, with page counts."},
+	"tags":       {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "tags used in this namespace, with page counts."},
 	"log":        {ID: "log", Title: "LOG", Slot: slotSidebar, Description: "the last few commits to the page you're viewing."},
 	"health":     {ID: "health", Title: "HEALTH", Slot: slotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
 

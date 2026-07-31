@@ -84,16 +84,17 @@ var fetchThrottle = 2 * time.Second
 
 // defaultHomeMD is the clean welcome page seeded into any repo that does not
 // already contain the configured home file (HMD_HOME_FILENAME, default
-// readme.md). It has a TOC token listing all pages. Seeding readme.md rather
-// than home.md means the same file shows up rendered on the git host's front
-// page (GitHub, git, etc. all render readme.md case-insensitively).
+// readme.md). It has a TOC token listing pages in its own namespace (root,
+// since the home file lives there). Seeding readme.md rather than home.md
+// means the same file shows up rendered on the git host's front page
+// (GitHub, git, etc. all render readme.md case-insensitively).
 const defaultHomeMD = `# Welcome to hold my docs (hmd)
 
 This wiki is plain markdown files in a git repository. Every save is a commit
-that auto-pushes to the configured remote. Pages are flat, no folders, and
-linked with ` + "`[[Page Title]]`" + ` wiki-links.
+that auto-pushes to the configured remote. Pages are organised into
+namespaces (top-level directories) and linked with ` + "`[[Page Title]]`" + ` wiki-links.
 
-## All pages
+## Pages in this namespace
 
 ` + "<!-- hmd:toc -->" + `
 `
@@ -191,9 +192,10 @@ for them yet:
 
 ## Table of contents
 
-Insert ` + "`<!-- hmd:toc -->`" + ` anywhere to list every page, or
-` + "`<!-- hmd:toc:tag1,tag2 -->`" + ` to list only pages matching any of the
-given tags (OR).
+Insert ` + "`<!-- hmd:toc -->`" + ` anywhere to list every page in the current
+page's namespace, or ` + "`<!-- hmd:toc:tag1,tag2 -->`" + ` to list only pages
+in that namespace matching any of the given tags (OR). The list never
+reaches into other namespaces.
 
 ## Diagrams
 
