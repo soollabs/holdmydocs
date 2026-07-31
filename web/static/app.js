@@ -771,7 +771,8 @@
     }
     if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused) {
       const slug = document.body.dataset.slug;
-      if (slug) { e.preventDefault(); window.location.href = '/' + slug + '?do=edit'; }
+      const routePrefix = document.body.dataset.routePrefix || '';
+      if (slug) { e.preventDefault(); window.location.href = routePrefix + '/' + slug + '?do=edit'; }
       return;
     }
     if (e.key === 'Escape' && paletteOpen) {
