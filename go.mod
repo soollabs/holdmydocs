@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/coreos/go-oidc/v3 v3.20.0
-	github.com/go-git/go-git/v5 v5.19.1
+	github.com/go-git/go-git/v5 v5.19.2
 	github.com/goccy/go-yaml v1.19.2
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.7.0
