@@ -242,16 +242,18 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 		t.Errorf("reading seeded template %s: %v", hiddenFile("blog/"+defaultNewPageTemplate), err)
 	}
 
-	// ctrl-j in the namespace now works end to end: POST /_/new creates
-	// today's page from that template and redirects to its editor.
+	// ctrl-j in the namespace now works end to end: POST /_/new renders
+	// today's page from that template directly, as a draft that isn't
+	// persisted until Save.
 	newResp, err := client.Post(server.URL+"/_/new?ns=blog", "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new?ns=blog: %v", err)
 	}
+	body, _ := io.ReadAll(newResp.Body)
 	closeTestBody(t, newResp.Body)
 	todaySlug := "blog/" + time.Now().Format("2006-01-02")
-	if _, _, err := app.Store.Read(pageFile(todaySlug)); err != nil {
-		t.Errorf("reading %s: %v", pageFile(todaySlug), err)
+	if !strings.Contains(string(body), `data-slug="`+todaySlug+`"`) {
+		t.Errorf("draft response should render the editor for %s: %s", todaySlug, body)
 	}
 }
 

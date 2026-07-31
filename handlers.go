@@ -1086,17 +1086,23 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		tags = append(tags, rendered)
 	}
 
-	newPage := Page{Slug: slug, Title: title, Tags: tags, Body: body}
-	authorName, authorEmail := app.gitAuthor(username)
-	if _, err := app.Store.Save(pageFile(slug), newPage.Encode(), "Create "+slug, authorName, authorEmail); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if err := app.Index.Update(newPage); err != nil {
-		slog.Error("updating search index", "slug", slug, "err", err)
-	}
-
-	http.Redirect(w, r, "/"+slug+"?do=edit", http.StatusSeeOther)
+	// Nothing is written to the store here: the rendered template is handed
+	// straight to the edit template in this same response, same shape as
+	// handleEditPage would build for a page that doesn't exist yet (like
+	// following a missing wikilink). The page is only ever created by an
+	// actual Save, so Cancel on this draft leaves no trace. The client
+	// swaps this HTML in via history.pushState instead of navigating, so
+	// there's no second request and nothing rides in the URL.
+	app.render(w, r, http.StatusOK, "edit", TemplateData{
+		Authed:     true,
+		Title:      title,
+		Slug:       slug,
+		Body:       body,
+		BaseHash:   "",
+		TagsInput:  strings.Join(tags, ", "),
+		StatusMode: "edit",
+		IsHidden:   false,
+	})
 }
 
 // handleViewPage serves a page's own URL with no ?do=. An unauthenticated

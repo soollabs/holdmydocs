@@ -287,8 +287,8 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	if got, _ := do(http.MethodPost, "/_/new?ns=private", nil); got != http.StatusForbidden {
 		t.Errorf("POST /_/new?ns=private = %d, want 403", got)
 	}
-	if got, _ := do(http.MethodPost, "/_/new?ns=notes", nil); got != http.StatusSeeOther {
-		t.Errorf("POST /_/new?ns=notes = %d, want 303", got)
+	if got, _ := do(http.MethodPost, "/_/new?ns=notes", nil); got != http.StatusOK {
+		t.Errorf("POST /_/new?ns=notes = %d, want 200 (draft rendered inline)", got)
 	}
 
 	upload := func(slug string) int {

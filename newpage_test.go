@@ -1,8 +1,11 @@
 package main
 
 import (
+	"html"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -23,39 +26,49 @@ func seedJournalTemplate(t *testing.T, app *App, slugTemplate, titleTemplate, bo
 	}
 }
 
+var (
+	draftSlugRe  = regexp.MustCompile(`id="cm-host" data-slug="([^"]*)"`)
+	draftTitleRe = regexp.MustCompile(`id="title"[^>]*value="([^"]*)"`)
+	draftTagsRe  = regexp.MustCompile(`id="tags"[^>]*value="([^"]*)"`)
+	draftBodyRe  = regexp.MustCompile(`(?s)id="editor-src"[^>]*>(.*?)</textarea>`)
+)
+
+func draftField(re *regexp.Regexp, body string) string {
+	m := re.FindStringSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	return html.UnescapeString(m[1])
+}
+
 func TestNewPageSlugRendersFromNow(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	seedJournalTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, `{{.Now.Format "2006-01-02"}}`, "Dear diary.")
 
-	noRedirectClient := &http.Client{
-		Jar:           client.Jar,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	resp, err := noRedirectClient.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (draft rendered inline, no redirect)", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
 
 	today := time.Now().Format("2006-01-02")
-	wantLoc := "/journal/" + today + "?do=edit"
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	if slug := draftField(draftSlugRe, string(body)); slug != "journal/"+today {
+		t.Errorf("slug = %q, want %q", slug, "journal/"+today)
 	}
-	if loc := resp.Header.Get("Location"); loc != wantLoc {
-		t.Errorf("Location = %q, want %q", loc, wantLoc)
+	if !strings.Contains(string(body), "Dear diary.") {
+		t.Errorf("draft edit form missing template content: %s", body)
 	}
 
-	viewResp, err := client.Get(server.URL + "/journal/" + today)
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer closeTestBody(t, viewResp.Body)
-	body, _ := io.ReadAll(viewResp.Body)
-	if !strings.Contains(string(body), "Dear diary.") {
-		t.Errorf("new entry body missing template content: %s", body)
+	// Nothing is persisted until Save: the draft is rendered directly in
+	// this response, never written to the store.
+	if _, _, err := app.Store.Read(pageFile("journal/" + today)); err == nil {
+		t.Error("page should not be created until Save, but it was persisted by /_/new")
 	}
 }
 
@@ -146,11 +159,24 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
+	body, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 
 	today := time.Now().Format("2006-01-02")
+	if app.Index.Exists("journal/" + today) {
+		t.Error("draft entry should not be indexed until it is saved")
+	}
+
+	saveResp, err := client.PostForm(server.URL+"/journal/"+today+"?do=save", url.Values{
+		"title": {draftField(draftTitleRe, string(body))}, "body": {"Body."}, "basehash": {""},
+	})
+	if err != nil {
+		t.Fatalf("POST save: %v", err)
+	}
+	closeTestBody(t, saveResp.Body)
+
 	if !app.Index.Exists("journal/" + today) {
-		t.Error("newly created entry should be indexed")
+		t.Error("entry should be indexed once actually saved")
 	}
 	if app.Index.Exists("journal/entry") {
 		t.Error("template page should still not be in the search index after use")
@@ -188,16 +214,16 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 		t.Fatalf("POST /_/new: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	slug := "journal/" + time.Now().Format("2006-01-02")
-	if want := "/" + slug + "?do=edit"; resp.Header.Get("Location") != want {
-		t.Errorf("redirect = %q (status %d), want %q", resp.Header.Get("Location"), resp.StatusCode, want)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (draft rendered inline, no redirect)", resp.StatusCode)
 	}
+	body, _ := io.ReadAll(resp.Body)
 
-	content, _, err := app.Store.Read(pageFile(slug))
-	if err != nil {
-		t.Fatalf("reading %s: %v", pageFile(slug), err)
+	slug := "journal/" + time.Now().Format("2006-01-02")
+	if got := draftField(draftSlugRe, string(body)); got != slug {
+		t.Errorf("slug = %q, want %q", got, slug)
 	}
-	if got := ParsePage(slug, content).Title; got != time.Now().Format("2006-01-02") {
+	if got := draftField(draftTitleRe, string(body)); got != time.Now().Format("2006-01-02") {
 		t.Errorf("title = %q, want the slug it was named after", got)
 	}
 }
@@ -229,23 +255,19 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
+	body, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 
 	now := time.Now()
-	slug := "journal/" + now.Format("2006-01-02")
-	content, _, err := app.Store.Read(pageFile(slug))
-	if err != nil {
-		t.Fatalf("reading %s: %v", pageFile(slug), err)
-	}
-	page := ParsePage(slug, content)
+	tags := ParseTags(draftField(draftTagsRe, string(body)))
 
-	if want := now.Format("Monday, 2 January 2006"); page.Title != want {
-		t.Errorf("title = %q, want %q", page.Title, want)
+	if want := now.Format("Monday, 2 January 2006"); draftField(draftTitleRe, string(body)) != want {
+		t.Errorf("title = %q, want %q", draftField(draftTitleRe, string(body)), want)
 	}
-	if want := now.Format("2006-01"); len(page.Tags) != 2 || page.Tags[0] != want || page.Tags[1] != "journal" {
-		t.Errorf("tags = %v, want [%q journal]", page.Tags, want)
+	if want := now.Format("2006-01"); len(tags) != 2 || tags[0] != want || tags[1] != "journal" {
+		t.Errorf("tags = %v, want [%q journal]", tags, want)
 	}
-	if want := "Written by admin in journal at " + now.Format("15:04") + "."; !strings.Contains(page.Body, want) {
-		t.Errorf("body = %q, want it to contain %q", page.Body, want)
+	if want := "Written by admin in journal at " + now.Format("15:04") + "."; !strings.Contains(draftField(draftBodyRe, string(body)), want) {
+		t.Errorf("body = %q, want it to contain %q", draftField(draftBodyRe, string(body)), want)
 	}
 }
