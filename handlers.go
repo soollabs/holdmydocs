@@ -648,6 +648,27 @@ func filterHealth(ctx context.Context, missing map[string][]string, orphans []st
 	return filteredMissing, filteredOrphans
 }
 
+// filterHealthNamespace scopes a health report to one namespace: a missing
+// target or orphan belongs to the report if its own slug is in namespace.
+// Callers only invoke this when a namespace filter was actually requested —
+// namespaceFor("") == "" would otherwise make this a no-op filter to root
+// pages rather than "show everything".
+func filterHealthNamespace(missing map[string][]string, orphans []string, namespace string) (map[string][]string, []string) {
+	filteredMissing := make(map[string][]string, len(missing))
+	for slug, sources := range missing {
+		if ns, _ := namespaceFor(slug); ns == namespace {
+			filteredMissing[slug] = sources
+		}
+	}
+	filteredOrphans := make([]string, 0, len(orphans))
+	for _, slug := range orphans {
+		if ns, _ := namespaceFor(slug); ns == namespace {
+			filteredOrphans = append(filteredOrphans, slug)
+		}
+	}
+	return filteredMissing, filteredOrphans
+}
+
 // gitAuthor resolves the commit identity for username: the user's own override,
 // else the global HMD_GIT_AUTHOR default, else "<username> <username@hmd.local>".
 func (app *App) gitAuthor(username string) (name, email string) {
@@ -810,6 +831,7 @@ func (app *App) Routes() http.Handler {
 
 	// API endpoints
 	mux.HandleFunc("GET /_/api/search", app.handleSearchAPI)
+	mux.HandleFunc("GET /_/api/health", app.handleHealthAPI)
 	mux.HandleFunc("GET /_/api/sync", app.handleSyncAPI)
 	mux.HandleFunc("POST /_/api/sync/push-now", app.handleSyncPushNow)
 	mux.HandleFunc("GET /_/api/preview/{slug...}", app.handleAPIPreview)
@@ -2114,6 +2136,53 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		Content:       template.HTML(b.String()),
 		StatusContext: fmt.Sprintf("%d missing · %d orphan%s", len(missingSlugs), len(orphans), plural(len(orphans))),
 	})
+}
+
+type HealthMissingEntry struct {
+	Slug    string   `json:"slug"`
+	Sources []string `json:"sources"`
+}
+
+type HealthReport struct {
+	Missing []HealthMissingEntry `json:"missing"`
+	Orphans []string             `json:"orphans"`
+}
+
+// handleHealthAPI is the read-only JSON form of handleHealthReport, scopable
+// to one namespace with ?namespace=. Access-token namespace restrictions
+// apply the same as the HTML report (filterHealth), on top of the requested
+// scope.
+func (app *App) handleHealthAPI(w http.ResponseWriter, r *http.Request) {
+	namespace := r.URL.Query().Get("namespace")
+	if namespace != "" {
+		if !validNamespaceName(namespace) {
+			http.Error(w, `{"error":"invalid namespace"}`, http.StatusBadRequest)
+			return
+		}
+		if !app.requireTokenNamespace(w, r, namespace) {
+			return
+		}
+	}
+
+	missing, orphans := app.Index.Health(app.config().HomeSlug())
+	missing, orphans = filterHealth(r.Context(), missing, orphans)
+	if namespace != "" {
+		missing, orphans = filterHealthNamespace(missing, orphans, namespace)
+	}
+
+	report := HealthReport{Missing: []HealthMissingEntry{}, Orphans: orphans}
+	if report.Orphans == nil {
+		report.Orphans = []string{}
+	}
+	for slug, sources := range missing {
+		report.Missing = append(report.Missing, HealthMissingEntry{Slug: slug, Sources: sources})
+	}
+	sort.Slice(report.Missing, func(i, j int) bool { return report.Missing[i].Slug < report.Missing[j].Slug })
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(report); err != nil {
+		slog.Error("encoding health response", "err", err)
+	}
 }
 
 func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {

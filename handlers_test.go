@@ -960,6 +960,55 @@ func TestSearchAPI(t *testing.T) {
 	}
 }
 
+func TestHealthAPI(t *testing.T) {
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	saveForm := url.Values{"title": {"Dangling"}, "body": {"see [[nowhere]]"}, "basehash": {""}}
+	resp, err := client.PostForm(server.URL+"/root-dangling?do=save", saveForm)
+	if err != nil {
+		t.Fatalf("POST save failed: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+
+	nsForm := url.Values{"title": {"Dangling"}, "body": {"see [[nowhere]]"}, "basehash": {""}}
+	resp, err = client.PostForm(server.URL+"/notes/dangling?do=save", nsForm)
+	if err != nil {
+		t.Fatalf("POST namespaced save failed: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+
+	// Unscoped: both dangling links show up.
+	resp, err = client.Get(server.URL + "/_/api/health")
+	if err != nil {
+		t.Fatalf("GET api/health failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("api/health status = %d, want 200", resp.StatusCode)
+	}
+	var report HealthReport
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatalf("decoding health JSON: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if len(report.Missing) != 2 {
+		t.Errorf("unscoped missing = %+v, want 2 entries", report.Missing)
+	}
+
+	// Scoped to "notes": only the namespaced dangling link.
+	resp, err = client.Get(server.URL + "/_/api/health?namespace=notes")
+	if err != nil {
+		t.Fatalf("GET api/health?namespace=notes failed: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatalf("decoding scoped health JSON: %v", err)
+	}
+	if len(report.Missing) != 1 || report.Missing[0].Slug != "notes/nowhere" {
+		t.Errorf("scoped missing = %+v, want [notes/nowhere]", report.Missing)
+	}
+}
+
 func TestSyncAPI(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

@@ -249,6 +249,11 @@ func (ix *Index) resolveLink(title, ns string) (slug string, ok bool) {
 		}
 	}
 	if len(matches) == 0 {
+		if _, exists := ix.titles[title]; exists {
+			// title is itself a slug (e.g. [[docs/project-notes]]) — respect it
+			// literally rather than Slugify mangling its "/" into "-".
+			return title, true
+		}
 		for _, s := range []string{namespaceSlug(ns, Slugify(title)), Slugify(title)} {
 			if _, exists := ix.titles[s]; exists {
 				return s, true

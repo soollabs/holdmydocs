@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -719,6 +720,60 @@ func TestMCPToolFlow(t *testing.T) {
 	res = callTool(t, session, "read_page", map[string]any{"slug": "../users"})
 	if !res.IsError {
 		t.Error("traversal slug accepted, want error")
+	}
+}
+
+func TestMCPHealth(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+
+	// A dangling link at root, plus a namespaced page linking to it too, and
+	// an unlinked (orphan) namespaced page.
+	res := callTool(t, session, "save_page", map[string]any{
+		"slug": "agent-note", "title": "Agent note", "body": "see [[nowhere]]",
+	})
+	if res.IsError {
+		t.Fatalf("save_page agent-note: %s", toolText(t, res))
+	}
+	res = callTool(t, session, "save_page", map[string]any{
+		"slug": "notes/agent-note", "title": "Agent note", "body": "see [[nowhere]]",
+	})
+	if res.IsError {
+		t.Fatalf("save_page notes/agent-note: %s", toolText(t, res))
+	}
+	res = callTool(t, session, "save_page", map[string]any{
+		"slug": "notes/orphan", "title": "Orphan", "body": "unlinked",
+	})
+	if res.IsError {
+		t.Fatalf("save_page notes/orphan: %s", toolText(t, res))
+	}
+
+	// Unscoped: sees problems from both namespaces.
+	res = callTool(t, session, "health", nil)
+	if res.IsError {
+		t.Fatalf("health: %s", toolText(t, res))
+	}
+	var out mcpHealthOut
+	toolJSON(t, res, &out)
+	if len(out.Missing) != 2 {
+		t.Errorf("unscoped missing = %+v, want 2 entries", out.Missing)
+	}
+	if !slices.Contains(out.Orphans, "notes/orphan") {
+		t.Errorf("unscoped orphans = %v, want notes/orphan", out.Orphans)
+	}
+
+	// Scoped to "notes": only the namespaced dangling link and orphan.
+	res = callTool(t, session, "health", map[string]any{"namespace": "notes"})
+	if res.IsError {
+		t.Fatalf("health(notes): %s", toolText(t, res))
+	}
+	toolJSON(t, res, &out)
+	if len(out.Missing) != 1 || out.Missing[0].Slug != "notes/nowhere" {
+		t.Errorf("scoped missing = %+v, want [notes/nowhere]", out.Missing)
+	}
+	wantOrphans := []string{"notes/agent-note", "notes/orphan"}
+	if !slices.Equal(out.Orphans, wantOrphans) {
+		t.Errorf("scoped orphans = %v, want %v", out.Orphans, wantOrphans)
 	}
 }
 

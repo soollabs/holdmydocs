@@ -359,7 +359,7 @@ save is a Git commit attributed to the token owner.
 
 | Scope | Tools |
 | --- | --- |
-| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `list_namespaces` |
+| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `list_namespaces`, `health` |
 | `write` | `save_page`, `delete_page` |
 | `settings` | `read_namespace`, `save_namespace`, `delete_namespace` |
 

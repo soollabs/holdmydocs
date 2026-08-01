@@ -95,6 +95,15 @@ type mcpRecentOut struct {
 	Commits []mcpCommit `json:"commits"`
 }
 
+type mcpHealthIn struct {
+	Namespace string `json:"namespace,omitempty" jsonschema:"limit the report to this namespace; omit for the whole wiki"`
+}
+
+type mcpHealthOut struct {
+	Missing []HealthMissingEntry `json:"missing"`
+	Orphans []string             `json:"orphans"`
+}
+
 type mcpNamespaceIn struct {
 	Name     string         `json:"name" jsonschema:"namespace name, e.g. notes"`
 	Widgets  []string       `json:"widgets,omitempty"`
@@ -551,6 +560,38 @@ func (app *App) mcpHandler() http.Handler {
 				Files:   c.Files,
 			})
 		}
+		return nil, out, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "health",
+		Description: "Read-only wiki hygiene report: dangling [[wiki-links]] (linked but no page exists) and orphan pages " +
+			"(no incoming links). Pass namespace to scope the report to one namespace.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpHealthIn) (*mcp.CallToolResult, mcpHealthOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
+			return nil, mcpHealthOut{}, err
+		}
+		if in.Namespace != "" {
+			if !validNamespaceName(in.Namespace) {
+				return nil, mcpHealthOut{}, fmt.Errorf("invalid namespace %q", in.Namespace)
+			}
+			if err := app.mcpRequireNamespace(ctx, in.Namespace); err != nil {
+				return nil, mcpHealthOut{}, err
+			}
+		}
+		missing, orphans := app.Index.Health(app.config().HomeSlug())
+		missing, orphans = filterHealth(ctx, missing, orphans)
+		if in.Namespace != "" {
+			missing, orphans = filterHealthNamespace(missing, orphans, in.Namespace)
+		}
+		out := mcpHealthOut{Missing: []HealthMissingEntry{}, Orphans: orphans}
+		if out.Orphans == nil {
+			out.Orphans = []string{}
+		}
+		for slug, sources := range missing {
+			out.Missing = append(out.Missing, HealthMissingEntry{Slug: slug, Sources: sources})
+		}
+		sort.Slice(out.Missing, func(i, j int) bool { return out.Missing[i].Slug < out.Missing[j].Slug })
 		return nil, out, nil
 	})
 

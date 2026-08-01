@@ -738,7 +738,7 @@ func restrictedTokenPathAllowed(path string) bool {
 			return true
 		}
 	}
-	for _, exact := range []string{"/_/api/preview", "/_/search", "/_/api/search", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"} {
+	for _, exact := range []string{"/_/api/preview", "/_/search", "/_/api/search", "/_/api/health", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"} {
 		if path == exact {
 			return true
 		}
