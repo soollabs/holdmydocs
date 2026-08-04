@@ -203,12 +203,28 @@ func tokenAllowsSlug(ctx context.Context, slug string) bool {
 	return !ok || principal.AllowsSlug(slug)
 }
 
+// sessionTTL is the absolute lifetime of a session token, regardless of the
+// cookie's own MaxAge (browser-session cookies are still bounded server-side,
+// so a leaked/persisted token can't be replayed forever).
+const sessionTTL = 30 * 24 * time.Hour
+
+// sessionRecord is a stored login session: the username it belongs to and
+// when it stops being valid.
+type sessionRecord struct {
+	User    string    `json:"user"`
+	Expires time.Time `json:"expires"`
+}
+
+func (s sessionRecord) expired() bool {
+	return time.Now().After(s.Expires)
+}
+
 type Auth struct {
 	usersFile    string
 	sessionsFile string
-	users        map[string]userRecord  // username -> record
-	sessions     map[string]string      // token -> username
-	tokenCache   map[string]cachedToken // verified PAT value -> user + expiry
+	users        map[string]userRecord    // username -> record
+	sessions     map[string]sessionRecord // token -> session
+	tokenCache   map[string]cachedToken   // verified PAT value -> user + expiry
 	mu           sync.RWMutex
 }
 
@@ -224,7 +240,7 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		usersFile:    usersFile,
 		sessionsFile: filepath.Join(cfg.AppDir, "sessions.json"),
 		users:        make(map[string]userRecord),
-		sessions:     make(map[string]string),
+		sessions:     make(map[string]sessionRecord),
 		tokenCache:   make(map[string]cachedToken),
 	}
 
@@ -635,7 +651,7 @@ func (a *Auth) newSession(name string) (token string, ok bool) {
 	token = hex.EncodeToString(b)
 
 	a.mu.Lock()
-	a.sessions[token] = name
+	a.sessions[token] = sessionRecord{User: name, Expires: time.Now().Add(sessionTTL)}
 	err := a.saveSessions()
 	a.mu.Unlock()
 	if err != nil {
@@ -674,11 +690,17 @@ func (a *Auth) Logout(token string) {
 	}
 }
 
+// UserFor resolves a session token to its username. An expired session is
+// treated as absent; it is lazily dropped on the next Logout or load rather
+// than requiring a background sweep.
 func (a *Auth) UserFor(token string) (username string, ok bool) {
 	a.mu.RLock()
-	username, ok = a.sessions[token]
-	a.mu.RUnlock()
-	return
+	defer a.mu.RUnlock()
+	rec, exists := a.sessions[token]
+	if !exists || rec.expired() {
+		return "", false
+	}
+	return rec.User, true
 }
 
 // requiredScope reports which scope r needs. /settings and /admin (any

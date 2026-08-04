@@ -46,6 +46,33 @@ func TestBootstrapAdmin(t *testing.T) {
 	}
 }
 
+func TestSessionExpires(t *testing.T) {
+	appDir := t.TempDir()
+	cfg := Config{AppDir: appDir, AdminUser: "admin", AdminPass: "pass"}
+
+	auth, err := OpenAuth(cfg)
+	if err != nil {
+		t.Fatalf("OpenAuth failed: %v", err)
+	}
+
+	token, ok := auth.Login("admin", "pass")
+	if !ok {
+		t.Fatalf("Login should succeed")
+	}
+
+	// Backdate the session past its TTL, simulating a token replayed long
+	// after issue; UserFor must reject it without needing a background sweep.
+	auth.mu.Lock()
+	rec := auth.sessions[token]
+	rec.Expires = time.Now().Add(-time.Second)
+	auth.sessions[token] = rec
+	auth.mu.Unlock()
+
+	if _, ok := auth.UserFor(token); ok {
+		t.Errorf("UserFor(token) should fail once the session has expired")
+	}
+}
+
 func TestAddUserPersists(t *testing.T) {
 	appDir := t.TempDir()
 	cfg := Config{AppDir: appDir}
