@@ -652,8 +652,8 @@ func TestHistoryListAndRevert(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("git log")) {
-		t.Errorf("History page should contain 'git log'")
+	if !bytes.Contains(body, []byte("History")) {
+		t.Errorf("History page should contain 'History'")
 	}
 
 	// Extract the older commit hash from the response

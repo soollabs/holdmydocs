@@ -47,7 +47,7 @@
 	--font-ui:        Charter, "Bitstream Charter", Cambria, serif;
 	--radius:    0;
 	--radius-lg: 0;
-	--prose-measure: 62ch;
+	--prose-measure: 820px;
 	--prose-size:    17px;
 	--prose-leading: 1.5;
 	--prose-align:   justify;
@@ -70,6 +70,13 @@
 :root[data-skin="newsprint"] #page-content h3,
 :root[data-skin="newsprint"] #preview h3 {
 	font-variant: small-caps;
+	font-size: 15px;
+}
+
+:root[data-skin="newsprint"] #page-content h4,
+:root[data-skin="newsprint"] #preview h4 {
+	font-size: 13px;
+	font-style: italic;
 }
 
 :root[data-skin="newsprint"] #page-content > p:first-of-type::first-letter {
@@ -77,6 +84,15 @@
 	font-size: 3.2em;
 	line-height: 0.85;
 	padding-right: 0.08em;
+}
+
+:root[data-skin="newsprint"] #page-content > p:first-of-type {
+	text-indent: 0;
+}
+
+:root[data-skin="newsprint"] #page-content,
+:root[data-skin="newsprint"] #preview {
+	hyphens: auto;
 }
 
 :root[data-skin="newsprint"] #page-content p + p,
@@ -131,7 +147,7 @@
 	font-size: 11px;
 	font-variant: small-caps;
 	letter-spacing: 0.14em;
-	color: var(--fg-faint);
+	color: var(--fg-muted);
 }
 
 :root[data-skin="newsprint"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
@@ -157,7 +173,7 @@
 	--tag-prefix:    "";
 	--prompt-symbol: "";
 
-	--prose-measure: 80ch;
+	--prose-measure: 900px;
 	--prose-size:    18px;
 	--prose-leading: 1.9;
 	--para-gap:      1.4em;
@@ -250,7 +266,7 @@
 :root[data-skin="journal"] .masthead-byline {
 	margin-top: 2px;
 	font-size: 12px;
-	color: var(--fg-faint);
+	color: var(--fg-muted);
 }
 
 :root[data-skin="journal"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
@@ -279,7 +295,7 @@
 	--title-size:      26px;
 	--title-weight:    600;
 	--title-tracking:  -0.015em;
-	--prose-measure: 66ch;
+	--prose-measure: 880px;
 	--prose-leading: 1.85;
 	--pad: 20px;
 	/* Keep a low-contrast border so the panel edge remains visible. */
@@ -299,10 +315,10 @@
 }
 
 :root[data-skin="soft"] .sidebar h2 {
-	font-size: 10px;
+	font-size: 11px;
 	font-weight: 600;
 	letter-spacing: 0.08em;
-	color: var(--fg-faint);
+	color: var(--fg-muted);
 }
 
 /* Soft marks the active page with a rounded, low-contrast fill. */
@@ -329,7 +345,7 @@
 :root[data-skin="soft"] .masthead-byline {
 	margin-top: 2px;
 	font-size: 12px;
-	color: var(--fg-faint);
+	color: var(--fg-muted);
 }
 
 :root[data-skin="soft"] .tag-chips a {
@@ -371,7 +387,7 @@
 	--radius:    0;
 	--radius-lg: 0;
 	--rail-w:    0px;
-	--prose-measure: 62ch;
+	--prose-measure: 860px;
 	--prose-leading: 1.8;
 	--pad: 28px;
 	--title-weight: 500;
@@ -380,8 +396,8 @@
 }
 
 :root[data-skin="bare"] .sidebar h2 {
-	color: var(--fg-faint);
-	font-size: 10px;
+	color: var(--fg-muted);
+	font-size: 11px;
 	letter-spacing: 0.1em;
 }
 
@@ -405,7 +421,7 @@
 
 :root[data-skin="bare"] .sidebar-log,
 :root[data-skin="bare"] .breadcrumb,
-:root[data-skin="bare"] .statusline {
+:root[data-skin="bare"] .statusline .seg {
 	color: var(--fg-faint);
 }
 
@@ -413,8 +429,8 @@
 :root[data-skin="bare"] .sidebar-log:focus-within,
 :root[data-skin="bare"] .breadcrumb:hover,
 :root[data-skin="bare"] .breadcrumb:focus-within,
-:root[data-skin="bare"] .statusline:hover,
-:root[data-skin="bare"] .statusline:focus-within {
+:root[data-skin="bare"] .statusline:hover .seg,
+:root[data-skin="bare"] .statusline:focus-within .seg {
 	color: var(--fg-muted);
 }
 

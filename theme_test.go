@@ -40,7 +40,7 @@ func TestThemeVariablesAreSemantic(t *testing.T) {
 		}
 	}
 
-	want := "bg,surface,surface-raised,border,border-strong,fg,fg-strong,fg-muted,fg-faint,primary,primary-muted,accent,warning,warning-bg,danger,danger-muted,danger-bg"
+	want := "bg,surface,surface-raised,border,border-strong,fg,fg-strong,fg-muted,fg-faint,primary,primary-muted,accent,warning,warning-bg,danger,danger-muted,danger-bg,accent-fg"
 	if got := strings.Join(themeVarNames, ","); got != want {
 		t.Errorf("theme variables = %q, want %q", got, want)
 	}

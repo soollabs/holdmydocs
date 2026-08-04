@@ -15,7 +15,7 @@
 <div class="content-col">
 	{{if .Authed}}
 	<div class="breadcrumb">
-		<a href="/">{{.SiteName}}</a>
+		<a href="/" class="breadcrumb-site">{{.SiteName}}</a>
 		<span class="sep">/</span>
 		{{if .PageTags}}{{with index .PageTags 0}}<a href="/_/tags/{{.Slug}}" class="tag">{{.Tag}}</a>{{end}}<span class="sep">/</span>{{end}}
 		<span class="current">{{.Slug}}.md</span>

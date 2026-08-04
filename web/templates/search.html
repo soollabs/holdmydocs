@@ -2,7 +2,7 @@
 <div class="content-col">
 <div class="search-results">
 	<div class="search-header">
-		<div class="query-line"><span class="slash">/</span> <span class="query-text">{{.Query}}</span></div>
+		<h1 class="page-title search-query-line">{{.Query}}</h1>
 		{{if .Query}}<div class="search-stats">{{.SearchHits}} match{{if ne .SearchHits 1}}es{{end}} across {{.SearchPages}} page{{if ne .SearchPages 1}}s{{end}} &middot; {{.SearchElapsed}}</div>{{end}}
 	</div>
 	{{if .SearchResults}}

@@ -75,7 +75,10 @@
 	{{/* Segment set comes from the skin's Status variant (skins.go):
 	     full — mode, title, +new, context, words, sync, user
 	     write — mode "write", title, words today, sync dot
-	     quiet — mode, title, sync dot */}}
+	     quiet — mode, title, sync dot
+	     The theme toggle and logout control always render regardless of
+	     variant — every skin needs a reachable way to switch mode and
+	     sign out, quiet ones included. */}}
 	{{$quiet := or (eq .StatusVariant "write") (eq .StatusVariant "quiet")}}
 	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-skin="{{.Skin}}">
 		<div class="seg-progress-fill" id="seg-progress-fill"></div>
@@ -121,7 +124,7 @@
 	{{if .NeedsSetup}}
 	<div class="setup-modal-backdrop">
 		<div class="setup-modal">
-			<h1><span class="h"></span>Set up wiki</h1>
+			<h1 class="page-title"><span class="h"></span>Set up wiki</h1>
 			<p>Checkboxes start selected; no pages are added until you submit &ldquo;Add selected&rdquo;.</p>
 
 			<form method="POST" action="/_/setup">

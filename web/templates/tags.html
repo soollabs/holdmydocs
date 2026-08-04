@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="content-col">
 {{if .TagName}}
-<h1>Tag: {{.TagName}}</h1>
+<h1 class="page-title"><span class="h"></span>Tag: {{.TagName}}</h1>
 {{if .TagPages}}
 <ul>
 	{{range .TagPages}}
@@ -12,7 +12,7 @@
 <p>No pages with this tag.</p>
 {{end}}
 {{else}}
-<h1>Tags</h1>
+<h1 class="page-title"><span class="h"></span>Tags</h1>
 {{if .AllTags}}
 <ul class="tag-list">
 	{{range .AllTags}}

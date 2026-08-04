@@ -1,8 +1,8 @@
 {{define "content"}}
-<div class="content-col">
+<div class="editor-col">
 <div class="history-view">
-	<h1 class="history-title"><span class="dollar">$</span> git log <span class="dashes">--</span> {{.Slug}}.md</h1>
-	<div class="history-sub">{{.TotalHistory}} revision{{if ne .TotalHistory 1}}s{{end}} &middot; <a href="/{{.Slug}}">back to page</a></div>
+	<h1 class="page-title">History</h1>
+	<div class="history-sub">{{.Slug}}.md &middot; {{.TotalHistory}} revision{{if ne .TotalHistory 1}}s{{end}} &middot; <a href="/{{.Slug}}">back to page</a></div>
 
 	<div class="diff-selector" id="diff-selector">
 		<p>Select two revisions to diff. <span id="diff-status"></span></p>

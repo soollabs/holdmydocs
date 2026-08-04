@@ -17,6 +17,7 @@ var themeVarNames = []string{
 	"primary", "primary-muted", "accent",
 	"warning", "warning-bg",
 	"danger", "danger-muted", "danger-bg",
+	"accent-fg",
 }
 
 var themeVarSet = func() map[string]bool {
