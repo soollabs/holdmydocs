@@ -856,9 +856,7 @@ func (s *Store) pushOnce() {
 			slog.Debug("push already up to date")
 		}
 	} else {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
-		slog.Warn("push failed", "err", err)
+		s.failSync("push", err)
 	}
 }
 
@@ -1098,6 +1096,16 @@ func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
 	return []byte(content), nil
 }
 
+// failSync records err as the reason the store's sync state went "failed"
+// and logs it, so a fetch/pull problem is as visible in the logs as a push
+// failure already is — not just parked silently in in-memory state until
+// someone opens the statusline. Caller must hold s.mu.
+func (s *Store) failSync(stage string, err error) {
+	s.syncState = "failed"
+	s.syncErr = err.Error()
+	slog.Warn("sync failed", "stage", stage, "err", err)
+}
+
 func (s *Store) SyncState() (state, detail string) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1227,8 +1235,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	s.lastFetchNano.Store(time.Now().UnixNano())
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		s.mu.Lock()
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("fetch", err)
 		s.mu.Unlock()
 		return FetchResult{}, err
 	}
@@ -1241,8 +1248,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 
 	headRef, err := s.repo.Head()
 	if err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("head", err)
 		return FetchResult{}, err
 	}
 	localHash := headRef.Hash()
@@ -1250,8 +1256,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	remoteRefName := plumbing.NewRemoteReferenceName("origin", headRef.Name().Short())
 	remoteRef, err := s.repo.Reference(remoteRefName, true)
 	if err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("remote-ref", err)
 		return FetchResult{}, err
 	}
 	remoteHash := remoteRef.Hash()
@@ -1265,16 +1270,14 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 
 	localIsAncestor, err := s.isAncestor(localHash, remoteHash)
 	if err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("ancestor-check", err)
 		return FetchResult{}, err
 	}
 
 	if !localIsAncestor {
 		remoteIsAncestor, err := s.isAncestor(remoteHash, localHash)
 		if err != nil {
-			s.syncState = "failed"
-			s.syncErr = err.Error()
+			s.failSync("ancestor-check", err)
 			return FetchResult{}, err
 		}
 		if remoteIsAncestor {
@@ -1290,23 +1293,20 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 
 	result, err := s.diffCommits(localHash, remoteHash)
 	if err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("diff-commits", err)
 		return FetchResult{}, err
 	}
 
 	wt, err := s.repo.Worktree()
 	if err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("worktree", err)
 		return FetchResult{}, err
 	}
 	if err := wt.Reset(&git.ResetOptions{
 		Commit: remoteHash,
 		Mode:   git.HardReset,
 	}); err != nil {
-		s.syncState = "failed"
-		s.syncErr = err.Error()
+		s.failSync("worktree-reset", err)
 		return FetchResult{}, err
 	}
 
