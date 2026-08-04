@@ -212,7 +212,10 @@ conflict.
 
 The statusline sync indicator shows one of: `ok`, `pending`, `failed` (with
 the error string), or `no remote`. In `bidirectional` mode the arrow is `⇣⇡`;
-in `push` mode it's `⇡`. State is in-memory only; it resets on restart.
+in `push` mode it's `⇡`. State is in-memory only; it resets on restart. Every
+transition to `failed` — push, fetch, or a divergent pull — is also logged at
+`WARN`, so a stuck sync shows up in the server log even if nobody checks the
+statusline.
 
 ### Editing live
 
@@ -298,6 +301,15 @@ user can override their own from `/settings`, including adding or removing a
 single widget without leaving the skin.
 
 ## Users
+
+### Sessions
+
+Logging in (password or SSO) mints a session token stored server-side in
+`sessions.json`, independent of the browser cookie's own lifetime (a plain
+session cookie, or 30 days with "remember me"/SSO). The server-side session
+itself always expires 30 days after login, so a copied or leaked token
+can't be replayed indefinitely even if the cookie persists longer. Logging
+out revokes the token immediately; there is no separate idle timeout.
 
 ### Bootstrap on first run
 ```bash
