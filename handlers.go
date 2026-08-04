@@ -849,6 +849,23 @@ func (app *App) Routes() http.Handler {
 	return mux
 }
 
+// securityHeaders sets response headers that apply to every request
+// regardless of route or auth state: clickjacking and MIME-sniffing
+// protection always, HSTS whenever the request arrived over HTTPS (directly
+// or via a terminating proxy).
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		if isSecureRequest(r) {
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // isSecureRequest reports whether the request arrived over TLS, either
 // directly or (trusting the proxy) via X-Forwarded-Proto.
 // trusts X-Forwarded-Proto unconditionally, no allowed-proxy list — fine here since a

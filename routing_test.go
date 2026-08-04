@@ -11,6 +11,29 @@ import (
 	"testing"
 )
 
+// TestSecurityHeadersPresent checks the clickjacking/MIME-sniffing headers
+// land on every response, including ones auth denies before reaching a route.
+func TestSecurityHeadersPresent(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	resp, err := client.Get(server.URL + "/_/login")
+	if err != nil {
+		t.Fatalf("GET /_/login: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+
+	if got := resp.Header.Get("X-Frame-Options"); got != "DENY" {
+		t.Errorf("X-Frame-Options = %q, want DENY", got)
+	}
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
+	}
+	if got := resp.Header.Get("Referrer-Policy"); got != "no-referrer" {
+		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
+	}
+}
+
 // TestDoDispatchPerAction exercises every ?do= action against a real page's
 // own URL, replacing the old path-suffix routes.
 func TestDoDispatchPerAction(t *testing.T) {

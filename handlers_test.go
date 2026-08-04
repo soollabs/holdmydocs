@@ -117,7 +117,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	app.SetConfig(cfg)
 	app.SetNamespaces(namespaces)
 
-	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
+	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
 
 	// Create client with cookie jar
 	jar, _ := cookiejar.New(&cookiejar.Options{})
@@ -1821,7 +1821,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	app.SetConfig(cfg)
 	app.SetNamespaces(namespaces)
 
-	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
+	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
 	defer server.Close()
 
 	jar, _ := cookiejar.New(&cookiejar.Options{})
@@ -1966,7 +1966,7 @@ func TestCustomHomeFilename(t *testing.T) {
 	app.SetConfig(cfg)
 	app.SetNamespaces(namespaces)
 
-	server := httptest.NewServer(app.Auth.Middleware(app.Routes()))
+	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
 	defer server.Close()
 
 	jar, _ := cookiejar.New(&cookiejar.Options{})
