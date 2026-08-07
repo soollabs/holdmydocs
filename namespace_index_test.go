@@ -107,7 +107,7 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 		return string(body)
 	}
 	body := get(admin)
-	for _, want := range []string{"0 pages", "No pages in this namespace yet", `href="/empty/new?do=edit"`} {
+	for _, want := range []string{"0 pages", "No pages in this namespace yet", `id="new-page"`, `href="/empty/new?do=edit"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("empty namespace missing %q, body: %s", want, body)
 		}
@@ -129,8 +129,8 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 		t.Fatalf("reader login: %v", err)
 	}
 	closeTestBody(t, resp.Body)
-	if got := get(reader); strings.Contains(got, `href="/empty/new?do=edit"`) {
-		t.Fatal("read-scoped user can see namespace Create page link")
+	if got := get(reader); strings.Contains(got, `id="new-page"`) {
+		t.Fatal("read-scoped user can see the +new button")
 	}
 }
 

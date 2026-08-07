@@ -150,7 +150,6 @@
 	color: var(--fg-muted);
 }
 
-:root[data-skin="newsprint"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 :root[data-skin="newsprint"] #page-content th {
 	border-bottom: 3px double var(--border-strong);
@@ -269,7 +268,6 @@
 	color: var(--fg-muted);
 }
 
-:root[data-skin="journal"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 /* ---------------------------------------------------------------
    soft — rounded and low-contrast. The one skin here that isn't austere:
@@ -368,7 +366,6 @@
 	border-radius: var(--radius);
 }
 
-:root[data-skin="soft"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 /* ---------------------------------------------------------------
    bare — minimal. Subtraction only; no rule here may add a border,
@@ -417,7 +414,6 @@
 	color: var(--fg-strong);
 }
 
-:root[data-skin="bare"] .sidebar-collapse-toggle { --collapse-glyph: "\2039"; }
 
 :root[data-skin="bare"] .sidebar-log,
 :root[data-skin="bare"] .breadcrumb,

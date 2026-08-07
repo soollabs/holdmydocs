@@ -755,6 +755,7 @@ func TestPageChrome(t *testing.T) {
 
 	for _, want := range []string{
 		`src="/_/static/app.js?v=2"`,
+		`class="app-topbar"`,
 		`class="sidebar"`,
 		`action="/_/logout"`,
 		`seg-sync`,

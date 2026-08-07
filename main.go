@@ -21,7 +21,7 @@ var webFS embed.FS
 func parseTemplates() (map[string]*template.Template, error) {
 	tmpl := make(map[string]*template.Template)
 	widgetFiles := []string{
-		"web/templates/widgets/search.html", "web/templates/widgets/tree.html", "web/templates/widgets/pages.html",
+		"web/templates/widgets/tree.html", "web/templates/widgets/pages.html",
 		"web/templates/widgets/namespaces.html",
 		"web/templates/widgets/pinned.html", "web/templates/widgets/tags.html", "web/templates/widgets/log.html",
 		"web/templates/widgets/health.html", "web/templates/widgets/keys.html",

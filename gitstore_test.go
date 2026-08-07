@@ -115,7 +115,7 @@ func TestBuiltInHelpDocumentsNamespaces(t *testing.T) {
 		"`/<namespace>/<page>`",
 		"Quick-create page",
 		"Reset namespace settings",
-		"`list_namespaces`",
+		"ordinary pages only",
 	} {
 		if !strings.Contains(defaultHelpMD, want) {
 			t.Errorf("built-in help missing %q", want)

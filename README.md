@@ -396,12 +396,12 @@ save is a Git commit attributed to the token owner.
 
 | Scope | Tools |
 | --- | --- |
-| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `list_namespaces`, `health` |
+| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `health` |
 | `write` | `save_page`, `delete_page` |
-| `settings` | `read_namespace`, `save_namespace`, `delete_namespace` |
 
-`save_page` and `save_namespace` use the same optimistic locking as the web
-editor: read first, then pass the returned hash as `basehash`. A stale hash
+MCP exposes ordinary pages only, never `.wiki.yaml`, `.namespace.yaml`, hidden
+templates or attachments. `save_page` uses the same optimistic locking as the
+web editor: read first, then pass the returned hash as `basehash`. A stale hash
 returns current data for merging and retrying.
 
 Browser requests must use HMD's public Origin. A reverse proxy must preserve

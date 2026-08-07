@@ -24,14 +24,12 @@ type widget struct {
 }
 
 var widgetIDs = []string{
-	"search", "tree", "pages", "namespaces", "pinned", "tags", "log", "health",
+	"pages", "namespaces", "pinned", "tags", "log", "health",
 	"calendar", "writing-stats",
 	"outline", "page-meta", "backlinks", "prev-entries",
 }
 
 var widgets = map[string]widget{
-	"search":     {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
-	"tree":       {ID: "tree", Title: "TREE", Slot: slotSidebar, Description: "always shown below search: the folder tree of the namespace you're standing in, collapsible, current page highlighted."},
 	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages in this namespace, most recent first."},
 	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
 	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
@@ -64,9 +62,6 @@ func widgetSlotGroups() []widgetSlotGroup {
 	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
 		g := widgetSlotGroup{Slot: slot}
 		for _, id := range widgetIDs {
-			if id == "tree" {
-				continue
-			}
 			if w := widgets[id]; w.Slot == slot {
 				g.Widgets = append(g.Widgets, w)
 			}

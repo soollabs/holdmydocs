@@ -286,11 +286,10 @@ it keeps every page and hidden template. True deletion is available only when
 there are no pages or hidden files, so move or remove those first. Writing
 ` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
 
-MCP clients use the same model: page tools accept a
-` + "`namespace/page`" + ` slug; ` + "`list_namespaces`" + ` lists namespaces;
-` + "`read_namespace`" + `, ` + "`save_namespace`" + ` and ` + "`delete_namespace`" + `
-manage their settings. Page reads require read scope, page writes require write
-scope, and namespace settings tools require settings scope.
+MCP clients can access ordinary pages only: page tools accept a
+` + "`namespace/page`" + ` slug, reads require read scope, and writes require
+write scope. Wiki settings, namespace settings, hidden templates and attachments
+are never exposed through MCP.
 
 ## Journal
 

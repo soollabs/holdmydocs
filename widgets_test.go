@@ -41,14 +41,14 @@ func TestWidgetRegistry(t *testing.T) {
 // a page-foot id listed alongside sidebar ids must not appear in the
 // sidebar.
 func TestWidgetsForSlotSlotAssignment(t *testing.T) {
-	ids := []string{"tags", "backlinks", "search", "log"}
+	ids := []string{"tags", "backlinks", "pages", "log"}
 
 	sidebar := widgetsForSlot(slotSidebar, ids)
 	var got []string
 	for _, w := range sidebar {
 		got = append(got, w.ID)
 	}
-	want := []string{"tags", "search", "log"}
+	want := []string{"tags", "pages", "log"}
 	if len(got) != len(want) {
 		t.Fatalf("sidebar = %v, want %v", got, want)
 	}
@@ -72,17 +72,17 @@ func TestWidgetsForSlotSlotAssignment(t *testing.T) {
 // TestWidgetsForSlotUnknownIDIgnored checks an id with no registry
 // definition is silently dropped rather than erroring.
 func TestWidgetsForSlotUnknownIDIgnored(t *testing.T) {
-	got := widgetsForSlot(slotSidebar, []string{"search", "not-a-real-widget"})
-	if len(got) != 1 || got[0].ID != "search" {
-		t.Errorf("widgetsForSlot with unknown id = %v, want [search]", got)
+	got := widgetsForSlot(slotSidebar, []string{"pages", "not-a-real-widget"})
+	if len(got) != 1 || got[0].ID != "pages" {
+		t.Errorf("widgetsForSlot with unknown id = %v, want [pages]", got)
 	}
 }
 
-func TestTreeIsRequiredBelowSearch(t *testing.T) {
+func TestTreeIsRequiredBelowAppBar(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	if err := writeNamespaceConfig(t, app, testNS, "widgets: [pages, search]\n"); err != nil {
+	if err := writeNamespaceConfig(t, app, testNS, "widgets: [pages]\n"); err != nil {
 		t.Fatalf("configuring widgets: %v", err)
 	}
 	seedPage(t, app, Page{Slug: testNS + "/guides", Title: "Guides", Body: "overview"})
@@ -96,11 +96,13 @@ func TestTreeIsRequiredBelowSearch(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	page := string(body)
 
-	search := strings.Index(page, `class="sidebar-section sidebar-search"`)
 	tree := strings.Index(page, "<summary>TREE</summary>")
 	pages := strings.Index(page, `class="sidebar-section sidebar-pages"`)
-	if search == -1 || tree == -1 || pages == -1 || !(search < tree && tree < pages) {
-		t.Errorf("sidebar order should be search, tree, pages: search=%d tree=%d pages=%d", search, tree, pages)
+	if !strings.Contains(page, `id="topbar-search"`) || strings.Contains(page, `class="sidebar-section sidebar-search"`) {
+		t.Error("search should live only in the app bar")
+	}
+	if tree == -1 || pages == -1 || tree > pages {
+		t.Errorf("tree should precede pages in the sidebar: tree=%d pages=%d", tree, pages)
 	}
 	if !strings.Contains(page, `href="/notes/guides/setup"`) {
 		t.Error("required tree must include nested pages")

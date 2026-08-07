@@ -285,12 +285,6 @@
     syncAgeTimer = setInterval(updateSyncAge, 30000);
   }
 
-  // ---- "+ new" button in statusline ----
-  const newBtn = $('#new-btn');
-  if (newBtn) {
-    newBtn.addEventListener('click', () => openPalette(true));
-  }
-
   // ---- New-page shortcut (ctrl-j) ---- targets this page's namespace when it
   // has a `new:` template, else the journal fallback; disabled when neither
   // does (window.hmdNewEnabled).
@@ -321,32 +315,33 @@
     }
   });
 
-  // ---- Mobile sidebar drawer ----
+  // ---- Shared app bar ----
   const sidebarToggle = $('#sidebar-toggle');
   const sidebar = $('#sidebar');
   if (sidebarToggle && sidebar) {
-    sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+    const COLLAPSE_KEY = 'hmd-sidebar-collapsed';
+    if (localStorage.getItem(COLLAPSE_KEY) === '1') document.body.classList.add('sidebar-collapsed');
+    sidebarToggle.addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 899px)').matches) {
+        sidebar.classList.toggle('open');
+        return;
+      }
+      const collapsed = document.body.classList.toggle('sidebar-collapsed');
+      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+      sidebar.classList.remove('sidebar-expanded');
+    });
   }
-  const mobileSearch = $('#mobile-search');
-  if (mobileSearch) {
-    mobileSearch.addEventListener('click', () => {
+  const topbarSearch = $('#topbar-search');
+  if (topbarSearch) {
+    topbarSearch.addEventListener('click', e => {
+      e.preventDefault();
       if (sidebar) sidebar.classList.remove('open');
       openPalette();
     });
   }
 
   // ---- Desktop sidebar: icon-rail collapse mode ----
-  const sidebarCollapseToggle = $('#sidebar-collapse-toggle');
-  if (sidebarCollapseToggle && sidebar) {
-    const COLLAPSE_KEY = 'hmd-sidebar-collapsed';
-    if (localStorage.getItem(COLLAPSE_KEY) === '1') {
-      document.body.classList.add('sidebar-collapsed');
-    }
-    sidebarCollapseToggle.addEventListener('click', () => {
-      const collapsed = document.body.classList.toggle('sidebar-collapsed');
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-      sidebar.classList.remove('sidebar-expanded');
-    });
+  if (sidebar) {
     sidebar.addEventListener('mouseenter', () => {
       if (document.body.classList.contains('sidebar-collapsed')) sidebar.classList.add('sidebar-expanded');
     });
@@ -366,11 +361,9 @@
     });
   }
 
-  // ---- Statusline: scroll-progress fill + mobile top bar auto-hide ----
+  // ---- Statusline scroll-progress fill ----
   const mainEl = $('main');
   if (mainEl) {
-    const topbarMq = window.matchMedia('(max-width: 899px)');
-    let lastScrollTop = 0;
     let scrollRaf = null;
 
     function onMainScroll() {
@@ -379,15 +372,6 @@
       const pct = max > 0 ? (mainEl.scrollTop / max) * 100 : 0;
       document.documentElement.style.setProperty('--scroll-pct', pct + '%');
 
-      if (topbarMq.matches) {
-        const st = mainEl.scrollTop;
-        if (st <= 10 || st < lastScrollTop) {
-          document.body.classList.remove('topbar-hidden');
-        } else if (st > lastScrollTop) {
-          document.body.classList.add('topbar-hidden');
-        }
-        lastScrollTop = st;
-      }
     }
     mainEl.addEventListener('scroll', () => {
       if (scrollRaf) return;

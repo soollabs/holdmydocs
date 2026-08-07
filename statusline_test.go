@@ -7,10 +7,8 @@ import (
 	"testing"
 )
 
-// TestStatuslineSegmentsPerSkin checks the statusline shows/hides segments
-// per the skin's Status variant (skins.go): phosphor gets the full set
-// (+new, context, user); journal drops those for a words-today segment and
-// a dot-only sync; bare strips down to mode, title and a dot-only sync.
+// TestStatuslineSegmentsPerSkin checks actions stay in the shared top bar
+// while each skin keeps its informational statusline variant.
 func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -34,17 +32,25 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 
 	setSkin("phosphor")
 	docs := get()
-	if !strings.Contains(docs, `id="new-btn">+ new<`) {
-		t.Error("phosphor skin should show the +new button")
+	if !strings.Contains(docs, `id="new-page"`) || !strings.Contains(docs, `title="Edit page"`) {
+		t.Error("phosphor skin should show New and Edit in the top bar")
 	}
 	if !strings.Contains(docs, `class="seg seg-right seg-user"`) {
 		t.Error("phosphor skin should show the user segment")
 	}
+	statusStart, statusEnd := strings.Index(docs, `id="statusline"`), strings.Index(docs, `id="palette-backdrop"`)
+	if statusStart == -1 || statusEnd == -1 || strings.Contains(docs[statusStart:statusEnd], "<button") || strings.Contains(docs[statusStart:statusEnd], "<form") {
+		t.Error("statusline should be information only")
+	}
+	sidebarStart, sidebarEnd := strings.Index(docs, `class="sidebar"`), strings.Index(docs, "</nav>")
+	if sidebarStart == -1 || sidebarEnd == -1 || strings.Contains(docs[sidebarStart:sidebarEnd], "<button") || strings.Contains(docs[sidebarStart:sidebarEnd], "tree-new") {
+		t.Error("sidebar should contain navigation, not app actions")
+	}
 
 	setSkin("journal")
 	journal := get()
-	if strings.Contains(journal, `id="new-btn">+ new<`) {
-		t.Error("journal skin should not show the docs +new button")
+	if !strings.Contains(journal, `id="new-page"`) {
+		t.Error("journal skin should show New in the top bar")
 	}
 	if !strings.Contains(journal, "words today") {
 		t.Error("journal skin should show a words-today segment")
@@ -61,8 +67,26 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	if strings.Contains(minimal, `id="sync-text"`) {
 		t.Error("bare skin should show a dot-only sync (no sync-text)")
 	}
-	if strings.Contains(minimal, `id="new-btn"`) {
-		t.Error("bare skin should not show any +new button")
+	if !strings.Contains(minimal, `id="new-page"`) {
+		t.Error("bare skin should show New in the top bar")
+	}
+	for _, body := range []string{docs, journal, minimal} {
+		if strings.Contains(body, `id="new-btn"`) || strings.Contains(body, `id="mobile-new"`) {
+			t.Error("legacy duplicate New control is still rendered")
+		}
+	}
+
+	editResp, err := client.Get(server.URL + "/" + testHome + "?do=edit")
+	if err != nil {
+		t.Fatalf("GET edit: %v", err)
+	}
+	defer closeTestBody(t, editResp.Body)
+	editBody, _ := io.ReadAll(editResp.Body)
+	if !strings.Contains(string(editBody), `form="edit-form" class="topbar-action topbar-primary">Save</button>`) {
+		t.Error("edit mode should replace Edit with Save in the top bar")
+	}
+	if strings.Contains(string(editBody), `id="save-btn"`) {
+		t.Error("editor still renders a duplicate Save button")
 	}
 }
 

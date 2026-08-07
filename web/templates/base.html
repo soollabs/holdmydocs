@@ -37,13 +37,28 @@
 </head>
 <body class="{{if .Authed}}shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
 	{{if .Authed}}
-	<div class="mobile-topbar">
-		<button type="button" id="sidebar-toggle" aria-label="Toggle sidebar">&equiv;</button>
-		<span class="crumb">{{.SiteName}}</span>
-		<button type="button" id="mobile-search" aria-label="Search">/ search</button>
-	</div>
+	<header class="app-topbar">
+		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">&#9776;</button>
+		<div class="topbar-path">{{if .Slug}}{{.Slug}}{{else}}{{.Title}}{{end}}</div>
+		<div class="topbar-actions">
+			{{if eq .StatusMode "edit"}}<button type="submit" form="edit-form" class="topbar-action topbar-primary">Save</button>
+			{{else if .CanEdit}}<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="topbar-action" aria-label="Edit page" title="Edit page">&#9998; <span>Edit</span></a>{{end}}
+			{{if .NewPageBase}}<a href="/{{.NewPageBase}}/new?do=edit" class="topbar-action" id="new-page" aria-label="New page" title="New page">&#128196;<span class="topbar-plus">+</span> <span>New</span></a>{{end}}
+			<a href="/_/search" class="topbar-icon" id="topbar-search" aria-label="Search" title="Search">&#128269;</a>
+			<details class="topbar-menu">
+				<summary class="topbar-icon" aria-label="More actions" title="More actions">&#8943;</summary>
+				<div class="topbar-menu-items">
+					<a href="/_/settings">Settings</a>
+					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}
+					<a href="/_/health-report">Health</a>
+					<a href="/_/hidden/help">Help</a>
+					<button type="button" id="theme-toggle">Light / dark</button>
+					<form method="POST" action="/_/logout"><button type="submit">Logout</button></form>
+				</div>
+			</details>
+		</div>
+	</header>
 	<nav class="sidebar" id="sidebar">
-		<button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" aria-label="Collapse sidebar"></button>
 		{{/* Identity is who-and-where chrome, not a mountable widget: it must
 		     always render regardless of namespace widget picks. */}}
 		<div class="prompt identity">
@@ -53,9 +68,6 @@
 				<span class="masthead-byline">{{.Username}}</span>
 			</a>
 		</div>
-		{{range .SidebarWidgets}}
-		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
-		{{end}}
 		{{template "widget-tree" .}}
 		{{range .SidebarWidgets}}
 		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}
@@ -67,8 +79,7 @@
 		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
 		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
 		{{end}}
-		{{/* Settings/help/health access is not a toggleable widget: it must
-		     always be reachable regardless of skin or widget picks. */}}
+		{{/* Shortcut hints remain fixed chrome, not a configurable widget. */}}
 		{{template "widget-keys" $}}
 	</nav>
 	{{end}}
@@ -77,12 +88,10 @@
 	</main>
 	{{if .Authed}}
 	{{/* Segment set comes from the skin's Status variant (skins.go):
-	     full — mode, title, +new, context, words, sync, user
+	     full — mode, title, context, words, sync, user
 	     write — mode "write", title, words today, sync dot
 	     quiet — mode, title, sync dot
-	     The theme toggle and logout control always render regardless of
-	     variant — every skin needs a reachable way to switch mode and
-	     sign out, quiet ones included. */}}
+	     Actions live in the app bar; the statusline is information only. */}}
 	{{$quiet := or (eq .StatusVariant "write") (eq .StatusVariant "quiet")}}
 	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-skin="{{.Skin}}">
 		<div class="seg-progress-fill" id="seg-progress-fill"></div>
@@ -95,7 +104,6 @@
 		{{if eq .StatusVariant "write"}}
 			<div class="seg seg-context">{{.WritingStats.WordsToday}} words today</div>
 		{{else if eq .StatusVariant "full"}}
-			{{if not .IsNamespaceIndex}}<button type="button" class="seg seg-new" id="new-btn">+ new</button>{{end}}
 			<div class="seg seg-context" id="status-context">{{.StatusContext}}</div>
 			{{if eq .StatusMode "view"}}<div class="seg seg-word-count" id="word-count"></div>{{end}}
 		{{end}}
@@ -104,14 +112,6 @@
 			<span class="sync-dot"></span>{{if not $quiet}}<span id="sync-text">{{if eq .SyncState "no remote"}}local only{{else}}{{if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span>{{end}}
 		</div>
 		{{if not $quiet}}<div class="seg seg-right seg-user">{{.Username}}</div>{{end}}
-		<div class="seg seg-right">
-			<button type="button" class="link-btn" id="theme-toggle" title="Toggle dark/light mode">light|dark</button>
-		</div>
-		<div class="seg seg-right">
-			<form method="POST" action="/_/logout" style="display:contents">
-				<button type="submit" class="link-btn">logout</button>
-			</form>
-		</div>
 	</div>
 	<div class="palette-backdrop" id="palette-backdrop">
 		<div class="palette" id="palette">

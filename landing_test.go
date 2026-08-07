@@ -100,15 +100,22 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 	if _, err := app.Store.Save("blog/post.md", Page{Slug: "blog/post", Title: "Post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
 		t.Fatalf("saving blog page: %v", err)
 	}
+	if _, err := app.Store.Save("blog/folder/post.md", Page{Slug: "blog/folder/post", Title: "Nested post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
+		t.Fatalf("saving nested blog page: %v", err)
+	}
 
-	nsGlobal := func(slug string) string {
+	pageBody := func(slug string) string {
 		resp, err := client.Get(server.URL + "/" + slug)
 		if err != nil {
 			t.Fatalf("GET /%s: %v", slug, err)
 		}
 		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)
-		for _, line := range strings.Split(string(body), "\n") {
+		return string(body)
+	}
+	nsGlobal := func(slug string) string {
+		body := pageBody(slug)
+		for _, line := range strings.Split(body, "\n") {
 			if strings.Contains(line, "hmdNewNamespace") {
 				return strings.TrimSpace(line)
 			}
@@ -121,6 +128,9 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 	}
 	if got := nsGlobal(testHome); !strings.Contains(got, `"journal"`) {
 		t.Errorf("in a namespace with no new: block, ctrl-j target = %q, want the journal fallback", got)
+	}
+	if body := pageBody("blog/folder/post"); !strings.Contains(body, `href="/blog/folder/new?do=edit"`) {
+		t.Error("New does not create beside the current nested page")
 	}
 
 	resp, err := client.Get(server.URL + "/_/static/app.js")

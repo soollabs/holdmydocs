@@ -205,7 +205,7 @@ mark {
 }
 
 /* ---------------------------------------------------------------
-   Phosphor shell: sidebar + main + statusline grid on <body>
+   Phosphor shell: app bar + sidebar + main + statusline grid on <body>
    --------------------------------------------------------------- */
 
 html, body {
@@ -215,8 +215,9 @@ html, body {
 body.shell {
 	display: grid;
 	grid-template-columns: 260px 1fr;
-	grid-template-rows: 1fr 32px;
+	grid-template-rows: 44px 1fr 32px;
 	grid-template-areas:
+		"topbar topbar"
 		"sidebar main"
 		"statusline statusline";
 	min-height: 100vh;
@@ -365,32 +366,6 @@ body:not(.shell) {
 	white-space: nowrap;
 }
 
-.sidebar-collapse-toggle::before {
-	content: var(--collapse-glyph);
-}
-
-.sidebar-collapse-toggle {
-	align-self: flex-end;
-	background: none;
-	border: none;
-	color: var(--fg-faint);
-	cursor: pointer;
-	font: inherit;
-	margin-bottom: 8px;
-	padding: 2px 6px;
-}
-
-.sidebar-collapse-toggle:hover {
-	color: var(--fg-strong);
-}
-
-.collapsed-gear {
-	display: none;
-	color: var(--fg-faint);
-	text-decoration: none;
-	text-align: center;
-}
-
 /* Icon-rail collapse mode — desktop only, mobile drawer handles < 900px */
 @media (min-width: 900px) {
 	body.shell.sidebar-collapsed {
@@ -429,10 +404,6 @@ body:not(.shell) {
 	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-pages::before { content: "★"; color: var(--primary); }
 	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-tags-section::before { content: "#"; }
 	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-log::before { content: "↻"; }
-
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .collapsed-gear {
-		display: block;
-	}
 
 	body.sidebar-collapsed .sidebar.sidebar-expanded {
 		position: absolute;
@@ -591,10 +562,107 @@ main {
 	color: var(--fg-strong);
 }
 
-/* Mobile top bar (< 900px), hidden on desktop */
+/* Shared application bar */
 
-.mobile-topbar {
+.app-topbar {
+	grid-area: topbar;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 10px;
+	background: var(--surface);
+	border-bottom: var(--chrome-border-w) solid var(--chrome-border);
+	z-index: 1000;
+}
+
+.topbar-path {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--fg-muted);
+}
+
+.topbar-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.topbar-icon,
+.topbar-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	height: 36px;
+	padding: 0 9px;
+	border: 0;
+	border-radius: var(--radius-lg);
+	background: none;
+	color: var(--fg-muted);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.topbar-icon:hover,
+.topbar-action:hover,
+.topbar-menu[open] > summary {
+	background: var(--surface-raised);
+	color: var(--fg-strong);
+}
+
+.topbar-primary {
+	background: var(--primary);
+	color: var(--accent-fg);
+}
+
+.topbar-plus {
+	font-size: 10px;
+	margin-left: -3px;
+}
+
+.topbar-menu {
+	position: relative;
+}
+
+.topbar-menu > summary {
+	list-style: none;
+}
+
+.topbar-menu > summary::-webkit-details-marker {
 	display: none;
+}
+
+.topbar-menu-items {
+	position: absolute;
+	top: calc(100% + 5px);
+	right: 0;
+	min-width: 160px;
+	padding: 6px;
+	background: var(--surface-raised);
+	border: var(--field-border-w) solid var(--border-visible);
+	border-radius: var(--radius-lg);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+
+.topbar-menu-items a,
+.topbar-menu-items button {
+	display: block;
+	width: 100%;
+	padding: 8px 10px;
+	border: 0;
+	border-radius: var(--radius-lg);
+	background: none;
+	color: var(--fg);
+	text-align: left;
+	text-decoration: none;
+}
+
+.topbar-menu-items a:hover,
+.topbar-menu-items button:hover {
+	background: var(--surface);
 }
 
 /* Forms and buttons */
@@ -1096,14 +1164,6 @@ ul.page-tree.branch > li::before {
 .page-tree summary {
 	cursor: pointer;
 	list-style: revert;
-}
-.page-tree .tree-new {
-	color: var(--fg-faint);
-	margin-left: 0.4em;
-	font-size: 0.85em;
-}
-.page-tree .tree-new:hover {
-	color: var(--primary);
 }
 .page-tree a.current {
 	background: var(--primary);
@@ -1828,7 +1888,7 @@ ul.page-tree.branch > li::before {
 }
 
 /* ---------------------------------------------------------------
-   Responsive: < 900px sidebar hidden, mobile top bar shown
+   Responsive: < 900px sidebar becomes a drawer, app-bar labels collapse
    --------------------------------------------------------------- */
 
 @media (max-width: 899px) {
@@ -1856,39 +1916,22 @@ ul.page-tree.branch > li::before {
 		transform: translateX(0);
 	}
 
-	.mobile-topbar {
-		grid-area: topbar;
-		display: flex;
-		align-items: center;
-		gap: 12px;
+	.app-topbar {
 		padding: env(safe-area-inset-top) 12px 0;
-		background: var(--surface);
-		border-bottom: var(--chrome-border-w) solid var(--chrome-border);
-		transition: transform 0.2s ease;
-		will-change: transform;
-	}
-
-	body.topbar-hidden .mobile-topbar {
-		transform: translateY(-100%);
 	}
 
 	.breadcrumb-history {
 		display: inline;
 	}
 
-	.mobile-topbar button {
-		background: none;
-		border: none;
-		color: var(--fg);
-		font-size: 1.1rem;
+	.app-topbar button,
+	.app-topbar .topbar-action {
 		min-width: 44px;
 		min-height: 44px;
-		cursor: pointer;
 	}
 
-	.mobile-topbar .crumb {
-		color: var(--fg-muted);
-		flex: 1;
+	.topbar-action span:last-child {
+		display: none;
 	}
 
 
@@ -3304,8 +3347,7 @@ ul.page-tree.branch > li::before {
 	/* Tap targets: 44px minimum for anything interactive. */
 	.history-row input[type="checkbox"],
 	.rev-checkbox,
-	.scope-check input,
-	.sidebar-collapse-toggle {
+	.scope-check input {
 		min-height: 44px;
 		min-width: 44px;
 	}
@@ -3332,19 +3374,6 @@ ul.page-tree.branch > li::before {
 	display: flex;
 	gap: 6px;
 	align-items: center;
-}
-
-.seg-new {
-	background: none;
-	border: none;
-	cursor: pointer;
-	font: inherit;
-	color: var(--fg-muted);
-	padding: 0 0.5rem;
-}
-
-.seg-new:hover {
-	color: var(--fg-strong);
 }
 
 .settings-status {

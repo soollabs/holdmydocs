@@ -165,6 +165,8 @@ type TemplateData struct {
 	IsNamespaceIndex    bool
 	CanWrite            bool
 	CanSettings         bool
+	CanEdit             bool
+	NewPageBase         string
 	NamespaceManagement *NamespaceManagementData
 	Namespace           string // namespace index page: the namespace being listed
 	NamespacePublic     bool
@@ -479,6 +481,16 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		prefs := app.Auth.prefs(app.currentUser(r))
 		data.CanWrite = prefs.hasScope(scopeWrite)
 		data.CanSettings = prefs.hasScope(scopeSettings)
+		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
+		if data.CanWrite {
+			if data.IsNamespaceIndex {
+				data.NewPageBase = data.Namespace
+			} else if isPageSlug(data.Slug) {
+				data.NewPageBase = data.Slug[:strings.LastIndex(data.Slug, "/")]
+			} else if names := app.Namespaces().Names(); len(names) > 0 {
+				data.NewPageBase = names[0]
+			}
+		}
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		activeName, activeSkin := effectiveSkin(cfg, prefs)
@@ -545,7 +557,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		if data.SidebarTreeNS != "" {
 			entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
 			_, currentPath := namespaceFor(data.Slug)
-			data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, data.CanWrite, currentPath)
+			data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, currentPath)
 		}
 	}
 
@@ -1514,8 +1526,6 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	}
 
 	tagPages := filterBacklinkEntries(r.Context(), summary.Pages)
-	canWrite := authed && app.Auth.prefs(app.currentUser(r)).hasScope(scopeWrite)
-
 	app.render(w, r, http.StatusOK, "namespace", TemplateData{
 		Authed:           authed,
 		Title:            name,
@@ -1526,7 +1536,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		NamespacePublic:  summary.Config.Public,
 		IsNamespaceIndex: true,
 		TagPages:         tagPages,
-		PageTree:         renderLiveTree(buildPageTree(tagPages, name), name, canWrite, ""),
+		PageTree:         renderLiveTree(buildPageTree(tagPages, name), name, ""),
 	})
 }
 

@@ -175,6 +175,40 @@ func toolJSON(t *testing.T, res *mcp.CallToolResult, out any) {
 	}
 }
 
+func TestMCPOnlyExposesPageTools(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	result, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	allowed := map[string]bool{
+		"list_pages": true, "read_page": true, "save_page": true, "delete_page": true,
+		"search": true, "backlinks": true, "recent_changes": true, "health": true,
+	}
+	for _, tool := range result.Tools {
+		if !allowed[tool.Name] {
+			t.Errorf("MCP exposes non-page tool %q", tool.Name)
+		}
+		delete(allowed, tool.Name)
+	}
+	for name := range allowed {
+		t.Errorf("MCP missing page tool %q", name)
+	}
+}
+
+func TestMCPRecentChangesOnlyAllowsPageFiles(t *testing.T) {
+	for path, want := range map[string]bool{
+		"notes/page.md": true, ".wiki.yaml": false, "notes/.namespace.yaml": false,
+		".notes/template.md": false, "attachments/notes/page/file.png": false,
+	} {
+		got := mcpCommitAllowed(context.Background(), CommitDetail{Files: []string{path}})
+		if got != want {
+			t.Errorf("mcpCommitAllowed(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
 func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 	server, token := newMCPTestApp(t, false)
 
@@ -832,70 +866,6 @@ func TestMCPNamespacedPage(t *testing.T) {
 	}
 }
 
-func TestMCPNamespaceToolFlow(t *testing.T) {
-	server, token := newMCPTestApp(t, true)
-	session := connectMCP(t, server, token)
-	for _, name := range []string{"", "_", "notes/child", ".notes"} {
-		res := callTool(t, session, "save_namespace", map[string]any{"name": name, "widgets": []string{"search"}})
-		if !res.IsError {
-			t.Errorf("save_namespace accepted invalid name %q", name)
-		}
-	}
-
-	res := callTool(t, session, "save_namespace", map[string]any{
-		"name": "blog", "public": true, "widgets": []string{"search"},
-	})
-	if res.IsError {
-		t.Fatalf("save_namespace: %s", toolText(t, res))
-	}
-	var saved struct {
-		Name       string `json:"name"`
-		Configured bool   `json:"configured"`
-		Hash       string `json:"hash"`
-	}
-	toolJSON(t, res, &saved)
-	if saved.Name != "blog" || !saved.Configured || saved.Hash == "" {
-		t.Errorf("save_namespace = %+v, want configured blog with hash", saved)
-	}
-
-	res = callTool(t, session, "list_namespaces", nil)
-	if res.IsError || !strings.Contains(toolText(t, res), `"name":"blog"`) {
-		t.Fatalf("list_namespaces missing blog: %s", toolText(t, res))
-	}
-
-	res = callTool(t, session, "read_namespace", map[string]any{"name": "blog"})
-	if res.IsError {
-		t.Fatalf("read_namespace: %s", toolText(t, res))
-	}
-	var current struct {
-		Name   string `json:"name"`
-		Public bool   `json:"public"`
-		Hash   string `json:"hash"`
-	}
-	toolJSON(t, res, &current)
-	if current.Name != "blog" || !current.Public || current.Hash != saved.Hash {
-		t.Errorf("read_namespace = %+v, want public blog with hash %q", current, saved.Hash)
-	}
-
-	res = callTool(t, session, "save_namespace", map[string]any{
-		"name": "blog", "widgets": []string{"search"}, "basehash": "stale",
-	})
-	if !res.IsError || !strings.Contains(toolText(t, res), "conflict") {
-		t.Errorf("stale save_namespace = %+v, want conflict", res)
-	}
-
-	res = callTool(t, session, "save_page", map[string]any{
-		"slug": "blog/agent-note", "title": "Agent note", "body": "hello",
-	})
-	if res.IsError {
-		t.Fatalf("saving namespace page: %s", toolText(t, res))
-	}
-	res = callTool(t, session, "delete_namespace", map[string]any{"name": "blog"})
-	if !res.IsError {
-		t.Fatal("delete_namespace succeeded with a page present")
-	}
-}
-
 func TestMCPRestrictedToken(t *testing.T) {
 	_, server, token, settingsToken := newMCPRestrictedTestApp(t)
 	restricted := connectMCP(t, server, token)
@@ -940,37 +910,12 @@ func TestMCPRestrictedToken(t *testing.T) {
 		}
 	}
 
-	var namespaces mcpNamespaceListOut
-	res = callTool(t, restricted, "list_namespaces", nil)
-	if res.IsError {
-		t.Fatalf("list_namespaces: %s", toolText(t, res))
-	}
-	toolJSON(t, res, &namespaces)
-	if len(namespaces.Namespaces) != 1 || namespaces.Namespaces[0].Name != "notes" {
-		t.Errorf("list_namespaces returned %+v, want only notes", namespaces)
-	}
-
 	admin := connectMCP(t, server, settingsToken)
 	for _, slug := range []string{testHome, "notes/allowed", "private/denied"} {
 		if res := callTool(t, admin, "read_page", map[string]any{"slug": slug}); res.IsError {
 			t.Errorf("settings token read %s: %s", slug, toolText(t, res))
 		}
 	}
-	res = callTool(t, admin, "read_namespace", map[string]any{"name": "notes"})
-	if res.IsError {
-		t.Fatalf("settings token read_namespace: %s", toolText(t, res))
-	}
-	var currentNamespace mcpNamespaceOut
-	toolJSON(t, res, &currentNamespace)
-	res = callTool(t, admin, "save_namespace", map[string]any{"name": "notes", "public": true, "basehash": currentNamespace.Hash})
-	if res.IsError {
-		t.Fatalf("settings token save_namespace: %s", toolText(t, res))
-	}
-	res = callTool(t, admin, "delete_namespace", map[string]any{"name": "empty"})
-	if res.IsError {
-		t.Fatalf("settings token delete_namespace: %s", toolText(t, res))
-	}
-
 	var recent mcpRecentOut
 	res = callTool(t, restricted, "recent_changes", map[string]any{"limit": 100})
 	if res.IsError {
@@ -1039,9 +984,6 @@ func TestMCPScopes(t *testing.T) {
 	if res := callTool(t, reader, "save_page", map[string]any{"slug": "nope", "body": "nope"}); !res.IsError {
 		t.Error("read scope saved a page")
 	}
-	if res := callTool(t, reader, "read_namespace", map[string]any{"name": "notes"}); !res.IsError {
-		t.Error("read scope read namespace settings")
-	}
 
 	writer := connectMCP(t, server, writerToken)
 	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
@@ -1050,14 +992,8 @@ func TestMCPScopes(t *testing.T) {
 	if res := callTool(t, writer, "list_pages", nil); !res.IsError {
 		t.Error("write scope listed pages")
 	}
-	if res := callTool(t, writer, "save_namespace", map[string]any{"name": "notes"}); !res.IsError {
-		t.Error("write scope saved namespace settings")
-	}
 
 	manager := connectMCP(t, server, managerToken)
-	if res := callTool(t, manager, "save_namespace", map[string]any{"name": "blog", "widgets": []string{"search"}}); res.IsError {
-		t.Fatalf("settings scope save_namespace: %s", toolText(t, res))
-	}
 	if res := callTool(t, manager, "list_pages", nil); res.IsError {
 		t.Fatalf("settings scope list_pages: %s", toolText(t, res))
 	}

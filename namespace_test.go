@@ -43,7 +43,7 @@ func TestParseNamespaceConfigUnknownKeyRejected(t *testing.T) {
 }
 
 func TestNormaliseNamespaceConfigAllowsRoot(t *testing.T) {
-	if _, err := normaliseNamespaceConfig("", NamespaceConfig{Widgets: []string{"search"}}, newPageTemplateData{}); err != nil {
+	if _, err := normaliseNamespaceConfig("", NamespaceConfig{Widgets: []string{"pages"}}, newPageTemplateData{}); err != nil {
 		t.Fatalf("normalise root namespace config: %v", err)
 	}
 }
@@ -209,7 +209,7 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	adminLogin(t, server, client)
 
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
-		"name": {"blog"}, "widgets": {"search, backlinks"}, "public": {"on"},
+		"name": {"blog"}, "widgets": {"backlinks"}, "public": {"on"},
 		"new_enabled": {"on"}, "slug_preset": {"daily"},
 	})
 	if err != nil {
@@ -221,8 +221,8 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	if !ok {
 		t.Fatal("blog namespace should exist in the registry after the save")
 	}
-	if got := strings.Join(cfg.Widgets, ","); got != "search,backlinks" {
-		t.Errorf("widgets = %q, want search,backlinks", got)
+	if got := strings.Join(cfg.Widgets, ","); got != "backlinks" {
+		t.Errorf("widgets = %q, want backlinks", got)
 	}
 	if !cfg.Public {
 		t.Error("blog should be public")
@@ -590,7 +590,7 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 
 	for _, ns := range []string{"blog", "empty"} {
 		resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
-			"name": {ns}, "widgets": {"search"}, "public": {"on"},
+			"name": {ns}, "widgets": {"pages"}, "public": {"on"},
 		})
 		if err != nil {
 			t.Fatalf("creating %s: %v", ns, err)
@@ -624,7 +624,7 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	}
 	// Reconfigure it so the separate deletion guard can prove rejection leaves
 	// the configuration intact as well.
-	resp, err = client.PostForm(server.URL+"/_/settings/namespaces", url.Values{"name": {"blog"}, "widgets": {"search"}})
+	resp, err = client.PostForm(server.URL+"/_/settings/namespaces", url.Values{"name": {"blog"}, "widgets": {"pages"}})
 	if err != nil {
 		t.Fatalf("reconfigure blog: %v", err)
 	}
@@ -674,7 +674,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 
 	// A hand-written config: non-default template name, pattern no preset produces.
 	custom := `{{.User}}/x`
-	if err := writeNamespaceConfig(t, app, "blog", "widgets: [search]\nnew:\n  template: entry\n  slug: '"+custom+"'\n"); err != nil {
+	if err := writeNamespaceConfig(t, app, "blog", "widgets: [pages]\nnew:\n  template: entry\n  slug: '"+custom+"'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 
@@ -700,7 +700,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 
 	// Saving the form as rendered keeps the hand-written template name.
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
-		"name": {"blog"}, "widgets": {"search"}, "template": {blog.Template},
+		"name": {"blog"}, "widgets": {"pages"}, "template": {blog.Template},
 		"new_enabled": {"on"}, "slug_preset": {"monthly"},
 	})
 	if err != nil {
@@ -718,7 +718,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 
 	// Unticking the toggle drops new: and leaves the rest alone.
 	off, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
-		"name": {"blog"}, "widgets": {"search"}, "public": {"on"}, "template": {blog.Template},
+		"name": {"blog"}, "widgets": {"pages"}, "public": {"on"}, "template": {blog.Template},
 		"slug_preset": {"monthly"},
 	})
 	if err != nil {
@@ -730,7 +730,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	if cfg.New != nil {
 		t.Errorf("new-page config = %+v, want nil once the toggle is off", cfg.New)
 	}
-	if !cfg.Public || strings.Join(cfg.Widgets, ",") != "search" {
+	if !cfg.Public || strings.Join(cfg.Widgets, ",") != "pages" {
 		t.Errorf("the rest of the config should be untouched, got %+v", cfg)
 	}
 }
@@ -748,7 +748,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 
 	// No new_enabled: a namespace with ctrl-j off still gets a template.
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
-		"name": {"blog"}, "widgets": {"search"},
+		"name": {"blog"}, "widgets": {"pages"},
 	})
 	if err != nil {
 		t.Fatalf("creating blog: %v", err)

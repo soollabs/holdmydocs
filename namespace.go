@@ -148,7 +148,7 @@ func namespaceConfigPath(ns string) string {
 // builtinWidgets is the default composition used when a namespace has no
 // widgets: key — roughly today's phosphor composition, so a fresh wiki does
 // not look broken.
-var builtinWidgets = []string{"search", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
+var builtinWidgets = []string{"pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
 
 // defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
 // built-in widgets, private.
@@ -196,22 +196,25 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 		cfg.Widgets = builtinWidgets
 	}
 	for _, id := range cfg.Widgets {
+		if id == "search" || id == "tree" {
+			continue
+		}
 		if _, ok := widgets[id]; !ok {
 			slog.Warn("unknown widget id in namespace config, using defaults", "namespace", name, "widget", id)
 			return broken(fmt.Sprintf("unknown widget %q — using the built-in widgets instead", id))
 		}
 	}
 	cfg.Configured = true
-	cfg.Widgets = withoutTree(cfg.Widgets)
+	cfg.Widgets = withoutFixedChrome(cfg.Widgets)
 	return cfg
 }
 
-// withoutTree accepts existing configurations which list tree, but tree is
-// fixed sidebar chrome rather than an optional namespace widget.
-func withoutTree(ids []string) []string {
+// withoutFixedChrome accepts existing configurations which list controls now
+// supplied by the shared shell rather than namespace widgets.
+func withoutFixedChrome(ids []string) []string {
 	result := ids[:0]
 	for _, id := range ids {
-		if id != "tree" {
+		if id != "search" && id != "tree" {
 			result = append(result, id)
 		}
 	}
@@ -273,11 +276,14 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 		cfg.Widgets = builtinWidgets
 	}
 	for _, id := range cfg.Widgets {
+		if id == "search" || id == "tree" {
+			continue
+		}
 		if _, ok := widgets[id]; !ok {
 			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
 		}
 	}
-	cfg.Widgets = withoutTree(cfg.Widgets)
+	cfg.Widgets = withoutFixedChrome(cfg.Widgets)
 	cfg.Index = strings.TrimSpace(cfg.Index)
 	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
@@ -370,19 +376,16 @@ func sortNavTree(node *navNode) {
 // renderLiveTree renders root's Children as a namespace's folder tree — used
 // by both the namespace index page and the sidebar TREE widget — with plain
 // absolute hrefs (/ns/path) since the live app always serves from its own
-// root, not a relative-path static bundle. canWrite adds a "+" link per
-// folder to create a page nested there — the same /ns/path/new?do=edit
-// pattern the namespace index's own top-level "Create page" button uses,
-// landing on the ordinary new-page editor with the filename field prefilled.
+// root, not a relative-path static bundle.
 // currentPath (a page's slug remainder within ns, "" if not applicable)
 // marks that page's link .current.
-func renderLiveTree(root *navNode, ns string, canWrite bool, currentPath string) template.HTML {
+func renderLiveTree(root *navNode, ns string, currentPath string) template.HTML {
 	var b strings.Builder
-	writeLiveTreeNodes(&b, root.Children, ns, canWrite, currentPath, true)
+	writeLiveTreeNodes(&b, root.Children, ns, currentPath, true)
 	return template.HTML(b.String())
 }
 
-func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, canWrite bool, currentPath string, top bool) {
+func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, currentPath string, top bool) {
 	if top {
 		b.WriteString(`<ul class="page-tree">`)
 	} else {
@@ -402,11 +405,8 @@ func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, canWrit
 			} else {
 				b.WriteString(`<span class="dir">` + html.EscapeString(n.Name) + `</span>`)
 			}
-			if canWrite {
-				fmt.Fprintf(b, ` <a class="tree-new" href="%s/new?do=edit" title="New page in this folder">+</a>`, html.EscapeString(href))
-			}
 			b.WriteString("</summary>")
-			writeLiveTreeNodes(b, n.Children, ns, canWrite, currentPath, false)
+			writeLiveTreeNodes(b, n.Children, ns, currentPath, false)
 			b.WriteString("</details>")
 		} else {
 			fmt.Fprintf(b, `<a class="%s" href="%s">%s</a>`, class, html.EscapeString(href), html.EscapeString(n.Title))
