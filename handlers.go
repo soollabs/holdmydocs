@@ -38,6 +38,7 @@ const journalNamespace = "journal"
 
 type App struct {
 	cfg        atomic.Pointer[Config]
+	wiki       atomic.Pointer[WikiConfig]
 	namespaces atomic.Pointer[NamespaceRegistry]
 	Store      *Store
 	Auth       *Auth
@@ -55,6 +56,21 @@ func (app *App) config() Config {
 // SetConfig stores a new configuration value atomically.
 func (app *App) SetConfig(cfg Config) {
 	app.cfg.Store(&cfg)
+}
+
+// wikiConfig returns the portable content settings. The fallback keeps small
+// test apps and startup error paths usable before the first value is stored.
+func (app *App) wikiConfig() WikiConfig {
+	if cfg := app.wiki.Load(); cfg != nil {
+		return *cfg
+	}
+	return defaultWikiConfig()
+}
+
+// SetWikiConfig stores new repository-level settings atomically.
+func (app *App) SetWikiConfig(cfg WikiConfig) {
+	cfg = cfg.normalised()
+	app.wiki.Store(&cfg)
 }
 
 // Namespaces returns the current namespace registry.
@@ -137,11 +153,13 @@ type TemplateData struct {
 	SetupHomePreview    template.HTML
 	SetupHelpPreview    template.HTML
 	NeedsSetup          bool
-	NeedsHomeSetup      bool
+	NeedsWikiSetup      bool
+	NeedsNamespaceSetup bool
 	NeedsHelpSetup      bool
-	HomeFileExists      bool
 	HelpFileExists      bool
-	HomeFilename        string
+	SetupNamespace      string   // new-namespace name the setup form suggests
+	SetupNamespaces     []string // existing namespaces offered as the landing choice
+	SetupSiteName       string   // portable site-name default for first setup
 	RoutePrefix         string
 	IsHidden            bool
 	IsNamespaceIndex    bool
@@ -229,10 +247,11 @@ type SettingsData struct {
 	SkinPalettes     map[string]string // skin -> default palette, JSON-encoded to move the selection on change
 	HelpDrifted      bool
 	UserGitAuthor    string        // current user's per-user git author override
-	HomeFilename     string        // read-only display; restart required to change
-	HomeFilenameEnv  string        // env var name if it overrides the file, else ""
+	WikiConfigPath   string        // repository-relative .wiki.yaml path
+	WikiLanding      string        // where "/" redirects to
+	WikiSiteName     string        // title shared by every clone of the wiki
 	Tokens           []TokenView   // current user's personal access tokens
-	TokenNamespaces  []string      // selectable non-root namespace names for new tokens
+	TokenNamespaces  []string      // selectable namespace names for new tokens
 	NewToken         string        // freshly minted token value, shown exactly once
 	TokenError       string        // token create/revoke validation error
 	HasEnvOverrides  bool          // any field currently sourced from an env var — shows the "export to file" action
@@ -357,7 +376,6 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		BootstrapOnly:   false,
 	}
 
-	fields["SiteName"] = mkField(cfg.SiteName, "SiteName", false, false)
 	adminUserEnv := ""
 	if os.Getenv("HMD_ADMIN_USER") != "" {
 		adminUserEnv = "HMD_ADMIN_USER"
@@ -392,8 +410,6 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 		SkinNames:        skinNames,
 		Skins:            skins,
 		SkinPalettes:     skinPalettes(),
-		HomeFilename:     cfg.HomeFilename,
-		HomeFilenameEnv:  cfg.EnvOverrides["HomeFilename"],
 		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
 		ExportSecretVars: exportSecretVars(cfg),
 	}
@@ -417,7 +433,7 @@ func exportSecretVars(cfg Config) []string {
 // render executes the named page template inside the shared layout.
 // Every template set was parsed from base.html plus one content template.
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
-	data.SiteName = app.config().SiteName
+	data.SiteName = app.wikiConfig().SiteName
 	data.Version = version
 	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
 	if data.SyncState == "" {
@@ -430,8 +446,14 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		ns, _ := namespaceFor(data.Slug)
 		data.AllTags = app.Index.TagsInNamespace(ns)
 	}
+	// The namespace index sets this itself; everywhere else it's whichever
+	// namespace the current page sits in, which is where the palette's
+	// "create page" row files a new one.
+	if data.Namespace == "" {
+		data.Namespace, _ = namespaceFor(data.Slug)
+	}
 	if data.Authed {
-		missing, orphans := app.Index.Health(app.config().HomeSlug())
+		missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
 		missing, orphans = filterHealth(r.Context(), missing, orphans)
 		data.HealthMissing = len(missing)
 		data.HealthOrphans = len(orphans)
@@ -478,20 +500,24 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.NewPageEnabled = true
 			data.NewNamespace = target
 		}
-		data.HomeFilename = cfg.HomeFilename
 		if app.Store.NeedsSetup.Load() || app.Store.ForceSetup.Load() {
 			forced := app.Store.ForceSetup.Load()
+			_, wikiExists, wikiErr := LoadWikiConfig(cfg.RepoDir)
+			if wikiErr == nil && !wikiExists {
+				data.NeedsWikiSetup = true
+				data.SetupNamespace = defaultSetupNamespace
+				data.SetupNamespaces = app.Namespaces().Names()
+				data.SetupSiteName = app.wikiConfig().SiteName
+			}
 
-			_, homeErr := os.Stat(filepath.Join(cfg.RepoDir, cfg.HomeFilename))
-			homeMissing := homeErr != nil
-			if homeMissing || forced {
-				data.NeedsHomeSetup = true
-				data.HomeFileExists = !homeMissing
-				homePreview, _ := app.Render.Render(defaultHomeMD, "")
+			if (!hasNamespace(cfg.RepoDir) || forced) && !data.NeedsWikiSetup {
+				data.NeedsNamespaceSetup = true
+				data.SetupNamespace = defaultSetupNamespace
+				homePreview, _ := app.Render.Render(defaultHomeMD, defaultSetupNamespace)
 				data.SetupHomePreview = template.HTML(homePreview)
 			}
 
-			_, helpErr := os.Stat(filepath.Join(app.config().RepoDir, ".help.md"))
+			_, helpErr := os.Stat(filepath.Join(cfg.RepoDir, ".help.md"))
 			helpMissing := helpErr != nil
 			if helpMissing || forced {
 				data.NeedsHelpSetup = true
@@ -500,7 +526,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 				data.SetupHelpPreview = template.HTML(helpPreview)
 			}
 
-			data.NeedsSetup = data.NeedsHomeSetup || data.NeedsHelpSetup
+			data.NeedsSetup = data.NeedsWikiSetup || data.NeedsNamespaceSetup || data.NeedsHelpSetup
 		}
 
 		nsCfg := app.Namespaces().Resolve(data.Slug)
@@ -696,10 +722,11 @@ var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 // content stays self-contained, so a token never reaches across into another
 // namespace's pages. With no tag list, every page in ns is listed (excluding
 // the home page). With a comma-separated tag list, only pages in ns matching
-// ANY tag are included (OR). Results are sorted alphabetically by title; the
-// home page is always excluded. The list is built as [[wiki-links]] so the
-// existing wiki-link preprocessor renders the anchors.
-func injectTOC(body string, ix *Index, homeSlug string, ns string) string {
+// ANY tag are included (OR). Results are sorted alphabetically by title;
+// indexSlug (the namespace's own index page) is always excluded. The list is
+// built as [[wiki-links]] so the existing wiki-link preprocessor renders the
+// anchors.
+func injectTOC(body string, ix *Index, indexSlug string, ns string) string {
 	if !strings.Contains(body, "hmd:toc") {
 		return body
 	}
@@ -716,14 +743,14 @@ func injectTOC(body string, ix *Index, homeSlug string, ns string) string {
 		var slugs []string
 		if tagList == "" {
 			for slug := range titles {
-				if slug != homeSlug && inNS(slug) {
+				if slug != indexSlug && inNS(slug) {
 					slugs = append(slugs, slug)
 				}
 			}
 		} else {
 			tagSlugs := strings.Split(tagList, ",")
 			for _, s := range ix.PagesForTags(tagSlugs) {
-				if s != homeSlug && inNS(s) {
+				if s != indexSlug && inNS(s) {
 					slugs = append(slugs, s)
 				}
 			}
@@ -748,11 +775,23 @@ func injectTOC(body string, ix *Index, homeSlug string, ns string) string {
 	})
 }
 
-// handleRoot redirects "/" to Config.LandingSlug() — the configured landing
-// slug if set, else the home page. An unauthenticated request never reaches
-// here (Auth.Middleware always requires auth for "/").
+// landingPath is where "/" and a fresh login go: the portable landing
+// slug, else the first namespace's index, else the namespace catalogue —
+// which is the only useful destination on a wiki with nothing in it yet.
+func (app *App) landingPath() string {
+	if slug := app.wikiConfig().Landing; slug != "" {
+		return "/" + slug
+	}
+	if names := app.Namespaces().Names(); len(names) > 0 {
+		return "/" + names[0] + "/"
+	}
+	return "/_/namespaces"
+}
+
+// handleRoot redirects "/" to the landing path. An unauthenticated request
+// never reaches here (Auth.Middleware always requires auth for "/").
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/"+app.config().LandingSlug(), http.StatusSeeOther)
+	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }
 
 func (app *App) Routes() http.Handler {
@@ -764,7 +803,7 @@ func (app *App) Routes() http.Handler {
 	// Everything under /_/ is the app itself — the one reserved top-level
 	// segment a namespace may never take. Content owns everything else.
 
-	// Setup endpoint: seeds the home file + .help.md, clears the setup flag
+	// Setup endpoint: seeds the first namespace + .help.md, clears the setup flag
 	mux.HandleFunc("POST /_/setup", app.handleSetup)
 
 	// New-page-from-template: ctrl-j and the palette's >new verb both call
@@ -813,6 +852,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/settings/users", app.handleCreateUser)
 	mux.HandleFunc("POST /_/settings/users/scopes", app.handleSetUserScopes)
 	mux.HandleFunc("POST /_/settings/setup", app.handleRerunSetup)
+	mux.HandleFunc("POST /_/settings/wiki", app.handleSaveWikiConfig)
 	mux.HandleFunc("POST /_/settings/help/reset", app.handleResetHelp)
 
 	// Search
@@ -926,7 +966,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	http.Redirect(w, r, "/"+app.config().HomeSlug(), http.StatusSeeOther)
+	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }
 
 func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -947,26 +987,89 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/login", http.StatusSeeOther)
 }
 
+// defaultSetupNamespace is the first-namespace name the setup form suggests.
+// The field is editable — this is only the value someone who doesn't care
+// gets by pressing the button.
+const defaultSetupNamespace = "notes"
+
+const newSetupNamespaceOption = "_new"
+
 // handleSetup processes the setup form. Nothing is seeded without explicit
-// consent: action=="add" seeds whichever of the home file / .help.md the user
-// ticked (offered when missing, or always when the modal was forced open
-// via "re-run setup" — ticking an existing file overwrites it); action==
-// "skip" seeds nothing. Either way NeedsSetup/ForceSetup are cleared.
+// consent: action=="add" writes the portable wiki config, any requested new
+// namespace and .help.md; action=="skip" writes nothing. Either way
+// NeedsSetup/ForceSetup are cleared.
 func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	cfg := app.config()
 	authorName, authorEmail := app.gitAuthor(cfg.Git.User)
 
 	if action == "add" {
-		if r.FormValue("add_home") == "on" {
-			homeSlug := cfg.HomeSlug()
-			content := Page{Slug: homeSlug, Title: homeSlug, Body: defaultHomeMD}.Encode()
-			if _, err := app.Store.Save(cfg.HomeFilename, content, "Add "+cfg.HomeFilename, authorName, authorEmail); err != nil {
-				http.Error(w, "failed to seed home page", http.StatusInternalServerError)
+		_, wikiExists, wikiErr := LoadWikiConfig(cfg.RepoDir)
+		if wikiErr != nil {
+			http.Error(w, "failed to read wiki config", http.StatusInternalServerError)
+			return
+		}
+		if !wikiExists && r.FormValue("setup_wiki") != "on" {
+			http.Error(w, "wiki setup is required", http.StatusBadRequest)
+			return
+		}
+		if r.FormValue("setup_wiki") == "on" {
+			selected := strings.TrimSpace(r.FormValue("default_namespace"))
+			landing := ""
+			if selected == newSetupNamespaceOption {
+				name := strings.Trim(strings.TrimSpace(r.FormValue("new_namespace")), "/")
+				if name == "" {
+					name = defaultSetupNamespace
+				}
+				if !validNamespaceName(name) {
+					http.Error(w, "invalid namespace name", http.StatusBadRequest)
+					return
+				}
+				if _, exists := app.Namespaces()[name]; exists {
+					http.Error(w, "namespace already exists; select it as the default instead", http.StatusBadRequest)
+					return
+				}
+				if err := app.seedFirstNamespace(name, authorName, authorEmail); err != nil {
+					slog.Error("seeding first namespace", "namespace", name, "err", err)
+					http.Error(w, "failed to seed namespace", http.StatusInternalServerError)
+					return
+				}
+				landing = name + "/"
+			} else if _, ok := app.Namespaces()[selected]; ok {
+				landing = selected + "/"
+			} else {
+				http.Error(w, "choose a detected namespace or create a new one", http.StatusBadRequest)
 				return
 			}
-			if err := app.Index.Update(ParsePage(homeSlug, content)); err != nil {
-				slog.Error("updating search index", "slug", homeSlug, "err", err)
+			wiki := WikiConfig{Landing: landing, SiteName: strings.TrimSpace(r.FormValue("site_name"))}
+			if wiki.SiteName == "" {
+				http.Error(w, "site name cannot be empty", http.StatusBadRequest)
+				return
+			}
+			data, err := wiki.Encode()
+			if err != nil {
+				http.Error(w, "failed to encode wiki config", http.StatusInternalServerError)
+				return
+			}
+			if _, err := app.Store.Save(wikiConfigFile, data, "Configure wiki settings", authorName, authorEmail); err != nil {
+				http.Error(w, "failed to save wiki config", http.StatusInternalServerError)
+				return
+			}
+			app.SetWikiConfig(wiki)
+		}
+		if r.FormValue("add_namespace") == "on" {
+			name := strings.Trim(strings.TrimSpace(r.FormValue("namespace")), "/")
+			if name == "" {
+				name = defaultSetupNamespace
+			}
+			if !validNamespaceName(name) {
+				http.Error(w, "invalid namespace name", http.StatusBadRequest)
+				return
+			}
+			if err := app.seedFirstNamespace(name, authorName, authorEmail); err != nil {
+				slog.Error("seeding first namespace", "namespace", name, "err", err)
+				http.Error(w, "failed to seed namespace", http.StatusInternalServerError)
+				return
 			}
 		}
 		if r.FormValue("add_help") == "on" {
@@ -980,7 +1083,43 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	app.Store.NeedsSetup.Store(false)
 	app.Store.ForceSetup.Store(false)
-	http.Redirect(w, r, refererPath(r, "/"+cfg.HomeSlug()), http.StatusSeeOther)
+	http.Redirect(w, r, refererPath(r, app.landingPath()), http.StatusSeeOther)
+}
+
+// seedFirstNamespace creates name with an index page and leaves a plain
+// readme.md at the repo root for whoever browses the content repo on its git
+// host. The caller decides the portable landing setting. Existing files are
+// never overwritten: a repo that already has any of these keeps what it has.
+func (app *App) seedFirstNamespace(name, authorName, authorEmail string) error {
+	nsCfg := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}
+	data, err := nsCfg.Encode()
+	if err != nil {
+		return fmt.Errorf("encoding namespace config: %w", err)
+	}
+	path := namespaceConfigPath(name)
+	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
+		return fmt.Errorf("saving namespace config: %w", err)
+	}
+
+	indexSlug := namespaceSlug(name, defaultIndexPage)
+	if _, _, err := app.Store.Read(pageFile(indexSlug)); err != nil {
+		content := Page{Slug: indexSlug, Title: name, Body: defaultHomeMD}.Encode()
+		if _, err := app.Store.Save(pageFile(indexSlug), content, "Add "+indexSlug, authorName, authorEmail); err != nil {
+			return fmt.Errorf("saving index page: %w", err)
+		}
+		if err := app.Index.Update(ParsePage(indexSlug, content)); err != nil {
+			slog.Error("updating search index", "slug", indexSlug, "err", err)
+		}
+	}
+
+	if _, _, err := app.Store.Read("readme.md"); err != nil {
+		if _, err := app.Store.Save("readme.md", []byte(rootReadmeMD), "Add readme.md", authorName, authorEmail); err != nil {
+			return fmt.Errorf("saving root readme: %w", err)
+		}
+	}
+
+	app.refreshNamespaces()
+	return nil
 }
 
 // refererPath returns the path+query of the request's Referer header, so
@@ -1189,7 +1328,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 
 	page := ParsePage(slug, content)
 	ns, _ := namespaceFor(slug)
-	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
+	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -1281,6 +1420,14 @@ func reservedPath(path string) bool {
 	return path == "_" || strings.HasPrefix(path, "_/")
 }
 
+// isPageSlug reports whether slug can address a page at all: a namespace
+// plus at least one segment inside it. A single segment names a namespace,
+// so it is served by the namespace index or not at all.
+func isPageSlug(slug string) bool {
+	ns, rest := namespaceFor(slug)
+	return ns != "" && rest != ""
+}
+
 // handlePageGet dispatches every read of a page's own URL. The action is
 // selected by ?do= (edit/history/diff/rev), never by a path suffix — a page
 // literally named "edit" is unambiguous, since "do" can never be part of
@@ -1296,12 +1443,18 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.SetPathValue("slug", slug)
-	switch r.URL.Query().Get("do") {
-	case "":
+	if r.URL.Query().Get("do") == "" {
 		if name, ok := app.namespaceIndexName(slug); ok {
 			app.handleNamespaceIndex(w, r, name)
 			return
 		}
+	}
+	if !isPageSlug(slug) {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.URL.Query().Get("do") {
+	case "":
 		app.handleViewPage(w, r)
 	case "edit":
 		app.handleEditPage(w, r)
@@ -1316,12 +1469,13 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// namespaceIndexName reports whether path addresses a namespace's index: an
-// exact one-segment name with a trailing slash that is present in the
-// catalogue. Bare paths remain root-page URLs.
+// namespaceIndexName reports whether path addresses a namespace's index: a
+// single segment, trailing slash optional, that is present in the catalogue.
+// A single segment can only ever be a namespace, since every page slug
+// carries its namespace prefix.
 func (app *App) namespaceIndexName(path string) (string, bool) {
-	name, slashed := strings.CutSuffix(path, "/")
-	if !slashed || name == "" || strings.Contains(name, "/") {
+	name := strings.TrimSuffix(path, "/")
+	if name == "" || strings.Contains(name, "/") {
 		return "", false
 	}
 	for _, entry := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
@@ -1385,6 +1539,10 @@ func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	if !isPageSlug(slug) {
+		http.NotFound(w, r)
 		return
 	}
 	r.SetPathValue("slug", slug)
@@ -2108,7 +2266,7 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	titles := app.Index.Titles()
-	missing, orphans := app.Index.Health(app.config().HomeSlug())
+	missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
 	missing, orphans = filterHealth(r.Context(), missing, orphans)
 
 	missingSlugs := make([]string, 0, len(missing))
@@ -2188,7 +2346,7 @@ func (app *App) handleHealthAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	missing, orphans := app.Index.Health(app.config().HomeSlug())
+	missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
 	missing, orphans = filterHealth(r.Context(), missing, orphans)
 	if namespace != "" {
 		missing, orphans = filterHealthNamespace(missing, orphans, namespace)
@@ -2299,7 +2457,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 
 	page := ParsePage(slug, content)
 	ns, _ := namespaceFor(slug)
-	page.Body = injectTOC(page.Body, app.Index, app.config().HomeSlug(), ns)
+	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -2471,6 +2629,10 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	sd := buildSettingsData(cfg, prefs)
 	sd.HelpDrifted = HelpDrifted(app.Store)
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
+	wiki := app.wikiConfig()
+	sd.WikiConfigPath = wikiConfigFile
+	sd.WikiLanding = wiki.Landing
+	sd.WikiSiteName = wiki.SiteName
 	sd.Users = app.Auth.Users()
 	sd.AllScopes = []string{string(scopeRead), string(scopeWrite), string(scopeSettings)}
 	sd.CurrentUser = user
@@ -2491,13 +2653,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 		if isAdmin {
 			namespaceLabel = "Administrator"
 		} else if len(t.Namespaces) > 0 {
-			labels := append([]string(nil), t.Namespaces...)
-			for i, namespace := range labels {
-				if namespace == "" {
-					labels[i] = "root"
-				}
-			}
-			namespaceLabel = strings.Join(labels, ", ") + " only"
+			namespaceLabel = strings.Join(t.Namespaces, ", ") + " only"
 		}
 		scopeLabel := "Inherited scopes"
 		if t.Scopes != nil {
@@ -2557,6 +2713,9 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("exported"); q == "1" {
 		sd.Flash = "Config exported to " + sd.ConfigPath
 	}
+	if q := r.URL.Query().Get("wiki-saved"); q == "1" {
+		sd.Flash = "Wiki settings saved to " + sd.WikiConfigPath
+	}
 	app.renderSettings(w, r, sd, "admin")
 }
 
@@ -2598,10 +2757,6 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	}
 	namespaces := make([]string, 0, len(r.Form["namespaces"]))
 	for _, raw := range r.Form["namespaces"] {
-		if raw == "" {
-			namespaces = append(namespaces, "")
-			continue
-		}
 		namespace := strings.TrimSpace(raw)
 		if namespace == "" {
 			sd := app.settingsData(r)
@@ -2725,9 +2880,9 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, msg)
 	}
 
-	// "" is the root namespace, always present — any other name is a single
-	// directory segment, and must be one a namespace may actually take.
-	if name != "" && (strings.Contains(name, "/") || !validNamespaceName(name)) {
+	// A namespace name is a single directory segment, and must be one a
+	// namespace may actually take.
+	if !validNamespaceName(name) {
 		fail(fmt.Sprintf("%q is not a valid namespace name: one path segment, not %q, not dot-prefixed", name, reservedNamespace))
 		return
 	}
@@ -2833,7 +2988,7 @@ func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenNamespace(w, r, name) {
 		return
 	}
-	if name != "" && !validNamespaceName(name) {
+	if !validNamespaceName(name) {
 		http.Error(w, "invalid namespace name", http.StatusBadRequest)
 		return
 	}
@@ -2906,6 +3061,16 @@ func (app *App) refreshNamespaces() {
 		return
 	}
 	app.SetNamespaces(reg)
+}
+
+// refreshWikiConfig reloads repository settings after a pull or direct edit.
+func (app *App) refreshWikiConfig() {
+	wiki, _, err := LoadWikiConfig(app.config().RepoDir)
+	if err != nil {
+		slog.Warn("reloading wiki config", "err", err)
+		return
+	}
+	app.SetWikiConfig(wiki)
 }
 
 // ensureNewPageTemplate creates a namespace's new-page template as a hidden
@@ -3065,7 +3230,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	gitUser := r.FormValue("git_user")
 	gitAuthor := r.FormValue("git_author")
 	gitToken := r.FormValue("git_token")
-	siteName := r.FormValue("site_name")
 	maxUploadStr := r.FormValue("max_upload_bytes")
 	syncPollStr := r.FormValue("sync_poll_ms")
 	syncMode := r.FormValue("sync_mode")
@@ -3080,10 +3244,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if gitUser == "" {
 		http.Error(w, "git user cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if siteName == "" {
-		http.Error(w, "site name cannot be empty", http.StatusBadRequest)
 		return
 	}
 	if remoteURL != "" && !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "git@") {
@@ -3117,7 +3277,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.Git.RemoteURL = remoteURL
 	fc.Git.User = gitUser
 	fc.Git.Author = gitAuthor
-	fc.SiteName = siteName
 	fc.MaxUploadBytes = int64Ptr(maxUploadBytes)
 	fc.SyncPollMs = intPtr(syncPollMs)
 	fc.SyncMode = syncMode
@@ -3146,6 +3305,37 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("settings updated", "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
+}
+
+// handleSaveWikiConfig writes the portable settings to the content repository
+// rather than the instance's local config.yaml.
+func (app *App) handleSaveWikiConfig(w http.ResponseWriter, r *http.Request) {
+	wiki := WikiConfig{
+		Landing:  strings.TrimSpace(r.FormValue("landing")),
+		SiteName: strings.TrimSpace(r.FormValue("site_name")),
+	}
+	if wiki.SiteName == "" {
+		http.Error(w, "site name cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if !validWikiLanding(wiki.Landing) {
+		http.Error(w, "landing must be a namespace index such as notes/ or a page such as notes/inbox", http.StatusBadRequest)
+		return
+	}
+	data, err := wiki.Encode()
+	if err != nil {
+		http.Error(w, "failed to encode wiki settings", http.StatusInternalServerError)
+		return
+	}
+	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
+	if _, err := app.Store.Save(wikiConfigFile, data, "Configure wiki settings", authorName, authorEmail); err != nil {
+		slog.Error("saving wiki config", "err", err)
+		http.Error(w, "failed to save wiki settings", http.StatusInternalServerError)
+		return
+	}
+	app.SetWikiConfig(wiki)
+	slog.Info("wiki settings updated", "by", app.currentUser(r))
+	http.Redirect(w, r, "/_/admin?wiki-saved=1", http.StatusSeeOther)
 }
 
 // handleSettingsAppearance saves the current user's personal preferences —

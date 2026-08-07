@@ -56,7 +56,7 @@ func NewRenderer(resolve func(title, ns string) (slug string, ok bool)) *Rendere
 
 // Render renders body for an authenticated viewer. ns is the namespace of
 // the page being rendered (namespaceFor(slug)), used to scope wiki-link
-// resolution — pass "" for root-level pages or when no page context exists
+// resolution — pass "" when there is no page context to resolve against
 // (e.g. the raw markdown preview).
 func (r *Renderer) Render(body, ns string) (htmltemplate.HTML, error) {
 	// Pre-process wiki-links
@@ -89,8 +89,12 @@ func (r *Renderer) processWikiLinks(body, ns string) string {
 			return fmt.Sprintf(`<a class="wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
 		}
 		// No page has this title yet: guess a slug inside the current
-		// namespace (namespaceSlug is a no-op for ns == "") so following the
-		// link to create the page starts it in the right place.
+		// namespace so following the link to create the page starts it in the
+		// right place. Without a namespace there is nowhere to file it, so the
+		// link stays unresolved rather than pointing at a slug that can't exist.
+		if ns == "" {
+			return fmt.Sprintf(`<span class="missing wiki"><span class="br">[[</span>%s<span class="br">]]</span></span>`, escaped)
+		}
 		slug := namespaceSlug(ns, Slugify(title))
 		return fmt.Sprintf(`<a class="missing wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
 	})

@@ -34,7 +34,7 @@ type mcpListOut struct {
 }
 
 type mcpSlugIn struct {
-	Slug string `json:"slug" jsonschema:"page slug, e.g. my-page"`
+	Slug string `json:"slug" jsonschema:"page slug, always namespace/page, e.g. notes/my-page"`
 }
 
 type mcpPageOut struct {
@@ -47,7 +47,7 @@ type mcpPageOut struct {
 }
 
 type mcpSaveIn struct {
-	Slug     string   `json:"slug" jsonschema:"page slug, e.g. my-page"`
+	Slug     string   `json:"slug" jsonschema:"page slug, always namespace/page, e.g. notes/my-page"`
 	Title    string   `json:"title,omitempty" jsonschema:"page title; defaults to the slug"`
 	Tags     []string `json:"tags,omitempty"`
 	Body     string   `json:"body" jsonschema:"raw markdown body (frontmatter is managed by hmd)"`
@@ -579,7 +579,7 @@ func (app *App) mcpHandler() http.Handler {
 				return nil, mcpHealthOut{}, err
 			}
 		}
-		missing, orphans := app.Index.Health(app.config().HomeSlug())
+		missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
 		missing, orphans = filterHealth(ctx, missing, orphans)
 		if in.Namespace != "" {
 			missing, orphans = filterHealthNamespace(missing, orphans, in.Namespace)

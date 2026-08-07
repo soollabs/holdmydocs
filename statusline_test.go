@@ -23,9 +23,9 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 		closeTestBody(t, resp.Body)
 	}
 	get := func() string {
-		resp, err := client.Get(server.URL + "/readme")
+		resp, err := client.Get(server.URL + "/" + testHome)
 		if err != nil {
-			t.Fatalf("GET /page/readme: %v", err)
+			t.Fatalf("GET /%s: %v", testHome, err)
 		}
 		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)

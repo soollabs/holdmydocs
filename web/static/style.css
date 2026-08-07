@@ -2409,6 +2409,17 @@ ul.page-tree.branch > li::before {
 	border: var(--border-w) solid var(--chrome-border);
 }
 
+.setup-item-input {
+	font-size: 12px;
+	font-family: var(--font-mono);
+	color: var(--fg-strong);
+	background: var(--bg);
+	padding: 1px 6px;
+	border-radius: 3px;
+	border: var(--field-border-w) solid var(--border-visible);
+	width: 12ch;
+}
+
 .setup-badge {
 	font-size: 10px;
 	text-transform: uppercase;

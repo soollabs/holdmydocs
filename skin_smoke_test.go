@@ -22,7 +22,7 @@ func TestAllSkinsRenderWithoutError(t *testing.T) {
 			}
 			closeTestBody(t, resp.Body)
 
-			for _, path := range []string{"/readme", "/readme?do=edit", "/_/settings", "/_/inbox", "/_/tags"} {
+			for _, path := range []string{"/" + testHome, "/" + testHome + "?do=edit", "/_/settings", "/_/inbox", "/_/tags"} {
 				resp, err := client.Get(server.URL + path)
 				if err != nil {
 					t.Fatalf("GET %s: %v", path, err)

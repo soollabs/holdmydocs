@@ -29,7 +29,6 @@
 	<div class="settings-tabs">
 		<button type="button" class="settings-tab" data-tab="server">server</button>
 		<button type="button" class="settings-tab" data-tab="git-remote">git remote</button>
-		<button type="button" class="settings-tab" data-tab="site">site</button>
 		<button type="button" class="settings-tab" data-tab="behaviour">behaviour</button>
 		<button type="button" class="settings-tab" data-tab="users">users</button>
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
@@ -106,17 +105,6 @@
 		<div class="settings-status" id="sync-status">
 			last push: <span class="state-{{.SyncState}}">{{if eq .SyncState "no remote"}}n/a{{else}}{{.SyncState}}{{end}}</span> · {{.SyncAge}} · last fetch: {{if eq .SyncMode "bidirectional"}}{{.SyncAge}}{{else}}n/a (push mode){{end}}
 		</div>
-		</fieldset>
-
-		<fieldset class="settings-section settings-panel" data-panel="site">
-			<legend>site</legend>
-			<div class="settings-row">
-				<label for="site_name">site name</label>
-				<input type="text" id="site_name" name="site_name" value="{{.Settings.Fields.SiteName.Value}}"
-					{{if not .Settings.Fields.SiteName.Editable}}readonly{{end}}>
-				{{if .Settings.Fields.SiteName.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SiteName.EnvVar}}</span>{{end}}
-			</div>
-			<p class="settings-note">The site name is what the shell prompt, the masthead and every breadcrumb read &mdash; there are no separate hostname/path/user labels.</p>
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="behaviour">
@@ -225,13 +213,32 @@
 	</fieldset>
 	{{end}}
 
-	<fieldset class="settings-section settings-panel" data-panel="site">
-		<legend>wiki setup</legend>
-		<div class="settings-row">
-			<label>home page</label>
-			<input type="text" value="{{.Settings.HomeFilename}}" readonly>
-			{{if .Settings.HomeFilenameEnv}}<span class="badge-env">set via {{.Settings.HomeFilenameEnv}}</span>{{else}}<span class="badge-restart">restart reqd</span>{{end}}
+</section>
+
+<section class="settings-zone">
+	<h2 class="settings-zone-title"><span class="h"></span>wiki configuration</h2>
+	<p class="settings-zone-desc">Travels with the content repository. Saved in <code>{{.Settings.WikiConfigPath}}</code>, committed to git and available to every hmd instance using this repo; it is not part of <code>{{.Settings.ConfigPath}}</code>.</p>
+
+	<form method="POST" action="/_/settings/wiki" class="settings-form">
+		<fieldset class="settings-section">
+			<legend>{{.Settings.WikiConfigPath}}</legend>
+			<div class="settings-row">
+				<label for="wiki_site_name">site name</label>
+				<input type="text" id="wiki_site_name" name="site_name" value="{{.Settings.WikiSiteName}}">
+			</div>
+			<div class="settings-row">
+				<label for="landing">landing page</label>
+				<input type="text" id="landing" name="landing" value="{{.Settings.WikiLanding}}" placeholder="notes/">
+			</div>
+			<p class="settings-note">The site name appears in the shell prompt, masthead and breadcrumbs. Landing accepts a namespace index such as <code>notes/</code>, a page such as <code>notes/inbox</code>, or nothing to use the first namespace.</p>
+		</fieldset>
+		<div class="settings-actions">
+			<button type="submit" class="primary">save wiki configuration</button>
 		</div>
+	</form>
+
+	<fieldset class="settings-section">
+		<legend>wiki setup</legend>
 		<div class="settings-row">
 			<label>re-seed setup</label>
 			<form method="POST" action="/_/settings/setup" style="display:contents">
@@ -246,9 +253,7 @@
 (function () {
 	// Settings tabs: one independent tab strip per zone. Panels default to
 	// visible (so the page still works with JS disabled); this only hides
-	// the inactive ones once it runs. A panel id can appear more than once
-	// (e.g. "site" spans a fieldset inside the form and one outside it) —
-	// all instances toggle together.
+	// the inactive ones once it runs.
 	document.querySelectorAll('.settings-zone').forEach(function (zone) {
 		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
 		if (!tabs.length) return;

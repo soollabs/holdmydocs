@@ -63,7 +63,7 @@
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>skin</legend>
-			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace (system configuration &rarr; namespaces); the "/" landing page is a system-configuration setting. The same repository works under any skin.</p>
+			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace (system configuration &rarr; namespaces); the "/" landing page is set in the repository's wiki configuration. The same repository works under any skin.</p>
 			<div class="skin-picker">
 				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
@@ -158,7 +158,6 @@
 			<div class="settings-row">
 				<label>namespace access</label>
 				<span class="scope-checks">
-					<label class="scope-check"><input type="checkbox" name="namespaces" value=""> root</label>
 					{{range .Settings.TokenNamespaces}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{end}}
 				</span>
 			</div>

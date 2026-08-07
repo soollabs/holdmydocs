@@ -43,20 +43,6 @@ func TestBuildCalendarMonth(t *testing.T) {
 	}
 }
 
-func TestBuildCalendarMonthRootNamespace(t *testing.T) {
-	ref := time.Date(2026, 7, 24, 10, 0, 0, 0, time.UTC)
-	cal := buildCalendarMonth(ref, "", []string{"2026-07-24"})
-	byDate := map[string]CalendarDay{}
-	for _, d := range cal.Days {
-		if d.Date != "" {
-			byDate[d.Date] = d
-		}
-	}
-	if byDate["2026-07-24"].Slug != "2026-07-24" {
-		t.Errorf("root-namespace Slug = %q, want 2026-07-24 (no leading slash)", byDate["2026-07-24"].Slug)
-	}
-}
-
 func TestBuildCalendarMonthEmpty(t *testing.T) {
 	ref := time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC)
 	cal := buildCalendarMonth(ref, "journal", nil)

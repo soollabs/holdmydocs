@@ -292,7 +292,7 @@ func TestSkinPersists(t *testing.T) {
 		t.Errorf("Status = %d, want 303", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/readme")
+	resp2, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	app.Auth.users["admin"] = rec
 	app.Auth.mu.Unlock()
 
-	resp, err := client.Get(server.URL + "/readme")
+	resp, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}

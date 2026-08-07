@@ -58,20 +58,18 @@ override those values, allowing Docker/k8s secret injection.
 
 ### Configuration file
 
-Every other setting is a key in `config.yaml`, with git, MCP, and
+Instance settings are keys in `config.yaml`, with git, MCP, and
 OIDC settings grouped under their own section. See
 [`config.yaml.example`](config.yaml.example) for a fully-commented copy.
 
 ```yaml
 # /data/app/config.yaml
-site_name: Homelab Wiki
 bind: ":8080"
 repo_dir: /data/repo
 max_upload_bytes: 10485760
 sync_poll_ms: 10000
 # sync_mode: bidirectional  # default: push (local→remote only)
 # default_branch: main  # branch name used when initialising a fresh local repo
-# home_filename: readme.md  # home page file; default readme.md renders on git host front page
 
 git:
   remote_url: https://git.example.com/you/wiki.git
@@ -102,17 +100,32 @@ HMD_X` badge. Unknown file keys are rejected at startup.
 Skin, palette and fonts are **per-user** preferences, not install-wide
 config — see below.
 
+### Wiki configuration
+
+The site name and landing page travel with the content in the repository root:
+
+```yaml
+# /data/repo/.wiki.yaml
+landing: notes/
+site_name: Homelab Wiki
+```
+
+`landing` accepts a namespace index such as `notes/`, a page such as
+`notes/inbox`, or may be omitted to use the first namespace. Save these values
+from the separate **wiki configuration** section of `/admin`; every save is a
+git commit, so another hmd instance using the same repository picks them up.
+
 ### In-app settings pages (`/settings`, `/admin`)
 
 `/settings` covers your own account — appearance, widgets, git author,
 access tokens. `/settings` links to `/admin` for everything
 install-wide, below; both require an account with the `settings` scope.
 
-Every install-wide field above is editable from `/admin`, without
+Every instance setting above is editable from `/admin`, without
 restarting the process for most of them:
 
 - **Live vs restart-required:** `git.remote_url`, `git.user`, `git.token`,
-  `git.author`, `sync_mode`, `site_name`, upload size, and sync poll
+  `git.author`, `sync_mode`, upload size, and sync poll
   interval all apply immediately on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
   is bootstrap-only (env var or default) and always read-only.
 - **Skin, palette, fonts, widgets:** per-user, saved to your own
@@ -127,9 +140,12 @@ restarting the process for most of them:
   are also here. Each user sets their own; nothing here affects other
   users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
+- **Wiki configuration:** site name and landing page live in repo-tracked
+  `.wiki.yaml`, in a clearly separate `/admin` section rather than the local
+  instance config.
   Manage users from the **users** tab instead (see Users, below).
-- **Re-run setup:** reopens the home-page/help-guide setup modal so you can
-  add either file again if it was deleted.
+- **Re-run setup:** reopens the setup modal to create a namespace or help
+  guide again if needed.
 - **Help drift warning:** if `.help.md` differs from the binary's built-in
   text (for example, after an upgrade or manual edit), a banner appears
   with a "Reset to built-in" button.
@@ -231,18 +247,23 @@ Env-set values are read-only in the UI.
 
 ## First Run Behaviour
 
-The repo is never written without consent. If the home file
-(`HMD_HOME_FILENAME`, default `readme.md`) or `.help.md` is missing, hmd
-shows a setup modal on any authenticated page. The modal lists only missing
-files, each selected by default, with "Add selected" and "Skip" buttons.
+The repo is never written without consent. If the repo holds no namespace to
+file pages in, lacks `.wiki.yaml`, or `.help.md` is missing, hmd shows a setup
+modal on any authenticated page. When `.wiki.yaml` is missing, it lists the
+detected namespaces and asks which should be the default, with an option to
+create and name a new namespace instead.
+
+Choosing a new namespace writes its `.namespace.yaml` (with `index: readme`),
+a welcome page as that index, a plain `readme.md` at the repo root for the git
+host's front page, and `.wiki.yaml` pointing `/` and every login there.
 
 - **Any repo state** (fresh init, cloned, empty, or existing with other
-  content): shows the setup modal when either file is missing; no automatic
+  content): shows the setup modal when any required setup file is missing; no automatic
   seeding.
 - **Bootstrap users:** if `HMD_ADMIN_USER` and `HMD_ADMIN_PASSWORD` are set, creates that user on startup
 
-The home page (`readme.md` by default) contains a `<!-- hmd:toc -->` token
-that generates a list of all pages. The help guide is `.help.md`, a hidden
+The seeded index page contains a `<!-- hmd:toc -->` token that lists every
+page in its namespace. The help guide is `.help.md`, a hidden
 dot-file editable at `/hidden/help` or via git. Settings warns when it differs
 from the binary's built-in version and offers a reset button. A "re-run setup"
 button reopens the modal if either file is later deleted.
@@ -252,9 +273,13 @@ button reopens the modal if either file is later deleted.
 ```
 /data/
   repo/              ← git repository (safe on NFS)
-    readme.md
+    readme.md        (git host front page, not a wiki page)
+    .wiki.yaml       (portable site name and landing page)
     .help.md
-    some-page.md
+    notes/           ← a namespace
+      .namespace.yaml
+      readme.md      (its index page)
+      some-page.md
     attachments/
       <page-slug>/
         image.png
@@ -276,7 +301,7 @@ the install-wide `skin:` default (see Skins, below).
 A skin controls the app's presentation: typography, spacing, borders,
 markers, statusline segments, and colour palette. It does not decide which
 widgets mount (that's a namespace property, see Namespaces), where `/`
-lands or whether ctrl-j is live (both config/namespace properties, see
+lands or whether ctrl-j is live (both wiki-config/namespace properties, see
 below). The same repo works under any skin, and `git log` remains
 byte-identical.
 
@@ -350,7 +375,7 @@ Token scopes can never exceed the owning user's scopes. A token with `read` or
 `write` may optionally be restricted to selected namespaces; leaving the
 namespace selection blank gives it all namespaces. A selected namespace list
 restricts every non-administrative Bearer request, including page, search and
-MCP access. Restricted tokens cannot access root pages or general settings.
+MCP access. Restricted tokens cannot access general settings.
 Selecting `settings` makes the token an unrestricted **Administrator**, even if
 namespaces were selected. Tokens created before per-token scopes were added
 retain their inherited user scopes and all namespaces.

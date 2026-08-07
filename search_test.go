@@ -120,7 +120,7 @@ func TestTagsInNamespace(t *testing.T) {
 	pages := []Page{
 		{Slug: "blog/alpha", Title: "Alpha", Tags: []string{"go", "shared"}},
 		{Slug: "blog/beta", Title: "Beta", Tags: []string{"go"}},
-		{Slug: "root-page", Title: "Root", Tags: []string{"shared"}},
+		{Slug: "wiki/root-page", Title: "Root", Tags: []string{"shared"}},
 	}
 	ix, _ := BuildIndex(pages)
 
@@ -136,9 +136,9 @@ func TestTagsInNamespace(t *testing.T) {
 		t.Errorf("TagsInNamespace(blog)[1] = %+v, want {shared shared 1}", blogTags[1])
 	}
 
-	rootTags := ix.TagsInNamespace("")
-	if len(rootTags) != 1 || rootTags[0].Tag != "shared" || rootTags[0].Count != 1 {
-		t.Errorf("TagsInNamespace(\"\") = %+v, want [{shared shared 1}]", rootTags)
+	wikiTags := ix.TagsInNamespace("wiki")
+	if len(wikiTags) != 1 || wikiTags[0].Tag != "shared" || wikiTags[0].Count != 1 {
+		t.Errorf("TagsInNamespace(\"wiki\") = %+v, want [{shared shared 1}]", wikiTags)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestBacklinksAndHealthNamespaced(t *testing.T) {
 		t.Errorf("Backlinks(overview) = %v, want none — nothing links to a root slug", got)
 	}
 
-	missing, orphans := ix.Health("home")
+	missing, orphans := ix.Health([]string{"home"})
 	if got := missing["health/ghost"]; len(got) != 1 || got[0] != "health/plan" {
 		t.Errorf("missing[health/ghost] = %v, want [health/plan]", got)
 	}

@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// TestLandingRoute checks "/" redirects to Config.LandingSlug(): the home
-// page by default, or the configured Landing slug when set — independent of
-// skin, since Landing moved from a per-skin enum to a plain config slug.
+// TestLandingRoute checks "/" redirects to the landing path: the configured
+// Landing slug, which setup points at the first namespace — independent of
+// skin, since landing is a portable wiki setting rather than a per-skin enum.
 func TestLandingRoute(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -34,13 +34,11 @@ func TestLandingRoute(t *testing.T) {
 		return resp.Header.Get("Location")
 	}
 
-	if loc := get(); loc != "/readme" {
-		t.Errorf("default Location = %q, want /readme", loc)
+	if loc := get(); loc != "/"+testNS+"/" {
+		t.Errorf("default Location = %q, want /%s/", loc, testNS)
 	}
 
-	cfg := app.config()
-	cfg.Landing = "journal/2026-07-24"
-	app.SetConfig(cfg)
+	app.SetWikiConfig(WikiConfig{Landing: "journal/2026-07-24"})
 
 	if loc := get(); loc != "/journal/2026-07-24" {
 		t.Errorf("configured Landing Location = %q, want /journal/2026-07-24", loc)
@@ -54,9 +52,9 @@ func TestNewPageJSGlobals(t *testing.T) {
 	defer server.Close()
 
 	get := func() string {
-		resp, err := client.Get(server.URL + "/readme")
+		resp, err := client.Get(server.URL + "/" + testHome)
 		if err != nil {
-			t.Fatalf("GET /readme: %v", err)
+			t.Fatalf("GET /%s: %v", testHome, err)
 		}
 		defer closeTestBody(t, resp.Body)
 		body, _ := io.ReadAll(resp.Body)
@@ -121,8 +119,8 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 	if got := nsGlobal("blog/post"); !strings.Contains(got, `"blog"`) {
 		t.Errorf("on a blog page, ctrl-j target = %q, want blog", got)
 	}
-	if got := nsGlobal("readme"); !strings.Contains(got, `"journal"`) {
-		t.Errorf("on a root page with no root new: block, ctrl-j target = %q, want the journal fallback", got)
+	if got := nsGlobal(testHome); !strings.Contains(got, `"journal"`) {
+		t.Errorf("in a namespace with no new: block, ctrl-j target = %q, want the journal fallback", got)
 	}
 
 	resp, err := client.Get(server.URL + "/_/static/app.js")

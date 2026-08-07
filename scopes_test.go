@@ -88,7 +88,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	}
 	closeTestBody(t, loginResp.Body)
 
-	viewResp, err := client.Get(server.URL + "/readme")
+	viewResp, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET page: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user GET /page/readme = %d, want 200", viewResp.StatusCode)
 	}
 
-	saveResp, err := client.PostForm(server.URL+"/readme?do=save", url.Values{
+	saveResp, err := client.PostForm(server.URL+"/"+testHome+"?do=save", url.Values{
 		"title": {"readme"}, "body": {"nope"}, "basehash": {""},
 	})
 	if err != nil {
@@ -253,7 +253,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	}{
 		{http.MethodGet, "/notes/allowed", http.StatusOK},
 		{http.MethodGet, "/private/denied", http.StatusForbidden},
-		{http.MethodGet, "/readme", http.StatusForbidden},
+		{http.MethodGet, "/other/page", http.StatusForbidden},
 		{http.MethodGet, "/_/settings", http.StatusForbidden},
 		{http.MethodGet, "/_/api/preview/private/denied", http.StatusForbidden},
 		{http.MethodGet, "/_/attachments/private/denied/file.txt", http.StatusForbidden},

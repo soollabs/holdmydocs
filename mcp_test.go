@@ -36,25 +36,32 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 	t.Helper()
 
 	cfg := Config{
-		RepoDir:      t.TempDir(),
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		AdminUser:    "admin",
-		AdminPass:    "test",
-		HomeFilename: "readme.md",
-		MCP:          MCPConfig{Enabled: mcpEnabled},
+		RepoDir:   t.TempDir(),
+		AppDir:    t.TempDir(),
+		Git:       GitConfig{User: "test"},
+		AdminUser: "admin",
+		AdminPass: "test",
+		MCP:       MCPConfig{Enabled: mcpEnabled},
 	}
 
 	store, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	if _, err := store.Save("readme.md", Page{Slug: "readme", Title: "readme", Body: defaultHomeMD}.Encode(), "Add readme.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
-		t.Fatalf("seeding readme.md: %v", err)
+	nsCfg, err := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}.Encode()
+	if err != nil {
+		t.Fatalf("encoding namespace config: %v", err)
+	}
+	if _, err := store.Save(namespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+		t.Fatalf("seeding namespace config: %v", err)
+	}
+	home := Page{Slug: testHome, Title: testNS, Body: defaultHomeMD}
+	if _, err := store.Save(pageFile(testHome), home.Encode(), "Add "+testHome, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+		t.Fatalf("seeding %s: %v", testHome, err)
 	}
 	store.NeedsSetup.Store(false)
 
-	index, err := BuildIndex([]Page{ParsePage("readme", []byte(defaultHomeMD))})
+	index, err := BuildIndex([]Page{home})
 	if err != nil {
 		t.Fatalf("BuildIndex failed: %v", err)
 	}
@@ -620,7 +627,7 @@ func TestMCPToolFlow(t *testing.T) {
 
 	// Create (empty basehash).
 	res := callTool(t, session, "save_page", map[string]any{
-		"slug":  "agent-note",
+		"slug":  testNS + "/agent-note",
 		"title": "Agent note",
 		"tags":  []string{"ai"},
 		"body":  "Hello from an agent. See [[readme]].",
@@ -636,14 +643,14 @@ func TestMCPToolFlow(t *testing.T) {
 
 	// Create on an existing page must fail.
 	res = callTool(t, session, "save_page", map[string]any{
-		"slug": "agent-note", "title": "Agent note", "body": "clobber",
+		"slug": testNS + "/agent-note", "title": "Agent note", "body": "clobber",
 	})
 	if !res.IsError {
 		t.Fatal("create over existing page succeeded, want conflict")
 	}
 
 	// Read round-trips body, tags and hash.
-	res = callTool(t, session, "read_page", map[string]any{"slug": "agent-note"})
+	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
 	if res.IsError {
 		t.Fatalf("read failed: %s", toolText(t, res))
 	}
@@ -655,7 +662,7 @@ func TestMCPToolFlow(t *testing.T) {
 
 	// Stale basehash conflicts, carrying the current hash and body.
 	res = callTool(t, session, "save_page", map[string]any{
-		"slug": "agent-note", "title": "Agent note", "body": "stale write", "basehash": "0000000000000000000000000000000000000000",
+		"slug": testNS + "/agent-note", "title": "Agent note", "body": "stale write", "basehash": "0000000000000000000000000000000000000000",
 	})
 	if !res.IsError {
 		t.Fatal("stale save succeeded, want conflict")
@@ -668,7 +675,7 @@ func TestMCPToolFlow(t *testing.T) {
 
 	// Fresh basehash saves.
 	res = callTool(t, session, "save_page", map[string]any{
-		"slug": "agent-note", "title": "Agent note", "body": "Updated. See [[readme]].", "basehash": created.Hash,
+		"slug": testNS + "/agent-note", "title": "Agent note", "body": "Updated. See [[" + testNS + "]].", "basehash": created.Hash,
 	})
 	if res.IsError {
 		t.Fatalf("update failed: %s", toolText(t, res))
@@ -679,9 +686,9 @@ func TestMCPToolFlow(t *testing.T) {
 	if !strings.Contains(toolText(t, res), "agent-note") {
 		t.Error("list_pages missing agent-note")
 	}
-	res = callTool(t, session, "backlinks", map[string]any{"slug": "readme"})
+	res = callTool(t, session, "backlinks", map[string]any{"slug": testHome})
 	if !strings.Contains(toolText(t, res), "agent-note") {
-		t.Error("backlinks(readme) missing agent-note")
+		t.Errorf("backlinks(%s) missing agent-note", testHome)
 	}
 
 	// search finds it.
@@ -702,16 +709,16 @@ func TestMCPToolFlow(t *testing.T) {
 	if head.Message != "Update Agent note" || head.Author != "admin" {
 		t.Errorf("head commit mismatch: %+v", head)
 	}
-	if len(head.Files) != 1 || head.Files[0] != "agent-note.md" {
+	if len(head.Files) != 1 || head.Files[0] != testNS+"/agent-note.md" {
 		t.Errorf("head commit files mismatch: %v", head.Files)
 	}
 
 	// Delete, then read 404s.
-	res = callTool(t, session, "delete_page", map[string]any{"slug": "agent-note"})
+	res = callTool(t, session, "delete_page", map[string]any{"slug": testNS + "/agent-note"})
 	if res.IsError {
 		t.Fatalf("delete failed: %s", toolText(t, res))
 	}
-	res = callTool(t, session, "read_page", map[string]any{"slug": "agent-note"})
+	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
 	if !res.IsError {
 		t.Error("read after delete succeeded, want error")
 	}
@@ -727,13 +734,13 @@ func TestMCPHealth(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	session := connectMCP(t, server, token)
 
-	// A dangling link at root, plus a namespaced page linking to it too, and
-	// an unlinked (orphan) namespaced page.
+	// A dangling link in one namespace, the same in another, and an unlinked
+	// (orphan) page alongside.
 	res := callTool(t, session, "save_page", map[string]any{
-		"slug": "agent-note", "title": "Agent note", "body": "see [[nowhere]]",
+		"slug": "blog/agent-note", "title": "Agent note", "body": "see [[nowhere]]",
 	})
 	if res.IsError {
-		t.Fatalf("save_page agent-note: %s", toolText(t, res))
+		t.Fatalf("save_page blog/agent-note: %s", toolText(t, res))
 	}
 	res = callTool(t, session, "save_page", map[string]any{
 		"slug": "notes/agent-note", "title": "Agent note", "body": "see [[nowhere]]",
@@ -836,7 +843,7 @@ func TestMCPNamespaceToolFlow(t *testing.T) {
 	}
 
 	res := callTool(t, session, "save_namespace", map[string]any{
-		"name": "notes", "public": true, "widgets": []string{"search"},
+		"name": "blog", "public": true, "widgets": []string{"search"},
 	})
 	if res.IsError {
 		t.Fatalf("save_namespace: %s", toolText(t, res))
@@ -847,16 +854,16 @@ func TestMCPNamespaceToolFlow(t *testing.T) {
 		Hash       string `json:"hash"`
 	}
 	toolJSON(t, res, &saved)
-	if saved.Name != "notes" || !saved.Configured || saved.Hash == "" {
-		t.Errorf("save_namespace = %+v, want configured notes with hash", saved)
+	if saved.Name != "blog" || !saved.Configured || saved.Hash == "" {
+		t.Errorf("save_namespace = %+v, want configured blog with hash", saved)
 	}
 
 	res = callTool(t, session, "list_namespaces", nil)
-	if res.IsError || !strings.Contains(toolText(t, res), `"name":"notes"`) {
-		t.Fatalf("list_namespaces missing notes: %s", toolText(t, res))
+	if res.IsError || !strings.Contains(toolText(t, res), `"name":"blog"`) {
+		t.Fatalf("list_namespaces missing blog: %s", toolText(t, res))
 	}
 
-	res = callTool(t, session, "read_namespace", map[string]any{"name": "notes"})
+	res = callTool(t, session, "read_namespace", map[string]any{"name": "blog"})
 	if res.IsError {
 		t.Fatalf("read_namespace: %s", toolText(t, res))
 	}
@@ -866,24 +873,24 @@ func TestMCPNamespaceToolFlow(t *testing.T) {
 		Hash   string `json:"hash"`
 	}
 	toolJSON(t, res, &current)
-	if current.Name != "notes" || !current.Public || current.Hash != saved.Hash {
-		t.Errorf("read_namespace = %+v, want public notes with hash %q", current, saved.Hash)
+	if current.Name != "blog" || !current.Public || current.Hash != saved.Hash {
+		t.Errorf("read_namespace = %+v, want public blog with hash %q", current, saved.Hash)
 	}
 
 	res = callTool(t, session, "save_namespace", map[string]any{
-		"name": "notes", "widgets": []string{"search"}, "basehash": "stale",
+		"name": "blog", "widgets": []string{"search"}, "basehash": "stale",
 	})
 	if !res.IsError || !strings.Contains(toolText(t, res), "conflict") {
 		t.Errorf("stale save_namespace = %+v, want conflict", res)
 	}
 
 	res = callTool(t, session, "save_page", map[string]any{
-		"slug": "notes/agent-note", "title": "Agent note", "body": "hello",
+		"slug": "blog/agent-note", "title": "Agent note", "body": "hello",
 	})
 	if res.IsError {
 		t.Fatalf("saving namespace page: %s", toolText(t, res))
 	}
-	res = callTool(t, session, "delete_namespace", map[string]any{"name": "notes"})
+	res = callTool(t, session, "delete_namespace", map[string]any{"name": "blog"})
 	if !res.IsError {
 		t.Fatal("delete_namespace succeeded with a page present")
 	}
@@ -903,8 +910,10 @@ func TestMCPRestrictedToken(t *testing.T) {
 		t.Fatalf("list_pages: %s", toolText(t, res))
 	}
 	toolJSON(t, res, &pages)
-	if len(pages.Pages) != 1 || pages.Pages[0].Slug != "notes/allowed" {
-		t.Errorf("list_pages returned %+v, want only notes/allowed", pages.Pages)
+	for _, page := range pages.Pages {
+		if !strings.HasPrefix(page.Slug, "notes/") {
+			t.Errorf("list_pages leaked %q", page.Slug)
+		}
 	}
 
 	var hits mcpSearchOut
@@ -942,7 +951,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 	}
 
 	admin := connectMCP(t, server, settingsToken)
-	for _, slug := range []string{"readme", "notes/allowed", "private/denied"} {
+	for _, slug := range []string{testHome, "notes/allowed", "private/denied"} {
 		if res := callTool(t, admin, "read_page", map[string]any{"slug": slug}); res.IsError {
 			t.Errorf("settings token read %s: %s", slug, toolText(t, res))
 		}
@@ -1035,7 +1044,7 @@ func TestMCPScopes(t *testing.T) {
 	}
 
 	writer := connectMCP(t, server, writerToken)
-	if res := callTool(t, writer, "save_page", map[string]any{"slug": "writer-note", "body": "hello"}); res.IsError {
+	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
 		t.Fatalf("write scope save_page: %s", toolText(t, res))
 	}
 	if res := callTool(t, writer, "list_pages", nil); !res.IsError {
@@ -1046,13 +1055,13 @@ func TestMCPScopes(t *testing.T) {
 	}
 
 	manager := connectMCP(t, server, managerToken)
-	if res := callTool(t, manager, "save_namespace", map[string]any{"name": "notes", "widgets": []string{"search"}}); res.IsError {
+	if res := callTool(t, manager, "save_namespace", map[string]any{"name": "blog", "widgets": []string{"search"}}); res.IsError {
 		t.Fatalf("settings scope save_namespace: %s", toolText(t, res))
 	}
 	if res := callTool(t, manager, "list_pages", nil); res.IsError {
 		t.Fatalf("settings scope list_pages: %s", toolText(t, res))
 	}
-	if res := callTool(t, manager, "save_page", map[string]any{"slug": "manager-note", "body": "nope"}); res.IsError {
+	if res := callTool(t, manager, "save_page", map[string]any{"slug": testNS + "/manager-note", "body": "nope"}); res.IsError {
 		t.Fatalf("settings scope save_page: %s", toolText(t, res))
 	}
 }
@@ -1095,7 +1104,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	app.refreshNamespaces()
 
 	token := createTokenViaUI(t, server, client, "laptop", "30d", []string{"read"}, []string{"notes"})
-	rootToken := createTokenViaUI(t, server, client, "root-pages", "30d", []string{"read"}, []string{""})
+	privateToken := createTokenViaUI(t, server, client, "private-pages", "30d", []string{"read"}, []string{"private"})
 
 	// The token authenticates API requests.
 	req, _ := http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
@@ -1123,18 +1132,18 @@ func TestTokenSettingsUI(t *testing.T) {
 		path string
 		want int
 	}{
-		{"/readme", http.StatusOK},
+		{"/private/denied", http.StatusOK},
 		{"/notes/allowed", http.StatusForbidden},
 	} {
 		req, _ := http.NewRequest(http.MethodGet, server.URL+tc.path, nil)
-		req.Header.Set("Authorization", "Bearer "+rootToken)
-		rootResp, err := http.DefaultClient.Do(req)
+		req.Header.Set("Authorization", "Bearer "+privateToken)
+		privateResp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Fatalf("root-only request %s failed: %v", tc.path, err)
+			t.Fatalf("private-only request %s failed: %v", tc.path, err)
 		}
-		closeTestBody(t, rootResp.Body)
-		if rootResp.StatusCode != tc.want {
-			t.Errorf("root-only request %s = %d, want %d", tc.path, rootResp.StatusCode, tc.want)
+		closeTestBody(t, privateResp.Body)
+		if privateResp.StatusCode != tc.want {
+			t.Errorf("private-only request %s = %d, want %d", tc.path, privateResp.StatusCode, tc.want)
 		}
 	}
 
@@ -1169,8 +1178,8 @@ func TestTokenSettingsUI(t *testing.T) {
 	if selected.ScopeLabel != "read" {
 		t.Errorf("selected token scope label = %q, want read", selected.ScopeLabel)
 	}
-	if root := findToken("root-pages"); len(root.Namespaces) != 1 || root.Namespaces[0] != "" || root.NamespaceLabel != "root only" {
-		t.Errorf("root token = %#v, want root-only namespace access", root)
+	if priv := findToken("private-pages"); len(priv.Namespaces) != 1 || priv.Namespaces[0] != "private" || priv.NamespaceLabel != "private only" {
+		t.Errorf("private token = %#v, want private-only namespace access", priv)
 	}
 	if all := findToken("all-pages"); all.NamespaceLabel != "All namespaces" {
 		t.Errorf("unrestricted token namespace label = %q, want All namespaces", all.NamespaceLabel)
@@ -1182,7 +1191,7 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Errorf("token namespace catalogue = %v, want [notes private]", settingsData.TokenNamespaces)
 	}
 
-	for _, path := range []string{"/readme", "/private/denied"} {
+	for _, path := range []string{"/" + testHome, "/private/denied"} {
 		req, _ := http.NewRequest(http.MethodGet, server.URL+path, nil)
 		req.Header.Set("Authorization", "Bearer "+allNamespacesToken)
 		allResp, err := http.DefaultClient.Do(req)
@@ -1232,7 +1241,7 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Errorf("invalid forms created tokens: got %d, want 4", len(app.Auth.TokensFor("admin")))
 	}
 
-	for _, path := range []string{"/readme", "/private/denied"} {
+	for _, path := range []string{"/" + testHome, "/private/denied"} {
 		req, _ := http.NewRequest(http.MethodGet, server.URL+path, nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		adminResp, err := http.DefaultClient.Do(req)
@@ -1266,8 +1275,8 @@ func TestTokenSettingsUI(t *testing.T) {
 	if !strings.Contains(string(pageBody), "laptop") {
 		t.Error("settings page missing token row")
 	}
-	if !strings.Contains(string(pageBody), `name="namespaces" value=""`) {
-		t.Error("settings page missing root namespace toggle")
+	if !strings.Contains(string(pageBody), `name="namespaces" value="`+testNS+`"`) {
+		t.Errorf("settings page missing the %s namespace toggle", testNS)
 	}
 	if !strings.Contains(string(pageBody), time.Now().Add(30*24*time.Hour).Format("2006-01-02")) {
 		t.Error("settings page missing 30-day expiry date")
@@ -1295,7 +1304,7 @@ func TestTokenSettingsUI(t *testing.T) {
 }
 
 func TestTokenExpiry(t *testing.T) {
-	cfg := Config{AppDir: t.TempDir(), RepoDir: t.TempDir(), AdminUser: "admin", AdminPass: "test", HomeFilename: "readme.md"}
+	cfg := Config{AppDir: t.TempDir(), RepoDir: t.TempDir(), AdminUser: "admin", AdminPass: "test"}
 	auth, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)

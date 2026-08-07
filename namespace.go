@@ -17,9 +17,16 @@ import (
 // namespaceConfigFile is the name of the optional per-namespace config file.
 const namespaceConfigFile = ".namespace.yaml"
 
-// reservedNamespace is the one top-level segment a namespace may never take
-// — the app's own routes live under it.
+// attachmentsDir is the top-level directory uploads live under.
+const attachmentsDir = "attachments"
+
+// reservedNamespace is the top-level segment the app's own routes live
+// under, so no namespace may take it.
 const reservedNamespace = "_"
+
+// reservedTopLevel names every top-level directory that is repo furniture
+// rather than a namespace: the route segment plus the upload directory.
+var reservedTopLevel = map[string]bool{reservedNamespace: true, attachmentsDir: true}
 
 // NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a
 // page in this namespace.
@@ -28,9 +35,9 @@ type NewPageConfig struct {
 	Slug     string `yaml:"slug" json:"slug"`
 }
 
-// NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml (or the
-// repo-root .namespace.yaml for root-level pages). Every field is optional;
-// its absence is not an error, it just means the built-in defaults apply.
+// NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml. Every
+// field is optional; its absence is not an error, it just means the built-in
+// defaults apply.
 type NamespaceConfig struct {
 	Widgets []string       `yaml:"widgets,omitempty"`
 	Public  bool           `yaml:"public,omitempty"`
@@ -133,12 +140,8 @@ func slugPatternFor(key string) string {
 	return ""
 }
 
-// namespaceConfigPath is the repo-relative path of ns's config file ("" is
-// the root namespace, whose config sits at the repo root).
+// namespaceConfigPath is the repo-relative path of ns's config file.
 func namespaceConfigPath(ns string) string {
-	if ns == "" {
-		return namespaceConfigFile
-	}
 	return ns + "/" + namespaceConfigFile
 }
 
@@ -202,11 +205,14 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 	return cfg
 }
 
-// validNamespaceName reports whether name can be a namespace: not the
-// reserved "_" segment, not dot-prefixed (ignored, like hidden files).
+// validNamespaceName reports whether name can be a namespace: a single
+// non-empty path segment, not a reserved top-level directory, not
+// dot-prefixed (ignored, like hidden files) and not "_"-prefixed (the app's
+// own route segment, reserved the same way page segments reserve it).
 func validNamespaceName(name string) bool {
-	return name != "" && name != "/" && name != `\` && name != reservedNamespace &&
-		!strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".")
+	return name != "" && !reservedTopLevel[name] &&
+		!strings.ContainsAny(name, `/\`) &&
+		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 
 // validMCPPageSegment accepts one non-hidden page-name segment. It is kept
@@ -236,19 +242,12 @@ func validPagePath(rest string) bool {
 	return true
 }
 
-// validMCPPageSlug accepts a root page or a namespace plus a (possibly
-// nested) page path within it. MCP is a trust boundary, so unlike regular
-// URL routing it rejects traversal-shaped, hidden and reserved path
-// components explicitly.
+// validMCPPageSlug accepts a namespace plus a (possibly nested) page path
+// within it. MCP is a trust boundary, so unlike regular URL routing it
+// rejects traversal-shaped, hidden and reserved path components explicitly.
 func validMCPPageSlug(slug string) bool {
 	ns, rest := namespaceFor(slug)
-	if rest == "" {
-		return false
-	}
-	if ns == "" {
-		return validMCPPageSegment(rest)
-	}
-	return validNamespaceName(ns) && !strings.HasPrefix(ns, reservedNamespace) && validPagePath(rest)
+	return validNamespaceName(ns) && validPagePath(rest)
 }
 
 // normaliseNamespaceConfig validates the shared namespace-settings shape used
@@ -359,7 +358,7 @@ func sortNavTree(node *navNode) {
 // absolute hrefs (/ns/path) since the live app always serves from its own
 // root, not a relative-path static bundle. canWrite adds a "+" link per
 // folder to create a page nested there — the same /ns/path/new?do=edit
-// pattern the namespace index's own root-level "Create page" button uses,
+// pattern the namespace index's own top-level "Create page" button uses,
 // landing on the ordinary new-page editor with the filename field prefilled.
 // currentPath (a page's slug remainder within ns, "" if not applicable)
 // marks that page's link .current.
@@ -403,12 +402,12 @@ func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, canWrit
 	b.WriteString("</ul>")
 }
 
-// NamespaceRegistry maps a namespace name ("" for root-level pages) to its
+// NamespaceRegistry maps a namespace name to its
 // resolved config. Rebuilt wholesale by BuildNamespaceRegistry — see
 // search.go's pollFS, which already rescans the repo on a timer.
 type NamespaceRegistry map[string]NamespaceConfig
 
-// NamespaceSummary is the shared catalogue entry for one non-root namespace.
+// NamespaceSummary is the shared catalogue entry for one namespace.
 type NamespaceSummary struct {
 	Name   string
 	Config NamespaceConfig
@@ -417,7 +416,8 @@ type NamespaceSummary struct {
 }
 
 // namespaceSummaries combines configured namespaces with namespace prefixes
-// found in the page index. Root-level pages never create a catalogue entry.
+// found in the page index — a namespace exists once it has either a config
+// file or a page, whichever came first.
 func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []NamespaceSummary {
 	entries := make(map[string]*NamespaceSummary)
 	include := func(name string, cfg NamespaceConfig) *NamespaceSummary {
@@ -430,18 +430,20 @@ func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []Names
 	}
 
 	for name, cfg := range reg {
-		if name != "" && cfg.Configured {
+		if cfg.Configured {
 			include(name, cfg)
 		}
 	}
 	for slug, title := range titles {
-		if name, _ := namespaceFor(slug); name != "" {
-			entry := include(name, reg.Resolve(slug))
-			if title == "" {
-				title = slug
-			}
-			entry.Pages = append(entry.Pages, BacklinkEntry{Slug: slug, Title: title})
+		name, rest := namespaceFor(slug)
+		if rest == "" {
+			continue
 		}
+		entry := include(name, reg.Resolve(slug))
+		if title == "" {
+			title = slug
+		}
+		entry.Pages = append(entry.Pages, BacklinkEntry{Slug: slug, Title: title})
 	}
 
 	result := make([]NamespaceSummary, 0, len(entries))
@@ -467,11 +469,11 @@ func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name s
 	return nil
 }
 
-// BuildNamespaceRegistry scans repoDir for namespaces: the root config plus
-// one directory per non-dot-prefixed, non-reserved top-level subdirectory.
-// Namespaces are exactly one level deep — nothing here walks further.
+// BuildNamespaceRegistry scans repoDir for namespaces: one directory per
+// non-dot-prefixed, non-reserved top-level subdirectory. Namespaces are
+// exactly one level deep — nothing here walks further.
 func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
-	reg := NamespaceRegistry{"": loadNamespaceConfig(repoDir, "")}
+	reg := NamespaceRegistry{}
 
 	entries, err := os.ReadDir(repoDir)
 	if err != nil {
@@ -487,14 +489,16 @@ func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
 }
 
 // namespaceFor splits a slug into its namespace name and the remainder of
-// the slug within that namespace. Namespaces are exactly one level deep:
-// "blog/drafts/post" is in namespace "blog" with rest "drafts/post";
+// the slug within that namespace. Every page lives in a namespace, so a
+// well-formed slug always has both halves. Namespaces are exactly one level
+// deep: "blog/drafts/post" is in namespace "blog" with rest "drafts/post";
 // subdirectories beyond the first segment are filing, not namespace
-// structure. A slug with no "/" is a root-level page, namespace "".
+// structure. A slug with no "/" names a namespace, not a page, and yields an
+// empty rest — callers treating "" as "not a page" is the check.
 func namespaceFor(slug string) (ns, rest string) {
 	i := strings.Index(slug, "/")
 	if i == -1 {
-		return "", slug
+		return slug, ""
 	}
 	return slug[:i], slug[i+1:]
 }
@@ -502,9 +506,6 @@ func namespaceFor(slug string) (ns, rest string) {
 // namespaceSlug builds a full page slug from a namespace name and the
 // remainder of the slug within it — the inverse of namespaceFor.
 func namespaceSlug(ns, rest string) string {
-	if ns == "" {
-		return rest
-	}
 	return ns + "/" + rest
 }
 
@@ -524,23 +525,38 @@ func (r NamespaceRegistry) IsPublic(slug string) bool {
 	return r.Resolve(slug).Public
 }
 
-// Names returns every namespace name in the registry, sorted, root ("")
-// first if present. Used by the read-only namespace list in settings.
+// Names returns every namespace name in the registry, sorted. Used by the
+// read-only namespace list in settings.
 func (r NamespaceRegistry) Names() []string {
 	names := make([]string, 0, len(r))
 	for name := range r {
 		names = append(names, name)
 	}
-	sort.Slice(names, func(i, j int) bool {
-		if names[i] == "" {
-			return true
-		}
-		if names[j] == "" {
-			return false
-		}
-		return names[i] < names[j]
-	})
+	sort.Strings(names)
 	return names
+}
+
+// IndexSlug returns the full slug of ns's configured index page, or "" if it
+// has none. The index page stands in for the namespace's page listing, so
+// it's the page a TOC in that namespace omits and the one orphan detection
+// treats as a root rather than an unreferenced page.
+func (r NamespaceRegistry) IndexSlug(ns string) string {
+	if cfg, ok := r[ns]; ok && cfg.Index != "" {
+		return namespaceSlug(ns, cfg.Index)
+	}
+	return ""
+}
+
+// IndexSlugs returns every namespace's index-page slug.
+func (r NamespaceRegistry) IndexSlugs() []string {
+	slugs := make([]string, 0, len(r))
+	for ns := range r {
+		if slug := r.IndexSlug(ns); slug != "" {
+			slugs = append(slugs, slug)
+		}
+	}
+	sort.Strings(slugs)
+	return slugs
 }
 
 // NamespaceListEntry is one row of the namespace editor in system

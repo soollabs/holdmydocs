@@ -52,8 +52,9 @@ type OIDCConfig struct {
 	BaseURL      string // public base URL, used to build the OIDC redirect URI
 }
 
-// Config is the install-wide runtime configuration. Everything comes from
-// the YAML config file except a handful of env vars: HMD_APP_DIR and
+// Config is the install-wide runtime configuration. Portable wiki identity
+// and landing settings live in the repository's .wiki.yaml; everything here
+// comes from the local YAML config file except a handful of env vars: HMD_APP_DIR and
 // HMD_CONFIG_FILE (bootstrap — they say where the file lives),
 // HMD_ADMIN_USER / HMD_ADMIN_PASSWORD (first-run bootstrap credentials)
 // and HMD_GIT_TOKEN / HMD_GIT_TOKEN_FILE / HMD_OIDC_CLIENT_SECRET
@@ -72,13 +73,10 @@ type Config struct {
 
 	Bind           string
 	RepoDir        string
-	SiteName       string
 	MaxUploadBytes int64
 	SyncPollMs     int
 	SyncMode       string
 	DefaultBranch  string
-	HomeFilename   string
-	Landing        string // slug "/" redirects to; empty = HomeSlug()
 	Skin           string
 	Debug          bool
 
@@ -91,13 +89,10 @@ type Config struct {
 type fileConfig struct {
 	Bind           string `yaml:"bind"`
 	RepoDir        string `yaml:"repo_dir"`
-	SiteName       string `yaml:"site_name"`
 	MaxUploadBytes *int64 `yaml:"max_upload_bytes"`
 	SyncPollMs     *int   `yaml:"sync_poll_ms"`
 	SyncMode       string `yaml:"sync_mode"`
 	DefaultBranch  string `yaml:"default_branch"`
-	HomeFilename   string `yaml:"home_filename"`
-	Landing        string `yaml:"landing"`
 	Skin           string `yaml:"skin"`
 	Debug          bool   `yaml:"debug"`
 
@@ -238,13 +233,10 @@ func LoadConfig() (Config, error) {
 
 		Bind:           or(file.Bind, ":8080"),
 		RepoDir:        or(file.RepoDir, "/data/repo"),
-		SiteName:       or(file.SiteName, "hold my docs (hmd)"),
 		MaxUploadBytes: orInt64(file.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:     orInt(file.SyncPollMs, 10000),
 		SyncMode:       or(file.SyncMode, "push"),
 		DefaultBranch:  or(file.DefaultBranch, "main"),
-		HomeFilename:   or(file.HomeFilename, "readme.md"),
-		Landing:        file.Landing,
 		Skin:           or(file.Skin, defaultSkin),
 		Debug:          file.Debug,
 
@@ -284,10 +276,6 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("invalid skin %q: must be one of %v", cfg.Skin, skinNames)
 	}
 
-	if err := cfg.validateHomeFilename(); err != nil {
-		return Config{}, err
-	}
-
 	if cfg.OIDC.Issuer != "" {
 		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" {
 			return Config{}, fmt.Errorf("oidc.client_id/oidc.client_secret must be set when oidc.issuer is set")
@@ -298,41 +286,6 @@ func LoadConfig() (Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// validateHomeFilename enforces the constraints on home_filename:
-// must end in .md, contain no path separators, and not be dot-prefixed
-// (dot-prefixed files are the hidden-page namespace). The home page is
-// special-cased throughout the app, so a malformed value fails loudly at
-// startup rather than producing surprising behaviour later.
-func (c Config) validateHomeFilename() error {
-	f := c.HomeFilename
-	if !strings.HasSuffix(f, ".md") {
-		return fmt.Errorf("invalid home_filename %q: must end in .md", f)
-	}
-	if strings.ContainsAny(f, "/\\") {
-		return fmt.Errorf("invalid home_filename %q: must not contain a path separator", f)
-	}
-	if strings.HasPrefix(f, ".") {
-		return fmt.Errorf("invalid home_filename %q: must not be dot-prefixed (reserved for hidden pages)", f)
-	}
-	return nil
-}
-
-// HomeSlug returns the page slug derived from HomeFilename (the filename
-// without its .md suffix, lowercased). The home page is excluded from TOC
-// listings and served at /page/<HomeSlug>.
-func (c Config) HomeSlug() string {
-	return strings.ToLower(strings.TrimSuffix(c.HomeFilename, ".md"))
-}
-
-// LandingSlug returns the page slug "/" redirects to: the configured
-// landing slug if set, else the home page.
-func (c Config) LandingSlug() string {
-	if c.Landing != "" {
-		return c.Landing
-	}
-	return c.HomeSlug()
 }
 
 // toFileConfig snapshots the currently effective config (file values plus
@@ -352,13 +305,10 @@ func (c Config) toFileConfig() fileConfig {
 	return fileConfig{
 		Bind:           c.Bind,
 		RepoDir:        c.RepoDir,
-		SiteName:       c.SiteName,
 		MaxUploadBytes: int64Ptr(c.MaxUploadBytes),
 		SyncPollMs:     intPtr(c.SyncPollMs),
 		SyncMode:       c.SyncMode,
 		DefaultBranch:  c.DefaultBranch,
-		HomeFilename:   c.HomeFilename,
-		Landing:        c.Landing,
 		Skin:           c.Skin,
 		Debug:          c.Debug,
 		Git:            git,

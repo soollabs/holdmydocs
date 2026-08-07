@@ -278,5 +278,5 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   30 * 24 * 60 * 60, // SSO users get the "remember me" lifetime
 	})
-	http.Redirect(w, r, "/"+app.config().HomeSlug(), http.StatusSeeOther)
+	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }

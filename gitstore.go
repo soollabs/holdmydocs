@@ -57,8 +57,8 @@ type Store struct {
 	knownHead  plumbing.Hash
 	NeedsSetup atomic.Bool
 	// ForceSetup is set by the "re-run setup" button in settings — it shows
-	// the modal even when the home file/.help.md already exist, unlike NeedsSetup
-	// which only reflects files actually missing.
+	// the modal even when a namespace, .wiki.yaml and .help.md already exist, unlike
+	// NeedsSetup which only reflects what is actually missing.
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
 
@@ -82,12 +82,13 @@ type Store struct {
 // A var (not const) so tests can shrink it.
 var fetchThrottle = 2 * time.Second
 
-// defaultHomeMD is the clean welcome page seeded into any repo that does not
-// already contain the configured home file (HMD_HOME_FILENAME, default
-// readme.md). It has a TOC token listing pages in its own namespace (root,
-// since the home file lives there). Seeding readme.md rather than home.md
-// means the same file shows up rendered on the git host's front page
-// (GitHub, git, etc. all render readme.md case-insensitively).
+// defaultIndexPage is the name of the index page seeded into the first
+// namespace: the page that takes over /{namespace}/ in place of the built-in
+// listing (NamespaceConfig.Index).
+const defaultIndexPage = "readme"
+
+// defaultHomeMD is the clean welcome page seeded as the first namespace's
+// index page. Its TOC token lists that namespace's pages.
 const defaultHomeMD = `# Welcome to hold my docs (hmd)
 
 This wiki is plain markdown files in a git repository. Every save is a commit
@@ -99,10 +100,21 @@ namespaces (top-level directories) and linked with ` + "`[[Page Title]]`" + ` wi
 ` + "<!-- hmd:toc -->" + `
 `
 
+// rootReadmeMD is repo furniture, not a page: git hosts (GitHub, git, …)
+// render readme.md on a repository's front page, so a plain one at the repo
+// root gives anyone browsing the content repo directly some orientation.
+// Store.List skips top-level .md files, so the wiki itself never indexes,
+// serves or edits it — it's written once at setup and left alone.
+const rootReadmeMD = `# hold my docs (hmd)
+
+A wiki, stored as markdown. Each top-level directory is a namespace and each
+` + "`.md`" + ` file inside one is a page; ` + "`[[Page Title]]`" + ` links pages together.
+Edit the files here directly or through the app — both are commits either way.
+`
+
 // defaultHelpMD is the built-in "how hold my docs (hmd) works" guide seeded as a hidden
-// dot-file (.help.md). Unlike the home file, this is not a user choice during
-// setup — it's app documentation, seeded unconditionally. Covers both UI
-// usage and the on-disk markdown conventions, for humans and agents alike.
+// dot-file (.help.md), offered as its own item in the setup modal. Covers both
+// UI usage and the on-disk markdown conventions, for humans and agents alike.
 const defaultHelpMD = `# Help
 
 ## Finding pages
@@ -148,9 +160,10 @@ or out of this set.
 
 Two pages, both behind the "settings" scope. ` + "`/_/settings`" + ` is personal:
 skin, palette, fonts, your git author and your access tokens.
-` + "`/_/admin`" + ` is the wiki: git remote, site name, behaviour like upload
-limits and users. "Re-run setup" on ` + "`/_/admin`" + ` reopens the
-home page setup prompt if you ever need to re-add it.
+` + "`/_/admin`" + ` manages the instance: git remote, behaviour like upload
+limits and users. Its separate wiki configuration section edits the repository's
+` + "`.wiki.yaml`" + ` (site name and landing page). "Re-run setup" on ` + "`/_/admin`" + ` reopens the
+first-namespace setup prompt if you ever need it again.
 
 Namespace management has its own settings page at ` + "`/_/namespaces`" + `.
 
@@ -164,8 +177,10 @@ failed, since every save is an auto-pushed commit.
 
 ## File names
 
-- One page per Markdown file, lowercase, hyphenated: ` + "`running-the-app.md`" + `.
-- The slug is the filename without the ` + "`.md`" + ` suffix. The home page is ` + "`readme.md`" + ` (configurable via ` + "`HMD_HOME_FILENAME`" + `).
+- One page per Markdown file, lowercase, hyphenated: ` + "`docs/running-the-app.md`" + `.
+- Every page lives in a namespace directory; the slug is the path without the ` + "`.md`" + ` suffix, e.g. ` + "`docs/running-the-app`" + `.
+- A namespace's ` + "`index`" + ` setting names the page that serves ` + "`/<namespace>/`" + `; ` + "`/`" + ` itself goes wherever ` + "`.wiki.yaml`" + `'s ` + "`landing`" + ` key points.
+- ` + "`.wiki.yaml`" + ` sits at the repository root and sets the wiki's ` + "`site_name`" + ` and ` + "`landing`" + `; it travels with the content to another hmd instance.
 - Attachments live under ` + "`attachments/<slug>/<file>`" + `.
 
 ## Frontmatter
@@ -217,14 +232,14 @@ writes too.
 
 ## Namespaces
 
-A namespace is a top-level directory in the repo: ` + "`blog/post.md`" + ` is in
-the ` + "`blog`" + ` namespace, ` + "`readme.md`" + ` is in the root one. Anything
+A namespace is a top-level directory in the repo, and every page lives in
+one: ` + "`blog/post.md`" + ` is in the ` + "`blog`" + ` namespace. Anything
 deeper (` + "`blog/drafts/post.md`" + `) is just filing — namespaces are exactly
 one level deep.
 
-The public namespace index is ` + "`/<namespace>/`" + ` and a namespace page is
-` + "`/<namespace>/<page>`" + `. A bare ` + "`/<namespace>`" + ` remains a root
-page URL, never an index alias. Public namespaces are visible without signing
+The namespace index is ` + "`/<namespace>/`" + ` (or the bare
+` + "`/<namespace>`" + `, which serves the same thing) and a page is
+` + "`/<namespace>/<page>`" + `. Public namespaces are visible without signing
 in; private and unknown namespace indexes both return the same not-found page.
 
 A namespace decides three things for the pages in it, via an optional
@@ -271,7 +286,7 @@ it keeps every page and hidden template. True deletion is available only when
 there are no pages or hidden files, so move or remove those first. Writing
 ` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
 
-MCP clients use the same model: page tools accept a root page or one
+MCP clients use the same model: page tools accept a
 ` + "`namespace/page`" + ` slug; ` + "`list_namespaces`" + ` lists namespaces;
 ` + "`read_namespace`" + `, ` + "`save_namespace`" + ` and ` + "`delete_namespace`" + `
 manage their settings. Page reads require read scope, page writes require write
@@ -312,16 +327,32 @@ func HelpDrifted(store *Store) bool {
 }
 
 // seedOrFlagSetup never writes anything without consent: it only sets the
-// NeedsSetup flag when the configured home file and/or .help.md is missing,
-// on any repo — fresh, cloned, or existing. The setup modal decides what
-// actually gets seeded, based on what the user selects. The home file is
-// named by HMD_HOME_FILENAME (default README.md); .help.md is fixed.
-func seedOrFlagSetup(store *Store, cfg Config) {
-	_, homeErr := os.Stat(filepath.Join(store.dir, cfg.HomeFilename))
+// NeedsSetup flag when the repo holds no namespace to file pages in, lacks its
+// portable .wiki.yaml and/or has no .help.md, on any repo — fresh, cloned, or
+// existing. The setup modal decides what actually gets seeded, based on what
+// the user selects.
+func seedOrFlagSetup(store *Store) {
+	_, wikiErr := os.Stat(filepath.Join(store.dir, wikiConfigFile))
 	_, helpErr := os.Stat(filepath.Join(store.dir, ".help.md"))
-	if homeErr != nil || helpErr != nil {
+	if !hasNamespace(store.dir) || wikiErr != nil || helpErr != nil {
 		store.NeedsSetup.Store(true)
 	}
+}
+
+// hasNamespace reports whether dir holds at least one namespace directory —
+// the wiki has somewhere to put a page. Cheaper and more direct than
+// building the whole registry, which is what the app does on its own timer.
+func hasNamespace(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.IsDir() && validNamespaceName(e.Name()) {
+			return true
+		}
+	}
+	return false
 }
 
 func OpenStore(cfg Config) (*Store, error) {
@@ -347,7 +378,7 @@ func OpenStore(cfg Config) (*Store, error) {
 			syncState: "ok",
 		}
 		store.lastSuccessUnix.Store(time.Now().Unix())
-		seedOrFlagSetup(store, cfg)
+		seedOrFlagSetup(store)
 		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
 		return store, nil
 	}
@@ -387,7 +418,7 @@ func OpenStore(cfg Config) (*Store, error) {
 		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.Git.RemoteURL)
 
 		// Seed if the cloned repo is fresh or missing pages
-		seedOrFlagSetup(store, cfg)
+		seedOrFlagSetup(store)
 
 		return store, nil
 	}
@@ -432,7 +463,7 @@ init_empty_remote:
 	}
 
 	// Seed help + home for fresh repos
-	seedOrFlagSetup(store, cfg)
+	seedOrFlagSetup(store)
 
 	return store, nil
 }
@@ -881,7 +912,7 @@ func (s *Store) List() ([]string, error) {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if strings.HasPrefix(name, ".") || name == "attachments" {
+			if strings.HasPrefix(name, ".") || name == attachmentsDir {
 				return filepath.SkipDir
 			}
 			return nil
@@ -892,6 +923,11 @@ func (s *Store) List() ([]string, error) {
 		rel, err := filepath.Rel(s.dir, path)
 		if err != nil {
 			return err
+		}
+		// Every page lives in a namespace, so a top-level .md file is repo
+		// furniture (rootReadmeMD) rather than content.
+		if !strings.Contains(rel, string(filepath.Separator)) {
+			return nil
 		}
 		paths = append(paths, filepath.ToSlash(rel))
 		return nil

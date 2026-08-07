@@ -173,9 +173,9 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	// Token/PAT filtering happens back in render(), after this call, the
 	// same way PinnedPages and NamespaceNav do — this only stages the raw
 	// entries, since the tree can't be filtered after it's already flattened
-	// to HTML. Root pages ("" namespace) have no folder structure to show —
-	// every root slug is a single segment by construction — so the widget
-	// stays empty there rather than showing an empty tree shell.
+	// to HTML. A page outside any namespace (settings and other app pages)
+	// has no tree to show, so the widget stays empty there rather than
+	// rendering an empty shell.
 	if needs("tree") && ns != "" {
 		summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), ns)
 		if summary != nil {

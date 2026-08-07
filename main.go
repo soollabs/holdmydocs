@@ -88,6 +88,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("open store failed: %v", err)
 	}
+	wiki, _, err := LoadWikiConfig(cfg.RepoDir)
+	if err != nil {
+		slog.Warn("loading wiki config", "err", err)
+		wiki = defaultWikiConfig()
+	}
 
 	// Load all pages and build index
 	paths, err := store.List()
@@ -151,12 +156,13 @@ func main() {
 		Tmpl:   tmpl,
 	}
 	app.SetConfig(cfg)
+	app.SetWikiConfig(wiki)
 	app.SetNamespaces(namespaces)
 
 	// Pages can be added or edited directly on disk (outside the UI, e.g. by
 	// git pull), so poll for changes rather than relying solely on handler
 	// updates.
-	go pollFS(store, index, hashes, app.SetNamespaces)
+	go pollFS(store, index, hashes, app.SetNamespaces, app.SetWikiConfig)
 
 	// OIDC: run discovery at startup when configured; fail loudly if the
 	// issuer is unreachable rather than serving a broken SSO button.

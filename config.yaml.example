@@ -11,7 +11,8 @@
 # HMD_OIDC_CLIENT_ID). Environment values override this file, useful for
 # Docker/k8s deployments. Unknown keys are rejected at startup.
 #
-# All keys are optional; omit anything you want left at its default.
+# All keys are optional; omit anything you want left at its default. Wiki
+# identity and landing settings are stored separately in <repo_dir>/.wiki.yaml.
 #
 # Skin, palette and fonts are per-user preferences, set from /settings —
 # not in this file.
@@ -40,12 +41,6 @@ git:
 # Set via HMD_ADMIN_USER / HMD_ADMIN_PASSWORD env vars only (first run).
 # Manage users afterwards with `hmd adduser <name>`.
 
-# --- Site ---
-# Site name. It is the only display label: terminal prompts render
-# <logged-in user>@<site_name>$; typographic skins use it as a masthead;
-# breadcrumbs start with it.
-site_name: Homelab Wiki
-
 # --- Behaviour ---
 max_upload_bytes: 10485760   # 10 MiB
 sync_poll_ms: 10000
@@ -54,12 +49,6 @@ sync_poll_ms: 10000
 # so changes pushed by other writers appear in the UI automatically)
 # sync_mode: bidirectional
 # default_branch: main   # branch name used when initialising a fresh local repo
-# Home page file. Must end in .md, no path separators, not dot-prefixed.
-# Default readme.md renders on the git host front page (GitHub, git, Gitea).
-# home_filename: readme.md
-# Page slug "/" redirects to. Default: the home page above. Point it at a
-# namespaced slug (e.g. journal/2026-07-24) or anything else you like.
-# landing: journal/2026-07-24
 # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
 # A skin controls presentation and widget arrangement, not storage. Users can
 # override it from /settings.

@@ -41,7 +41,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: "routing-target", Title: "Routing Target", Body: "hello"}
+	page := Page{Slug: testNS + "/routing-target", Title: "Routing Target", Body: "hello"}
 	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	// view (no do=)
-	resp := get("/routing-target")
+	resp := get("/" + testNS + "/routing-target")
 	body, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("hello")) {
@@ -66,7 +66,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	// ?do=edit
-	resp = get("/routing-target?do=edit")
+	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 	basehashRe := regexp.MustCompile(`name="basehash" value="([0-9a-f]*)"`)
@@ -77,14 +77,14 @@ func TestDoDispatchPerAction(t *testing.T) {
 	basehash := m[1]
 
 	// ?do=history
-	resp = get("/routing-target?do=history")
+	resp = get("/" + testNS + "/routing-target?do=history")
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=history: status = %d", resp.StatusCode)
 	}
 
 	// POST ?do=tags
-	tagResp, err := client.PostForm(server.URL+"/routing-target?do=tags", url.Values{"tags": {"a, b"}})
+	tagResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=tags", url.Values{"tags": {"a, b"}})
 	if err != nil {
 		t.Fatalf("POST ?do=tags: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	// ?do=tags just saved a new revision, so basehash is stale — re-fetch it.
-	resp = get("/routing-target?do=edit")
+	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 	m = basehashRe.FindStringSubmatch(string(body))
@@ -104,7 +104,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	basehash = m[1]
 
 	// ?do=diff needs two real hashes: save once more, then diff head against itself's prior hash.
-	saveResp, err := client.PostForm(server.URL+"/routing-target?do=save", url.Values{
+	saveResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=save", url.Values{
 		"title": {"Routing Target"}, "body": {"hello v2"}, "basehash": {basehash},
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Fatalf("?do=save: status = %d, want 303", saveResp.StatusCode)
 	}
 
-	histResp := get("/routing-target?do=history")
+	histResp := get("/" + testNS + "/routing-target?do=history")
 	histBody, _ := io.ReadAll(histResp.Body)
 	closeTestBody(t, histResp.Body)
 	// history.html renders rev links as ?do=rev&hash=...; html/template escapes
@@ -127,21 +127,21 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 	hashA, hashB := hashes[0][1], hashes[1][1]
 
-	resp = get("/routing-target?do=diff&a=" + hashA + "&b=" + hashB)
+	resp = get("/" + testNS + "/routing-target?do=diff&a=" + hashA + "&b=" + hashB)
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=diff: status = %d", resp.StatusCode)
 	}
 
 	// ?do=rev&hash=
-	resp = get("/routing-target?do=rev&hash=" + hashA)
+	resp = get("/" + testNS + "/routing-target?do=rev&hash=" + hashA)
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=rev: status = %d", resp.StatusCode)
 	}
 
 	// POST ?do=revert
-	revertResp, err := client.PostForm(server.URL+"/routing-target?do=revert", url.Values{"hash": {hashA}})
+	revertResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=revert", url.Values{"hash": {hashA}})
 	if err != nil {
 		t.Fatalf("POST ?do=revert: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	// POST ?do=rename
-	renameResp, err := client.PostForm(server.URL+"/routing-target?do=rename", url.Values{"title": {"Routing Target Renamed"}})
+	renameResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=rename", url.Values{"title": {"Routing Target Renamed"}})
 	if err != nil {
 		t.Fatalf("POST ?do=rename: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	// POST ?do=delete, on the renamed slug.
-	deleteResp, err := client.Post(server.URL+"/routing-target-renamed?do=delete", "", nil)
+	deleteResp, err := client.Post(server.URL+"/"+testNS+"/routing-target-renamed?do=delete", "", nil)
 	if err != nil {
 		t.Fatalf("POST ?do=delete: %v", err)
 	}
@@ -169,10 +169,10 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if deleteResp.StatusCode != http.StatusSeeOther {
 		t.Errorf("?do=delete: status = %d, want 303", deleteResp.StatusCode)
 	}
-	if app.Index.Exists("routing-target-renamed") {
+	if app.Index.Exists(testNS + "/routing-target-renamed") {
 		t.Error("?do=delete: page still in search index")
 	}
-	resp = get("/routing-target-renamed")
+	resp = get("/" + testNS + "/routing-target-renamed")
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("view after delete: status = %d, want 404", resp.StatusCode)
@@ -209,7 +209,7 @@ func TestUnrecognisedDoValue404s(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/readme?do=bogus")
+	resp, err := client.Get(server.URL + "/" + testHome + "?do=bogus")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestPageNamedEditIsReachable(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: "edit", Title: "edit", Body: "a page named edit"}
+	page := Page{Slug: testNS + "/edit", Title: "edit", Body: "a page named edit"}
 	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
@@ -234,14 +234,14 @@ func TestPageNamedEditIsReachable(t *testing.T) {
 		t.Fatalf("updating index: %v", err)
 	}
 
-	resp, err := client.Get(server.URL + "/edit")
+	resp, err := client.Get(server.URL + "/" + testNS + "/edit")
 	if err != nil {
-		t.Fatalf("GET /edit: %v", err)
+		t.Fatalf("GET /%s/edit: %v", testNS, err)
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("a page named edit")) {
-		t.Errorf("GET /edit: status = %d, body = %s", resp.StatusCode, body)
+		t.Errorf("GET /%s/edit: status = %d, body = %s", testNS, resp.StatusCode, body)
 	}
 }
 
@@ -282,7 +282,7 @@ func TestNoBrokenLinksSmoke(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: "smoke-page", Title: "Smoke Page", Tags: []string{"smoke"}, Body: "links to [[readme]]"}
+	page := Page{Slug: testNS + "/smoke-page", Title: "Smoke Page", Tags: []string{"smoke"}, Body: "links to [[notes]]"}
 	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestNoBrokenLinksSmoke(t *testing.T) {
 		t.Fatalf("updating index: %v", err)
 	}
 
-	pages := []string{"/readme", "/smoke-page", "/_/tags"}
+	pages := []string{"/" + testHome, "/" + testNS + "/smoke-page", "/_/tags"}
 
 	seen := make(map[string]bool)
 	for _, p := range pages {

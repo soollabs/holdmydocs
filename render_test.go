@@ -8,6 +8,7 @@ import (
 func TestRender(t *testing.T) {
 	tests := []struct {
 		name            string
+		ns              string
 		resolve         func(title, ns string) (string, bool)
 		input           string
 		wantContains    []string
@@ -28,16 +29,18 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:            "existing wiki link",
-			resolve:         func(title, ns string) (string, bool) { return "alpha", title == "Alpha" },
+			ns:              "notes",
+			resolve:         func(title, ns string) (string, bool) { return "notes/alpha", title == "Alpha" },
 			input:           "go to [[Alpha]]",
-			wantContains:    []string{"class=\"wiki\"", "href=\"/alpha\"", "<span class=\"br\">[[</span>Alpha<span class=\"br\">]]</span>"},
+			wantContains:    []string{"class=\"wiki\"", "href=\"/notes/alpha\"", "<span class=\"br\">[[</span>Alpha<span class=\"br\">]]</span>"},
 			wantNotContains: []string{"class=\"missing"},
 		},
 		{
 			name:         "missing wiki link",
-			resolve:      func(title, ns string) (string, bool) { return "alpha", title == "Alpha" },
+			ns:           "notes",
+			resolve:      func(title, ns string) (string, bool) { return "notes/alpha", title == "Alpha" },
 			input:        "go to [[Nowhere]]",
-			wantContains: []string{"class=\"missing wiki\"", "href=\"/nowhere\"", "<span class=\"missing-suffix\">+</span>"},
+			wantContains: []string{"class=\"missing wiki\"", "href=\"/notes/nowhere\"", "<span class=\"missing-suffix\">+</span>"},
 		},
 		{
 			name:            "wiki link title is escaped",
@@ -70,7 +73,7 @@ func TestRender(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewRenderer(tt.resolve)
-			output, err := r.Render(tt.input, "")
+			output, err := r.Render(tt.input, tt.ns)
 			if err != nil {
 				t.Fatalf("Render failed: %v", err)
 			}

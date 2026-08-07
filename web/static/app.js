@@ -499,13 +499,25 @@
     const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
       `<a href="/_/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
       `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
-    const createRow = (query && !paletteVerbMode)
-      ? `<a href="/${slugifyQuery(query)}?do=edit" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}"</a>`
+    const createRow = (query && !paletteVerbMode && createNamespace())
+      ? `<a href="${createHref(query)}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}" in ${escapeHtml(createNamespace())}</a>`
       : '';
     paletteResults.innerHTML = rowsHtml + builtinHtml + createRow;
     if (!paletteVerbMode) {
       paletteCount.textContent = paletteRows.length > 0 ? paletteRows.length + (query ? ' matches' : ' recent') : '';
     }
+  }
+
+  // Every page lives in a namespace, so the palette creates into the one the
+  // current page is in, falling back to the quick-create namespace. With
+  // neither (settings pages on a wiki with no namespaces) there is nowhere to
+  // put a page and the create row stays hidden.
+  function createNamespace() {
+    return window.hmdNamespace || window.hmdNewNamespace || '';
+  }
+
+  function createHref(query) {
+    return '/' + createNamespace() + '/' + slugifyQuery(query) + '?do=edit';
   }
 
   function slugifyQuery(q) {
@@ -707,8 +719,8 @@
     const isSettings = !paletteCreateMode && paletteSelected === paletteRows.length + 1;
     const isCreate = paletteSelected === paletteRows.length + builtinCount() && paletteInput.value;
     if (isCreate) {
-      const slug = slugifyQuery(paletteInput.value);
-      window.location.href = '/' + slug + '?do=edit';
+      if (!createNamespace()) return;
+      window.location.href = createHref(paletteInput.value);
       return;
     }
     if (isHidden) {

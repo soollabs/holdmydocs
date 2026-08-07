@@ -4,7 +4,7 @@ package main
 // spacing, borders, markers — the :root[data-skin] blocks in
 // web/static/skins.css), which statusline segments show, and which colour
 // palette it arrives with. Widget composition is a namespace property
-// (namespace.go); where "/" lands is a config property (Config.Landing);
+// (namespace.go); where "/" lands is a portable wiki property (.wiki.yaml);
 // whether ctrl-j is live depends on whether the journal namespace has a
 // `new:` template (namespace.go) — none of those are a skin's decision.
 //

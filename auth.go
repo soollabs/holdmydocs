@@ -332,11 +332,7 @@ func (a *Auth) Users() []UserSummary {
 func normaliseTokenNamespaces(namespaces []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(namespaces))
 	for _, raw := range namespaces {
-		// An empty entry explicitly permits root pages; a nil list permits all.
-		if raw == "" {
-			seen[""] = struct{}{}
-			continue
-		}
+		// A nil list permits every namespace; an entry names one it's limited to.
 		namespace := strings.TrimSpace(raw)
 		if !validNamespaceName(namespace) {
 			return nil, fmt.Errorf("invalid namespace %q", namespace)

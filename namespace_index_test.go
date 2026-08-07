@@ -43,7 +43,7 @@ func TestNamespaceIndex(t *testing.T) {
 	}
 
 	mustStatus(client, "/blog/", http.StatusOK)
-	mustStatus(client, "/blog", http.StatusNotFound)
+	mustStatus(client, "/blog", http.StatusOK) // the bare name is the same index
 	_, page := body(client, "/blog/")
 	for _, want := range []string{"/blog/first", "/blog/second", "2 pages", `href="/_/namespaces/blog/edit"`} {
 		if !strings.Contains(page, want) {
@@ -59,14 +59,8 @@ func TestNamespaceIndex(t *testing.T) {
 
 	// The sidebar has to link to the trailing-slash index or it is unreachable
 	// by navigation.
-	if _, home := body(client, "/readme"); !strings.Contains(home, `href="/blog/"`) {
+	if _, home := body(client, "/"+testHome); !strings.Contains(home, `href="/blog/"`) {
 		t.Errorf("sidebar has no link to /blog/, body: %s", home)
-	}
-
-	// A real root page remains independent from its namespace.
-	savePage(t, app, "blog", "Root blog")
-	if _, got := body(client, "/blog"); !strings.Contains(got, "Root blog") {
-		t.Errorf("a real page must win over the namespace index, body: %s", got)
 	}
 
 	// Anonymous: unknown and private namespace indexes have byte-identical 404s.

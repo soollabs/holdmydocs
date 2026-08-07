@@ -19,6 +19,7 @@
 		window.hmdNewEnabled = {{.NewPageEnabled}};
 		window.hmdNewNamespace = {{.NewNamespace}};
 		window.hmdNamespaceIndex = {{.IsNamespaceIndex}};
+		window.hmdNamespace = {{.Namespace}};
 		window.HMDSyncThemeColor = function() {
 			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 		};
@@ -126,18 +127,43 @@
 	<div class="setup-modal-backdrop">
 		<div class="setup-modal">
 			<h1 class="page-title"><span class="h"></span>Set up wiki</h1>
-			<p>Checkboxes start selected; no pages are added until you submit &ldquo;Add selected&rdquo;.</p>
+			<p>Nothing is written until you submit &ldquo;Add selected&rdquo;.</p>
 
 			<form method="POST" action="/_/setup">
 
-			{{if .NeedsHomeSetup}}
+			{{if .NeedsWikiSetup}}
+			<div class="setup-item">
+				<input type="hidden" name="setup_wiki" value="on">
+				<div class="setup-item-head">
+					<span class="setup-item-title">Wiki configuration</span>
+					<code class="setup-item-file">.wiki.yaml</code>
+				</div>
+				<p class="setup-item-desc">Choose where this wiki opens. The detected namespaces are already in the repository; selecting one does not change it. Or create a new namespace with a welcome page instead.</p>
+				<div class="setup-item-head">
+					<label class="setup-item-title" for="setup-site-name">site name</label>
+					<input class="setup-item-input" id="setup-site-name" type="text" name="site_name" value="{{.SetupSiteName}}">
+				</div>
+				<div class="setup-item-head">
+					<label class="setup-item-title" for="default-namespace">default namespace</label>
+					<select class="setup-item-input" id="default-namespace" name="default_namespace">
+						{{range .SetupNamespaces}}<option value="{{.}}">{{.}}/</option>{{end}}
+						<option value="_new" {{if not .SetupNamespaces}}selected{{end}}>create a new namespace</option>
+					</select>
+				</div>
+				<div class="setup-item-head">
+					<label class="setup-item-title" for="new-namespace">new namespace</label>
+					<input class="setup-item-input" id="new-namespace" type="text" name="new_namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">
+				</div>
+			</div>
+			{{end}}
+
+			{{if .NeedsNamespaceSetup}}
 			<div class="setup-item">
 				<div class="setup-item-head">
-					<label class="setup-item-title"><input type="checkbox" name="add_home" {{if not .HomeFileExists}}checked{{end}}> Home page</label>
-					<code class="setup-item-file">{{.HomeFilename}}</code>
-					{{if .HomeFileExists}}<span class="setup-badge">exists</span>{{end}}
+					<label class="setup-item-title"><input type="checkbox" name="add_namespace" checked> First namespace</label>
+					<input class="setup-item-input" type="text" name="namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">
 				</div>
-				<p class="setup-item-desc">The welcome page served at <code>/</code>. Lists every page in the wiki via a table-of-contents token. Filename is set by <code>HMD_HOME_FILENAME</code> and can be changed (restart required).{{if .HomeFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
+				<p class="setup-item-desc">Pages live in namespaces &mdash; a namespace is a directory in the repo. This creates the first one with a welcome page as its index, and points <code>/</code> at it, so it is where signing in takes you. Add more later on <code>/_/namespaces</code>.</p>
 				<details class="setup-preview">
 					<summary>Preview content</summary>
 					<div class="setup-preview-body">{{.SetupHomePreview}}</div>

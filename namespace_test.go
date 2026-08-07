@@ -91,7 +91,7 @@ func TestNamespaceFor(t *testing.T) {
 		wantR  string
 	}{
 		{"blog/drafts/post", "blog", "drafts/post"},
-		{"readme", "", "readme"},
+		{"notes", "notes", ""}, // a single segment names a namespace, not a page
 		{"journal/2026-07-27", "journal", "2026-07-27"},
 	}
 	for _, tt := range tests {
@@ -108,6 +108,9 @@ func TestValidNamespaceNameRejectsReserved(t *testing.T) {
 	}
 	if validNamespaceName(".hidden") {
 		t.Error("dot-prefixed directories must be rejected as namespaces")
+	}
+	if validNamespaceName(attachmentsDir) {
+		t.Error("the attachments directory must be rejected as a namespace name")
 	}
 	if !validNamespaceName("blog") {
 		t.Error("blog should be a valid namespace name")
@@ -426,10 +429,9 @@ func TestNamespaceManagementRejectsOtherDirectoryContentWithoutMutation(t *testi
 func TestStoreDeleteNamespaceRejectsContentWithoutMutation(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := OpenStore(Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	})
 	if err != nil {
 		t.Fatalf("OpenStore: %v", err)

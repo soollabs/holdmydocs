@@ -92,7 +92,7 @@ func BuildIndex(pages []Page) (*Index, error) {
 //
 // polling, not fsnotify — this is a personal wiki, a 5s lag on
 // externally-written pages is fine. Switch to fsnotify if that stops being true.
-func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry)) {
+func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
 	for range time.Tick(5 * time.Second) {
 		store.DropHistoryOnExternalCommit()
 
@@ -100,6 +100,11 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 			slog.Warn("pollFS: namespace registry rebuild failed", "err", err)
 		} else {
 			setNamespaces(reg)
+		}
+		if wiki, _, err := LoadWikiConfig(store.dir); err != nil {
+			slog.Warn("pollFS: wiki config reload failed", "err", err)
+		} else {
+			setWikiConfig(wiki)
 		}
 
 		paths, err := store.List()
@@ -421,10 +426,17 @@ func (ix *Index) PagesForTags(tagSlugs []string) []string {
 
 // Health reports wiki-link problems: missing maps each wiki-linked slug that
 // has no page to the sorted list of pages linking to it; orphans lists pages
-// with no backlinks, excluding homeSlug (hidden pages are never indexed).
-func (ix *Index) Health(homeSlug string) (missing map[string][]string, orphans []string) {
+// with no backlinks. roots are the namespace index pages, which stand in for
+// their namespace's listing and so are never orphans (hidden pages are never
+// indexed).
+func (ix *Index) Health(roots []string) (missing map[string][]string, orphans []string) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
+
+	isRoot := make(map[string]bool, len(roots))
+	for _, slug := range roots {
+		isRoot[slug] = true
+	}
 
 	sources := make(map[string]map[string]bool)
 	linked := make(map[string]bool)
@@ -458,7 +470,7 @@ func (ix *Index) Health(homeSlug string) (missing map[string][]string, orphans [
 	}
 
 	for slug := range ix.titles {
-		if slug == homeSlug {
+		if isRoot[slug] {
 			continue
 		}
 		if !linked[slug] {

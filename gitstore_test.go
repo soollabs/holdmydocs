@@ -29,10 +29,9 @@ func initBareRepo(dir string) (*git.Repository, error) {
 func TestInitNoRemote(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -59,23 +58,30 @@ func TestInitNoRemote(t *testing.T) {
 	}
 }
 
-func TestHomeNotTouchedWhenPresent(t *testing.T) {
+// TestExistingContentSkipsSetup checks a repo that already has a namespace,
+// .wiki.yaml and .help.md needs no setup, and opening it rewrites nothing.
+func TestExistingContentSkipsSetup(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	}
 
-	homePath := filepath.Join(tmpDir, "readme.md")
+	homePath := filepath.Join(tmpDir, "notes", "readme.md")
+	if err := os.MkdirAll(filepath.Dir(homePath), 0755); err != nil {
+		t.Fatalf("creating notes namespace: %v", err)
+	}
 	custom := []byte("---\ntitle: Home\ntags: \n---\n\n# My custom home\n")
 	if err := os.WriteFile(homePath, custom, 0644); err != nil {
-		t.Fatalf("writing custom readme.md: %v", err)
+		t.Fatalf("writing custom notes/readme.md: %v", err)
 	}
 	helpPath := filepath.Join(tmpDir, ".help.md")
 	if err := os.WriteFile(helpPath, []byte("---\ntitle: Help\n---\n\n# My custom help\n"), 0644); err != nil {
 		t.Fatalf("writing custom .help.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, wikiConfigFile), []byte("landing: notes/\nsite_name: Existing Wiki\n"), 0644); err != nil {
+		t.Fatalf("writing %s: %v", wikiConfigFile, err)
 	}
 
 	store, err := OpenStore(cfg)
@@ -84,14 +90,21 @@ func TestHomeNotTouchedWhenPresent(t *testing.T) {
 	}
 
 	if store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be false when both readme.md and .help.md already exist")
+		t.Errorf("NeedsSetup should be false when a namespace, .wiki.yaml and .help.md already exist")
 	}
 	after, err := os.ReadFile(homePath)
 	if err != nil {
-		t.Fatalf("reading readme.md after open: %v", err)
+		t.Fatalf("reading notes/readme.md after open: %v", err)
 	}
 	if string(after) != string(custom) {
-		t.Error("readme.md was overwritten on open; existing files must not be touched")
+		t.Error("notes/readme.md was overwritten on open; existing files must not be touched")
+	}
+	if err := os.Remove(filepath.Join(tmpDir, wikiConfigFile)); err != nil {
+		t.Fatalf("removing %s: %v", wikiConfigFile, err)
+	}
+	seedOrFlagSetup(store)
+	if !store.NeedsSetup.Load() {
+		t.Errorf("NeedsSetup should be true when %s is missing", wikiConfigFile)
 	}
 }
 
@@ -113,15 +126,14 @@ func TestBuiltInHelpDocumentsNamespaces(t *testing.T) {
 // TestListRecurses checks Store.List() walks into namespace subdirectories
 // (arbitrarily deep, since filing within a namespace isn't bounded to one
 // level) while excluding attachments/, dot-prefixed directories and files,
-// and non-.md files — this is what lets any namespace's pages reach the
+// top-level .md files (repo furniture, not pages) and non-.md files — this is what lets any namespace's pages reach the
 // search index and startup page list generically, not just a hardcoded one.
 func TestListRecurses(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	}
 
 	write := func(rel string) {
@@ -133,7 +145,7 @@ func TestListRecurses(t *testing.T) {
 			t.Fatalf("writing %s: %v", rel, err)
 		}
 	}
-	write("readme.md")
+	write("readme.md") // repo furniture at the root, not a page
 	write("blog/post.md")
 	write("blog/drafts/deep-post.md")
 	write("attachments/blog/post/pic.png") // not .md, and under attachments/ anyway
@@ -154,7 +166,7 @@ func TestListRecurses(t *testing.T) {
 		t.Fatalf("List failed: %v", err)
 	}
 
-	want := map[string]bool{"readme.md": true, "blog/post.md": true, "blog/drafts/deep-post.md": true}
+	want := map[string]bool{"blog/post.md": true, "blog/drafts/deep-post.md": true}
 	got := make(map[string]bool, len(paths))
 	for _, p := range paths {
 		got[p] = true
@@ -193,7 +205,7 @@ func TestListRecurses(t *testing.T) {
 }
 
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
-	// Pre-create a git repo with a commit (content but no readme.md).
+	// Pre-create a git repo with a commit (root content but no namespace).
 	tmpDir := t.TempDir()
 	repo, err := git.PlainInit(tmpDir, false)
 	if err != nil {
@@ -218,10 +230,9 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	}
 
 	cfg := Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
@@ -229,9 +240,9 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Existing repo with content but no readme.md should flag for setup.
+	// Existing root-only content should flag for setup.
 	if !store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be true for existing repo missing readme.md")
+		t.Errorf("NeedsSetup should be true for existing root-only content")
 	}
 
 	// readme.md and .help.md must NOT have been auto-seeded.
@@ -251,10 +262,9 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 	}
 
 	cfg := Config{
-		RepoDir:      tmpDir,
-		AppDir:       t.TempDir(),
-		Git:          GitConfig{User: "test"},
-		HomeFilename: "readme.md",
+		RepoDir: tmpDir,
+		AppDir:  t.TempDir(),
+		Git:     GitConfig{User: "test"},
 	}
 
 	store, err := OpenStore(cfg)
