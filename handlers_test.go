@@ -353,6 +353,34 @@ func TestPreview(t *testing.T) {
 	}
 }
 
+func TestAPIsRejectRootPageSlugs(t *testing.T) {
+	server, client := newTestApp(t)
+	defer server.Close()
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{http.MethodGet, "/_/api/preview/readme", http.StatusNotFound},
+		{http.MethodPost, "/_/api/attachments/readme", http.StatusBadRequest},
+		{http.MethodGet, "/_/attachments/readme/file.png", http.StatusNotFound},
+	} {
+		req, err := http.NewRequest(tc.method, server.URL+tc.path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != tc.want {
+			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, resp.StatusCode, tc.want)
+		}
+	}
+}
+
 // TestUnauthenticatedAccess covers the two anonymous outcomes on a wiki with
 // no public namespaces: the site root still redirects to login (so a login
 // wall stays reachable), while a specific content page — private, like

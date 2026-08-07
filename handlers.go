@@ -1796,6 +1796,10 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
+	if !isPageSlug(slug) {
+		http.Error(w, "invalid slug", http.StatusBadRequest)
+		return
+	}
 	username := app.currentUser(r)
 
 	// Limit request body to the configured maximum
@@ -1891,6 +1895,10 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 	slug, file := path[:i], path[i+1:]
 	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	if !isPageSlug(slug) {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -2054,6 +2062,10 @@ func extractSnippet(body string, wordCount int) string {
 func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
+		return
+	}
+	if !isPageSlug(slug) {
+		http.NotFound(w, r)
 		return
 	}
 
