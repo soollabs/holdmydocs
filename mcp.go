@@ -38,9 +38,10 @@ type mcpNamespaceIn struct {
 }
 
 type mcpNamespaceMeta struct {
-	Name   string `json:"name"`
-	Pages  int    `json:"pages"`
-	Public bool   `json:"public"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Pages       int    `json:"pages"`
+	Public      bool   `json:"public"`
 }
 
 type mcpNamespacesOut struct {
@@ -48,27 +49,29 @@ type mcpNamespacesOut struct {
 }
 
 type mcpNamespaceOut struct {
-	Name    string         `json:"name"`
-	Widgets []string       `json:"widgets"`
-	Public  bool           `json:"public"`
-	Title   string         `json:"title,omitempty"`
-	Skin    string         `json:"skin,omitempty"`
-	Palette string         `json:"palette,omitempty"`
-	Index   string         `json:"index,omitempty"`
-	New     *NewPageConfig `json:"new,omitempty"`
-	Hash    string         `json:"hash"`
+	Name        string         `json:"name"`
+	Widgets     []string       `json:"widgets"`
+	Public      bool           `json:"public"`
+	Title       string         `json:"title,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Skin        string         `json:"skin,omitempty"`
+	Palette     string         `json:"palette,omitempty"`
+	Index       string         `json:"index,omitempty"`
+	New         *NewPageConfig `json:"new,omitempty"`
+	Hash        string         `json:"hash"`
 }
 
 type mcpSaveNamespaceIn struct {
-	Name     string         `json:"name" jsonschema:"namespace name, e.g. notes"`
-	Widgets  []string       `json:"widgets,omitempty"`
-	Public   bool           `json:"public"`
-	Title    string         `json:"title,omitempty"`
-	Skin     string         `json:"skin,omitempty"`
-	Palette  string         `json:"palette,omitempty"`
-	Index    string         `json:"index,omitempty"`
-	New      *NewPageConfig `json:"new,omitempty"`
-	BaseHash string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
+	Name        string         `json:"name" jsonschema:"namespace name, e.g. notes"`
+	Widgets     []string       `json:"widgets,omitempty"`
+	Public      bool           `json:"public"`
+	Title       string         `json:"title,omitempty"`
+	Description string         `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters"`
+	Skin        string         `json:"skin,omitempty"`
+	Palette     string         `json:"palette,omitempty"`
+	Index       string         `json:"index,omitempty"`
+	New         *NewPageConfig `json:"new,omitempty"`
+	BaseHash    string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
 }
 
 type mcpSlugIn struct {
@@ -309,7 +312,7 @@ func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
 
 func mcpNamespaceOutput(name string, cfg NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
-		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title,
+		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
 		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, New: cfg.New, Hash: hash,
 	}
 }
@@ -352,7 +355,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",
-		Description: "List accessible namespaces with page counts and publishing status.",
+		Description: "List accessible namespaces with descriptions, page counts and publishing status.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpNamespacesOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpNamespacesOut{}, err
@@ -362,7 +365,7 @@ func (app *App) mcpHandler() http.Handler {
 			if !tokenAllowsNamespace(ctx, summary.Name) {
 				continue
 			}
-			out.Namespaces = append(out.Namespaces, mcpNamespaceMeta{Name: summary.Name, Pages: summary.Count, Public: summary.Config.Public})
+			out.Namespaces = append(out.Namespaces, mcpNamespaceMeta{Name: summary.Name, Description: summary.Config.Description, Pages: summary.Count, Public: summary.Config.Public})
 		}
 		return nil, out, nil
 	})
@@ -400,7 +403,7 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpNamespaceOut{}, err
 		}
 		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{
-			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Skin: in.Skin,
+			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
 			Palette: in.Palette, Index: in.Index, New: in.New,
 		}, newPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
 		if err != nil {

@@ -16,6 +16,7 @@ func TestParseNamespaceConfig(t *testing.T) {
 	yaml := []byte(`
 widgets: [calendar, writing-stats, prev-entries]
 public: true
+description: Daily notes and decisions
 new:
   template: entry
   slug: '{{.Now.Format "2006-01-02"}}'
@@ -30,8 +31,18 @@ new:
 	if !cfg.Public {
 		t.Error("Public = false, want true")
 	}
+	if cfg.Description != "Daily notes and decisions" {
+		t.Errorf("Description = %q", cfg.Description)
+	}
 	if cfg.New == nil || cfg.New.Template != "entry" {
 		t.Errorf("New = %+v", cfg.New)
+	}
+}
+
+func TestNormaliseNamespaceConfigDescriptionLimit(t *testing.T) {
+	_, err := normaliseNamespaceConfig("notes", NamespaceConfig{Description: strings.Repeat("x", maxNamespaceDescriptionRunes+1)}, newPageTemplateData{})
+	if err == nil {
+		t.Errorf("description longer than %d characters was accepted", maxNamespaceDescriptionRunes)
 	}
 }
 
@@ -232,6 +243,7 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"backlinks"}, "public": {"on"},
+		"description": {"Writing and research"},
 		"new_enabled": {"on"}, "slug_preset": {"daily"},
 	})
 	if err != nil {
@@ -248,6 +260,9 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	}
 	if !cfg.Public {
 		t.Error("blog should be public")
+	}
+	if cfg.Description != "Writing and research" {
+		t.Errorf("description = %q", cfg.Description)
 	}
 	if cfg.New == nil || cfg.New.Template != defaultNewPageTemplate {
 		t.Errorf("new-page config = %+v, want template %q", cfg.New, defaultNewPageTemplate)
@@ -695,7 +710,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	adminLogin(t, server, client)
 
 	// A hand-written config: non-default template name, pattern no preset produces.
-	custom := `{{.User}}/x`
+	custom := `{{.User}}-x`
 	if err := writeNamespaceConfig(t, app, "blog", "widgets: [pages]\nnew:\n  template: entry\n  slug: '"+custom+"'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}

@@ -228,6 +228,46 @@ type Auth struct {
 	mu           sync.RWMutex
 }
 
+// normaliseUserRecord validates persisted access policy. Appearance preferences
+// remain permissive so removing a theme option never blocks startup. Session
+// data is deliberately excluded: it is disposable and handled best-effort below.
+func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
+	scopes, err := normaliseTokenScopes(rec.Scopes)
+	if err != nil {
+		return userRecord{}, fmt.Errorf("user %q scopes: %w", name, err)
+	}
+	rec.Scopes = scopes
+	seen := make(map[string]struct{}, len(rec.Tokens))
+	for i := range rec.Tokens {
+		token := &rec.Tokens[i]
+		token.Name = strings.TrimSpace(token.Name)
+		if token.Name == "" {
+			return userRecord{}, fmt.Errorf("user %q has a token without a name", name)
+		}
+		if _, ok := seen[token.Name]; ok {
+			return userRecord{}, fmt.Errorf("user %q has duplicate token name %q", name, token.Name)
+		}
+		seen[token.Name] = struct{}{}
+		if _, err := bcrypt.Cost([]byte(token.Hash)); err != nil {
+			return userRecord{}, fmt.Errorf("user %q token %q has invalid hash: %w", name, token.Name, err)
+		}
+		tokenScopes, err := normaliseTokenScopes(token.Scopes)
+		if err != nil {
+			return userRecord{}, fmt.Errorf("user %q token %q scopes: %w", name, token.Name, err)
+		}
+		if token.Scopes != nil && len(tokenScopes) == 0 {
+			return userRecord{}, fmt.Errorf("user %q token %q scopes cannot be empty", name, token.Name)
+		}
+		token.Scopes = tokenScopes
+		namespaces, err := normaliseTokenNamespaces(token.Namespaces)
+		if err != nil {
+			return userRecord{}, fmt.Errorf("user %q token %q namespaces: %w", name, token.Name, err)
+		}
+		token.Namespaces = namespaces
+	}
+	return rec, nil
+}
+
 func OpenAuth(cfg Config) (*Auth, error) {
 	// Create app dir if needed
 	err := os.MkdirAll(cfg.AppDir, 0755)
@@ -251,6 +291,13 @@ func OpenAuth(cfg Config) (*Auth, error) {
 		err = json.Unmarshal(data, &auth.users)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshalling users: %w", err)
+		}
+		for name, rec := range auth.users {
+			rec, err = normaliseUserRecord(name, rec)
+			if err != nil {
+				return nil, err
+			}
+			auth.users[name] = rec
 		}
 	} else if os.IsNotExist(err) {
 		// File doesn't exist

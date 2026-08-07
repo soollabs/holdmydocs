@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -43,6 +45,16 @@ func TestBootstrapAdmin(t *testing.T) {
 	_, ok = auth.UserFor(token)
 	if ok {
 		t.Errorf("UserFor(token) should fail after Logout")
+	}
+}
+
+func TestOpenAuthAcceptsUnknownPersistedAppearanceSettings(t *testing.T) {
+	appDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appDir, "users.json"), []byte(`{"alice":{"palette":"nope"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenAuth(Config{AppDir: appDir}); err != nil {
+		t.Fatalf("OpenAuth rejected an unknown persisted palette: %v", err)
 	}
 }
 

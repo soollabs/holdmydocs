@@ -324,11 +324,12 @@ user can override their own from `/settings`.
 ## Namespaces
 
 Every page belongs to one top-level namespace. Its optional, repository-tracked
-`.namespace.yaml` controls publishing, the public title, skin, palette, index
-page, page-creation defaults and authenticated widget composition:
+`.namespace.yaml` controls a brief description, publishing, the public title,
+skin, palette, index page, page-creation defaults and authenticated widget composition:
 
 ```yaml
 public: true
+description: Internal engineering notes
 title: Documentation
 skin: newsprint
 palette: solarized

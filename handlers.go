@@ -3042,7 +3042,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	// if it gets a template page seeded below.
 	creating := !app.Namespaces()[name].Configured
 
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: strings.TrimSpace(r.FormValue("title")), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: strings.TrimSpace(r.FormValue("title")), Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.

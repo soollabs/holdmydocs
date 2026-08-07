@@ -11,12 +11,15 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
 )
 
 // namespaceConfigFile is the name of the optional per-namespace config file.
 const namespaceConfigFile = ".namespace.yaml"
+
+const maxNamespaceDescriptionRunes = 255
 
 // attachmentsDir is the top-level directory uploads live under.
 const attachmentsDir = "attachments"
@@ -40,12 +43,13 @@ type NewPageConfig struct {
 // field is optional; its absence is not an error, it just means the built-in
 // defaults apply.
 type NamespaceConfig struct {
-	Widgets []string       `yaml:"widgets,omitempty"`
-	Public  bool           `yaml:"public,omitempty"`
-	Title   string         `yaml:"title,omitempty"`
-	Skin    string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = defaultSkin
-	Palette string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
-	New     *NewPageConfig `yaml:"new,omitempty"`
+	Widgets     []string       `yaml:"widgets,omitempty"`
+	Public      bool           `yaml:"public,omitempty"`
+	Title       string         `yaml:"title,omitempty"`
+	Description string         `yaml:"description,omitempty" json:"description,omitempty"`
+	Skin        string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = defaultSkin
+	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
+	New         *NewPageConfig `yaml:"new,omitempty"`
 
 	// Index names a page in this namespace (one segment, e.g. "home") that
 	// takes over /{namespace}/ in place of the built-in page-list view. Empty
@@ -285,6 +289,10 @@ func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
 	}
 	cfg.Title = strings.TrimSpace(cfg.Title)
+	cfg.Description = strings.TrimSpace(cfg.Description)
+	if utf8.RuneCountInString(cfg.Description) > maxNamespaceDescriptionRunes {
+		return NamespaceConfig{}, fmt.Errorf("namespace description must be at most %d characters", maxNamespaceDescriptionRunes)
+	}
 	cfg.Skin = strings.TrimSpace(cfg.Skin)
 	if cfg.Skin != "" && !slices.Contains(skinNames, cfg.Skin) {
 		return NamespaceConfig{}, fmt.Errorf("unknown skin %q", cfg.Skin)
@@ -619,15 +627,16 @@ func (r NamespaceRegistry) IndexSlugs() []string {
 // configuration: the resolved config of one namespace, as the form fields
 // that POST back to /_/settings/namespaces.
 type NamespaceListEntry struct {
-	Name       string
-	Widgets    []string
-	Public     bool
-	Title      string // published-site title; falls back to Name if empty
-	Skin       string // structural skin shown to public viewers; empty = defaultSkin
-	Palette    string // colour preset shown to public viewers; empty = skin's own default
-	Configured bool   // has a .namespace.yaml — i.e. there is something to remove
-	LoadError  string // why an existing .namespace.yaml was ignored, if it was
-	Index      string // page name that replaces the page-list view at /{namespace}/, if any
+	Name        string
+	Widgets     []string
+	Public      bool
+	Title       string // published-site title; falls back to Name if empty
+	Description string // brief namespace summary
+	Skin        string // structural skin shown to public viewers; empty = defaultSkin
+	Palette     string // colour preset shown to public viewers; empty = skin's own default
+	Configured  bool   // has a .namespace.yaml — i.e. there is something to remove
+	LoadError   string // why an existing .namespace.yaml was ignored, if it was
+	Index       string // page name that replaces the page-list view at /{namespace}/, if any
 
 	// New-page (ctrl-j) state. Template is carried through the form as a
 	// hidden field rather than asked for: it's a convention, and a
@@ -654,17 +663,18 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 	for _, name := range names {
 		cfg := r[name]
 		e := NamespaceListEntry{
-			Name:       name,
-			Widgets:    cfg.Widgets,
-			Public:     cfg.Public,
-			Title:      cfg.Title,
-			Skin:       cfg.Skin,
-			Palette:    cfg.Palette,
-			Configured: cfg.Configured,
-			LoadError:  cfg.LoadError,
-			Index:      cfg.Index,
-			Template:   defaultNewPageTemplate,
-			SlugPreset: slugPresets[0].Key,
+			Name:        name,
+			Widgets:     cfg.Widgets,
+			Public:      cfg.Public,
+			Title:       cfg.Title,
+			Description: cfg.Description,
+			Skin:        cfg.Skin,
+			Palette:     cfg.Palette,
+			Configured:  cfg.Configured,
+			LoadError:   cfg.LoadError,
+			Index:       cfg.Index,
+			Template:    defaultNewPageTemplate,
+			SlugPreset:  slugPresets[0].Key,
 		}
 		if cfg.New != nil {
 			e.NewEnabled = true
