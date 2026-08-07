@@ -84,6 +84,28 @@ func TestLoadNamespaceConfigUnknownWidgetIgnored(t *testing.T) {
 	}
 }
 
+func TestLoadNamespaceConfigInvalidSettingsFallBackToDefaults(t *testing.T) {
+	for name, yaml := range map[string]string{
+		"skin":    "skin: unknown\n",
+		"palette": "palette: unknown\n",
+		"index":   "index: ../private\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte(yaml), 0644); err != nil {
+				t.Fatal(err)
+			}
+			cfg := loadNamespaceConfig(dir, "blog")
+			if !cfg.Configured || cfg.LoadError == "" {
+				t.Errorf("invalid config = %+v, want configured fallback with an error", cfg)
+			}
+			if cfg.Skin != "" || cfg.Palette != "" || cfg.Index != "" || cfg.New != nil {
+				t.Errorf("invalid config = %+v, want defaults", cfg)
+			}
+		})
+	}
+}
+
 func TestNamespaceFor(t *testing.T) {
 	tests := []struct {
 		slug   string

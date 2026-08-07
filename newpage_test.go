@@ -145,6 +145,22 @@ func TestNewPageRejectsUnsafeRenderedSlugs(t *testing.T) {
 	}
 }
 
+func TestNewPageRejectsUnsafeTemplatePage(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	seedNewPageTemplate(t, app, "page", "Title", "Body.")
+	app.Namespaces()[testNS].New.Template = "../private"
+
+	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	if err != nil {
+		t.Fatalf("POST /_/new: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
 func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

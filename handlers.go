@@ -1280,6 +1280,10 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid generated slug", http.StatusBadRequest)
 		return
 	}
+	if !validMCPPageSegment(nsCfg.New.Template) {
+		http.Error(w, "invalid template page", http.StatusBadRequest)
+		return
+	}
 	slug := namespaceSlug(ns, slugRel)
 	if !app.requireTokenSlug(w, r, slug) {
 		return
@@ -1455,6 +1459,11 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	}
 
 	cfg := ns.Resolve(slug)
+	skin := resolveSkin(cfg.Skin)
+	palette := cfg.Palette
+	if palette == "" {
+		palette = skin.Palette
+	}
 	var sidebarTreeNS string
 	var sidebarTreeEntries []BacklinkEntry
 	if summary := namespaceSummaryFor(ns, app.Index.Titles(), pageNS); summary != nil {
@@ -1471,8 +1480,8 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		Content:            renderedBody,
 		Namespace:          pageNS,
 		NamespaceTitle:     publishedTitle,
-		Skin:               cfg.Skin,
-		ThemeStyle:         buildThemeStyle(userRecord{Palette: cfg.Palette}),
+		Skin:               skinName(cfg.Skin),
+		ThemeStyle:         buildThemeStyle(userRecord{Palette: palette}),
 		SidebarTreeNS:      sidebarTreeNS,
 		SidebarTreeEntries: sidebarTreeEntries,
 		// The outline widget builds its list from this page's own headings

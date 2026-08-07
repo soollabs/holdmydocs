@@ -33,6 +33,44 @@ type mcpListOut struct {
 	Pages []mcpPageMeta `json:"pages"`
 }
 
+type mcpNamespaceIn struct {
+	Name string `json:"name" jsonschema:"namespace name, e.g. notes"`
+}
+
+type mcpNamespaceMeta struct {
+	Name   string `json:"name"`
+	Pages  int    `json:"pages"`
+	Public bool   `json:"public"`
+}
+
+type mcpNamespacesOut struct {
+	Namespaces []mcpNamespaceMeta `json:"namespaces"`
+}
+
+type mcpNamespaceOut struct {
+	Name    string         `json:"name"`
+	Widgets []string       `json:"widgets"`
+	Public  bool           `json:"public"`
+	Title   string         `json:"title,omitempty"`
+	Skin    string         `json:"skin,omitempty"`
+	Palette string         `json:"palette,omitempty"`
+	Index   string         `json:"index,omitempty"`
+	New     *NewPageConfig `json:"new,omitempty"`
+	Hash    string         `json:"hash"`
+}
+
+type mcpSaveNamespaceIn struct {
+	Name     string         `json:"name" jsonschema:"namespace name, e.g. notes"`
+	Widgets  []string       `json:"widgets,omitempty"`
+	Public   bool           `json:"public"`
+	Title    string         `json:"title,omitempty"`
+	Skin     string         `json:"skin,omitempty"`
+	Palette  string         `json:"palette,omitempty"`
+	Index    string         `json:"index,omitempty"`
+	New      *NewPageConfig `json:"new,omitempty"`
+	BaseHash string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
+}
+
 type mcpSlugIn struct {
 	Slug string `json:"slug" jsonschema:"page slug, always namespace/page, e.g. notes/my-page"`
 }
@@ -269,6 +307,25 @@ func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
 	return true
 }
 
+func mcpNamespaceOutput(name string, cfg NamespaceConfig, hash string) mcpNamespaceOut {
+	return mcpNamespaceOut{
+		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title,
+		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, New: cfg.New, Hash: hash,
+	}
+}
+
+func (app *App) readMCPNamespace(name string) (mcpNamespaceOut, error) {
+	cfg, ok := app.Namespaces()[name]
+	if !ok {
+		return mcpNamespaceOut{}, fmt.Errorf("namespace %q not found", name)
+	}
+	_, hash, err := app.Store.Read(namespaceConfigPath(name))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return mcpNamespaceOut{}, err
+	}
+	return mcpNamespaceOutput(name, cfg, hash), nil
+}
+
 // mcpHandler builds the MCP server and returns its streamable HTTP handler
 // for mounting at /mcp. Auth happens in Auth.Middleware before this handler.
 func (app *App) mcpHandler() http.Handler {
@@ -291,6 +348,85 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		sort.Slice(out.Pages, func(i, j int) bool { return out.Pages[i].Slug < out.Pages[j].Slug })
 		return nil, out, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_namespaces",
+		Description: "List accessible namespaces with page counts and publishing status.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpNamespacesOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
+			return nil, mcpNamespacesOut{}, err
+		}
+		out := mcpNamespacesOut{Namespaces: []mcpNamespaceMeta{}}
+		for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+			if !tokenAllowsNamespace(ctx, summary.Name) {
+				continue
+			}
+			out.Namespaces = append(out.Namespaces, mcpNamespaceMeta{Name: summary.Name, Pages: summary.Count, Public: summary.Config.Public})
+		}
+		return nil, out, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "read_namespace",
+		Description: "Read namespace settings and the current hash. save_namespace requires that hash when updating.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		if !validNamespaceName(in.Name) {
+			return nil, mcpNamespaceOut{}, fmt.Errorf("invalid namespace %q", in.Name)
+		}
+		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		out, err := app.readMCPNamespace(in.Name)
+		return nil, out, err
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "save_namespace",
+		Description: "Create or update namespace settings (each save is a git commit). " +
+			"Update: pass the hash returned by read_namespace; on conflict re-read and retry. " +
+			"Create: omit basehash; this creates the namespace configuration without deleting or changing pages.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSaveNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		if !validNamespaceName(in.Name) {
+			return nil, mcpNamespaceOut{}, fmt.Errorf("invalid namespace %q", in.Name)
+		}
+		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{
+			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Skin: in.Skin,
+			Palette: in.Palette, Index: in.Index, New: in.New,
+		}, newPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
+		if err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		data, err := cfg.Encode()
+		if err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
+		path := namespaceConfigPath(in.Name)
+		hash, err := app.Store.SaveChecked(path, path, in.BaseHash, data, "Configure namespace "+path, authorName, authorEmail)
+		if errors.Is(err, ErrConflict) {
+			current, readErr := app.readMCPNamespace(in.Name)
+			if readErr != nil {
+				return nil, mcpNamespaceOut{}, readErr
+			}
+			payload, _ := json.Marshal(map[string]any{"error": "conflict: the namespace changed since basehash (or already exists)", "namespace": current})
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}}}, mcpNamespaceOut{}, nil
+		}
+		if err != nil {
+			return nil, mcpNamespaceOut{}, err
+		}
+		app.refreshNamespaces()
+		slog.Info("mcp namespace configured", "namespace", in.Name, "author", authorName)
+		return nil, mcpNamespaceOutput(in.Name, cfg, hash), nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

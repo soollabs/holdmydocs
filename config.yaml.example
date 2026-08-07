@@ -50,7 +50,7 @@ sync_poll_ms: 10000
 # sync_mode: bidirectional
 # default_branch: main   # branch name used when initialising a fresh local repo
 # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
-# A skin controls presentation and widget arrangement, not storage. Users can
+# A skin controls presentation, not widget composition or storage. Users can
 # override it from /settings.
 # skin: phosphor
 

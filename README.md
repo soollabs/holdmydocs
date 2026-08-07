@@ -117,7 +117,7 @@ git commit, so another hmd instance using the same repository picks them up.
 
 ### In-app settings pages (`/settings`, `/admin`)
 
-`/settings` covers your own account — appearance, widgets, git author,
+`/settings` covers your own account — appearance, git author,
 access tokens. `/settings` links to `/admin` for everything
 install-wide, below; both require an account with the `settings` scope.
 
@@ -128,17 +128,14 @@ restarting the process for most of them:
   `git.author`, `sync_mode`, upload size, and sync poll
   interval all apply immediately on save. `bind` and `repo_dir` are marked "restart required". `app_dir`
   is bootstrap-only (env var or default) and always read-only.
-- **Skin, palette, fonts, widgets:** per-user, saved to your own
-  `users.json` record. Two independent choices: a **skin** (see Skins,
-  below — typography, spacing, markers *and* the widget arrangement) and a
+- **Skin, palette, fonts:** per-user, saved to your own `users.json` record.
+  Two independent choices: a **skin** (see Skins, below — typography,
+  spacing and markers) and a
   **palette** (named colour presets: phosphor, catppuccin, dracula,
   everforest, gruvbox, monokai, nord, one dark, rosé pine, solarized, tokyo
-  night, each shown as a row of its own swatches). Picking a skin resets the
-  palette and the widget checklist to that skin's own defaults; changing
-  either afterwards sticks. A widgets checklist lets you add or remove a
-  single widget without leaving your skin. Font pickers
-  are also here. Each user sets their own; nothing here affects other
-  users.
+  night, each shown as a row of its own swatches). Picking a skin resets its
+  palette default; changing either afterwards sticks. Font pickers are also
+  here. Each user sets their own; nothing here affects other users.
 - **`admin_user`/`admin_password`** are bootstrap-only and shown read-only.
 - **Wiki configuration:** site name and landing page live in repo-tracked
   `.wiki.yaml`, in a clearly separate `/admin` section rather than the local
@@ -290,8 +287,8 @@ button reopens the modal if either file is later deleted.
 
 **Why split?** The `app/` directory contains files requiring POSIX advisory locking (user database). SQLite and similar are unreliable over NFS. The `repo/` directory is pure git, which works fine on NFS.
 
-**Per-user preferences** — skin, palette, fonts, widget add/remove, commit
-author, and access-token hashes — live in that user's own record in
+**Per-user preferences** — skin, palette, fonts, commit author, and
+access-token hashes — live in that user's own record in
 `users.json` under `app/`, not in `config.yaml`. They are therefore per-user
 and local-disk-only, same as the rest of `app/`. `config.yaml` holds only
 the install-wide `skin:` default (see Skins, below).
@@ -322,8 +319,29 @@ palette. The palette picker remains available, so every skin × palette
 combination is still possible; the pairing is the default.
 
 The install-wide default is `skin:` in `config.yaml` (env `HMD_SKIN`); each
-user can override their own from `/settings`, including adding or removing a
-single widget without leaving the skin.
+user can override their own from `/settings`.
+
+## Namespaces
+
+Every page belongs to one top-level namespace. Its optional, repository-tracked
+`.namespace.yaml` controls publishing, the public title, skin, palette, index
+page, page-creation defaults and authenticated widget composition:
+
+```yaml
+public: true
+title: Documentation
+skin: newsprint
+palette: solarized
+index: readme
+widgets: [pages, tags]
+new:
+  template: entry
+  slug: '{{.Now.Format "2006-01-02"}}'
+```
+
+Manage this from `/_/namespaces`. Anonymous pages and static exports show the
+namespace tree and the fixed outline rail; configured widgets remain
+authenticated-only.
 
 ## Users
 
@@ -396,13 +414,14 @@ save is a Git commit attributed to the token owner.
 
 | Scope | Tools |
 | --- | --- |
-| `read` | `list_pages`, `read_page`, `search`, `backlinks`, `recent_changes`, `health` |
+| `read` | `list_pages`, `read_page`, `list_namespaces`, `search`, `backlinks`, `recent_changes`, `health` |
 | `write` | `save_page`, `delete_page` |
+| `settings` | `read_namespace`, `save_namespace` |
 
-MCP exposes ordinary pages only, never `.wiki.yaml`, `.namespace.yaml`, hidden
-templates or attachments. `save_page` uses the same optimistic locking as the
-web editor: read first, then pass the returned hash as `basehash`. A stale hash
-returns current data for merging and retrying.
+MCP exposes ordinary pages and namespace settings, but never `.wiki.yaml`,
+hidden templates or attachments. `save_page` and `save_namespace` use the same
+optimistic locking as the web editor: read first, then pass the returned hash as
+`basehash`. A stale hash returns current data for merging and retrying.
 
 Browser requests must use HMD's public Origin. A reverse proxy must preserve
 the public Host and Origin values so standard Origin protection can validate

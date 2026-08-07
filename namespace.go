@@ -172,8 +172,8 @@ func parseNamespaceConfig(data []byte) (NamespaceConfig, error) {
 }
 
 // loadNamespaceConfig reads and parses <dir>/.namespace.yaml softly: a
-// missing file is the built-in defaults, and malformed YAML or an unknown
-// widget id logs a warning and falls back to defaults rather than failing.
+// missing file is the built-in defaults, and malformed YAML or invalid static
+// namespace settings log a warning and fall back to defaults rather than failing.
 // It never errors — a broken namespace config must never 500 a page or
 // block the wiki.
 func loadNamespaceConfig(dir, name string) NamespaceConfig {
@@ -196,20 +196,12 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 		slog.Warn("malformed namespace config, using defaults", "namespace", name, "err", err)
 		return broken(err.Error())
 	}
-	if len(cfg.Widgets) == 0 {
-		cfg.Widgets = builtinWidgets
-	}
-	for _, id := range cfg.Widgets {
-		if id == "search" || id == "tree" {
-			continue
-		}
-		if _, ok := widgets[id]; !ok {
-			slog.Warn("unknown widget id in namespace config, using defaults", "namespace", name, "widget", id)
-			return broken(fmt.Sprintf("unknown widget %q — using the built-in widgets instead", id))
-		}
+	cfg, err = normaliseNamespaceConfigBase(name, cfg)
+	if err != nil {
+		slog.Warn("invalid namespace config, using defaults", "namespace", name, "err", err)
+		return broken(err.Error())
 	}
 	cfg.Configured = true
-	cfg.Widgets = withoutFixedChrome(cfg.Widgets)
 	return cfg
 }
 
@@ -270,9 +262,9 @@ func validMCPPageSlug(slug string) bool {
 	return validNamespaceName(ns) && validPagePath(rest)
 }
 
-// normaliseNamespaceConfig validates the shared namespace-settings shape used
-// by both the web form and MCP before it is written to disk.
-func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemplateData) (NamespaceConfig, error) {
+// normaliseNamespaceConfigBase validates the namespace fields independent of
+// new-page template data, so the loader and web form share the same rules.
+func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceConfig, error) {
 	if name != "" && !validNamespaceName(name) {
 		return NamespaceConfig{}, fmt.Errorf("invalid namespace name %q", name)
 	}
@@ -302,6 +294,17 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 		if _, ok := themePresets[cfg.Palette]; !ok {
 			return NamespaceConfig{}, fmt.Errorf("unknown palette %q", cfg.Palette)
 		}
+	}
+	return cfg, nil
+}
+
+// normaliseNamespaceConfig validates the web form's namespace settings before
+// it writes them to disk.
+func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemplateData) (NamespaceConfig, error) {
+	var err error
+	cfg, err = normaliseNamespaceConfigBase(name, cfg)
+	if err != nil {
+		return NamespaceConfig{}, err
 	}
 	if cfg.New == nil {
 		return cfg, nil

@@ -106,6 +106,28 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	}
 }
 
+func TestAnonymousPublicNamespaceSkinUsesDefaultPalette(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	defer server.Close()
+
+	if err := writeNamespaceConfig(t, app, "blog", "public: true\nskin: newsprint\n"); err != nil {
+		t.Fatalf("writing .namespace.yaml: %v", err)
+	}
+	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
+
+	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	body, _ := io.ReadAll(resp.Body)
+	for _, want := range []string{`data-skin="newsprint"`, `--bg:#002b36;`} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("public newsprint page missing %q: %s", want, body)
+		}
+	}
+}
+
 func TestAnonymousPublicPageGetsOutlineRail(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()

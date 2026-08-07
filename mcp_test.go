@@ -175,7 +175,7 @@ func toolJSON(t *testing.T, res *mcp.CallToolResult, out any) {
 	}
 }
 
-func TestMCPOnlyExposesPageTools(t *testing.T) {
+func TestMCPExposesExpectedTools(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	session := connectMCP(t, server, token)
 	result, err := session.ListTools(context.Background(), nil)
@@ -185,15 +185,67 @@ func TestMCPOnlyExposesPageTools(t *testing.T) {
 	allowed := map[string]bool{
 		"list_pages": true, "read_page": true, "save_page": true, "delete_page": true,
 		"search": true, "backlinks": true, "recent_changes": true, "health": true,
+		"list_namespaces": true, "read_namespace": true, "save_namespace": true,
 	}
 	for _, tool := range result.Tools {
 		if !allowed[tool.Name] {
-			t.Errorf("MCP exposes non-page tool %q", tool.Name)
+			t.Errorf("MCP exposes unexpected tool %q", tool.Name)
 		}
 		delete(allowed, tool.Name)
 	}
 	for name := range allowed {
 		t.Errorf("MCP missing page tool %q", name)
+	}
+}
+
+func TestMCPNamespaceTools(t *testing.T) {
+	_, server, token := newMCPTestAppWithApp(t, true)
+	session := connectMCP(t, server, token)
+
+	res := callTool(t, session, "list_namespaces", nil)
+	if res.IsError {
+		t.Fatalf("list_namespaces: %s", toolText(t, res))
+	}
+	var list mcpNamespacesOut
+	toolJSON(t, res, &list)
+	if len(list.Namespaces) != 1 || list.Namespaces[0].Name != testNS {
+		t.Fatalf("list_namespaces = %+v, want %s", list.Namespaces, testNS)
+	}
+
+	res = callTool(t, session, "read_namespace", map[string]any{"name": testNS})
+	if res.IsError {
+		t.Fatalf("read_namespace: %s", toolText(t, res))
+	}
+	var current mcpNamespaceOut
+	toolJSON(t, res, &current)
+	if current.Hash == "" || current.Index != defaultIndexPage {
+		t.Fatalf("read_namespace = %+v, want a hash and index %q", current, defaultIndexPage)
+	}
+
+	res = callTool(t, session, "save_namespace", map[string]any{
+		"name": testNS, "widgets": []string{"pages"}, "public": true,
+		"title": "Notes", "skin": "newsprint", "index": defaultIndexPage,
+		"basehash": current.Hash,
+	})
+	if res.IsError {
+		t.Fatalf("save_namespace: %s", toolText(t, res))
+	}
+	var saved mcpNamespaceOut
+	toolJSON(t, res, &saved)
+	if saved.Hash == "" || !saved.Public || saved.Title != "Notes" || saved.Palette != "" {
+		t.Errorf("save_namespace = %+v", saved)
+	}
+
+	res = callTool(t, session, "save_namespace", map[string]any{
+		"name": testNS, "widgets": []string{"pages"}, "basehash": current.Hash,
+	})
+	if !res.IsError {
+		t.Error("save_namespace accepted a stale basehash")
+	}
+
+	res = callTool(t, session, "save_namespace", map[string]any{"name": "blog", "public": true})
+	if res.IsError {
+		t.Fatalf("create namespace: %s", toolText(t, res))
 	}
 }
 
@@ -885,6 +937,15 @@ func TestMCPRestrictedToken(t *testing.T) {
 			t.Errorf("list_pages leaked %q", page.Slug)
 		}
 	}
+	var namespaces mcpNamespacesOut
+	res = callTool(t, restricted, "list_namespaces", nil)
+	if res.IsError {
+		t.Fatalf("list_namespaces: %s", toolText(t, res))
+	}
+	toolJSON(t, res, &namespaces)
+	if len(namespaces.Namespaces) != 1 || namespaces.Namespaces[0].Name != "notes" {
+		t.Errorf("restricted namespaces = %+v, want notes only", namespaces.Namespaces)
+	}
 
 	var hits mcpSearchOut
 	res = callTool(t, restricted, "search", map[string]any{"query": "shared"})
@@ -911,6 +972,14 @@ func TestMCPRestrictedToken(t *testing.T) {
 	}
 
 	admin := connectMCP(t, server, settingsToken)
+	res = callTool(t, admin, "list_namespaces", nil)
+	if res.IsError {
+		t.Fatalf("settings list_namespaces: %s", toolText(t, res))
+	}
+	toolJSON(t, res, &namespaces)
+	if len(namespaces.Namespaces) != 3 {
+		t.Errorf("settings namespaces = %+v, want all namespaces", namespaces.Namespaces)
+	}
 	for _, slug := range []string{testHome, "notes/allowed", "private/denied"} {
 		if res := callTool(t, admin, "read_page", map[string]any{"slug": slug}); res.IsError {
 			t.Errorf("settings token read %s: %s", slug, toolText(t, res))
