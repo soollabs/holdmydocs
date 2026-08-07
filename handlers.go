@@ -30,12 +30,6 @@ import (
 var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
 
-// journalNamespace is the one namespace name ctrl-j (and the palette's
-// >new verb) is wired to — the successor to the old hardcoded daily/
-// directory, now expressed as an ordinary namespace with a `new:` template
-// instead of code-level special-casing.
-const journalNamespace = "journal"
-
 type App struct {
 	cfg        atomic.Pointer[Config]
 	wiki       atomic.Pointer[WikiConfig]
@@ -193,7 +187,7 @@ type TemplateData struct {
 	SidebarTreeEntries []BacklinkEntry // unfiltered — render() applies filterBacklinkEntries before building SidebarTree, same as PinnedPages/NamespaceNav
 	SidebarTree        template.HTML
 	NewPageEnabled     bool   // a namespace with a `new:` template is in reach — gates the ctrl-j shortcut and >new verb client-side
-	NewNamespace       string // which one ctrl-j targets: this page's, else the journal fallback
+	NewNamespace       string // which namespace ctrl-j targets
 }
 
 // NamespaceManagementData is deliberately smaller than SettingsData: the
@@ -499,15 +493,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.ThemeStyle = buildThemeStyle(themePrefs)
 		data.Skin = activeName
 		data.StatusVariant = activeSkin.Status
-		// ctrl-j creates in the namespace you are standing in when it has a
-		// `new:` block, falling back to the journal namespace — otherwise the
-		// per-namespace "ctrl-j creates a page here" checkbox would be a lie
-		// everywhere except journal.
 		nsRegistry := app.Namespaces()
 		target, _ := namespaceFor(data.Slug)
-		if cfg, ok := nsRegistry[target]; !ok || cfg.New == nil {
-			target = journalNamespace
-		}
 		if cfg, ok := nsRegistry[target]; ok && cfg.New != nil {
 			data.NewPageEnabled = true
 			data.NewNamespace = target
@@ -818,8 +805,8 @@ func (app *App) Routes() http.Handler {
 	// Setup endpoint: seeds the first namespace + .help.md, clears the setup flag
 	mux.HandleFunc("POST /_/setup", app.handleSetup)
 
-	// New-page-from-template: ctrl-j and the palette's >new verb both call
-	// this with ns=journal; generic over any namespace with a `new:` block.
+	// New-page-from-template: ctrl-j and the palette's >new verb target a
+	// namespace with a `new:` block.
 	mux.HandleFunc("POST /_/new", app.handleNewPage)
 
 	// Static files. embed.FS carries no real mtime/ETag, so browsers have
@@ -1212,9 +1199,8 @@ func renderNewPageText(src string, data newPageTemplateData) (string, error) {
 // handleNewPage implements POST /_/new?ns=<namespace>: renders that
 // namespace's `new.slug` template against today's date, creating the page
 // from the namespace's `new.template` hidden page on first use and never
-// overwriting an existing one. ctrl-j and the palette's >new verb call this
-// with ns=journal; the endpoint itself is generic over any namespace that
-// declares a `new:` block.
+// overwriting an existing one. ctrl-j and the palette's >new verb use the
+// current namespace when it declares a `new:` block.
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("ns")
 	if !app.requireTokenNamespace(w, r, ns) {

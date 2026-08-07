@@ -5,8 +5,8 @@ package main
 // web/static/skins.css), which statusline segments show, and which colour
 // palette it arrives with. Widget composition is a namespace property
 // (namespace.go); where "/" lands is a portable wiki property (.wiki.yaml);
-// whether ctrl-j is live depends on whether the journal namespace has a
-// `new:` template (namespace.go) — none of those are a skin's decision.
+// whether ctrl-j is live depends on the current namespace's `new:` template
+// (namespace.go) — none of those are a skin's decision.
 //
 // The palette pairing is not a merge: skins.css still contains no colour at
 // all (TestSkinsNoRawHex), and Palette here is just the name of the preset a

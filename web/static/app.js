@@ -286,15 +286,14 @@
   }
 
   // ---- New-page shortcut (ctrl-j) ---- targets this page's namespace when it
-  // has a `new:` template, else the journal fallback; disabled when neither
-  // does (window.hmdNewEnabled).
+  // has a `new:` template; disabled otherwise (window.hmdNewEnabled).
   //
   // The server renders the draft straight into this response instead of
   // creating+redirecting, so nothing is saved until the user hits Save
   // (Cancel on the editor leaves no trace). Since there's no redirect to
   // follow for the pretty /<slug> URL, swap the returned page in directly
   // and set the URL via pushState instead of navigating.
-  function openTodaysEntry() {
+  function openNewPage() {
     fetch('/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace), { method: 'POST' }).then(r => {
       if (!r.ok) return;
       r.text().then(html => {
@@ -311,7 +310,7 @@
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
-      openTodaysEntry();
+      openNewPage();
     }
   });
 
@@ -599,7 +598,7 @@
         break;
       case 'new':
         closePalette();
-        openTodaysEntry();
+        openNewPage();
         break;
       case 'health':
         closePalette();

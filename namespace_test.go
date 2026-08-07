@@ -92,7 +92,7 @@ func TestNamespaceFor(t *testing.T) {
 	}{
 		{"blog/drafts/post", "blog", "drafts/post"},
 		{"notes", "notes", ""}, // a single segment names a namespace, not a page
-		{"journal/2026-07-27", "journal", "2026-07-27"},
+		{"notes/2026-07-27", "notes", "2026-07-27"},
 	}
 	for _, tt := range tests {
 		ns, rest := namespaceFor(tt.slug)

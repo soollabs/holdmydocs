@@ -11,17 +11,17 @@ import (
 	"time"
 )
 
-// seedJournalTemplate configures the journal namespace with a `new:` block
-// and seeds its hidden entry template page (journal/entry, marked hidden).
-func seedJournalTemplate(t *testing.T, app *App, slugTemplate, titleTemplate, bodyTemplate string) {
+// seedNewPageTemplate configures the notes namespace with a `new:` block
+// and seeds its hidden entry template page.
+func seedNewPageTemplate(t *testing.T, app *App, slugTemplate, titleTemplate, bodyTemplate string) {
 	t.Helper()
 	yaml := "new:\n  template: entry\n  slug: '" + slugTemplate + "'\n"
-	if err := writeNamespaceConfig(t, app, "journal", yaml); err != nil {
+	if err := writeNamespaceConfig(t, app, testNS, yaml); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 	authorName, authorEmail := app.gitAuthor("admin")
-	tpl := Page{Slug: "journal/entry", Title: titleTemplate, Body: bodyTemplate}
-	if _, err := app.Store.Save(hiddenFile("journal/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
+	tpl := Page{Slug: testNS + "/entry", Title: titleTemplate, Body: bodyTemplate}
+	if _, err := app.Store.Save(hiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding template page: %v", err)
 	}
 }
@@ -45,9 +45,9 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	seedJournalTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, `{{.Now.Format "2006-01-02"}}`, "Dear diary.")
+	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, `{{.Now.Format "2006-01-02"}}`, "Template content.")
 
-	resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -58,16 +58,16 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	today := time.Now().Format("2006-01-02")
-	if slug := draftField(draftSlugRe, string(body)); slug != "journal/"+today {
-		t.Errorf("slug = %q, want %q", slug, "journal/"+today)
+	if slug := draftField(draftSlugRe, string(body)); slug != testNS+"/"+today {
+		t.Errorf("slug = %q, want %q", slug, testNS+"/"+today)
 	}
-	if !strings.Contains(string(body), "Dear diary.") {
+	if !strings.Contains(string(body), "Template content.") {
 		t.Errorf("draft edit form missing template content: %s", body)
 	}
 
 	// Nothing is persisted until Save: the draft is rendered directly in
 	// this response, never written to the store.
-	if _, _, err := app.Store.Read(pageFile("journal/" + today)); err == nil {
+	if _, _, err := app.Store.Read(pageFile(testNS + "/" + today)); err == nil {
 		t.Error("page should not be created until Save, but it was persisted by /_/new")
 	}
 }
@@ -76,11 +76,11 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	seedJournalTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, "Title", "Fresh from template.")
+	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, "Title", "Fresh from template.")
 
 	today := time.Now().Format("2006-01-02")
 	authorName, authorEmail := app.gitAuthor("admin")
-	existing := Page{Slug: "journal/" + today, Title: "Already here", Body: "Don't touch me."}
+	existing := Page{Slug: testNS + "/" + today, Title: "Already here", Body: "Don't touch me."}
 	if _, err := app.Store.Save(pageFile(existing.Slug), existing.Encode(), "seed existing", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding existing page: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 		Jar:           client.Jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	resp, err := noRedirectClient.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := noRedirectClient.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -100,11 +100,11 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", resp.StatusCode)
 	}
-	if want := "/journal/" + today + "?do=edit"; resp.Header.Get("Location") != want {
+	if want := "/" + testNS + "/" + today + "?do=edit"; resp.Header.Get("Location") != want {
 		t.Errorf("Location = %q, want %q", resp.Header.Get("Location"), want)
 	}
 
-	viewResp, err := client.Get(server.URL + "/journal/" + today)
+	viewResp, err := client.Get(server.URL + "/" + testNS + "/" + today)
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -131,9 +131,9 @@ func TestNewPageRejectsUnsafeRenderedSlugs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			app, server, client := newTestAppFull(t)
 			defer server.Close()
-			seedJournalTemplate(t, app, tt.slugTemplate, "Title", "Body.")
+			seedNewPageTemplate(t, app, tt.slugTemplate, "Title", "Body.")
 
-			resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
+			resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 			if err != nil {
 				t.Fatalf("POST /_/new: %v", err)
 			}
@@ -149,13 +149,13 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	seedJournalTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, "Title", "Body.")
+	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, "Title", "Body.")
 
-	if app.Index.Exists("journal/entry") {
+	if app.Index.Exists(testNS + "/entry") {
 		t.Error("template page should not be in the search index")
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -163,11 +163,11 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	today := time.Now().Format("2006-01-02")
-	if app.Index.Exists("journal/" + today) {
+	if app.Index.Exists(testNS + "/" + today) {
 		t.Error("draft entry should not be indexed until it is saved")
 	}
 
-	saveResp, err := client.PostForm(server.URL+"/journal/"+today+"?do=save", url.Values{
+	saveResp, err := client.PostForm(server.URL+"/"+testNS+"/"+today+"?do=save", url.Values{
 		"title": {draftField(draftTitleRe, string(body))}, "body": {"Body."}, "basehash": {""},
 	})
 	if err != nil {
@@ -175,10 +175,10 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	}
 	closeTestBody(t, saveResp.Body)
 
-	if !app.Index.Exists("journal/" + today) {
+	if !app.Index.Exists(testNS + "/" + today) {
 		t.Error("entry should be indexed once actually saved")
 	}
-	if app.Index.Exists("journal/entry") {
+	if app.Index.Exists(testNS + "/entry") {
 		t.Error("template page should still not be in the search index after use")
 	}
 }
@@ -199,17 +199,17 @@ func TestNewPageUnknownNamespace404s(t *testing.T) {
 
 // TestNewPageMissingTemplateFallsBack covers a namespace whose declared
 // new.template page doesn't exist — hand-written config, or a deleted
-// template. ctrl-j must still create today's page rather than failing.
+// template. Quick-create must still create the page rather than failing.
 func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	// Config only: no template page seeded.
-	if err := writeNamespaceConfig(t, app, "journal", "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
+	if err := writeNamespaceConfig(t, app, testNS, "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 
-	slug := "journal/" + time.Now().Format("2006-01-02")
+	slug := testNS + "/" + time.Now().Format("2006-01-02")
 	if got := draftField(draftSlugRe, string(body)); got != slug {
 		t.Errorf("slug = %q, want %q", got, slug)
 	}
@@ -235,23 +235,23 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	seedJournalTemplate(t, app, `{{.Now.Format "2006-01-02"}}`,
+	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`,
 		`{{.Now.Format "Monday, 2 January 2006"}}`,
 		`Written by {{.User}} in {{.Namespace}} at {{.Now.Format "15:04"}}.`)
 
-	// seedJournalTemplate doesn't set tags, so add a templated one.
+	// seedNewPageTemplate doesn't set tags, so add a templated one.
 	tpl := Page{
-		Slug:  "journal/entry",
+		Slug:  testNS + "/entry",
 		Title: `{{.Now.Format "Monday, 2 January 2006"}}`,
-		Tags:  []string{`{{.Now.Format "2006-01"}}`, "journal"},
+		Tags:  []string{`{{.Now.Format "2006-01"}}`, "notes"},
 		Body:  `Written by {{.User}} in {{.Namespace}} at {{.Now.Format "15:04"}}.`,
 	}
 	authorName, authorEmail := app.gitAuthor("admin")
-	if _, err := app.Store.Save(hiddenFile("journal/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
+	if _, err := app.Store.Save(hiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding template page: %v", err)
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns=journal", "", nil)
+	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -264,10 +264,10 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	if want := now.Format("Monday, 2 January 2006"); draftField(draftTitleRe, string(body)) != want {
 		t.Errorf("title = %q, want %q", draftField(draftTitleRe, string(body)), want)
 	}
-	if want := now.Format("2006-01"); len(tags) != 2 || tags[0] != want || tags[1] != "journal" {
-		t.Errorf("tags = %v, want [%q journal]", tags, want)
+	if want := now.Format("2006-01"); len(tags) != 2 || tags[0] != want || tags[1] != "notes" {
+		t.Errorf("tags = %v, want [%q notes]", tags, want)
 	}
-	if want := "Written by admin in journal at " + now.Format("15:04") + "."; !strings.Contains(draftField(draftBodyRe, string(body)), want) {
+	if want := "Written by admin in notes at " + now.Format("15:04") + "."; !strings.Contains(draftField(draftBodyRe, string(body)), want) {
 		t.Errorf("body = %q, want it to contain %q", draftField(draftBodyRe, string(body)), want)
 	}
 }

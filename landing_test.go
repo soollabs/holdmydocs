@@ -38,10 +38,10 @@ func TestLandingRoute(t *testing.T) {
 		t.Errorf("default Location = %q, want /%s/", loc, testNS)
 	}
 
-	app.SetWikiConfig(WikiConfig{Landing: "journal/2026-07-24"})
+	app.SetWikiConfig(WikiConfig{Landing: "notes/2026-07-24"})
 
-	if loc := get(); loc != "/journal/2026-07-24" {
-		t.Errorf("configured Landing Location = %q, want /journal/2026-07-24", loc)
+	if loc := get(); loc != "/notes/2026-07-24" {
+		t.Errorf("configured Landing Location = %q, want /notes/2026-07-24", loc)
 	}
 }
 
@@ -62,10 +62,10 @@ func TestNewPageJSGlobals(t *testing.T) {
 	}
 
 	if body := get(); !strings.Contains(body, "hmdNewEnabled =  false") {
-		t.Errorf("expected hmdNewEnabled false with no journal namespace configured, body: %s", body)
+		t.Errorf("expected hmdNewEnabled false with no new: template, body: %s", body)
 	}
 
-	if err := writeNamespaceConfig(t, app, "journal", "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
+	if err := writeNamespaceConfig(t, app, testNS, "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 
@@ -79,20 +79,19 @@ func TestNewPageJSGlobals(t *testing.T) {
 	for _, s := range skinNames {
 		setSkin(s)
 		if body := get(); !strings.Contains(body, "hmdNewEnabled =  true") {
-			t.Errorf("skin=%s: expected hmdNewEnabled true once journal has a new: template, body: %s", s, body)
+			t.Errorf("skin=%s: expected hmdNewEnabled true once the namespace has a new: template, body: %s", s, body)
 		}
 	}
 }
 
 // TestNewNamespaceFollowsPage checks ctrl-j targets the namespace of the page
-// being viewed when it has its own `new:` block, rather than always journal —
-// which is what the admin form's per-namespace checkbox promises.
+// being viewed when it has its own `new:` block.
 func TestNewNamespaceFollowsPage(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	newBlock := "new:\n  template: template\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"
-	for _, ns := range []string{"journal", "blog"} {
+	for _, ns := range []string{"blog"} {
 		if err := writeNamespaceConfig(t, app, ns, newBlock); err != nil {
 			t.Fatalf("writing %s config: %v", ns, err)
 		}
@@ -126,8 +125,8 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 	if got := nsGlobal("blog/post"); !strings.Contains(got, `"blog"`) {
 		t.Errorf("on a blog page, ctrl-j target = %q, want blog", got)
 	}
-	if got := nsGlobal(testHome); !strings.Contains(got, `"journal"`) {
-		t.Errorf("in a namespace with no new: block, ctrl-j target = %q, want the journal fallback", got)
+	if got := nsGlobal(testHome); !strings.Contains(got, `""`) {
+		t.Errorf("in a namespace with no new: block, ctrl-j target = %q, want none", got)
 	}
 	if body := pageBody("blog/folder/post"); !strings.Contains(body, `href="/blog/folder/new?do=edit"`) {
 		t.Error("New does not create beside the current nested page")

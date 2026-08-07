@@ -151,7 +151,7 @@ func TestListRecurses(t *testing.T) {
 	write("attachments/blog/post/pic.png") // not .md, and under attachments/ anyway
 	write("attachments/.note.md")          // an attachment, not a hidden page
 	write(".help.md")                      // hidden page, top-level
-	write("journal/.entry.md")             // hidden page, nested
+	write("notes/.entry.md")               // hidden page, nested
 	if err := os.MkdirAll(filepath.Join(tmpDir, ".git-like-dir"), 0755); err != nil {
 		t.Fatalf("mkdir .git-like-dir: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestListRecurses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListHidden failed: %v", err)
 	}
-	wantHidden := map[string]bool{".help.md": true, "journal/.entry.md": true}
+	wantHidden := map[string]bool{".help.md": true, "notes/.entry.md": true}
 	gotHidden := make(map[string]bool, len(hidden))
 	for _, p := range hidden {
 		gotHidden[p] = true

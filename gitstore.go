@@ -291,13 +291,6 @@ MCP clients can access ordinary pages only: page tools accept a
 write scope. Wiki settings, namespace settings, hidden templates and attachments
 are never exposed through MCP.
 
-## Journal
-
-ctrl-j (or the ` + "`>new`" + ` palette verb) opens today's entry in the
-` + "`journal`" + ` namespace, creating it from that namespace's template on
-first use each day. It does nothing until that namespace has a ` + "`new:`" + `
-block. The calendar widget marks which days already have one.
-
 ## Skins
 
 A skin is how the app looks: typography, spacing, markers and what the

@@ -1661,7 +1661,7 @@ func TestInjectTOC(t *testing.T) {
 			{Slug: "blog/readme", Title: "Blog Home"},
 			{Slug: "blog/alpha", Title: "Blog Alpha"},
 			{Slug: "blog/beta", Title: "Blog Beta", Tags: []string{"meta"}},
-			{Slug: "journal/2026-07-31", Title: "Journal Entry", Tags: []string{"meta"}},
+			{Slug: "notes/2026-07-31", Title: "Notes Entry", Tags: []string{"meta"}},
 		}
 		nsIx, _ := BuildIndex(nsPages)
 
@@ -1677,10 +1677,10 @@ func TestInjectTOC(t *testing.T) {
 			t.Errorf("injectTOC ns=blog tag=meta = %q, want %q", out, want)
 		}
 
-		out = injectTOC("<!-- hmd:toc -->", nsIx, "journal/readme", "journal")
-		want = "- [[Journal Entry]]\n"
+		out = injectTOC("<!-- hmd:toc -->", nsIx, "notes/readme", "notes")
+		want = "- [[Notes Entry]]\n"
 		if out != want {
-			t.Errorf("injectTOC ns=journal = %q, want %q", out, want)
+			t.Errorf("injectTOC ns=notes = %q, want %q", out, want)
 		}
 	})
 }

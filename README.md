@@ -476,18 +476,6 @@ them by hand in the frontmatter block, or via the MCP `save_page` tool.
 - `author: Jane Doe` — shown on the source-card widget.
 - `read_time: 4 min` — shown on the source-card and inbox widgets.
 
-### Journal
-
-A journal is an ordinary namespace directory with an optional
-`.namespace.yaml` declaring a `new:` block (`template`, the hidden page to
-seed from, and `slug`, a `text/template` pattern with `.Now`/`.User`/
-`.Namespace` available) and the calendar/writing-stats/prev-entries widgets.
-ctrl-j (and the `>new` palette verb) opens today's entry in the `journal`
-namespace, creating it from that namespace's template on first use each day
-via `POST /_/new?ns=journal`; both are disabled if no namespace named
-`journal` declares a `new:` block. The calendar widget marks which days
-already have one.
-
 ### Editor extras
 - **Hide preview:** the `preview` toolbar button collapses the preview pane so the source editor fills the width. Useful on smaller screens or when you just want more writing space. Persists across pages (`localStorage`).
 - **Zen modes:** Full screen, typewriter scroll, and focus (dims inactive lines). Toggle buttons in the toolbar, or `ctrl shift f` / `ctrl shift t` / `ctrl shift d`.
