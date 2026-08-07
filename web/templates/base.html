@@ -55,7 +55,9 @@
 		</div>
 		{{range .SidebarWidgets}}
 		{{if eq .ID "search"}}{{template "widget-search" $}}{{end}}
-		{{if eq .ID "tree"}}{{template "widget-tree" $}}{{end}}
+		{{end}}
+		{{template "widget-tree" .}}
+		{{range .SidebarWidgets}}
 		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}
 		{{if eq .ID "namespaces"}}{{template "widget-namespaces" $}}{{end}}
 		{{if eq .ID "pinned"}}{{template "widget-pinned" $}}{{end}}

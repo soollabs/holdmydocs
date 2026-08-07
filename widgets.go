@@ -31,7 +31,7 @@ var widgetIDs = []string{
 
 var widgets = map[string]widget{
 	"search":     {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
-	"tree":       {ID: "tree", Title: "TREE", Slot: slotSidebar, Description: "the folder tree of the namespace you're standing in, collapsible, current page highlighted."},
+	"tree":       {ID: "tree", Title: "TREE", Slot: slotSidebar, Description: "always shown below search: the folder tree of the namespace you're standing in, collapsible, current page highlighted."},
 	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages in this namespace, most recent first."},
 	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
 	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
@@ -57,13 +57,16 @@ type widgetSlotGroup struct {
 	Widgets []widget
 }
 
-// widgetSlotGroups lists every registered widget grouped by slot, slots in
+// widgetSlotGroups lists every configurable widget grouped by slot, slots in
 // layout order and widgets in widgetIDs order.
 func widgetSlotGroups() []widgetSlotGroup {
 	groups := make([]widgetSlotGroup, 0, 4)
 	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
 		g := widgetSlotGroup{Slot: slot}
 		for _, id := range widgetIDs {
+			if id == "tree" {
+				continue
+			}
 			if w := widgets[id]; w.Slot == slot {
 				g.Widgets = append(g.Widgets, w)
 			}
@@ -173,10 +176,9 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	// Token/PAT filtering happens back in render(), after this call, the
 	// same way PinnedPages and NamespaceNav do — this only stages the raw
 	// entries, since the tree can't be filtered after it's already flattened
-	// to HTML. A page outside any namespace (settings and other app pages)
-	// has no tree to show, so the widget stays empty there rather than
-	// rendering an empty shell.
-	if needs("tree") && ns != "" {
+	// to HTML. The tree is fixed sidebar chrome; a page outside any namespace
+	// has no tree to show.
+	if ns != "" {
 		summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), ns)
 		if summary != nil {
 			data.SidebarTreeNS = ns

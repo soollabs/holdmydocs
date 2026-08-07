@@ -148,7 +148,7 @@ func namespaceConfigPath(ns string) string {
 // builtinWidgets is the default composition used when a namespace has no
 // widgets: key — roughly today's phosphor composition, so a fresh wiki does
 // not look broken.
-var builtinWidgets = []string{"search", "tree", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
+var builtinWidgets = []string{"search", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
 
 // defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
 // built-in widgets, private.
@@ -202,7 +202,20 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 		}
 	}
 	cfg.Configured = true
+	cfg.Widgets = withoutTree(cfg.Widgets)
 	return cfg
+}
+
+// withoutTree accepts existing configurations which list tree, but tree is
+// fixed sidebar chrome rather than an optional namespace widget.
+func withoutTree(ids []string) []string {
+	result := ids[:0]
+	for _, id := range ids {
+		if id != "tree" {
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 // validNamespaceName reports whether name can be a namespace: a single
@@ -264,6 +277,7 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
 		}
 	}
+	cfg.Widgets = withoutTree(cfg.Widgets)
 	cfg.Index = strings.TrimSpace(cfg.Index)
 	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)

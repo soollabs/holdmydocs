@@ -78,6 +78,35 @@ func TestWidgetsForSlotUnknownIDIgnored(t *testing.T) {
 	}
 }
 
+func TestTreeIsRequiredBelowSearch(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	if err := writeNamespaceConfig(t, app, testNS, "widgets: [pages, search]\n"); err != nil {
+		t.Fatalf("configuring widgets: %v", err)
+	}
+	seedPage(t, app, Page{Slug: testNS + "/guides", Title: "Guides", Body: "overview"})
+	seedPage(t, app, Page{Slug: testNS + "/guides/setup", Title: "Setup", Body: "steps"})
+
+	resp, err := client.Get(server.URL + "/" + testNS + "/guides")
+	if err != nil {
+		t.Fatalf("GET page: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	body, _ := io.ReadAll(resp.Body)
+	page := string(body)
+
+	search := strings.Index(page, `class="sidebar-section sidebar-search"`)
+	tree := strings.Index(page, "<summary>TREE</summary>")
+	pages := strings.Index(page, `class="sidebar-section sidebar-pages"`)
+	if search == -1 || tree == -1 || pages == -1 || !(search < tree && tree < pages) {
+		t.Errorf("sidebar order should be search, tree, pages: search=%d tree=%d pages=%d", search, tree, pages)
+	}
+	if !strings.Contains(page, `href="/notes/guides/setup"`) {
+		t.Error("required tree must include nested pages")
+	}
+}
+
 // TestStatuslineDataSurvivesWidgetRemoval: the write statusline reads
 // WritingStats directly, so a namespace whose widget list doesn't mount
 // writing-stats must not silently zero the statusline.

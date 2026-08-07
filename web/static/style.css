@@ -1149,6 +1149,15 @@ ul.page-tree.branch > li::before {
 	margin: 0 -8px;
 	padding: 4px 8px;
 }
+.sidebar-tree .page-tree summary {
+	padding: 4px 0;
+}
+.sidebar-tree .page-tree summary > a,
+.sidebar-tree .page-tree summary > a.current {
+	display: inline;
+	margin: 0;
+	padding: 0;
+}
 .sidebar-tree .page-tree .dir {
 	color: var(--fg-faint);
 	font-size: 11px;
