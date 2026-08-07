@@ -549,11 +549,16 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			}
 		}
 		data.PinnedPages = filterBacklinkEntries(r.Context(), data.PinnedPages)
-		if data.SidebarTreeNS != "" {
-			entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
-			_, currentPath := namespaceFor(data.Slug)
-			data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, currentPath)
-		}
+	}
+	// Built for both authed and anonymous-public views: the tree is
+	// server-rendered HTML with no auth-only API calls behind it, so a
+	// public namespace can show it too (handlePublicPage/handleNamespaceIndex
+	// stage SidebarTreeNS/SidebarTreeEntries directly since populateWidgetData
+	// only runs when authed).
+	if data.SidebarTreeNS != "" {
+		entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
+		_, currentPath := namespaceFor(data.Slug)
+		data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, currentPath)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -1438,11 +1443,24 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		return
 	}
 
+	var sidebarTreeNS string
+	var sidebarTreeEntries []BacklinkEntry
+	if summary := namespaceSummaryFor(ns, app.Index.Titles(), pageNS); summary != nil {
+		sidebarTreeNS = pageNS
+		sidebarTreeEntries = summary.Pages
+	}
+
 	app.render(w, r, http.StatusOK, "page", TemplateData{
-		Authed:  false,
-		Title:   page.Title,
-		Slug:    slug,
-		Content: renderedBody,
+		Authed:             false,
+		Title:              page.Title,
+		Slug:               slug,
+		Content:            renderedBody,
+		SidebarTreeNS:      sidebarTreeNS,
+		SidebarTreeEntries: sidebarTreeEntries,
+		// The outline widget builds its list from this page's own headings
+		// client-side (toc.js) — no auth-only data or endpoint involved, so
+		// it's safe for anonymous viewers same as the sidebar tree.
+		RailWidgets: widgetsForSlot(slotRail, ns.Resolve(slug).Widgets),
 	})
 }
 
@@ -1550,16 +1568,18 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 
 	tagPages := filterBacklinkEntries(r.Context(), summary.Pages)
 	app.render(w, r, http.StatusOK, "namespace", TemplateData{
-		Authed:           authed,
-		Title:            name,
-		Slug:             name + "/",
-		StatusMode:       "view",
-		StatusContext:    fmt.Sprintf("%d pages", summary.Count),
-		Namespace:        name,
-		NamespacePublic:  summary.Config.Public,
-		IsNamespaceIndex: true,
-		TagPages:         tagPages,
-		PageTree:         renderLiveTree(buildPageTree(tagPages, name), name, ""),
+		Authed:             authed,
+		Title:              name,
+		Slug:               name + "/",
+		StatusMode:         "view",
+		StatusContext:      fmt.Sprintf("%d pages", summary.Count),
+		Namespace:          name,
+		NamespacePublic:    summary.Config.Public,
+		IsNamespaceIndex:   true,
+		TagPages:           tagPages,
+		PageTree:           renderLiveTree(buildPageTree(tagPages, name), name, ""),
+		SidebarTreeNS:      name,
+		SidebarTreeEntries: summary.Pages,
 	})
 }
 

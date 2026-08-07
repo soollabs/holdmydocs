@@ -86,10 +86,46 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	if !strings.Contains(s, "Public") || !strings.Contains(s, "<strong>content</strong>") {
 		t.Errorf("body missing rendered page content: %s", s)
 	}
-	for _, needle := range []string{`id="statusline"`, `id="palette-backdrop"`, `class="sidebar"`, `id="sidebar-toggle"`, `app.js`} {
+	// The sidebar tree is server-rendered with no auth-only API calls behind
+	// it, so it's allowed for anonymous public viewers — everything else
+	// (topbar, statusline, palette, app.js) stays authed-only.
+	if !strings.Contains(s, `class="sidebar"`) {
+		t.Errorf("anonymous public-namespace body should contain the sidebar tree: %s", s)
+	}
+	for _, needle := range []string{`id="statusline"`, `id="palette-backdrop"`, `id="sidebar-toggle"`, `app.js`} {
 		if strings.Contains(s, needle) {
 			t.Errorf("anonymous body should not contain %q", needle)
 		}
+	}
+}
+
+func TestAnonymousPublicPageGetsOutlineRail(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	defer server.Close()
+
+	setNamespacePublic(t, app, "blog", true)
+	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "## One\ntext\n\n## Two\nmore text"})
+
+	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+
+	// toc.js builds the "on this page" list client-side from this page's own
+	// (already public) headings — no auth-only endpoint involved — so it
+	// should load for an anonymous viewer even though app.js does not.
+	if !strings.Contains(s, `id="toc-rail"`) {
+		t.Errorf("anonymous public page with headings should render the outline rail: %s", s)
+	}
+	if !strings.Contains(s, `toc.js`) {
+		t.Errorf("anonymous public page with headings should load toc.js: %s", s)
+	}
+	if strings.Contains(s, `app.js`) {
+		t.Errorf("anonymous body should not load app.js: %s", s)
 	}
 }
 

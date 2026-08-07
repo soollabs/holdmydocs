@@ -399,7 +399,11 @@ func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, current
 			class += " current"
 		}
 		if len(n.Children) > 0 {
-			b.WriteString("<details open><summary>")
+			b.WriteString("<details")
+			if n.Path == currentPath || strings.HasPrefix(currentPath, n.Path+"/") {
+				b.WriteString(" open")
+			}
+			b.WriteString("><summary>")
 			if n.IsPage {
 				fmt.Fprintf(b, `<a class="%s" href="%s">%s</a>`, class, html.EscapeString(href), html.EscapeString(n.Title))
 			} else {

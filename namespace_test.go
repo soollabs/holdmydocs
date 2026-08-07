@@ -790,3 +790,27 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 		t.Errorf("rendered title = %q, want today's long date", title)
 	}
 }
+
+// TestRenderLiveTreeOnlyOpensCurrentPageAncestors covers the fix for a bug
+// where every <details> in the sidebar tree rendered open regardless of
+// which page you're on — expanding the entire namespace on every visit.
+// Only the branches leading to the current page should start open.
+func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
+	entries := []BacklinkEntry{
+		{Slug: "docs/a/one", Title: "One"},
+		{Slug: "docs/a/two", Title: "Two"},
+		{Slug: "docs/b/three", Title: "Three"},
+	}
+	root := buildPageTree(entries, "docs")
+	html := string(renderLiveTree(root, "docs", "a/one"))
+
+	if strings.Count(html, "<details open>") != 1 {
+		t.Errorf("want exactly 1 open branch (the ancestor of the current page), got:\n%s", html)
+	}
+	if !strings.Contains(html, `<details><summary><span class="dir">b</span>`) {
+		t.Errorf("branch \"b\" (not on the current page's path) should render closed:\n%s", html)
+	}
+	if !strings.Contains(html, `<details open><summary><span class="dir">a</span>`) {
+		t.Errorf("branch \"a\" (ancestor of the current page) should render open:\n%s", html)
+	}
+}

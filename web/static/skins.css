@@ -160,6 +160,13 @@
 	--pad-tight: 16px;
 }
 
+/* --rail-w: 0px alone still leaves .toc-rail at display: block (from the
+   >=1200px rule in style.css) with nothing to size it, so it renders and
+   its text wraps to a sliver. Drop it outright — this skin has "no rail". */
+:root[data-skin="journal"] .toc-rail {
+	display: none;
+}
+
 /* Whitespace does the work borders used to. */
 :root[data-skin="journal"] .page-wrap {
 	padding-block: 3rem;
@@ -323,6 +330,12 @@
 	--title-weight: 500;
 	--title-size:   22px;
 	--font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Same fix as journal: zeroing --rail-w doesn't stop .toc-rail from
+   rendering at >=1200px, it just leaves it with no width. */
+:root[data-skin="bare"] .toc-rail {
+	display: none;
 }
 
 :root[data-skin="bare"] .sidebar h2 {

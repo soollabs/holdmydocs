@@ -35,7 +35,7 @@
 		})();
 	</script>
 </head>
-<body class="{{if .Authed}}shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
+<body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
 	{{if .Authed}}
 	<header class="app-topbar">
 		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
@@ -58,6 +58,8 @@
 			</details>
 		</div>
 	</header>
+	{{end}}
+	{{if or .Authed .SidebarTree}}
 	<nav class="sidebar" id="sidebar">
 		{{template "widget-tree" .}}
 		{{range .SidebarWidgets}}
@@ -70,8 +72,8 @@
 		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
 		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
 		{{end}}
-		{{/* Shortcut hints remain fixed chrome, not a configurable widget. */}}
-		{{template "widget-keys" $}}
+		{{/* Shortcut hints remain fixed chrome, not a configurable widget. Authed-only: documents app.js shortcuts, which isn't loaded for anonymous public viewers. */}}
+		{{if .Authed}}{{template "widget-keys" $}}{{end}}
 	</nav>
 	{{end}}
 	<main>
@@ -215,6 +217,8 @@
 	</script>
 	{{end}}
 	{{if .Authed}}<script src="/_/static/app.js?v=2"></script>{{end}}
+	{{if .RailWidgets}}<script src="/_/static/toc.js?v=1"></script>{{end}}
+	{{if or .Authed .SidebarTree}}<script src="/_/static/sidebar.js?v=1"></script>{{end}}
 </body>
 </html>
 {{end}}

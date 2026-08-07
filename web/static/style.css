@@ -228,6 +228,13 @@ body:not(.shell) {
 	min-height: 100vh;
 }
 
+/* Anonymous public-namespace view: sidebar nav but no topbar/statusline
+   (both are authed-only chrome), so drop those grid rows. */
+body.shell.shell-public {
+	grid-template-rows: 1fr;
+	grid-template-areas: "sidebar main";
+}
+
 .sidebar {
 	grid-area: sidebar;
 	background: var(--surface);
