@@ -64,7 +64,7 @@ func logPublicNamespaces(namespaces NamespaceRegistry, pages []Page) {
 func main() {
 	exportNS := flag.String("export-namespace", "", "export this namespace to static HTML and exit, instead of serving")
 	exportDir := flag.String("export-dir", "", "output directory for -export-namespace")
-	exportTitle := flag.String("export-title", "", "site title shown in the exported sidebar and <title>; defaults to the namespace name")
+	exportTitle := flag.String("export-title", "", "override the configured namespace title in the static export")
 	flag.Parse()
 
 	loadThemeDefaults()

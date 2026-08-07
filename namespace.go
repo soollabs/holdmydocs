@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -41,6 +42,9 @@ type NewPageConfig struct {
 type NamespaceConfig struct {
 	Widgets []string       `yaml:"widgets,omitempty"`
 	Public  bool           `yaml:"public,omitempty"`
+	Title   string         `yaml:"title,omitempty"`
+	Skin    string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = defaultSkin
+	Palette string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
 	New     *NewPageConfig `yaml:"new,omitempty"`
 
 	// Index names a page in this namespace (one segment, e.g. "home") that
@@ -148,7 +152,7 @@ func namespaceConfigPath(ns string) string {
 // builtinWidgets is the default composition used when a namespace has no
 // widgets: key — roughly today's phosphor composition, so a fresh wiki does
 // not look broken.
-var builtinWidgets = []string{"pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
+var builtinWidgets = []string{"pages", "namespaces", "tags", "log", "page-meta", "backlinks"}
 
 // defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
 // built-in widgets, private.
@@ -214,7 +218,7 @@ func loadNamespaceConfig(dir, name string) NamespaceConfig {
 func withoutFixedChrome(ids []string) []string {
 	result := ids[:0]
 	for _, id := range ids {
-		if id != "search" && id != "tree" {
+		if id != "search" && id != "tree" && id != "outline" {
 			result = append(result, id)
 		}
 	}
@@ -288,6 +292,17 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
 	}
+	cfg.Title = strings.TrimSpace(cfg.Title)
+	cfg.Skin = strings.TrimSpace(cfg.Skin)
+	if cfg.Skin != "" && !slices.Contains(skinNames, cfg.Skin) {
+		return NamespaceConfig{}, fmt.Errorf("unknown skin %q", cfg.Skin)
+	}
+	cfg.Palette = strings.TrimSpace(cfg.Palette)
+	if cfg.Palette != "" {
+		if _, ok := themePresets[cfg.Palette]; !ok {
+			return NamespaceConfig{}, fmt.Errorf("unknown palette %q", cfg.Palette)
+		}
+	}
 	if cfg.New == nil {
 		return cfg, nil
 	}
@@ -310,6 +325,15 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 		return NamespaceConfig{}, fmt.Errorf("slug pattern renders unusable page name %q", rendered)
 	}
 	return cfg, nil
+}
+
+// namespaceDisplayTitle is the published-site title shared by anonymous
+// pages and static exports. A namespace name is always a usable fallback.
+func namespaceDisplayTitle(name string, cfg NamespaceConfig) string {
+	if title := strings.TrimSpace(cfg.Title); title != "" {
+		return title
+	}
+	return name
 }
 
 // navNode is one entry in a namespace's page tree — used both by the live
@@ -380,12 +404,23 @@ func sortNavTree(node *navNode) {
 // currentPath (a page's slug remainder within ns, "" if not applicable)
 // marks that page's link .current.
 func renderLiveTree(root *navNode, ns string, currentPath string) template.HTML {
+	return renderTree(root, currentPath, func(pagePath string) string {
+		return fmt.Sprintf("/%s/%s", ns, pagePath)
+	})
+}
+
+// renderStaticTree uses the same public tree markup with relative links.
+func renderStaticTree(root *navNode, currentPath string, hrefFor func(string) string) template.HTML {
+	return renderTree(root, currentPath, hrefFor)
+}
+
+func renderTree(root *navNode, currentPath string, hrefFor func(string) string) template.HTML {
 	var b strings.Builder
-	writeLiveTreeNodes(&b, root.Children, ns, currentPath, true)
+	writeTreeNodes(&b, root.Children, currentPath, hrefFor, true)
 	return template.HTML(b.String())
 }
 
-func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, currentPath string, top bool) {
+func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hrefFor func(string) string, top bool) {
 	if top {
 		b.WriteString(`<ul class="page-tree">`)
 	} else {
@@ -393,7 +428,7 @@ func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, current
 	}
 	for _, n := range nodes {
 		b.WriteString("<li>")
-		href := fmt.Sprintf("/%s/%s", ns, n.Path)
+		href := hrefFor(n.Path)
 		class := "nav-link"
 		if n.Path == currentPath {
 			class += " current"
@@ -410,7 +445,7 @@ func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, current
 				b.WriteString(`<span class="dir">` + html.EscapeString(n.Name) + `</span>`)
 			}
 			b.WriteString("</summary>")
-			writeLiveTreeNodes(b, n.Children, ns, currentPath, false)
+			writeTreeNodes(b, n.Children, currentPath, hrefFor, false)
 			b.WriteString("</details>")
 		} else {
 			fmt.Fprintf(b, `<a class="%s" href="%s">%s</a>`, class, html.EscapeString(href), html.EscapeString(n.Title))
@@ -584,6 +619,9 @@ type NamespaceListEntry struct {
 	Name       string
 	Widgets    []string
 	Public     bool
+	Title      string // published-site title; falls back to Name if empty
+	Skin       string // structural skin shown to public viewers; empty = defaultSkin
+	Palette    string // colour preset shown to public viewers; empty = skin's own default
 	Configured bool   // has a .namespace.yaml — i.e. there is something to remove
 	LoadError  string // why an existing .namespace.yaml was ignored, if it was
 	Index      string // page name that replaces the page-list view at /{namespace}/, if any
@@ -616,6 +654,9 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 			Name:       name,
 			Widgets:    cfg.Widgets,
 			Public:     cfg.Public,
+			Title:      cfg.Title,
+			Skin:       cfg.Skin,
+			Palette:    cfg.Palette,
 			Configured: cfg.Configured,
 			LoadError:  cfg.LoadError,
 			Index:      cfg.Index,

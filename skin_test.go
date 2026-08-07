@@ -35,6 +35,25 @@ func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
 	}
 }
 
+func TestSkinsKeepOutlineRail(t *testing.T) {
+	css, err := webFS.ReadFile("web/static/skins.css")
+	if err != nil {
+		t.Fatalf("reading embedded skins.css: %v", err)
+	}
+	for _, name := range skinNames {
+		if strings.Contains(string(css), `:root[data-skin="`+name+`"] .toc-rail`) {
+			t.Errorf("%s skin hides the fixed outline rail", name)
+		}
+	}
+
+	for _, widgets := range [][]string{nil, []string{"outline"}} {
+		rail := widgetsForSlot(slotRail, widgets)
+		if len(rail) != 1 || rail[0].ID != "outline" {
+			t.Errorf("outline rail not fixed for widgets %v", widgets)
+		}
+	}
+}
+
 // TestNoSkinTogglesSettingsWidget guards against "keys" (the settings/help
 // link) re-entering the namespace widget-list system: it must always
 // render, regardless of skin or a namespace's widget picks, so settings can

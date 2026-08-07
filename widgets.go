@@ -56,12 +56,16 @@ type widgetSlotGroup struct {
 }
 
 // widgetSlotGroups lists every configurable widget grouped by slot, slots in
-// layout order and widgets in widgetIDs order.
+// layout order and widgets in widgetIDs order. The outline is fixed chrome,
+// alongside the tree, so it is deliberately omitted.
 func widgetSlotGroups() []widgetSlotGroup {
 	groups := make([]widgetSlotGroup, 0, 4)
 	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
 		g := widgetSlotGroup{Slot: slot}
 		for _, id := range widgetIDs {
+			if id == "outline" {
+				continue
+			}
 			if w := widgets[id]; w.Slot == slot {
 				g.Widgets = append(g.Widgets, w)
 			}
@@ -72,12 +76,18 @@ func widgetSlotGroups() []widgetSlotGroup {
 }
 
 // widgetsForSlot resolves a flat namespace widget-id list to the ordered
-// *widgets that render in slot: the list controls membership and
-// within-slot order, but which slot a widget lands in always comes from the
-// registry, not from where the id sits in ids.
+// *widgets that render in slot. The outline is fixed chrome, so the rail is
+// always present independently of a namespace's configurable widgets.
 func widgetsForSlot(slot widgetSlot, ids []string) []*widget {
 	result := make([]*widget, 0, len(ids))
+	if slot == slotRail {
+		outline := widgets["outline"]
+		result = append(result, &outline)
+	}
 	for _, id := range ids {
+		if id == "outline" {
+			continue
+		}
 		w, ok := widgets[id]
 		if !ok || w.Slot != slot {
 			continue

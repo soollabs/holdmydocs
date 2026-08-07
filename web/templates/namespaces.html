@@ -10,7 +10,7 @@
 			<h2 class="settings-zone-title" id="namespace-catalogue"><span class="h"></span>catalogue</h2>
 			{{if .Rows}}
 			<div class="table-wrap namespace-table"><table class="settings-table"><thead><tr><th scope="col">Name</th><th scope="col">Pages</th><th scope="col">Visibility</th><th scope="col">Actions</th></tr></thead><tbody>
-			{{range .Rows}}<tr><th scope="row"><a href="/{{.Name}}/">{{.Name}}/</a></th><td>{{.Count}} pages</td><td>{{if .Config.Public}}public{{else}}private{{end}}</td><td><a href="/_/namespaces/{{.Name}}/edit">Edit</a>{{if .Config.Public}} · <a href="/{{.Name}}/">Public index</a>{{end}}{{if .Count}} · <form class="export-form" method="GET" action="/_/settings/namespaces/{{.Name}}/export"><input type="text" name="title" placeholder="Site title (optional)"> <button type="submit">Export static site</button></form>{{end}}</td></tr>{{end}}
+			{{range .Rows}}<tr><th scope="row"><a href="/{{.Name}}/">{{.Name}}/</a></th><td>{{.Count}} pages</td><td>{{if .Config.Public}}public{{else}}private{{end}}</td><td><a href="/_/namespaces/{{.Name}}/edit">Edit</a>{{if .Config.Public}} · <a href="/{{.Name}}/">Public index</a>{{end}}{{if .Count}} · <a href="/_/settings/namespaces/{{.Name}}/export">Export static site</a>{{end}}</td></tr>{{end}}
 			</tbody></table></div>
 			{{else}}<p class="settings-note">No namespaces yet. Create one when you need a separate area for pages.</p>{{end}}
 			</section>

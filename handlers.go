@@ -101,6 +101,9 @@ type HistoryEntry struct {
 
 type TemplateData struct {
 	SiteName            string
+	AssetPath           string // static asset prefix; /_/static/ in the live app
+	NamespaceHome       string // static namespace index link; empty uses the live route
+	Static              bool
 	Authed              bool
 	Title               string
 	Slug                string
@@ -165,6 +168,7 @@ type TemplateData struct {
 	NamespaceManagement *NamespaceManagementData
 	Namespace           string // namespace index page: the namespace being listed
 	NamespacePublic     bool
+	NamespaceTitle      string        // public top bar title; falls back to Namespace if empty
 	PageTree            template.HTML // namespace index page: TagPages as a folder tree, see renderLiveTree
 	RecentCommits       []LogEntry    // sidebar LOG section: last commits for the current page
 	HealthMissing       int
@@ -200,6 +204,8 @@ type NamespaceManagementData struct {
 	Form         NamespaceListEntry
 	WidgetGroups []widgetSlotGroup
 	SlugPresets  []slugPresetView
+	SkinNames    []string
+	PaletteNames []string
 	Now          time.Time
 	Error        string
 	Flash        string
@@ -430,7 +436,10 @@ func exportSecretVars(cfg Config) []string {
 // render executes the named page template inside the shared layout.
 // Every template set was parsed from base.html plus one content template.
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
-	data.SiteName = app.wikiConfig().SiteName
+	if data.SiteName == "" {
+		data.SiteName = app.wikiConfig().SiteName
+	}
+	data.AssetPath = "/_/static/"
 	data.Version = version
 	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
 	if data.SyncState == "" {
@@ -1443,24 +1452,31 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		return
 	}
 
+	cfg := ns.Resolve(slug)
 	var sidebarTreeNS string
 	var sidebarTreeEntries []BacklinkEntry
 	if summary := namespaceSummaryFor(ns, app.Index.Titles(), pageNS); summary != nil {
 		sidebarTreeNS = pageNS
 		sidebarTreeEntries = summary.Pages
 	}
+	publishedTitle := namespaceDisplayTitle(pageNS, cfg)
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:             false,
+		SiteName:           publishedTitle,
 		Title:              page.Title,
 		Slug:               slug,
 		Content:            renderedBody,
+		Namespace:          pageNS,
+		NamespaceTitle:     publishedTitle,
+		Skin:               cfg.Skin,
+		ThemeStyle:         buildThemeStyle(userRecord{Palette: cfg.Palette}),
 		SidebarTreeNS:      sidebarTreeNS,
 		SidebarTreeEntries: sidebarTreeEntries,
 		// The outline widget builds its list from this page's own headings
 		// client-side (toc.js) — no auth-only data or endpoint involved, so
 		// it's safe for anonymous viewers same as the sidebar tree.
-		RailWidgets: widgetsForSlot(slotRail, ns.Resolve(slug).Widgets),
+		RailWidgets: widgetsForSlot(slotRail, cfg.Widgets),
 	})
 }
 
@@ -1566,15 +1582,28 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		}
 	}
 
+	publishedTitle := namespaceDisplayTitle(name, summary.Config)
+	var siteName, namespaceSkin string
+	var themeStyle template.CSS
+	if !authed {
+		siteName = publishedTitle
+		namespaceSkin = summary.Config.Skin
+		themeStyle = buildThemeStyle(userRecord{Palette: summary.Config.Palette})
+	}
+
 	tagPages := filterBacklinkEntries(r.Context(), summary.Pages)
 	app.render(w, r, http.StatusOK, "namespace", TemplateData{
 		Authed:             authed,
+		SiteName:           siteName,
 		Title:              name,
 		Slug:               name + "/",
 		StatusMode:         "view",
 		StatusContext:      fmt.Sprintf("%d pages", summary.Count),
 		Namespace:          name,
 		NamespacePublic:    summary.Config.Public,
+		NamespaceTitle:     publishedTitle,
+		Skin:               namespaceSkin,
+		ThemeStyle:         themeStyle,
 		IsNamespaceIndex:   true,
 		TagPages:           tagPages,
 		PageTree:           renderLiveTree(buildPageTree(tagPages, name), name, ""),
@@ -2890,6 +2919,8 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 		Rows:         filterNamespaceSummaries(r.Context(), namespaceSummaries(app.Namespaces(), app.Index.Titles())),
 		WidgetGroups: widgetSlotGroups(),
 		SlugPresets:  slugPresetViews(user),
+		SkinNames:    skinNames,
+		PaletteNames: themePresetNames,
 		Now:          time.Now(),
 		Error:        errMsg,
 	}
@@ -2998,7 +3029,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	// if it gets a template page seeded below.
 	creating := !app.Namespaces()[name].Configured
 
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Index: strings.TrimSpace(r.FormValue("index"))}
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: strings.TrimSpace(r.FormValue("title")), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.

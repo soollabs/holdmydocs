@@ -228,11 +228,17 @@ body:not(.shell) {
 	min-height: 100vh;
 }
 
-/* Anonymous public-namespace view: sidebar nav but no topbar/statusline
-   (both are authed-only chrome), so drop those grid rows. */
+/* Anonymous public-namespace view: sidebar nav and a minimal topbar
+   (title only, no auth-only actions/statusline), so drop the statusline row. */
 body.shell.shell-public {
-	grid-template-rows: 1fr;
-	grid-template-areas: "sidebar main";
+	grid-template-rows: 56px 1fr;
+	grid-template-areas:
+		"topbar topbar"
+		"sidebar main";
+}
+
+.app-topbar-public {
+	padding: 0 20px;
 }
 
 .sidebar {
@@ -1365,18 +1371,6 @@ ul.page-tree.branch > li::before {
 
 .settings-table td:first-child, .settings-table th:first-child {
 	color: var(--accent);
-}
-
-.export-form {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.export-form input {
-	font-size: 12px;
-	padding: 2px 6px;
-	width: 140px;
 }
 
 /* Code blocks */

@@ -7,10 +7,15 @@
 {{$form := .Form}}
 <form method="POST" action="/_/settings/namespaces" class="namespace-form settings-form">
 <input type="hidden" name="template" value="{{$form.Template}}">
-<fieldset class="settings-section settings-panel"><legend>directory</legend>
+<fieldset class="settings-section settings-panel"><legend>namespace</legend>
 <div class="settings-row"><label for="namespace-name">name</label><input id="namespace-name" name="name" value="{{$form.Name}}" placeholder="e.g. blog" autocomplete="off" required {{if $form.Name}}readonly{{end}}></div>
-<div class="settings-row"><label for="namespace-public">visibility</label><label class="scope-check"><input id="namespace-public" type="checkbox" name="public" {{if $form.Public}}checked{{end}}> public index</label></div>
 <div class="settings-row"><label for="namespace-index">index page</label><input id="namespace-index" name="index" value="{{$form.Index}}" placeholder="optional — page name shown at /{{if $form.Name}}{{$form.Name}}{{else}}ns{{end}}/ instead of the page list"></div>
+</fieldset>
+<fieldset class="settings-section settings-panel"><legend>published view</legend>
+<div class="settings-row"><label for="namespace-public">visibility</label><label class="scope-check"><input id="namespace-public" type="checkbox" name="public" {{if $form.Public}}checked{{end}}> allow anonymous access</label></div>
+<div class="settings-row"><label for="namespace-title">site title</label><input id="namespace-title" name="title" value="{{$form.Title}}" placeholder="optional — used in public pages and static exports; defaults to {{if $form.Name}}{{$form.Name}}{{else}}the namespace name{{end}}"></div>
+<div class="settings-row"><label for="namespace-skin">skin</label><select id="namespace-skin" name="skin"><option value="">default</option>{{range .SkinNames}}<option value="{{.}}" {{if eq $form.Skin .}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+<div class="settings-row"><label for="namespace-palette">palette</label><select id="namespace-palette" name="palette"><option value="">skin default</option>{{range .PaletteNames}}<option value="{{.}}" {{if eq $form.Palette .}}selected{{end}}>{{.}}</option>{{end}}</select></div>
 </fieldset>
 <fieldset class="settings-section settings-panel"><legend>quick-create page</legend>
 <div class="settings-row"><label for="new-enabled">quick-create</label><label class="scope-check"><input id="new-enabled" type="checkbox" name="new_enabled" class="new-toggle" {{if $form.NewEnabled}}checked{{end}}> Ctrl-J creates a page here</label></div>

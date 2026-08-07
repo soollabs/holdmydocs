@@ -68,7 +68,9 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()
 
-	setNamespacePublic(t, app, "blog", true)
+	if err := writeNamespaceConfig(t, app, "blog", "public: true\ntitle: My Blog\n"); err != nil {
+		t.Fatalf("writing .namespace.yaml: %v", err)
+	}
 	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public **content**."})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
@@ -85,6 +87,11 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 
 	if !strings.Contains(s, "Public") || !strings.Contains(s, "<strong>content</strong>") {
 		t.Errorf("body missing rendered page content: %s", s)
+	}
+	for _, needle := range []string{`<title>Hello — My Blog</title>`, `class="topbar-site">My Blog</a>`} {
+		if !strings.Contains(s, needle) {
+			t.Errorf("anonymous public page missing namespace title %q: %s", needle, s)
+		}
 	}
 	// The sidebar tree is server-rendered with no auth-only API calls behind
 	// it, so it's allowed for anonymous public viewers — everything else
