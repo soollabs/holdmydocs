@@ -125,6 +125,39 @@ func (r *Renderer) RenderPublic(body, ns string, isPublicLink func(slug string) 
 	return htmltemplate.HTML(htmlStr), nil
 }
 
+// RenderStatic renders body for a namespace static export (see export.go).
+// hrefFor maps a resolved wiki-link's slug to the exported page's relative
+// href; a slug hrefFor doesn't know about (cross-namespace, private, or
+// simply not exported) unwraps to plain text, same leakage rule as
+// RenderPublic — a static export has no server to check a viewer's auth
+// against later, so an unresolvable link must never survive as a live href.
+func (r *Renderer) RenderStatic(body, ns string, hrefFor func(slug string) (href string, ok bool)) (htmltemplate.HTML, error) {
+	body = wikiLinkOrCodeRe.ReplaceAllStringFunc(body, func(match string) string {
+		if !strings.HasPrefix(match, "[[") {
+			return match // fenced/inline code — leave untouched, not a real link
+		}
+		title := match[2 : len(match)-2]
+		escaped := html.EscapeString(title)
+		slug, ok := r.resolve(title, ns)
+		if !ok {
+			return escaped
+		}
+		href, ok := hrefFor(slug)
+		if !ok {
+			return escaped
+		}
+		return fmt.Sprintf(`<a class="wiki" href="%s">%s</a>`, href, escaped)
+	})
+
+	var buf bytes.Buffer
+	if err := r.md.Convert([]byte(body), &buf); err != nil {
+		return "", fmt.Errorf("rendering markdown: %w", err)
+	}
+	htmlStr := r.processMermaidBlocks(buf.String())
+	htmlStr = sanitizePolicy.Sanitize(htmlStr)
+	return htmltemplate.HTML(htmlStr), nil
+}
+
 func (r *Renderer) processMermaidBlocks(htmlStr string) string {
 	// string post-processing, swap for a goldmark AST extension if it ever misfires
 	// Replace <pre><code class="language-mermaid">...</code></pre> with <pre class="mermaid">...</pre>

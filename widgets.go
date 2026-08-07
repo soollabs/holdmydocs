@@ -24,13 +24,14 @@ type widget struct {
 }
 
 var widgetIDs = []string{
-	"search", "pages", "namespaces", "pinned", "tags", "log", "health",
+	"search", "tree", "pages", "namespaces", "pinned", "tags", "log", "health",
 	"calendar", "writing-stats",
 	"outline", "page-meta", "backlinks", "prev-entries",
 }
 
 var widgets = map[string]widget{
 	"search":     {ID: "search", Title: "SEARCH", Slot: slotSidebar, Description: "a quick search box for the wiki."},
+	"tree":       {ID: "tree", Title: "TREE", Slot: slotSidebar, Description: "the folder tree of the namespace you're standing in, collapsible, current page highlighted."},
 	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages in this namespace, most recent first."},
 	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
 	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
@@ -168,5 +169,18 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	}
 	if needs("namespaces") {
 		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), app.Index.Titles()), ns)
+	}
+	// Token/PAT filtering happens back in render(), after this call, the
+	// same way PinnedPages and NamespaceNav do — this only stages the raw
+	// entries, since the tree can't be filtered after it's already flattened
+	// to HTML. Root pages ("" namespace) have no folder structure to show —
+	// every root slug is a single segment by construction — so the widget
+	// stays empty there rather than showing an empty tree shell.
+	if needs("tree") && ns != "" {
+		summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), ns)
+		if summary != nil {
+			data.SidebarTreeNS = ns
+			data.SidebarTreeEntries = summary.Pages
+		}
 	}
 }

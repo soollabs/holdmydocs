@@ -1052,28 +1052,108 @@ body.zen-manuscript .zen-status.visible {
 	border-radius: var(--radius);
 }
 
-.namespace-index {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-	gap: 0.5rem;
+/* Namespace index tree: folders are real filesystem directories under the
+   namespace (see namespace.go's navNode), so the index shows that structure
+   instead of a flat alphabetical list — a folder's children get a guide
+   line down the left edge and a short connector into each row, the same
+   shape "tree" would print. */
+ul.page-tree {
 	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 0.95rem;
 }
-
-.namespace-index a {
-	display: block;
-	border: var(--border-w) var(--rule-style) var(--border-visible);
-	background: var(--surface);
+ul.page-tree.branch {
+	margin-left: 0.8em;
+	padding-left: 1em;
+	border-left: var(--border-w) var(--rule-style) var(--border-visible);
+}
+.page-tree li {
+	position: relative;
+	padding: 0.25em 0;
+}
+ul.page-tree.branch > li::before {
+	content: "";
+	position: absolute;
+	left: -1em;
+	top: 1.1em;
+	width: 0.7em;
+	height: var(--border-w);
+	background: var(--border-visible);
+}
+.page-tree a {
 	color: var(--fg-strong);
-	padding: 0.8rem var(--pad);
-	border-radius: var(--radius);
 	text-decoration: none;
-	transition: border-color 120ms ease, background 120ms ease;
+}
+.page-tree a:hover,
+.page-tree a:focus-visible {
+	color: var(--primary);
+	text-decoration: underline;
+}
+.page-tree .dir {
+	color: var(--fg-muted);
+}
+.page-tree summary {
+	cursor: pointer;
+	list-style: revert;
+}
+.page-tree .tree-new {
+	color: var(--fg-faint);
+	margin-left: 0.4em;
+	font-size: 0.85em;
+}
+.page-tree .tree-new:hover {
+	color: var(--primary);
+}
+.page-tree a.current {
+	background: var(--primary);
+	color: var(--accent-fg);
+	border-radius: 3px;
+	padding: 0 4px;
+	margin: 0 -4px;
 }
 
-.namespace-index a:hover,
-.namespace-index a:focus-visible {
-	border-color: var(--primary);
-	background: var(--surface-raised);
+/* Sidebar TREE widget: the same tree, but compact (13px, sidebar-list's
+   rhythm) and collapsible as a whole via <details>, matching every other
+   sidebar section's uppercase h2 header — just interactive. */
+.sidebar-tree > summary {
+	cursor: pointer;
+	list-style: revert;
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	color: var(--fg-muted);
+	text-transform: uppercase;
+	font-weight: 700;
+	margin: 0 0 6px;
+}
+.sidebar-tree .page-tree {
+	font-size: 13px;
+}
+.sidebar-tree .page-tree a {
+	display: block;
+	padding: 4px 8px;
+	margin: 0 -8px;
+	color: var(--fg-muted);
+	text-decoration: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-radius: 3px;
+}
+.sidebar-tree .page-tree a:hover {
+	color: var(--fg-strong);
+}
+.sidebar-tree .page-tree a.current {
+	background: var(--primary);
+	color: var(--accent-fg);
+	margin: 0 -8px;
+	padding: 4px 8px;
+}
+.sidebar-tree .page-tree .dir {
+	color: var(--fg-faint);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 }
 
 .namespace-management {
@@ -1270,6 +1350,18 @@ body.zen-manuscript .zen-status.visible {
 
 .settings-table td:first-child, .settings-table th:first-child {
 	color: var(--accent);
+}
+
+.export-form {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.export-form input {
+	font-size: 12px;
+	padding: 2px 6px;
+	width: 140px;
 }
 
 /* Code blocks */

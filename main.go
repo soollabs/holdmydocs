@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
 	"fmt"
 	"html/template"
 	"log"
@@ -20,7 +21,7 @@ var webFS embed.FS
 func parseTemplates() (map[string]*template.Template, error) {
 	tmpl := make(map[string]*template.Template)
 	widgetFiles := []string{
-		"web/templates/widgets/search.html", "web/templates/widgets/pages.html",
+		"web/templates/widgets/search.html", "web/templates/widgets/tree.html", "web/templates/widgets/pages.html",
 		"web/templates/widgets/namespaces.html",
 		"web/templates/widgets/pinned.html", "web/templates/widgets/tags.html", "web/templates/widgets/log.html",
 		"web/templates/widgets/health.html", "web/templates/widgets/keys.html",
@@ -61,6 +62,11 @@ func logPublicNamespaces(namespaces NamespaceRegistry, pages []Page) {
 }
 
 func main() {
+	exportNS := flag.String("export-namespace", "", "export this namespace to static HTML and exit, instead of serving")
+	exportDir := flag.String("export-dir", "", "output directory for -export-namespace")
+	exportTitle := flag.String("export-title", "", "site title shown in the exported sidebar and <title>; defaults to the namespace name")
+	flag.Parse()
+
 	loadThemeDefaults()
 
 	cfg, err := LoadConfig()
@@ -115,6 +121,17 @@ func main() {
 
 	// Create renderer and auth
 	renderer := NewRenderer(index.ResolveLink)
+
+	if *exportNS != "" {
+		if *exportDir == "" {
+			log.Fatalf("-export-namespace requires -export-dir")
+		}
+		if err := ExportNamespace(pages, renderer, namespaces, cfg.RepoDir, *exportNS, *exportDir, *exportTitle); err != nil {
+			log.Fatalf("export failed: %v", err)
+		}
+		return
+	}
+
 	auth, err := OpenAuth(cfg)
 	if err != nil {
 		log.Fatalf("open auth failed: %v", err)

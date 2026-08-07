@@ -11,11 +11,8 @@
 	{{if .CanSettings}} · <a href="/_/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}
 </p>
 {{if .CanWrite}}<p class="namespace-index-actions"><a class="primary" href="/{{.Namespace}}/new?do=edit">Create page</a></p>{{end}}
-{{if not .TagPages}}<p class="namespace-index-empty">No pages in this namespace yet.</p>{{end}}
-<ul class="namespace-index">
-{{range .TagPages}}
-	<li><a href="/{{.Slug}}">{{.Title}}</a></li>
+{{if not .TagPages}}<p class="namespace-index-empty">No pages in this namespace yet.</p>{{else}}
+{{.PageTree}}
 {{end}}
-</ul>
 </div>
 {{end}}

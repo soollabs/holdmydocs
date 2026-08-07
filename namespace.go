@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"html"
+	"html/template"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -143,7 +145,7 @@ func namespaceConfigPath(ns string) string {
 // builtinWidgets is the default composition used when a namespace has no
 // widgets: key — roughly today's phosphor composition, so a fresh wiki does
 // not look broken.
-var builtinWidgets = []string{"search", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
+var builtinWidgets = []string{"search", "tree", "pages", "namespaces", "tags", "log", "outline", "page-meta", "backlinks"}
 
 // defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
 // built-in widgets, private.
@@ -215,19 +217,38 @@ func validMCPPageSegment(name string) bool {
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 
-// validMCPPageSlug accepts a root page or one namespace/page pair. MCP is a
-// trust boundary, so unlike regular URL routing it rejects traversal-shaped,
-// hidden and reserved path components explicitly.
-func validMCPPageSlug(slug string) bool {
-	parts := strings.Split(slug, "/")
-	switch len(parts) {
-	case 1:
-		return validMCPPageSegment(parts[0])
-	case 2:
-		return validNamespaceName(parts[0]) && !strings.HasPrefix(parts[0], reservedNamespace) && validMCPPageSegment(parts[1])
-	default:
+// validPagePath accepts a page's path within its namespace: one or more
+// slash-separated segments, each independently a valid page segment.
+// Namespaces stay exactly one level deep (see BuildNamespaceRegistry), but
+// the pages inside one can nest arbitrarily via slash-separated slugs —
+// "guides/setup" is namespace "guides"'s own folder, not a namespace of its
+// own — so every segment gets the same non-hidden, non-reserved check
+// validMCPPageSegment already applies to a single one.
+func validPagePath(rest string) bool {
+	if rest == "" {
 		return false
 	}
+	for _, seg := range strings.Split(rest, "/") {
+		if !validMCPPageSegment(seg) {
+			return false
+		}
+	}
+	return true
+}
+
+// validMCPPageSlug accepts a root page or a namespace plus a (possibly
+// nested) page path within it. MCP is a trust boundary, so unlike regular
+// URL routing it rejects traversal-shaped, hidden and reserved path
+// components explicitly.
+func validMCPPageSlug(slug string) bool {
+	ns, rest := namespaceFor(slug)
+	if rest == "" {
+		return false
+	}
+	if ns == "" {
+		return validMCPPageSegment(rest)
+	}
+	return validNamespaceName(ns) && !strings.HasPrefix(ns, reservedNamespace) && validPagePath(rest)
 }
 
 // normaliseNamespaceConfig validates the shared namespace-settings shape used
@@ -270,6 +291,116 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 		return NamespaceConfig{}, fmt.Errorf("slug pattern renders unusable page name %q", rendered)
 	}
 	return cfg, nil
+}
+
+// navNode is one entry in a namespace's page tree — used both by the live
+// namespace index (handleNamespaceIndex) and the static export
+// (ExportNamespace). Namespaces are exactly one level deep, but the pages
+// inside one can still nest via slash-separated slugs — e.g.
+// "docs/guides/setup" — and that's what the tree reflects: a folder per
+// intermediate segment, a leaf per page, and a segment can be both (a page
+// that also has children, like "guides" itself).
+type navNode struct {
+	Name     string // path segment
+	Title    string
+	Path     string // this node's slug remainder within the namespace, whether or not it's IsPage — a folder needs it too, to link "new page in this folder"
+	IsPage   bool
+	Children []*navNode
+}
+
+// buildPageTree builds the page hierarchy for namespace ns from entries
+// already filtered to it (BacklinkEntry.Slug is a full slug, namespace
+// prefix included).
+func buildPageTree(entries []BacklinkEntry, ns string) *navNode {
+	root := &navNode{}
+	for _, e := range entries {
+		_, rest := namespaceFor(e.Slug)
+		segments := strings.Split(rest, "/")
+		node := root
+		path := ""
+		for i, seg := range segments {
+			if i == 0 {
+				path = seg
+			} else {
+				path += "/" + seg
+			}
+			node = navChild(node, seg)
+			node.Path = path
+			if i == len(segments)-1 {
+				node.IsPage = true
+				node.Title = e.Title
+			}
+		}
+	}
+	sortNavTree(root)
+	return root
+}
+
+func navChild(node *navNode, name string) *navNode {
+	for _, c := range node.Children {
+		if c.Name == name {
+			return c
+		}
+	}
+	c := &navNode{Name: name}
+	node.Children = append(node.Children, c)
+	return c
+}
+
+func sortNavTree(node *navNode) {
+	sort.Slice(node.Children, func(i, j int) bool { return node.Children[i].Name < node.Children[j].Name })
+	for _, c := range node.Children {
+		sortNavTree(c)
+	}
+}
+
+// renderLiveTree renders root's Children as a namespace's folder tree — used
+// by both the namespace index page and the sidebar TREE widget — with plain
+// absolute hrefs (/ns/path) since the live app always serves from its own
+// root, not a relative-path static bundle. canWrite adds a "+" link per
+// folder to create a page nested there — the same /ns/path/new?do=edit
+// pattern the namespace index's own root-level "Create page" button uses,
+// landing on the ordinary new-page editor with the filename field prefilled.
+// currentPath (a page's slug remainder within ns, "" if not applicable)
+// marks that page's link .current.
+func renderLiveTree(root *navNode, ns string, canWrite bool, currentPath string) template.HTML {
+	var b strings.Builder
+	writeLiveTreeNodes(&b, root.Children, ns, canWrite, currentPath, true)
+	return template.HTML(b.String())
+}
+
+func writeLiveTreeNodes(b *strings.Builder, nodes []*navNode, ns string, canWrite bool, currentPath string, top bool) {
+	if top {
+		b.WriteString(`<ul class="page-tree">`)
+	} else {
+		b.WriteString(`<ul class="page-tree branch">`)
+	}
+	for _, n := range nodes {
+		b.WriteString("<li>")
+		href := fmt.Sprintf("/%s/%s", ns, n.Path)
+		class := "nav-link"
+		if n.Path == currentPath {
+			class += " current"
+		}
+		if len(n.Children) > 0 {
+			b.WriteString("<details open><summary>")
+			if n.IsPage {
+				fmt.Fprintf(b, `<a class="%s" href="%s">%s</a>`, class, html.EscapeString(href), html.EscapeString(n.Title))
+			} else {
+				b.WriteString(`<span class="dir">` + html.EscapeString(n.Name) + `</span>`)
+			}
+			if canWrite {
+				fmt.Fprintf(b, ` <a class="tree-new" href="%s/new?do=edit" title="New page in this folder">+</a>`, html.EscapeString(href))
+			}
+			b.WriteString("</summary>")
+			writeLiveTreeNodes(b, n.Children, ns, canWrite, currentPath, false)
+			b.WriteString("</details>")
+		} else {
+			fmt.Fprintf(b, `<a class="%s" href="%s">%s</a>`, class, html.EscapeString(href), html.EscapeString(n.Title))
+		}
+		b.WriteString("</li>")
+	}
+	b.WriteString("</ul>")
 }
 
 // NamespaceRegistry maps a namespace name ("" for root-level pages) to its
@@ -323,6 +454,17 @@ func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []Names
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
+}
+
+// namespaceSummaryFor returns name's catalogue entry, or nil if it has
+// neither a config nor any pages.
+func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name string) *NamespaceSummary {
+	for _, entry := range namespaceSummaries(reg, titles) {
+		if entry.Name == name {
+			return &entry
+		}
+	}
+	return nil
 }
 
 // BuildNamespaceRegistry scans repoDir for namespaces: the root config plus

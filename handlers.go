@@ -150,7 +150,8 @@ type TemplateData struct {
 	NamespaceManagement *NamespaceManagementData
 	Namespace           string // namespace index page: the namespace being listed
 	NamespacePublic     bool
-	RecentCommits       []LogEntry // sidebar LOG section: last commits for the current page
+	PageTree            template.HTML // namespace index page: TagPages as a folder tree, see renderLiveTree
+	RecentCommits       []LogEntry    // sidebar LOG section: last commits for the current page
 	HealthMissing       int
 	HealthOrphans       int
 	SyncAge             string // relative age of the last successful sync, e.g. "12 seconds ago"
@@ -163,13 +164,16 @@ type TemplateData struct {
 
 	// Widget data — populated in app.render only when something on the page
 	// actually reads it (see populateWidgetData).
-	Calendar       CalendarMonth
-	WritingStats   WritingStats
-	PinnedPages    []BacklinkEntry
-	PrevEntries    []PrevEntry
-	NamespaceNav   []NamespaceNavEntry
-	NewPageEnabled bool   // a namespace with a `new:` template is in reach — gates the ctrl-j shortcut and >new verb client-side
-	NewNamespace   string // which one ctrl-j targets: this page's, else the journal fallback
+	Calendar           CalendarMonth
+	WritingStats       WritingStats
+	PinnedPages        []BacklinkEntry
+	PrevEntries        []PrevEntry
+	NamespaceNav       []NamespaceNavEntry
+	SidebarTreeNS      string          // namespace populateWidgetData staged SidebarTreeEntries for; "" means the tree widget has nothing to show
+	SidebarTreeEntries []BacklinkEntry // unfiltered — render() applies filterBacklinkEntries before building SidebarTree, same as PinnedPages/NamespaceNav
+	SidebarTree        template.HTML
+	NewPageEnabled     bool   // a namespace with a `new:` template is in reach — gates the ctrl-j shortcut and >new verb client-side
+	NewNamespace       string // which one ctrl-j targets: this page's, else the journal fallback
 }
 
 // NamespaceManagementData is deliberately smaller than SettingsData: the
@@ -512,6 +516,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			}
 		}
 		data.PinnedPages = filterBacklinkEntries(r.Context(), data.PinnedPages)
+		if data.SidebarTreeNS != "" {
+			entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
+			_, currentPath := namespaceFor(data.Slug)
+			data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, data.CanWrite, currentPath)
+		}
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -790,6 +799,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/namespaces", app.handleNamespacesGet)
 	mux.HandleFunc("GET /_/namespaces/new", app.handleNamespaceNewGet)
 	mux.HandleFunc("GET /_/namespaces/{name}/edit", app.handleNamespaceEditGet)
+	mux.HandleFunc("GET /_/settings/namespaces/{name}/export", app.handleExportNamespace)
 	mux.HandleFunc("POST /_/admin", app.handleSettingsPost)
 	mux.HandleFunc("POST /_/settings/appearance", app.handleSettingsAppearance)
 	mux.HandleFunc("POST /_/settings/export", app.handleSettingsExport)
@@ -1330,14 +1340,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 	authed := app.currentUser(r) != ""
-	var summary *NamespaceSummary
-	for _, entry := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
-		if entry.Name == name {
-			entryCopy := entry
-			summary = &entryCopy
-			break
-		}
-	}
+	summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), name)
 	if summary == nil || (!authed && !summary.Config.Public) {
 		http.NotFound(w, r)
 		return
@@ -1356,6 +1359,9 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		}
 	}
 
+	tagPages := filterBacklinkEntries(r.Context(), summary.Pages)
+	canWrite := authed && app.Auth.prefs(app.currentUser(r)).hasScope(scopeWrite)
+
 	app.render(w, r, http.StatusOK, "namespace", TemplateData{
 		Authed:           authed,
 		Title:            name,
@@ -1365,7 +1371,8 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		Namespace:        name,
 		NamespacePublic:  summary.Config.Public,
 		IsNamespaceIndex: true,
-		TagPages:         filterBacklinkEntries(r.Context(), summary.Pages),
+		TagPages:         tagPages,
+		PageTree:         renderLiveTree(buildPageTree(tagPages, name), name, canWrite, ""),
 	})
 }
 
@@ -1495,7 +1502,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		targetSlug = strings.TrimSpace(r.FormValue("new_slug"))
 		oldNamespace, _ := namespaceFor(slug)
 		newNamespace, newPage := namespaceFor(targetSlug)
-		if oldNamespace != newNamespace || !validMCPPageSegment(newPage) {
+		if oldNamespace != newNamespace || !validPagePath(newPage) {
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
