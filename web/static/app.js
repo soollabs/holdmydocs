@@ -327,7 +327,6 @@
       }
       const collapsed = document.body.classList.toggle('sidebar-collapsed');
       localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-      sidebar.classList.remove('sidebar-expanded');
     });
   }
   const topbarSearch = $('#topbar-search');
@@ -336,17 +335,6 @@
       e.preventDefault();
       if (sidebar) sidebar.classList.remove('open');
       openPalette();
-    });
-  }
-
-  // ---- Desktop sidebar: icon-rail collapse mode ----
-  if (sidebar) {
-    sidebar.addEventListener('mouseenter', () => {
-      if (document.body.classList.contains('sidebar-collapsed')) sidebar.classList.add('sidebar-expanded');
-    });
-    sidebar.addEventListener('mouseleave', () => sidebar.classList.remove('sidebar-expanded'));
-    sidebar.addEventListener('focusout', e => {
-      if (!sidebar.contains(e.relatedTarget)) sidebar.classList.remove('sidebar-expanded');
     });
   }
 

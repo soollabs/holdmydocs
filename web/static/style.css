@@ -238,33 +238,6 @@ body:not(.shell) {
 	overflow-y: auto;
 }
 
-.sidebar .prompt {
-	font-size: 13px;
-	margin-bottom: 20px;
-	word-break: break-all;
-}
-
-/* Two parts, two colours: who (green) and where (blue) — the same rhythm
-   the old user@host:path prompt had, minus the invented host and path. */
-.sidebar .prompt .user { color: var(--primary); }
-.sidebar .prompt .host { color: var(--accent); }
-
-/* The identity widget renders both a shell prompt and a masthead; a skin
-   picks one. Default is the prompt — the terminal idiom the app grew up in.
-   A skin that isn't a terminal flips these two rules and styles
-   .identity-masthead in its own block. */
-.identity-masthead { display: none; }
-
-.identity-masthead {
-	color: inherit;
-	text-decoration: none;
-}
-
-.masthead-name,
-.masthead-byline {
-	display: block;
-}
-
 .sidebar h2 {
 	font-size: 11px;
 	letter-spacing: 0.06em;
@@ -366,52 +339,14 @@ body:not(.shell) {
 	white-space: nowrap;
 }
 
-/* Icon-rail collapse mode — desktop only, mobile drawer handles < 900px */
+/* Desktop collapse removes navigation entirely; mobile keeps its drawer. */
 @media (min-width: 900px) {
 	body.shell.sidebar-collapsed {
-		grid-template-columns: 48px 1fr;
+		grid-template-columns: 0 1fr;
 	}
 
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) {
-		width: 48px;
-		align-items: center;
-		padding: 16px 0;
-	}
-
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .prompt-link,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .identity-masthead,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) h2,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-log summary,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-list,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .tag-chips,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) #log-entries,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .hint-row {
+	body.sidebar-collapsed .sidebar {
 		display: none;
-	}
-
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .prompt::before,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-pages::before,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-tags-section::before,
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-log::before {
-		display: block;
-		text-align: center;
-		font-size: 16px;
-		color: var(--fg-muted);
-		padding: 6px 0;
-	}
-
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .prompt::before { content: var(--prompt-symbol); }
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-pages::before { content: "★"; color: var(--primary); }
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-tags-section::before { content: "#"; }
-	body.sidebar-collapsed .sidebar:not(.sidebar-expanded) .sidebar-log::before { content: "↻"; }
-
-	body.sidebar-collapsed .sidebar.sidebar-expanded {
-		position: absolute;
-		width: 260px;
-		align-items: stretch;
-		padding: 16px;
-		z-index: 950;
-		box-shadow: 4px 0 16px rgba(0, 0, 0, .4);
 	}
 }
 
@@ -575,13 +510,14 @@ main {
 	z-index: 1000;
 }
 
-.topbar-path {
+.topbar-site {
 	min-width: 0;
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	color: var(--fg-muted);
+	color: var(--fg-strong);
+	text-decoration: none;
 }
 
 .topbar-actions {
@@ -1305,10 +1241,6 @@ ul.page-tree.branch > li::before {
 	content: var(--marker-h2);
 }
 
-.prompt-link::after {
-	content: var(--prompt-symbol);
-}
-
 .tag-chips a::before {
 	content: var(--tag-prefix);
 }
@@ -1967,30 +1899,6 @@ ul.page-tree.branch > li::before {
 		display: none;
 	}
 
-	.mobile-fab {
-		display: flex;
-		position: fixed;
-		bottom: calc(20px + env(safe-area-inset-bottom));
-		right: 20px;
-		width: 48px;
-		height: 48px;
-		border-radius: 50%;
-		background: var(--primary);
-		color: var(--accent-fg);
-		align-items: center;
-		justify-content: center;
-		font-size: 20px;
-		text-decoration: none;
-		box-shadow: 0 6px 16px rgba(0, 0, 0, .4);
-		z-index: 500;
-	}
-
-}
-
-@media (min-width: 900px) {
-	.mobile-fab {
-		display: none;
-	}
 }
 
 @media (min-width: 900px) and (max-width: 1199px) {
@@ -3362,12 +3270,6 @@ ul.page-tree.branch > li::before {
 		display: inline-flex;
 		align-items: center;
 	}
-}
-
-/* Refined Phosphor: rules moved out of inline styles */
-.prompt-link {
-	color: inherit;
-	text-decoration: none;
 }
 
 .sidebar-list li {

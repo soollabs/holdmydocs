@@ -1,7 +1,7 @@
 // caches static assets only, not auth-gated page content —
 // upgrade to a page cache if full offline browsing of wiki pages is needed.
-const CACHE = 'hmd-static-v2';
-const ASSETS = ['/_/static/style.css?v=2', '/_/static/skins.css?v=2', '/_/static/app.js?v=2', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
+const CACHE = 'hmd-static-v3';
+const ASSETS = ['/_/static/style.css?v=3', '/_/static/skins.css?v=2', '/_/static/app.js?v=2', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

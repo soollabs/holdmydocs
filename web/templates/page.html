@@ -34,10 +34,6 @@
 		{{.Content}}
 	</article>
 
-	{{if and .Authed (not .RevHash)}}
-	<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="mobile-fab" aria-label="Edit page">✎</a>
-	{{end}}
-
 	{{range .PageFootWidgets}}
 	{{if eq .ID "backlinks"}}{{template "widget-backlinks" $}}{{end}}
 	{{if eq .ID "prev-entries"}}{{template "widget-prev-entries" $}}{{end}}

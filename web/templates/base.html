@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>{{if .Title}}{{.Title}} — {{end}}{{.SiteName}}</title>
-	<link rel="stylesheet" href="/_/static/style.css?v=2">
+	<link rel="stylesheet" href="/_/static/style.css?v=3">
 	<link rel="stylesheet" href="/_/static/skins.css?v=2">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='%2300ff9c' font-family='monospace'%3E%23%3C/text%3E%3C/svg%3E">
 	<link rel="manifest" href="/_/static/manifest.json">
@@ -39,7 +39,7 @@
 	{{if .Authed}}
 	<header class="app-topbar">
 		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">&#9776;</button>
-		<div class="topbar-path">{{if .Slug}}{{.Slug}}{{else}}{{.Title}}{{end}}</div>
+		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
 			{{if eq .StatusMode "edit"}}<button type="submit" form="edit-form" class="topbar-action topbar-primary">Save</button>
 			{{else if .CanEdit}}<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="topbar-action" aria-label="Edit page" title="Edit page">&#9998; <span>Edit</span></a>{{end}}
@@ -59,15 +59,6 @@
 		</div>
 	</header>
 	<nav class="sidebar" id="sidebar">
-		{{/* Identity is who-and-where chrome, not a mountable widget: it must
-		     always render regardless of namespace widget picks. */}}
-		<div class="prompt identity">
-			<a href="/" class="prompt-link identity-prompt"><span class="user">{{.Username}}</span>@<span class="host">{{.SiteName}}</span></a>
-			<a href="/" class="identity-masthead">
-				<span class="masthead-name">{{.SiteName}}</span>
-				<span class="masthead-byline">{{.Username}}</span>
-			</a>
-		</div>
 		{{template "widget-tree" .}}
 		{{range .SidebarWidgets}}
 		{{if eq .ID "pages"}}{{template "widget-pages" $}}{{end}}

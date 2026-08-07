@@ -79,7 +79,7 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 		t.Fatalf("reading service worker: %v", err)
 	}
 	body := string(script)
-	for _, asset := range []string{"style.css?v=2", "skins.css?v=2", "app.js?v=2", "editor.js?v=2"} {
+	for _, asset := range []string{"style.css?v=3", "skins.css?v=2", "app.js?v=2", "editor.js?v=2"} {
 		if !strings.Contains(body, asset) {
 			t.Errorf("service worker does not precache the requested URL for %s", asset)
 		}
@@ -99,7 +99,7 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 
 func TestStaticAssetURLsEscapeLegacyCache(t *testing.T) {
 	for path, assets := range map[string][]string{
-		"web/templates/base.html": {"/_/static/style.css?v=2", "/_/static/skins.css?v=2", "/_/static/app.js?v=2"},
+		"web/templates/base.html": {"/_/static/style.css?v=3", "/_/static/skins.css?v=2", "/_/static/app.js?v=2"},
 		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
 	} {
 		body, err := webFS.ReadFile(path)
