@@ -206,6 +206,8 @@ type NamespaceManagementData struct {
 	SlugPresets  []slugPresetView
 	SkinNames    []string
 	PaletteNames []string
+	Palettes     map[string]themePreset // JSON-encoded for the published-view preview
+	SkinPalettes map[string]string      // skin -> default palette for the preview
 	Now          time.Time
 	Error        string
 	Flash        string
@@ -2921,6 +2923,8 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 		SlugPresets:  slugPresetViews(user),
 		SkinNames:    skinNames,
 		PaletteNames: themePresetNames,
+		Palettes:     themePresets,
+		SkinPalettes: skinPalettes(),
 		Now:          time.Now(),
 		Error:        errMsg,
 	}

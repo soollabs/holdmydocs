@@ -1203,6 +1203,24 @@ ul.page-tree.branch > li::before {
 	background: var(--surface);
 }
 
+.published-preview {
+	margin: 0.75rem 0 0 6.5rem;
+}
+
+.published-preview > span {
+	color: var(--primary);
+	display: block;
+	margin-bottom: 0.4rem;
+}
+
+.published-preview iframe {
+	border: var(--field-border-w) solid var(--border-visible);
+	border-radius: var(--radius);
+	display: block;
+	height: 28rem;
+	width: 100%;
+}
+
 @media (max-width: 600px) {
 	.namespace-management .settings-actions {
 		align-items: stretch;
@@ -1211,6 +1229,9 @@ ul.page-tree.branch > li::before {
 	.namespace-management .settings-actions > * {
 		text-align: center;
 		min-height: 44px;
+	}
+	.published-preview {
+		margin-left: 0;
 	}
 }
 
