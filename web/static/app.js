@@ -753,7 +753,10 @@
       return;
     }
     if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused) {
-      const slug = document.body.dataset.slug;
+      // A namespace listing has no page behind it — its slug is "ns/", which
+      // ?do=edit would 404 on. Same gate the palette verbs and the topbar
+      // Edit button already use.
+      const slug = window.hmdNamespaceIndex ? '' : document.body.dataset.slug;
       const routePrefix = document.body.dataset.routePrefix || '';
       if (slug) { e.preventDefault(); window.location.href = routePrefix + '/' + slug + '?do=edit'; }
       return;

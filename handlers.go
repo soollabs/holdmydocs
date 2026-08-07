@@ -161,6 +161,7 @@ type TemplateData struct {
 	CanSettings         bool
 	CanEdit             bool
 	NewPageBase         string
+	NamespaceNames      []string // editor path field: namespaces a move may target
 	NamespaceManagement *NamespaceManagementData
 	Namespace           string // namespace index page: the namespace being listed
 	NamespacePublic     bool
@@ -485,6 +486,13 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 				data.NewPageBase = names[0]
 			}
 		}
+		if data.StatusMode == "edit" {
+			for _, name := range app.Namespaces().Names() {
+				if tokenAllowsSlug(r.Context(), namespaceSlug(name, "")) {
+					data.NamespaceNames = append(data.NamespaceNames, name)
+				}
+			}
+		}
 		data.SyncPollMs = cfg.SyncPollMs
 		data.SyncMode = cfg.SyncMode
 		activeName, activeSkin := effectiveSkin(cfg, prefs)
@@ -589,13 +597,42 @@ func (app *App) currentUser(r *http.Request) string {
 	return user
 }
 
-func tokenNamespaceDenied(w http.ResponseWriter, r *http.Request) {
+// notFound renders a 404 inside the app chrome, so a bad URL leaves you with
+// the sidebar and a way back instead of Go's bare text/plain line.
+//
+// The wording is deliberately identical for "no such page" and "you may not
+// see this page": several call sites 404 precisely so a logged-out visitor
+// can't tell a private page from a missing one, and a more helpful message
+// would turn this into an existence oracle.
+func (app *App) notFound(w http.ResponseWriter, r *http.Request) {
+	app.errorPage(w, r, http.StatusNotFound, "Not found", "That page doesn't exist.")
+}
+
+// errorPage renders status inside the app chrome. app.render buffers and
+// falls back to http.Error if the template itself fails, so a broken
+// error.html can't loop.
+func (app *App) errorPage(w http.ResponseWriter, r *http.Request, status int, title, detail string) {
+	app.render(w, r, status, "error", TemplateData{
+		Authed:        app.currentUser(r) != "",
+		Title:         title,
+		StatusContext: detail,
+		StatusMode:    "view",
+	})
+}
+
+func (app *App) tokenNamespaceDenied(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/_/api/") {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		if _, err := w.Write([]byte(`{"error":"namespace access denied"}`)); err != nil {
 			slog.Debug("writing namespace error response", "err", err)
 		}
+		return
+	}
+	// Only a navigation gets the rendered page; a denied write comes from
+	// fetch, which reads the status and never the body.
+	if r.Method == http.MethodGet {
+		app.errorPage(w, r, http.StatusForbidden, "Forbidden", "You don't have access to that namespace.")
 		return
 	}
 	http.Error(w, "403 Forbidden: namespace access denied", http.StatusForbidden)
@@ -605,7 +642,7 @@ func (app *App) requireTokenNamespace(w http.ResponseWriter, r *http.Request, na
 	if tokenAllowsNamespace(r.Context(), namespace) {
 		return true
 	}
-	tokenNamespaceDenied(w, r)
+	app.tokenNamespaceDenied(w, r)
 	return false
 }
 
@@ -613,7 +650,7 @@ func (app *App) requireTokenSlug(w http.ResponseWriter, r *http.Request, slug st
 	if tokenAllowsSlug(r.Context(), slug) {
 		return true
 	}
-	tokenNamespaceDenied(w, r)
+	app.tokenNamespaceDenied(w, r)
 	return false
 }
 
@@ -1305,7 +1342,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			if !authed {
-				http.NotFound(w, r)
+				app.notFound(w, r)
 				return
 			}
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
@@ -1389,7 +1426,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug string, page Page) {
 	ns := app.Namespaces()
 	if !ns.IsPublic(slug) {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 
@@ -1434,7 +1471,7 @@ func isPageSlug(slug string) bool {
 func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("path")
 	if reservedPath(slug) {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 	if !app.requireTokenSlug(w, r, slug) {
@@ -1448,7 +1485,7 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !isPageSlug(slug) {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 	switch r.URL.Query().Get("do") {
@@ -1463,7 +1500,7 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	case "rev":
 		app.handleViewRev(w, r)
 	default:
-		http.NotFound(w, r)
+		app.notFound(w, r)
 	}
 }
 
@@ -1494,7 +1531,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	authed := app.currentUser(r) != ""
 	summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), name)
 	if summary == nil || (!authed && !summary.Config.Public) {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 
@@ -1590,7 +1627,7 @@ func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 	case "edit":
 		app.handleEditHidden(w, r)
 	default:
-		http.NotFound(w, r)
+		app.notFound(w, r)
 	}
 }
 
@@ -1652,23 +1689,33 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	hidden := r.FormValue("hidden") == "on"
 	username := app.currentUser(r)
 	targetSlug := slug
-	if basehash == "" && strings.TrimSpace(r.FormValue("new_slug")) != "" {
-		targetSlug = strings.TrimSpace(r.FormValue("new_slug"))
-		oldNamespace, _ := namespaceFor(slug)
+	if want := strings.TrimSpace(r.FormValue("new_slug")); want != "" && want != slug {
+		targetSlug = want
 		newNamespace, newPage := namespaceFor(targetSlug)
-		if oldNamespace != newNamespace || !validPagePath(newPage) {
+		if !validPagePath(newPage) {
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
-		if targetSlug != slug {
-			if _, _, err := app.Store.Read(pageFile(targetSlug)); err == nil {
-				http.Error(w, "a page with that filename already exists", http.StatusConflict)
+		// Crossing into another namespace files the page somewhere that
+		// already exists; a typo in the path shouldn't conjure a namespace
+		// directory. Staying put needs no such check — that's just a rename.
+		if oldNamespace, _ := namespaceFor(slug); oldNamespace != newNamespace {
+			if _, ok := app.Namespaces()[newNamespace]; !ok {
+				http.Error(w, "unknown namespace", http.StatusBadRequest)
 				return
 			}
 		}
-	}
-	if targetSlug != slug && !app.requireTokenSlug(w, r, targetSlug) {
-		return
+		dest := pageFile(targetSlug)
+		if hidden {
+			dest = hiddenFile(targetSlug)
+		}
+		if _, _, err := app.Store.Read(dest); err == nil {
+			http.Error(w, "a page with that filename already exists", http.StatusConflict)
+			return
+		}
+		if !app.requireTokenSlug(w, r, targetSlug) {
+			return
+		}
 	}
 
 	newFile := pageFile(slug)
@@ -1748,6 +1795,9 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 
 	slog.Info("saved", "slug", slug, "file", newFile, "author", authorName, "message", message)
 
+	if targetSlug != slug {
+		app.Index.Remove(slug) // the page moved — drop the slug it left behind
+	}
 	if hidden {
 		app.Index.Remove(slug)
 	} else {
@@ -2863,12 +2913,12 @@ func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validNamespaceName(name) {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 	data := app.namespaceManagementData(r, name, "")
 	if data.Form.Name == "" {
-		http.NotFound(w, r)
+		app.notFound(w, r)
 		return
 	}
 	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data})

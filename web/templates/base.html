@@ -38,15 +38,15 @@
 <body class="{{if .Authed}}shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
 	{{if .Authed}}
 	<header class="app-topbar">
-		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">&#9776;</button>
+		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
 		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
 			{{if eq .StatusMode "edit"}}<button type="submit" form="edit-form" class="topbar-action topbar-primary">Save</button>
-			{{else if .CanEdit}}<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="topbar-action" aria-label="Edit page" title="Edit page">&#9998; <span>Edit</span></a>{{end}}
-			{{if .NewPageBase}}<a href="/{{.NewPageBase}}/new?do=edit" class="topbar-action" id="new-page" aria-label="New page" title="New page">&#128196;<span class="topbar-plus">+</span> <span>New</span></a>{{end}}
-			<a href="/_/search" class="topbar-icon" id="topbar-search" aria-label="Search" title="Search">&#128269;</a>
+			{{else if .CanEdit}}<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="topbar-action" aria-label="Edit page" title="Edit page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>Edit</span></a>{{end}}
+			{{if .NewPageBase}}<a href="/{{.NewPageBase}}/new?do=edit" class="topbar-action" id="new-page" aria-label="New page" title="New page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>New</span></a>{{end}}
+			<a href="/_/search" class="topbar-icon" id="topbar-search" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></a>
 			<details class="topbar-menu">
-				<summary class="topbar-icon" aria-label="More actions" title="More actions">&#8943;</summary>
+				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
 				<div class="topbar-menu-items">
 					<a href="/_/settings">Settings</a>
 					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}

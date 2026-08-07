@@ -531,6 +531,7 @@ main {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	gap: 6px;
 	min-width: 36px;
 	height: 36px;
 	padding: 0 9px;
@@ -554,9 +555,15 @@ main {
 	color: var(--accent-fg);
 }
 
-.topbar-plus {
-	font-size: 10px;
-	margin-left: -3px;
+.app-topbar svg {
+	width: 18px;
+	height: 18px;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 .topbar-menu {

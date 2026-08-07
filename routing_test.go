@@ -203,6 +203,72 @@ func TestNewPageCanChooseFilename(t *testing.T) {
 	}
 }
 
+// TestEditMovesPageBetweenNamespaces covers the path field on an existing
+// page: a save with a new_slug in another namespace moves the file, drops the
+// old slug from the index, and refuses namespaces that don't exist.
+func TestEditMovesPageBetweenNamespaces(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	// A second namespace to move into.
+	nsCfg, err := NamespaceConfig{Index: defaultIndexPage}.Encode()
+	if err != nil {
+		t.Fatalf("encoding namespace config: %v", err)
+	}
+	if _, err := app.Store.Save(namespaceConfigPath("archive"), nsCfg, "Add archive", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("seeding archive namespace: %v", err)
+	}
+	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
+	if err != nil {
+		t.Fatalf("BuildNamespaceRegistry: %v", err)
+	}
+	app.SetNamespaces(reg)
+
+	hash, err := app.Store.Save(pageFile(testNS+"/mover"), Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}.Encode(), "Add mover", "test", "test@hmd.local")
+	if err != nil {
+		t.Fatalf("seeding page: %v", err)
+	}
+	if err := app.Index.Update(Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}); err != nil {
+		t.Fatalf("indexing page: %v", err)
+	}
+
+	save := func(newSlug, basehash string) *http.Response {
+		t.Helper()
+		resp, err := client.PostForm(server.URL+"/"+testNS+"/mover?do=save", url.Values{
+			"new_slug": {newSlug},
+			"title":    {"Mover"},
+			"body":     {"body"},
+			"basehash": {basehash},
+		})
+		if err != nil {
+			t.Fatalf("POST ?do=save: %v", err)
+		}
+		closeTestBody(t, resp.Body)
+		return resp
+	}
+
+	if resp := save("nope/mover", hash); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("move to unknown namespace: status = %d, want 400", resp.StatusCode)
+	}
+
+	resp := save("archive/mover", hash)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/archive/mover" {
+		t.Fatalf("move: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if _, _, err := app.Store.Read(pageFile("archive/mover")); err != nil {
+		t.Fatalf("reading moved page: %v", err)
+	}
+	if _, _, err := app.Store.Read(pageFile(testNS + "/mover")); err == nil {
+		t.Fatal("page should not remain at its old path")
+	}
+	if app.Index.Exists(testNS + "/mover") {
+		t.Error("old slug still in search index")
+	}
+	if !app.Index.Exists("archive/mover") {
+		t.Error("new slug missing from search index")
+	}
+}
+
 // TestUnrecognisedDoValue404s asserts a typoed ?do= value doesn't silently
 // fall back to view.
 func TestUnrecognisedDoValue404s(t *testing.T) {
@@ -216,6 +282,52 @@ func TestUnrecognisedDoValue404s(t *testing.T) {
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("?do=bogus: status = %d, want 404", resp.StatusCode)
+	}
+}
+
+// TestNotFoundRendersInAppChrome covers the two halves of app.notFound: a
+// logged-in navigation gets a real page instead of Go's text/plain line, and
+// a logged-out 404 says exactly the same thing whether the page is missing or
+// merely private — the wording is what stops it being an existence oracle.
+func TestNotFoundRendersInAppChrome(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	// A namespace listing is not a page, so ?do=edit on it 404s.
+	resp, err := client.Get(server.URL + "/" + testNS + "/?do=edit")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html", ct)
+	}
+	if !strings.Contains(string(body), "app-topbar") {
+		t.Error("404 body has no app chrome")
+	}
+
+	// Private page vs missing page, both anonymous: identical responses.
+	seedPage(t, app, Page{Slug: testNS + "/secret", Title: "Secret", Body: "shh"})
+	anon := noAuthClient()
+	get := func(path string) string {
+		t.Helper()
+		resp, err := anon.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("GET %s: status = %d, want 404", path, resp.StatusCode)
+		}
+		return string(b)
+	}
+	if private, missing := get("/"+testNS+"/secret"), get("/"+testNS+"/no-such-page"); private != missing {
+		t.Error("private and missing pages produce different 404s — existence oracle")
 	}
 }
 

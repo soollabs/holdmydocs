@@ -10,10 +10,11 @@
 </div>
 <form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">
 	<div class="edit-topbar">
-		{{if eq .BaseHash ""}}<div class="edit-field">
-			<label for="new-slug">filename:</label>
-			<input type="text" id="new-slug" name="new_slug" value="{{.Slug}}" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]*">
-		</div>{{end}}
+		<div class="edit-field">
+			<label for="new-slug">path:</label>
+			<input type="text" id="new-slug" name="new_slug" value="{{.Slug}}" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]*" list="namespace-list" title="namespace/filename — changing the namespace moves the page">
+			<datalist id="namespace-list">{{range .NamespaceNames}}<option value="{{.}}/"></option>{{end}}</datalist>
+		</div>
 		<div class="edit-field">
 			<label for="title">title:</label>
 			<input type="text" id="title" name="title" value="{{.Title}}" required>
