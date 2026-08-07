@@ -143,6 +143,17 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, re
 		if rest == indexPage {
 			indexData := data
 			indexData.AssetPath, indexData.NamespaceHome, indexData.SidebarTree = "", "index.html", renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) })
+			indexContent, err := renderer.RenderStatic(p.Body, ns, func(slug string) (string, bool) {
+				toRest, ok := hrefs[slug]
+				if !ok {
+					return "", false
+				}
+				return staticPageHref("", toRest), true
+			})
+			if err != nil {
+				return fmt.Errorf("rendering root index %s: %w", p.Slug, err)
+			}
+			indexData.Content = template.HTML(strings.ReplaceAll(string(indexContent), "/_/attachments/"+ns+"/", "attachments/"))
 			if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], indexData); err != nil {
 				return err
 			}

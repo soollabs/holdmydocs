@@ -59,6 +59,9 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 	if !strings.Contains(string(root), "Welcome") || strings.Contains(string(root), "This must not") {
 		t.Error("configured namespace index was not exported to index.html")
 	}
+	if !strings.Contains(string(root), `href="guides/setup/index.html"`) {
+		t.Error("root index wiki-links must be relative to index.html")
+	}
 	pageNamedIndex, err := os.ReadFile(filepath.Join(outDir, "index", "index.html"))
 	if err != nil {
 		t.Fatal(err)
