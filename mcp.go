@@ -367,7 +367,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_pages",
-		Description: "List all wiki pages with slug, title and tags.",
+		Description: "List every page accessible to this caller, returning its namespace/page slug, title, and tags. Use a page slug with read_page before updating it.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpListOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpListOut{}, err
@@ -387,7 +387,7 @@ func (app *App) mcpHandler() http.Handler {
 	if app.Index.documents != nil {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "search_attachments",
-			Description: "Hybrid keyword and semantic search over attachment text. Excerpts are escaped text with optional <mark> tags.",
+			Description: "Search extracted attachment text using keyword and semantic ranking. Available only when document indexing is enabled. Results are limited to accessible page-owned attachments; excerpts are escaped text with optional <mark> tags.",
 		}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentSearchIn) (*mcp.CallToolResult, mcpAttachmentSearchOut, error) {
 			if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 				return nil, mcpAttachmentSearchOut{}, err
@@ -422,7 +422,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "upload_attachment",
-		Description: "Upload a base64-encoded attachment to a page. Requires write scope; document indexing runs immediately when enabled. Then add the returned URL to the page body with save_page, using [filename](URL) or ![alt text](URL) for images.",
+		Description: "Upload a base64-encoded supported document or image owned by a page. Requires write access to that page. Document indexing runs immediately when enabled. Save the returned URL into the page body with save_page, using [filename](URL) or ![alt text](URL) for images.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentUploadIn) (*mcp.CallToolResult, mcpAttachmentUploadOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
@@ -475,7 +475,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",
-		Description: "List accessible namespaces with descriptions, page counts and publishing status.",
+		Description: "List namespaces accessible to this caller, with their description, page count, and public/private status. Use read_namespace for full settings.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpNamespacesOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpNamespacesOut{}, err
@@ -492,7 +492,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "read_namespace",
-		Description: "Read namespace settings and the current hash. save_namespace requires that hash when updating.",
+		Description: "Read one namespace's full settings and current hash. Requires settings access. Pass that hash as basehash to save_namespace when updating.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
@@ -510,8 +510,8 @@ func (app *App) mcpHandler() http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "save_namespace",
 		Description: "Create or update namespace settings (each save is a git commit). " +
-			"Update: pass the hash returned by read_namespace; on conflict re-read and retry. " +
-			"Create: omit basehash; this creates the namespace configuration without deleting or changing pages.",
+			"Requires settings access. Update: pass the hash returned by read_namespace; on conflict re-read and retry. " +
+			"Create: omit basehash; this writes only namespace configuration and does not delete or change pages.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSaveNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
@@ -554,7 +554,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "read_page",
-		Description: "Read a wiki page: raw markdown body plus the page's current hash. save_page requires that hash as basehash.",
+		Description: "Read one accessible namespace/page, including its raw Markdown body, metadata, and current hash. Pass the hash as basehash to save_page when updating.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, mcpPageOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpPageOut{}, err
@@ -582,8 +582,8 @@ func (app *App) mcpHandler() http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "save_page",
 		Description: "Create or update a wiki page (each save is a git commit). " +
-			"Update: pass the basehash returned by read_page; on conflict the error carries the page's current hash and body — re-read or merge, then retry with that hash. " +
-			"Create: omit basehash (fails if the page already exists). Never overwrite without a fresh basehash.",
+			"Requires write access. Update: first read_page, then pass its hash as basehash; on conflict, re-read or merge and retry with the fresh hash. " +
+			"Create: omit basehash, which fails if the page already exists. Never overwrite without a fresh basehash.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSaveIn) (*mcp.CallToolResult, mcpSaveOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpSaveOut{}, err
@@ -645,7 +645,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_page",
-		Description: "Delete a wiki page. The git history keeps its content recoverable.",
+		Description: "Delete one accessible namespace/page. Requires write access. The page remains recoverable from Git history.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, any, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, nil, err
@@ -669,7 +669,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search",
-		Description: "Full-text search over page titles, bodies and tags. Snippets highlight matches with <mark> tags.",
+		Description: "Full-text search accessible page titles, bodies, and tags. Results include escaped snippets with optional <mark> tags; use read_page for the complete page.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSearchIn) (*mcp.CallToolResult, mcpSearchOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpSearchOut{}, err
@@ -690,7 +690,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "backlinks",
-		Description: "List the pages whose [[wiki-links]] point at the given page.",
+		Description: "List accessible pages whose [[wiki-links]] target a given accessible namespace/page.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, mcpBacklinksOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpBacklinksOut{}, err
@@ -714,7 +714,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "recent_changes",
-		Description: "The newest commits on the wiki, newest first, with the files each touched.",
+		Description: "List the newest accessible wiki commits first, with commit metadata and touched files. A commit is omitted if it includes files outside this caller's namespace access.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpRecentIn) (*mcp.CallToolResult, mcpRecentOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpRecentOut{}, err
@@ -745,8 +745,8 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "health",
-		Description: "Read-only wiki hygiene report: dangling [[wiki-links]] (linked but no page exists) and orphan pages " +
-			"(no incoming links). Pass namespace to scope the report to one namespace.",
+		Description: "Read-only wiki hygiene report for accessible pages: dangling [[wiki-links]] (target page missing) and orphan pages (no incoming links). " +
+			"Optionally scope it to one accessible namespace.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpHealthIn) (*mcp.CallToolResult, mcpHealthOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpHealthOut{}, err
