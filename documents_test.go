@@ -52,7 +52,6 @@ func TestParseAttachmentPath(t *testing.T) {
 		t.Fatalf("parseAttachmentPath valid path = %q, %q, %v", owner, filename, ok)
 	}
 	for _, path := range []string{
-		"attachments/notes/report/quarterly.txt",
 		"attachments/notes/report/.quarterly.pdf",
 		"attachments/notes/quarterly.pdf",
 		"notes/report/quarterly.pdf",
@@ -60,6 +59,21 @@ func TestParseAttachmentPath(t *testing.T) {
 		if _, _, ok := parseAttachmentPath(path); ok {
 			t.Errorf("parseAttachmentPath(%q) accepted invalid path", path)
 		}
+	}
+}
+
+func TestExtractedAttachmentSidecar(t *testing.T) {
+	path := "attachments/notes/reports/quarterly.pdf"
+	if got, want := extractedAttachmentPath(path), "attachments/notes/reports/.hmd/extracted/quarterly.pdf.txt"; got != want {
+		t.Fatalf("extractedAttachmentPath = %q, want %q", got, want)
+	}
+	hash := attachmentBlobHash([]byte("source"))
+	text, ok := decodeExtractedAttachment(hash, encodeExtractedAttachment(hash, "extracted text"))
+	if !ok || text != "extracted text" {
+		t.Fatalf("decodeExtractedAttachment = %q, %v", text, ok)
+	}
+	if _, ok := decodeExtractedAttachment("stale", encodeExtractedAttachment(hash, "extracted text")); ok {
+		t.Fatal("decodeExtractedAttachment accepted a stale sidecar")
 	}
 }
 
@@ -92,6 +106,27 @@ func TestTikaClient(t *testing.T) {
 	}
 	if text != "extracted text" {
 		t.Fatalf("Extract returned %q, want %q", text, "extracted text")
+	}
+}
+
+func TestExtractAttachmentTextBypassesTikaForUTF8Text(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		http.Error(w, "Tika should not be called", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	tika, err := NewTikaClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := extractAttachmentText(context.Background(), tika, strings.NewReader(" note\r\ntext "), "source.md")
+	if err != nil {
+		t.Fatalf("extractAttachmentText: %v", err)
+	}
+	if called || text != "note\ntext" {
+		t.Fatalf("extractAttachmentText = %q, called Tika = %v", text, called)
 	}
 }
 

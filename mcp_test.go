@@ -188,7 +188,7 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 		"list_pages": true, "read_page": true, "save_page": true, "delete_page": true,
 		"search": true, "backlinks": true, "recent_changes": true, "health": true,
 		"list_namespaces": true, "read_namespace": true, "save_namespace": true,
-		"upload_attachment": true,
+		"upload_attachment": true, "read_attachment": true,
 	}
 	for _, tool := range result.Tools {
 		if !allowed[tool.Name] {
@@ -205,19 +205,19 @@ func TestMCPUploadAttachment(t *testing.T) {
 	app, server, token := newMCPTestAppWithApp(t, true)
 	session := connectMCP(t, server, token)
 	result := callTool(t, session, "upload_attachment", map[string]any{
-		"slug": testHome, "filename": "Quarterly Report.PDF",
+		"slug": testHome, "filename": "source.txt",
 	})
 	if result.IsError {
 		t.Fatalf("upload_attachment: %s", toolText(t, result))
 	}
 	var out mcpAttachmentUploadOut
 	toolJSON(t, result, &out)
-	if !strings.HasPrefix(out.UploadURL, server.URL+"/_/api/attachment-uploads/") || out.AttachmentURL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.ExpiresAt == "" {
+	if !strings.HasPrefix(out.UploadURL, server.URL+"/_/api/attachment-uploads/") || out.AttachmentURL != "/_/attachments/notes/readme/source.txt" || out.ExpiresAt == "" {
 		t.Fatalf("upload result = %#v", out)
 	}
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "quarterly-report.pdf")
+	part, err := writer.CreateFormFile("file", "source.txt")
 	if err != nil {
 		t.Fatalf("creating upload field: %v", err)
 	}
@@ -235,9 +235,31 @@ func TestMCPUploadAttachment(t *testing.T) {
 	if upload.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want %d", upload.StatusCode, http.StatusOK)
 	}
-	got, _, err := app.Store.Read("attachments/notes/readme/quarterly-report.pdf")
+	got, _, err := app.Store.Read("attachments/notes/readme/source.txt")
 	if err != nil || string(got) != "PDF content" {
 		t.Fatalf("uploaded attachment = %q, %v", got, err)
+	}
+}
+
+func TestMCPReadAttachment(t *testing.T) {
+	app, server, token := newMCPTestAppWithApp(t, true)
+	path := "attachments/" + testHome + "/source.txt"
+	source := []byte("source text")
+	if _, err := app.Store.SaveAll(map[string][]byte{
+		path:                          source,
+		extractedAttachmentPath(path): encodeExtractedAttachment(attachmentBlobHash(source), "extracted text"),
+	}, "Add attachment source.txt", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("saving attachment: %v", err)
+	}
+	session := connectMCP(t, server, token)
+	result := callTool(t, session, "read_attachment", map[string]any{"slug": testHome, "filename": "source.txt"})
+	if result.IsError {
+		t.Fatalf("read_attachment: %s", toolText(t, result))
+	}
+	var out mcpAttachmentReadOut
+	toolJSON(t, result, &out)
+	if out.Text != "extracted text" {
+		t.Fatalf("read attachment = %q", out.Text)
 	}
 }
 
@@ -1056,6 +1078,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
 		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf"}},
+		{"read_attachment", map[string]any{"slug": "private/denied", "filename": "file.txt"}},
 		{"backlinks", map[string]any{"slug": "private/denied"}},
 	}
 	for _, tc := range denied {

@@ -551,6 +551,67 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	return s.saveLocked(path, content, message, authorName, authorEmail)
 }
 
+// SaveAll writes files in one Git commit. It is used for source attachments
+// and their derived extraction sidecars so they cannot be committed apart.
+func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmail string) (map[string]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	changed := make([]string, 0, len(paths))
+	for _, path := range paths {
+		content := files[path]
+		fullPath := filepath.Join(s.dir, path)
+		if existing, err := os.ReadFile(fullPath); err == nil && string(existing) == string(content) {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			return nil, fmt.Errorf("creating directory: %w", err)
+		}
+		if err := os.WriteFile(fullPath, content, 0644); err != nil {
+			return nil, fmt.Errorf("writing file: %w", err)
+		}
+		changed = append(changed, path)
+	}
+
+	if len(changed) > 0 {
+		wt, err := s.repo.Worktree()
+		if err != nil {
+			return nil, fmt.Errorf("getting worktree: %w", err)
+		}
+		for _, path := range changed {
+			if err := wt.AddWithOptions(&git.AddOptions{Path: path, SkipStatus: true}); err != nil {
+				return nil, fmt.Errorf("adding file to index: %w", err)
+			}
+		}
+		preHead := s.headHash()
+		when := time.Now()
+		commitHash, err := wt.Commit(message, &git.CommitOptions{Author: &object.Signature{Name: authorName, Email: authorEmail, When: when}})
+		if err != nil {
+			return nil, fmt.Errorf("committing: %w", err)
+		}
+		s.noteCommit(commitHash, preHead)
+		for _, path := range changed {
+			s.prependHistory(path, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
+		}
+		if s.remote != "" {
+			s.syncState = "pending"
+			go s.push()
+		}
+	}
+
+	hashes := make(map[string]string, len(files))
+	for path, content := range files {
+		hashes[path] = plumbing.ComputeHash(plumbing.BlobObject, content).String()
+	}
+	return hashes, nil
+}
+
 // saveLocked is Save's body. Callers must hold s.mu.
 func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	fullPath := filepath.Join(s.dir, path)
@@ -784,6 +845,26 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	return nil
 }
 
+// OpenExtractedAttachment opens an internal sidecar for a valid source
+// attachment. Sidecars are not ordinary attachments and are never served.
+func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sidecar := extractedAttachmentPath(path)
+	if sidecar == "" {
+		return nil, fmt.Errorf("invalid attachment path %q", path)
+	}
+	info, err := os.Lstat(filepath.Join(s.dir, filepath.FromSlash(sidecar)))
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("extracted attachment is not a regular file")
+	}
+	return os.Open(filepath.Join(s.dir, filepath.FromSlash(sidecar)))
+}
+
 // removeLocked is Remove's body. Callers must hold s.mu.
 func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
 	fullPath := filepath.Join(s.dir, path)
@@ -937,8 +1018,8 @@ func (s *Store) List() ([]string, error) {
 	return paths, nil
 }
 
-// ListAttachments returns supported regular files below attachments/, sorted
-// by repository-relative path. Symlinks are ignored rather than followed.
+// ListAttachments returns regular source attachments below attachments/, sorted
+// by repository-relative path. Internal .hmd sidecars and symlinks are ignored.
 func (s *Store) ListAttachments() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -959,6 +1040,9 @@ func (s *Store) ListAttachments() ([]string, error) {
 			return nil
 		}
 		if d.IsDir() {
+			if d.Name() == ".hmd" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !d.Type().IsRegular() {

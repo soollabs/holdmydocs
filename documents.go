@@ -23,6 +23,7 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/pipelines"
 )
@@ -35,6 +36,8 @@ const (
 	semanticModelDimensions     = 384
 	documentIndexSchemaVersion  = 2
 	attachmentPipelineName      = "hmd-document-search"
+	extractedAttachmentDir      = ".hmd/extracted"
+	extractedAttachmentPrefix   = "<!-- hmd:source-hash "
 )
 
 var errDocumentSearchDisabled = errors.New("attachment search is disabled")
@@ -77,15 +80,6 @@ func embeddingModelFor(name string) (embeddingModelSpec, error) {
 		return embeddingModelSpec{Revision: semanticModelRevision, Files: embeddingModelFiles}, nil
 	}
 	return embeddingModelSpec{Revision: "main", Files: genericEmbeddingModelFiles}, nil
-}
-
-// supportedAttachmentExtensions is shared by upload validation and repository
-// reconciliation. Keeping one allowlist prevents a file being accepted by one
-// path and silently ignored by the other.
-var supportedAttachmentExtensions = map[string]bool{
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true,
-	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-	".ppt": true, ".pptx": true, ".odt": true, ".ods": true, ".odp": true,
 }
 
 type attachmentSource struct {
@@ -157,10 +151,40 @@ func parseAttachmentPath(path string) (owner, filename string, ok bool) {
 	if !isPageSlug(owner) || strings.ContainsAny(filename, `/\\`) || strings.HasPrefix(filename, ".") {
 		return "", "", false
 	}
-	if !supportedAttachmentExtensions[strings.ToLower(filepath.Ext(filename))] {
-		return "", "", false
-	}
 	return owner, filename, true
+}
+
+func extractedAttachmentPath(path string) string {
+	owner, filename, ok := parseAttachmentPath(path)
+	if !ok {
+		return ""
+	}
+	return attachmentsDir + "/" + owner + "/" + extractedAttachmentDir + "/" + filename + ".txt"
+}
+
+func encodeExtractedAttachment(sourceHash, text string) []byte {
+	return []byte(extractedAttachmentPrefix + sourceHash + " -->\n" + text)
+}
+
+func decodeExtractedAttachment(sourceHash string, content []byte) (string, bool) {
+	prefix := extractedAttachmentPrefix + sourceHash + " -->\n"
+	if !strings.HasPrefix(string(content), prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(string(content), prefix), true
+}
+
+func attachmentBlobHash(content []byte) string {
+	return plumbing.ComputeHash(plumbing.BlobObject, content).String()
+}
+
+func directTextAttachment(filename string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".md", ".txt":
+		return true
+	default:
+		return false
+	}
 }
 
 // TikaClient is deliberately just net/http. Parser isolation, OCR and resource
@@ -241,6 +265,26 @@ func (c *TikaClient) Extract(ctx context.Context, body io.ReadSeeker, filename s
 		return "", fmt.Errorf("Tika extraction exceeded %d bytes", attachmentMaxExtractedBytes)
 	}
 	return normaliseExtractedText(string(data)), nil
+}
+
+func extractAttachmentText(ctx context.Context, tika *TikaClient, body io.ReadSeeker, filename string) (string, error) {
+	if directTextAttachment(filename) {
+		if _, err := body.Seek(0, io.SeekStart); err != nil {
+			return "", fmt.Errorf("rewinding attachment: %w", err)
+		}
+		data, err := io.ReadAll(io.LimitReader(body, attachmentMaxExtractedBytes+1))
+		if err != nil {
+			return "", fmt.Errorf("reading attachment: %w", err)
+		}
+		if len(data) > attachmentMaxExtractedBytes {
+			return "", fmt.Errorf("attachment text exceeded %d bytes", attachmentMaxExtractedBytes)
+		}
+		if !utf8.Valid(data) {
+			return "", errors.New("attachment text is not valid UTF-8")
+		}
+		return normaliseExtractedText(string(data)), nil
+	}
+	return tika.Extract(ctx, body, filename)
 }
 
 type HugotEmbedder struct {
@@ -666,17 +710,31 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 	if ix.documents.store == nil {
 		return errors.New("attachment store is not configured")
 	}
-	body, hash, err := ix.documents.store.OpenAttachment(path)
-	if err != nil {
-		return err
+	hash := expectedHash
+	text := ""
+	if hash != "" {
+		if sidecar, err := ix.documents.store.OpenExtractedAttachment(path); err == nil {
+			data, readErr := io.ReadAll(io.LimitReader(sidecar, attachmentMaxExtractedBytes+256))
+			closeErr := sidecar.Close()
+			if readErr == nil && closeErr == nil {
+				text, _ = decodeExtractedAttachment(hash, data)
+			}
+		}
 	}
-	defer body.Close()
-	if expectedHash != "" && hash != expectedHash {
-		return fmt.Errorf("attachment %q changed during reconciliation", path)
-	}
-	text, err := ix.documents.tika.Extract(context.Background(), body, filename)
-	if err != nil {
-		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, err)
+	if text == "" {
+		body, actualHash, err := ix.documents.store.OpenAttachment(path)
+		if err != nil {
+			return err
+		}
+		defer body.Close()
+		if hash != "" && actualHash != hash {
+			return fmt.Errorf("attachment %q changed during reconciliation", path)
+		}
+		hash = actualHash
+		text, err = extractAttachmentText(context.Background(), ix.documents.tika, body, filename)
+		if err != nil {
+			return ix.replaceAttachment(path, owner, filename, hash, nil, nil, err)
+		}
 	}
 	chunks := chunkText(text)
 	if len(chunks) == 0 {

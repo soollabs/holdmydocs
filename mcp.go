@@ -137,13 +137,22 @@ type mcpAttachmentSearchOut struct {
 
 type mcpAttachmentUploadIn struct {
 	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
-	Filename string `json:"filename" jsonschema:"original filename; supported extensions are PDF, Office, OpenDocument, PNG, JPEG, GIF, and WebP"`
+	Filename string `json:"filename" jsonschema:"original filename; document formats supported by Apache Tika are indexed when document search is enabled"`
 }
 
 type mcpAttachmentUploadOut struct {
 	UploadURL     string `json:"upload_url" jsonschema:"one-use multipart POST URL; upload the file as the file form field"`
 	AttachmentURL string `json:"attachment_url" jsonschema:"URL of the uploaded attachment after a successful upload"`
 	ExpiresAt     string `json:"expires_at"`
+}
+
+type mcpAttachmentReadIn struct {
+	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
+	Filename string `json:"filename" jsonschema:"attachment filename, without a path"`
+}
+
+type mcpAttachmentReadOut struct {
+	Text string `json:"text"`
 }
 
 type mcpBaseURLKey struct{}
@@ -428,7 +437,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "upload_attachment",
-		Description: "Create a one-use native multipart upload URL for a supported document or image owned by a page. Requires write access to that page. POST the file as the file form field. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
+		Description: "Create a one-use native multipart upload URL for a document or image owned by a page. Requires write access to that page. POST the file as the file form field. Apache Tika extracts and indexes supported formats when document search is enabled. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentUploadIn) (*mcp.CallToolResult, mcpAttachmentUploadOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
@@ -442,8 +451,8 @@ func (app *App) mcpHandler() http.Handler {
 		filename := filepath.Base(in.Filename)
 		ext := strings.ToLower(filepath.Ext(filename))
 		name := Slugify(filename[:len(filename)-len(ext)])
-		if name == "" || !supportedAttachmentExtensions[ext] {
-			return nil, mcpAttachmentUploadOut{}, errors.New("file type or filename is not allowed")
+		if name == "" {
+			return nil, mcpAttachmentUploadOut{}, errors.New("filename is not allowed")
 		}
 		filename = name + ext
 		var token [32]byte
@@ -459,6 +468,49 @@ func (app *App) mcpHandler() http.Handler {
 			AttachmentURL: "/_/attachments/" + in.Slug + "/" + filename,
 			ExpiresAt:     expires.UTC().Format(time.RFC3339),
 		}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "read_attachment",
+		Description: "Read an attachment's cached extracted text. Requires read access to the owning page. Uploads made while document indexing is enabled have a Git-tracked extraction sidecar; source text files also get one. Use search_attachments first for large documents.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentReadIn) (*mcp.CallToolResult, mcpAttachmentReadOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
+			return nil, mcpAttachmentReadOut{}, err
+		}
+		if !validMCPPageSlug(in.Slug) {
+			return nil, mcpAttachmentReadOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		}
+		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+			return nil, mcpAttachmentReadOut{}, err
+		}
+		if filepath.Base(in.Filename) != in.Filename {
+			return nil, mcpAttachmentReadOut{}, errors.New("filename must not contain a path")
+		}
+		path := "attachments/" + in.Slug + "/" + in.Filename
+		if _, _, ok := parseAttachmentPath(path); !ok {
+			return nil, mcpAttachmentReadOut{}, errors.New("invalid attachment filename")
+		}
+		source, hash, err := app.Store.OpenAttachment(path)
+		if err != nil {
+			return nil, mcpAttachmentReadOut{}, fmt.Errorf("opening attachment: %w", err)
+		}
+		if err := source.Close(); err != nil {
+			return nil, mcpAttachmentReadOut{}, fmt.Errorf("closing attachment: %w", err)
+		}
+		sidecar, err := app.Store.OpenExtractedAttachment(path)
+		if err != nil {
+			return nil, mcpAttachmentReadOut{}, errors.New("attachment has no cached extraction")
+		}
+		defer sidecar.Close()
+		content, err := io.ReadAll(io.LimitReader(sidecar, attachmentMaxExtractedBytes+256))
+		if err != nil {
+			return nil, mcpAttachmentReadOut{}, fmt.Errorf("reading extracted attachment: %w", err)
+		}
+		text, ok := decodeExtractedAttachment(hash, content)
+		if !ok {
+			return nil, mcpAttachmentReadOut{}, errors.New("attachment extraction is stale")
+		}
+		return nil, mcpAttachmentReadOut{Text: text}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

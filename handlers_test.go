@@ -497,13 +497,13 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	}
 }
 
-func TestAttachmentRejectsBadNames(t *testing.T) {
+func TestAttachmentAcceptsTikaFormats(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
 	slug := testNS + "/test-page"
 
-	// Try to upload .exe file
+	// Tika decides whether this format can be extracted; HMD stores it either way.
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "virus.exe")
@@ -526,8 +526,76 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 		}
 	}()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("Bad extension status = %d, want 400", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("upload status = %d, want 200", resp.StatusCode)
+	}
+	resp, err = client.Get(server.URL + "/_/attachments/" + slug + "/virus.exe")
+	if err != nil {
+		t.Fatalf("GET attachment failed: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if got := resp.Header.Get("Content-Disposition"); got != "attachment" {
+		t.Errorf("Content-Disposition = %q, want attachment", got)
+	}
+}
+
+func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "source.txt")
+	if err != nil {
+		t.Fatalf("creating upload field: %v", err)
+	}
+	if _, err := part.Write([]byte("source text")); err != nil {
+		t.Fatalf("writing source: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing multipart writer: %v", err)
+	}
+	req, err := http.NewRequest("POST", server.URL+"/_/api/attachments/"+testHome, body)
+	if err != nil {
+		t.Fatalf("creating upload request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("posting upload: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload status = %d, want 200", resp.StatusCode)
+	}
+
+	source := []byte("source text")
+	sidecar, _, err := app.Store.Read(extractedAttachmentPath("attachments/" + testHome + "/source.txt"))
+	if err != nil {
+		t.Fatalf("reading extracted sidecar: %v", err)
+	}
+	if text, ok := decodeExtractedAttachment(attachmentBlobHash(source), sidecar); !ok || text != "source text" {
+		t.Fatalf("extracted sidecar = %q, valid = %v", text, ok)
+	}
+	attachments, err := app.Store.ListAttachments()
+	if err != nil || len(attachments) != 1 || attachments[0] != "attachments/"+testHome+"/source.txt" {
+		t.Fatalf("ListAttachments = %v, %v", attachments, err)
+	}
+	commits, err := app.Store.RecentCommits(1)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	if len(commits) != 1 || len(commits[0].Files) != 2 {
+		t.Fatalf("latest commit = %+v", commits)
+	}
+
+	resp, err = client.Get(server.URL + "/_/attachments/" + testHome + "/.hmd/extracted/source.txt.txt")
+	if err != nil {
+		t.Fatalf("getting hidden sidecar: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("hidden sidecar status = %d, want 404", resp.StatusCode)
 	}
 }
 

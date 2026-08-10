@@ -1993,13 +1993,7 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	// Check extension whitelist (SVG excluded — can carry scripts that execute
-	// when served as image/svg+xml).
 	ext = strings.ToLower(ext)
-	if !supportedAttachmentExtensions[ext] {
-		http.Error(w, "file type not allowed", http.StatusBadRequest)
-		return
-	}
 
 	filename = name + ext
 	if expectedFilename != "" && filename != expectedFilename {
@@ -2026,9 +2020,21 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	// Save via store
+	files := map[string][]byte{path: content}
+	if app.Index.documents != nil || directTextAttachment(filename) {
+		var tika *TikaClient
+		if app.Index.documents != nil {
+			tika = app.Index.documents.tika
+		}
+		text, extractErr := extractAttachmentText(r.Context(), tika, bytes.NewReader(content), filename)
+		if extractErr == nil && text != "" {
+			files[extractedAttachmentPath(path)] = encodeExtractedAttachment(attachmentBlobHash(content), text)
+		}
+	}
+
+	// Save source and a successful extraction together.
 	authorName, authorEmail := app.gitAuthor(username)
-	_, err = app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail)
+	_, err = app.Store.SaveAll(files, "Add attachment "+filename, authorName, authorEmail)
 	if err != nil {
 		http.Error(w, "error saving file", http.StatusInternalServerError)
 		return
@@ -2079,6 +2085,10 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	// {path...} is "{slug}/{file}"; slug itself may contain "/" for a
 	// namespaced page, so only the last segment is ever the filename.
 	path := r.PathValue("path")
+	if strings.Contains(path, "/.hmd/") {
+		http.NotFound(w, r)
+		return
+	}
 	i := strings.LastIndex(path, "/")
 	if i < 0 {
 		http.NotFound(w, r)
@@ -2113,6 +2123,11 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+	default:
+		w.Header().Set("Content-Disposition", "attachment")
+	}
 	http.ServeFile(w, r, repoPath)
 }
 
