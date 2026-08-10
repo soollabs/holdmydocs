@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -138,13 +138,12 @@ type mcpAttachmentSearchOut struct {
 type mcpAttachmentUploadIn struct {
 	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
 	Filename string `json:"filename" jsonschema:"original filename; supported extensions are PDF, Office, OpenDocument, PNG, JPEG, GIF, and WebP"`
-	Content  string `json:"content_base64" jsonschema:"attachment bytes encoded with standard base64; limited by the MCP 1 MiB request limit and HMD_MAX_UPLOAD_BYTES"`
 }
 
 type mcpAttachmentUploadOut struct {
-	URL        string `json:"url"`
-	Indexed    bool   `json:"indexed"`
-	IndexError string `json:"index_error,omitempty"`
+	UploadURL     string `json:"upload_url" jsonschema:"one-use multipart POST URL; upload the file as the file form field"`
+	AttachmentURL string `json:"attachment_url" jsonschema:"URL of the uploaded attachment after a successful upload"`
+	ExpiresAt     string `json:"expires_at"`
 }
 
 type mcpBacklinksOut struct {
@@ -422,7 +421,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "upload_attachment",
-		Description: "Upload a base64-encoded supported document or image owned by a page. Requires write access to that page. Document indexing runs immediately when enabled. Save the returned URL into the page body with save_page, using [filename](URL) or ![alt text](URL) for images.",
+		Description: "Create a one-use native multipart upload URL for a supported document or image owned by a page. Requires write access to that page. POST the file as the file form field. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentUploadIn) (*mcp.CallToolResult, mcpAttachmentUploadOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
@@ -433,17 +432,6 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
-		content, err := base64.StdEncoding.DecodeString(in.Content)
-		if err != nil {
-			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("decoding content_base64: %w", err)
-		}
-		maxBytes := app.config().MaxUploadBytes
-		if maxBytes <= 0 {
-			maxBytes = 10 * 1024 * 1024
-		}
-		if int64(len(content)) > maxBytes {
-			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("attachment exceeds maximum upload size of %d bytes", maxBytes)
-		}
 		filename := filepath.Base(in.Filename)
 		ext := strings.ToLower(filepath.Ext(filename))
 		name := Slugify(filename[:len(filename)-len(ext)])
@@ -451,26 +439,18 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpAttachmentUploadOut{}, errors.New("file type or filename is not allowed")
 		}
 		filename = name + ext
-		path := attachmentsDir + "/" + in.Slug + "/" + filename
-		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
-		if _, err := app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail); err != nil {
-			return nil, mcpAttachmentUploadOut{}, err
+		var token [32]byte
+		if _, err := rand.Read(token[:]); err != nil {
+			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("creating upload URL: %w", err)
 		}
-		out := mcpAttachmentUploadOut{URL: "/_/attachments/" + in.Slug + "/" + filename}
-		if app.Index.documents == nil {
-			return nil, out, nil
-		}
-		file, hash, err := app.Store.OpenAttachment(path)
-		if err == nil {
-			_ = file.Close()
-			err = app.Index.ReconcileAttachmentPath(path, hash)
-			out.Indexed = err == nil && app.Index.AttachmentIndexed(path, hash)
-		}
-		if err != nil {
-			slog.Warn("mcp attachment indexing failed", "path", path, "err", err)
-			out.IndexError = err.Error()
-		}
-		return nil, out, nil
+		expires := time.Now().Add(10 * time.Minute)
+		tokenString := fmt.Sprintf("%x", token)
+		app.uploads.Store(tokenString, uploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires})
+		return nil, mcpAttachmentUploadOut{
+			UploadURL:     "/_/api/attachment-uploads/" + tokenString,
+			AttachmentURL: "/_/attachments/" + in.Slug + "/" + filename,
+			ExpiresAt:     expires.UTC().Format(time.RFC3339),
+		}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

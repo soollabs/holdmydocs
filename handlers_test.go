@@ -531,6 +531,41 @@ func TestAttachmentRejectsBadNames(t *testing.T) {
 	}
 }
 
+func TestAttachmentRejectsOversizedUpload(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	cfg := app.config()
+	cfg.MaxUploadBytes = 256
+	app.SetConfig(cfg)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "large.png")
+	if err != nil {
+		t.Fatalf("creating upload field: %v", err)
+	}
+	if _, err := part.Write(bytes.Repeat([]byte("x"), 512)); err != nil {
+		t.Fatalf("writing upload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing multipart writer: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", server.URL+"/_/api/attachments/"+testHome, body)
+	if err != nil {
+		t.Fatalf("creating upload request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("posting upload: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized upload status = %d, want %d", resp.StatusCode, http.StatusRequestEntityTooLarge)
+	}
+}
+
 func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	texttemplate "text/template"
 	"time"
@@ -34,6 +35,7 @@ type App struct {
 	cfg        atomic.Pointer[Config]
 	wiki       atomic.Pointer[WikiConfig]
 	namespaces atomic.Pointer[NamespaceRegistry]
+	uploads    sync.Map
 	Store      *Store
 	Auth       *Auth
 	Index      *Index
@@ -963,6 +965,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/api/preview/{slug...}", app.handleAPIPreview)
 	mux.HandleFunc("POST /_/api/preview", app.handlePreview)
 	mux.HandleFunc("POST /_/api/attachments/{slug...}", app.handleUploadAttachment)
+	mux.HandleFunc("POST /_/api/attachment-uploads/{token}", app.handleCapabilityUpload)
 	mux.HandleFunc("GET /_/attachments/{path...}", app.handleServeAttachment)
 
 	// Content owns the root: one dispatcher for every page, GET and POST,
@@ -1926,11 +1929,35 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
+	app.handleAttachmentUpload(w, r, slug, app.currentUser(r), "")
+}
+
+type uploadCapability struct {
+	Slug     string
+	Filename string
+	User     string
+	Expires  time.Time
+}
+
+func (app *App) handleCapabilityUpload(w http.ResponseWriter, r *http.Request) {
+	value, ok := app.uploads.LoadAndDelete(r.PathValue("token"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	capability := value.(uploadCapability)
+	if time.Now().After(capability.Expires) {
+		http.Error(w, "upload URL expired", http.StatusGone)
+		return
+	}
+	app.handleAttachmentUpload(w, r, capability.Slug, capability.User, capability.Filename)
+}
+
+func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, slug, username, expectedFilename string) {
 	if !isPageSlug(slug) {
 		http.Error(w, "invalid slug", http.StatusBadRequest)
 		return
 	}
-	username := app.currentUser(r)
 
 	// Limit request body to the configured maximum
 	maxBytes := app.config().MaxUploadBytes
@@ -1941,6 +1968,11 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "attachment exceeds maximum upload size", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "no file uploaded", http.StatusBadRequest)
 		return
 	}
@@ -1970,6 +2002,10 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename = name + ext
+	if expectedFilename != "" && filename != expectedFilename {
+		http.Error(w, "filename does not match upload URL", http.StatusBadRequest)
+		return
+	}
 	path := "attachments/" + slug + "/" + filename
 
 	// Verify the cleaned path stays under attachments/ (same check as

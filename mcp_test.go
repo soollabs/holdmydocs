@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -203,20 +204,39 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 func TestMCPUploadAttachment(t *testing.T) {
 	app, server, token := newMCPTestAppWithApp(t, true)
 	session := connectMCP(t, server, token)
-	content := []byte("PDF content")
 	result := callTool(t, session, "upload_attachment", map[string]any{
-		"slug": testHome, "filename": "Quarterly Report.PDF", "content_base64": base64.StdEncoding.EncodeToString(content),
+		"slug": testHome, "filename": "Quarterly Report.PDF",
 	})
 	if result.IsError {
 		t.Fatalf("upload_attachment: %s", toolText(t, result))
 	}
 	var out mcpAttachmentUploadOut
 	toolJSON(t, result, &out)
-	if out.URL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.Indexed {
+	if !strings.HasPrefix(out.UploadURL, "/_/api/attachment-uploads/") || out.AttachmentURL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.ExpiresAt == "" {
 		t.Fatalf("upload result = %#v", out)
 	}
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "quarterly-report.pdf")
+	if err != nil {
+		t.Fatalf("creating upload field: %v", err)
+	}
+	if _, err := part.Write([]byte("PDF content")); err != nil {
+		t.Fatalf("writing upload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing upload: %v", err)
+	}
+	upload, err := http.Post(server.URL+out.UploadURL, writer.FormDataContentType(), body)
+	if err != nil {
+		t.Fatalf("posting upload: %v", err)
+	}
+	defer upload.Body.Close()
+	if upload.StatusCode != http.StatusOK {
+		t.Fatalf("upload status = %d, want %d", upload.StatusCode, http.StatusOK)
+	}
 	got, _, err := app.Store.Read("attachments/notes/readme/quarterly-report.pdf")
-	if err != nil || string(got) != string(content) {
+	if err != nil || string(got) != "PDF content" {
 		t.Fatalf("uploaded attachment = %q, %v", got, err)
 	}
 }
@@ -1035,7 +1055,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		{"read_page", map[string]any{"slug": "private/denied"}},
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
-		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf", "content_base64": "eA=="}},
+		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf"}},
 		{"backlinks", map[string]any{"slug": "private/denied"}},
 	}
 	for _, tc := range denied {
@@ -1082,7 +1102,7 @@ func TestMCPScopes(t *testing.T) {
 	if res := callTool(t, reader, "save_page", map[string]any{"slug": "nope", "body": "nope"}); !res.IsError {
 		t.Error("read scope saved a page")
 	}
-	if res := callTool(t, reader, "upload_attachment", map[string]any{"slug": testHome, "filename": "reader.pdf", "content_base64": "eA=="}); !res.IsError {
+	if res := callTool(t, reader, "upload_attachment", map[string]any{"slug": testHome, "filename": "reader.pdf"}); !res.IsError {
 		t.Error("read scope uploaded an attachment")
 	}
 
@@ -1090,7 +1110,7 @@ func TestMCPScopes(t *testing.T) {
 	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
 		t.Fatalf("write scope save_page: %s", toolText(t, res))
 	}
-	if res := callTool(t, writer, "upload_attachment", map[string]any{"slug": testHome, "filename": "writer.pdf", "content_base64": "eA=="}); res.IsError {
+	if res := callTool(t, writer, "upload_attachment", map[string]any{"slug": testHome, "filename": "writer.pdf"}); res.IsError {
 		t.Fatalf("write scope upload_attachment: %s", toolText(t, res))
 	}
 	if res := callTool(t, writer, "list_pages", nil); !res.IsError {
