@@ -117,6 +117,13 @@
 				<label for="sync_poll_ms">sync poll (ms)</label>
 				<input type="number" id="sync_poll_ms" name="sync_poll_ms" value="{{.Settings.SyncPollMs}}" min="100">
 			</div>
+			<div class="settings-row">
+				<label for="tika_url">document extraction</label>
+				<input type="text" id="tika_url" value="{{.Settings.Fields.TikaURL.Value}}" readonly>
+				{{if .Settings.Fields.TikaURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.TikaURL.EnvVar}}</span>{{end}}
+				<span class="badge-restart">restart reqd</span>
+			</div>
+			<p class="settings-note">Set <code>HMD_TIKA_URL</code> to enable PDF and Office extraction. The endpoint is local deployment configuration and is not saved in the repository.</p>
 		</fieldset>
 
 		<div class="settings-actions settings-actions-sticky">

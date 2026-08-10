@@ -116,6 +116,23 @@ type mcpSearchOut struct {
 	Hits []mcpSearchHit `json:"hits"`
 }
 
+type mcpAttachmentSearchIn struct {
+	Query string `json:"query"`
+	Limit int    `json:"limit,omitempty" jsonschema:"maximum 50 results, default 20"`
+}
+
+type mcpAttachmentSearchHit struct {
+	OwnerSlug string  `json:"owner_slug"`
+	Filename  string  `json:"filename"`
+	URL       string  `json:"url"`
+	Excerpt   string  `json:"excerpt" jsonschema:"escaped text containing optional <mark> tags"`
+	Score     float64 `json:"score"`
+}
+
+type mcpAttachmentSearchOut struct {
+	Hits []mcpAttachmentSearchHit `json:"hits"`
+}
+
 type mcpBacklinksOut struct {
 	Backlinks []mcpPageMeta `json:"backlinks"`
 }
@@ -353,6 +370,42 @@ func (app *App) mcpHandler() http.Handler {
 		return nil, out, nil
 	})
 
+	if app.Index.documents != nil {
+		mcp.AddTool(server, &mcp.Tool{
+			Name:        "search_attachments",
+			Description: "Hybrid keyword and semantic search over attachment text. Excerpts are escaped text with optional <mark> tags.",
+		}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentSearchIn) (*mcp.CallToolResult, mcpAttachmentSearchOut, error) {
+			if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
+				return nil, mcpAttachmentSearchOut{}, err
+			}
+			limit := in.Limit
+			if limit <= 0 {
+				limit = 20
+			}
+			if limit > 50 {
+				limit = 50
+			}
+			hits, err := app.Index.SearchAttachments(ctx, in.Query, 50)
+			if err != nil {
+				return nil, mcpAttachmentSearchOut{}, err
+			}
+			out := mcpAttachmentSearchOut{Hits: []mcpAttachmentSearchHit{}}
+			for _, hit := range hits {
+				if err := app.mcpRequireSlug(ctx, hit.OwnerSlug); err != nil || !tokenAllowsSlug(ctx, hit.OwnerSlug) {
+					continue
+				}
+				out.Hits = append(out.Hits, mcpAttachmentSearchHit{
+					OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
+					Excerpt: hit.Excerpt, Score: hit.Score,
+				})
+				if len(out.Hits) == limit {
+					break
+				}
+			}
+			return nil, out, nil
+		})
+	}
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",
 		Description: "List accessible namespaces with descriptions, page counts and publishing status.",
@@ -516,7 +569,7 @@ func (app *App) mcpHandler() http.Handler {
 		if err != nil {
 			return nil, mcpSaveOut{}, err
 		}
-		if err := app.Index.Update(page); err != nil {
+		if err := app.Index.UpdatePage(page, hash); err != nil {
 			return nil, mcpSaveOut{}, err
 		}
 		slog.Info("mcp saved", "slug", in.Slug, "author", authorName, "message", message)

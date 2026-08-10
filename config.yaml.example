@@ -54,6 +54,20 @@ sync_poll_ms: 10000
 # override it from /settings.
 # skin: phosphor
 
+# --- Document extraction and semantic search ---
+# HMD_TIKA_URL is environment-only. When set, startup verifies the Apache Tika
+# Server and enables attachment extraction/search; when absent, attachments are
+# still stored but are not extracted or indexed.
+# HMD_TIKA_URL: http://tika:9998
+# document_search:
+#   # Defaults to BAAI/bge-small-en-v1.5. Override with
+#   # HMD_DOCUMENT_SEARCH_MODEL; models need Hugot-compatible ONNX files and
+#   # 384-dimensional output.
+#   model: BAAI/bge-small-en-v1.5
+#   # Defaults to <HMD_APP_DIR>/models. HMD downloads the
+#   # pinned, checksum-verified BGE Small ONNX model there on first use.
+#   index_dir: ""                 # defaults to <HMD_APP_DIR>/search.bleve
+
 # --- OIDC single sign-on ---
 # Optional. Setting oidc.issuer enables SSO and requires a restart. Register
 # hmd as a confidential client with your provider and use

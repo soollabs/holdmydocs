@@ -9,6 +9,8 @@ services:
       HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
       HMD_ADMIN_USER: "admin"
       HMD_ADMIN_PASSWORD: "change-me"
+      # Uncomment with `--profile documents` to enable extraction/search.
+      # HMD_TIKA_URL: "http://tika:9998"
     volumes:
       # Content repository — safe on NFS-backed storage, git only.
       - repo:/data/repo
@@ -16,6 +18,12 @@ services:
       - app:/data/app
     secrets:
       - git_token
+
+  # Optional document extraction service. It is internal-only by default.
+  tika:
+    profiles: [documents]
+    image: apache/tika:3.2.3.0-full@sha256:21d8052de04e491ccf66e8680ade4da6f3d453a56d59f740b4167e54167219b7
+    restart: unless-stopped
 
 secrets:
   git_token:

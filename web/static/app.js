@@ -343,6 +343,7 @@
   const paletteBackdrop = $('#palette-backdrop');
   const paletteInput = $('#palette-input');
   const paletteResults = $('#palette-results');
+  const paletteShortcuts = $('#palette-shortcuts');
   const paletteCount = $('#palette-count');
 
   let paletteOpen = false;
@@ -352,6 +353,7 @@
   let paletteVerbMode = false;  // input starts with ">" — rows are verbs
   let paletteVerbInput = null;  // a verb ('rename'|'tag') is awaiting its argument
   let searchTimer;
+  const paletteMatchLimit = 5;
 
   function openPalette(createMode) {
     if (!paletteBackdrop) return;
@@ -385,7 +387,7 @@
     if (!paletteResults) return;
     let recent = [];
     try { recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]'); } catch (e) {}
-    recent = recent.slice(0, 8);
+    recent = recent.slice(0, paletteMatchLimit);
     paletteRows = recent.map(e => ({
       slug: e.slug, title: e.title, snippet: '', tags: [], create: false
     }));
@@ -401,6 +403,10 @@
 
   function renderPaletteRows(query) {
     if (!paletteResults) return;
+    const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
+      `<a href="/_/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
+      `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
+    if (paletteShortcuts) paletteShortcuts.innerHTML = builtinHtml;
     if (paletteRows.length === 0 && !query) {
       const emptyMsg = paletteCreateMode ? 'Type a title for the new document…' : 'No recent pages';
       paletteResults.innerHTML = '<div class="palette-row" style="color:var(--fg-faint)">' + emptyMsg + '</div>';
@@ -415,21 +421,20 @@
         </div>`;
       }
       const tags = r.tags && r.tags.length ? ' <span class="hit-tags">' + r.tags.map(t => '<span class="hit-tag">' + escapeHtml(t) + '</span>').join(' ') + '</span>' : '';
+      const owner = r.owner ? ' <span class="hit-tags">' + escapeHtml(r.owner) + '</span>' : '';
+      const href = r.href || '/' + r.slug;
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
-      return `<a href="/${r.slug}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
-        <span class="filetype">md</span>
+      return `<a href="${href}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
+        <span class="filetype">${r.attachment ? 'att' : 'md'}</span>
         <span class="title">${escapeHtml(r.title)}</span>
-        <span class="snippet">${r.snippet || ''}</span>${tags}
+        <span class="snippet">${r.snippet || ''}</span>${tags}${owner}
       </a>`;
     }).join('');
-    const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
-      `<a href="/_/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
-      `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
     const createRow = (query && !paletteVerbMode && createNamespace())
       ? `<a href="${createHref(query)}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}" in ${escapeHtml(createNamespace())}</a>`
       : '';
-    paletteResults.innerHTML = rowsHtml + builtinHtml + createRow;
+    paletteResults.innerHTML = rowsHtml + createRow;
     if (!paletteVerbMode) {
       paletteCount.textContent = paletteRows.length > 0 ? paletteRows.length + (query ? ' matches' : ' recent') : '';
     }
@@ -511,12 +516,20 @@
     if (!q) { showRecent(); return; }
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      fetch('/_/api/search?q=' + encodeURIComponent(q))
-        .then(r => r.json())
-        .then(hits => {
-          paletteRows = hits.map(h => ({
+      Promise.all([
+        fetch('/_/api/search?q=' + encodeURIComponent(q)).then(r => r.json()),
+        fetch('/_/api/search/attachments?q=' + encodeURIComponent(q)).then(r => r.ok ? r.json() : [])
+      ])
+        .then(([pages, attachments]) => {
+          const rows = pages.map(h => ({
             slug: h.slug, title: h.title, snippet: h.snippet, tags: h.tags || [], create: false
-          }));
+          })).concat(attachments.map(h => ({
+            href: h.url, title: h.filename, snippet: h.excerpt, owner: h.owner_slug, attachment: true
+          })));
+          paletteRows = rows.slice(0, paletteMatchLimit);
+          if (rows.length > paletteMatchLimit) {
+            paletteRows.push({ href: '/_/search?q=' + encodeURIComponent(q), title: 'search all results', snippet: '' });
+          }
           paletteSelected = 0;
           renderPaletteRows(q);
         })
@@ -659,7 +672,7 @@
       return;
     }
     const row = paletteRows[paletteSelected];
-    if (row) window.location.href = '/' + row.slug + (editMode ? '?do=edit' : '');
+    if (row) window.location.href = row.href || '/' + row.slug + (editMode ? '?do=edit' : '');
   }
 
   if (paletteBackdrop) {
@@ -1075,6 +1088,14 @@
       editor.focus();
     }
 
+    const attachmentInput = $('#attachment-input');
+    const attachmentButton = $('.toolbar button[data-action="attachment"]');
+    let attachmentUploads = 0;
+
+    function updateAttachmentUploadStatus() {
+      attachmentButton.disabled = attachmentUploads > 0;
+      attachmentButton.textContent = attachmentUploads ? `uploading (${attachmentUploads})` : 'attach';
+    }
     const toolbarActions = {
       bold: () => wrapSelection('**', '**'),
       italic: () => wrapSelection('_', '_'),
@@ -1083,6 +1104,7 @@
       code: () => wrapSelection('`', '`'),
       table: insertTable,
       image: insertImagePlaceholder,
+      attachment: () => attachmentInput.click(),
       toc: insertTOC
     };
 
@@ -1097,14 +1119,17 @@
     schedulePreview();
     updateWordCount();
 
-    // Handle paste and drop for image uploads
-    function escapeAltText(text) {
+    // Handle attachment uploads, with paste and drop remaining image-only.
+    function escapeMarkdownText(text) {
       return text.replace(/[\[\]()]/g, '\\$&');
     }
 
-    function handleImageFiles(files) {
+    function handleAttachmentFiles(files, imagesOnly) {
       for (let file of files) {
-        if (!file.type.startsWith('image/')) continue;
+        if (imagesOnly && !file.type.startsWith('image/')) continue;
+
+        attachmentUploads++;
+        updateAttachmentUploadStatus();
 
         const formData = new FormData();
         formData.append('file', file);
@@ -1118,8 +1143,8 @@
           return r.json();
         })
         .then(data => {
-          const alt = escapeAltText(file.name);
-          const markdown = `![${alt}](${data.url})\n`;
+          const name = escapeMarkdownText(file.name);
+          const markdown = file.type.startsWith('image/') ? `![${name}](${data.url})\n` : `[${name}](${data.url})\n`;
           editor.dispatch({
             changes: {
               from: editor.state.selection.main.head,
@@ -1128,17 +1153,26 @@
           });
         })
         .catch(err => {
-          alert('Failed to upload image: ' + file.name);
+          alert('Failed to upload attachment: ' + file.name);
+        })
+        .finally(() => {
+          attachmentUploads--;
+          updateAttachmentUploadStatus();
         });
       }
     }
+
+    attachmentInput.addEventListener('change', () => {
+      handleAttachmentFiles(attachmentInput.files, false);
+      attachmentInput.value = '';
+    });
 
     cmHost.addEventListener('paste', e => {
       if (e.clipboardData.files && e.clipboardData.files.length) {
         const hasImages = Array.from(e.clipboardData.files).some(f => f.type.startsWith('image/'));
         if (hasImages) {
           e.preventDefault();
-          handleImageFiles(e.clipboardData.files);
+          handleAttachmentFiles(e.clipboardData.files, true);
         }
       }
     });
@@ -1148,7 +1182,7 @@
         const hasImages = Array.from(e.dataTransfer.files).some(f => f.type.startsWith('image/'));
         if (hasImages) {
           e.preventDefault();
-          handleImageFiles(e.dataTransfer.files);
+          handleAttachmentFiles(e.dataTransfer.files, true);
         }
       }
     });

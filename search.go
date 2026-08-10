@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,8 +17,13 @@ type TagCount struct {
 }
 
 type Index struct {
-	mu    sync.RWMutex
-	bleve bleve.Index
+	mu                sync.RWMutex
+	bleve             bleve.Index
+	indexDir          string
+	manifestPath      string
+	manifest          searchManifest
+	documents         *DocumentSearch
+	failedAttachments map[string]string
 	// forward maps a page slug to the raw [[titles]] it links to. There is
 	// no backward map: link targets are resolved on read via ResolveLink, so
 	// backlinks agree with what the renderer actually linked to and start
@@ -30,6 +36,21 @@ type Index struct {
 	pinned   map[string]bool // slug -> pin: true, for the pinned widget
 }
 
+func newIndex(blevIdx bleve.Index) *Index {
+	return &Index{
+		bleve:             blevIdx,
+		titles:            make(map[string]string),
+		forward:           make(map[string][]string),
+		tags:              make(map[string]map[string]bool),
+		tagNames:          make(map[string]string),
+		pageTags:          make(map[string][]string),
+		pinned:            make(map[string]bool),
+		failedAttachments: make(map[string]string),
+	}
+}
+
+func pageDocumentID(slug string) string { return "page:" + slug }
+
 type SearchHit struct {
 	Slug    string
 	Title   string
@@ -38,33 +59,20 @@ type SearchHit struct {
 }
 
 func BuildIndex(pages []Page) (*Index, error) {
-	mapping := bleve.NewIndexMapping()
+	mapping := attachmentIndexMapping()
 	blevIdx, err := bleve.NewMemOnly(mapping)
 	if err != nil {
 		return nil, err
 	}
 
-	ix := &Index{
-		bleve:    blevIdx,
-		titles:   make(map[string]string),
-		forward:  make(map[string][]string),
-		tags:     make(map[string]map[string]bool),
-		tagNames: make(map[string]string),
-		pageTags: make(map[string][]string),
-		pinned:   make(map[string]bool),
-	}
+	ix := newIndex(blevIdx)
 
 	for _, p := range pages {
 		ix.titles[p.Slug] = p.Title
 		ix.pinned[p.Slug] = p.Pin
 
 		// Index the page
-		doc := map[string]interface{}{
-			"Title": p.Title,
-			"Body":  p.Body,
-			"Tags":  p.Tags,
-		}
-		if err := blevIdx.Index(p.Slug, doc); err != nil {
+		if err := blevIdx.Index(pageDocumentID(p.Slug), pageDocument(p)); err != nil {
 			return nil, err
 		}
 
@@ -133,7 +141,7 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 			}
 			slog.Debug("pollFS: page changed", "slug", e.slug)
 			hashes[e.slug] = hash
-			if err := ix.Update(ParsePage(e.slug, content)); err != nil {
+			if err := ix.UpdatePage(ParsePage(e.slug, content), hash); err != nil {
 				slog.Error("pollFS: updating search index", "slug", e.slug, "err", err)
 			}
 		}
@@ -145,10 +153,33 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 				ix.Remove(slug)
 			}
 		}
+
+		if ix.documents != nil {
+			attachmentPaths, attachmentErr := store.ListAttachments()
+			if attachmentErr != nil {
+				slog.Warn("pollFS: attachment list failed", "err", attachmentErr)
+				continue
+			}
+			attachmentHashes := make(map[string]string, len(attachmentPaths))
+			for _, path := range attachmentPaths {
+				file, hash, hashErr := store.OpenAttachment(path)
+				if hashErr != nil {
+					slog.Warn("pollFS: attachment hash failed", "path", path, "err", hashErr)
+					continue
+				}
+				_ = file.Close()
+				attachmentHashes[path] = hash
+			}
+			ix.ReconcileAttachments(attachmentHashes)
+		}
 	}
 }
 
 func (ix *Index) Update(p Page) error {
+	return ix.UpdatePage(p, "")
+}
+
+func (ix *Index) UpdatePage(p Page, hash string) error {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
@@ -156,12 +187,7 @@ func (ix *Index) Update(p Page) error {
 	ix.pinned[p.Slug] = p.Pin
 
 	// Re-index the page
-	doc := map[string]interface{}{
-		"Title": p.Title,
-		"Body":  p.Body,
-		"Tags":  p.Tags,
-	}
-	indexErr := ix.bleve.Index(p.Slug, doc)
+	indexErr := ix.bleve.Index(pageDocumentID(p.Slug), pageDocument(p))
 
 	// Remove old tag associations for this page
 	if oldTags, ok := ix.pageTags[p.Slug]; ok {
@@ -189,7 +215,16 @@ func (ix *Index) Update(p Page) error {
 	// Build new forward links
 	ix.forward[p.Slug] = WikiLinks(p.Body)
 
-	return indexErr
+	if indexErr != nil {
+		return indexErr
+	}
+	if ix.indexDir != "" && hash != "" {
+		ix.manifest.Pages[p.Slug] = hash
+		if err := writeSearchManifest(ix.manifestPath, ix.manifest); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Remove deletes a page from the index — used when a page is toggled to
@@ -198,7 +233,7 @@ func (ix *Index) Remove(slug string) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
-	if err := ix.bleve.Delete(slug); err != nil {
+	if err := ix.bleve.Delete(pageDocumentID(slug)); err != nil {
 		slog.Error("removing page from search index", "slug", slug, "err", err)
 	}
 	delete(ix.titles, slug)
@@ -217,6 +252,19 @@ func (ix *Index) Remove(slug string) {
 		}
 	}
 	delete(ix.pageTags, slug)
+	if ix.indexDir != "" {
+		delete(ix.manifest.Pages, slug)
+		if err := writeSearchManifest(ix.manifestPath, ix.manifest); err != nil {
+			slog.Warn("updating search manifest", "slug", slug, "err", err)
+		}
+	}
+}
+
+func (ix *Index) AttachmentIndexed(path, hash string) bool {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+	entry, ok := ix.manifest.Attachments[path]
+	return ok && entry.SourceHash == hash && len(entry.ChunkIDs) > 0
 }
 
 func (ix *Index) Exists(slug string) bool {
@@ -296,8 +344,11 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	query := bleve.NewQueryStringQuery(q)
-	search := bleve.NewSearchRequest(query)
+	queryString := bleve.NewQueryStringQuery(q)
+	typeQuery := bleve.NewTermQuery("page")
+	typeQuery.SetField("Type")
+	searchQuery := bleve.NewConjunctionQuery(queryString, typeQuery)
+	search := bleve.NewSearchRequest(searchQuery)
 	search.Highlight = bleve.NewHighlightWithStyle("html")
 	search.Fields = []string{"Title"}
 	search.Size = 20
@@ -313,11 +364,12 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 		if frags, ok := match.Fragments["Body"]; ok && len(frags) > 0 {
 			snippet = frags[0]
 		}
+		slug := strings.TrimPrefix(match.ID, "page:")
 		hits = append(hits, SearchHit{
-			Slug:    match.ID,
-			Title:   ix.titles[match.ID],
+			Slug:    slug,
+			Title:   ix.titles[slug],
 			Snippet: snippet,
-			Tags:    ix.pageTags[match.ID],
+			Tags:    ix.pageTags[slug],
 		})
 	}
 

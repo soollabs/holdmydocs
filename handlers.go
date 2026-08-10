@@ -90,6 +90,14 @@ type SearchResult struct {
 	Tags    []string
 }
 
+type AttachmentResult struct {
+	OwnerSlug string        `json:"owner_slug"`
+	Filename  string        `json:"filename"`
+	URL       string        `json:"url"`
+	Excerpt   template.HTML `json:"excerpt"`
+	Score     float64       `json:"score"`
+}
+
 type HistoryEntry struct {
 	Hash      string
 	ShortHash string
@@ -100,86 +108,88 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
-	SiteName            string
-	AssetPath           string // static asset prefix; /_/static/ in the live app
-	NamespaceHome       string // static namespace index link; empty uses the live route
-	Static              bool
-	Authed              bool
-	Title               string
-	Slug                string
-	Content             template.HTML
-	Body                string
-	BaseHash            string
-	Backlinks           []BacklinkEntry
-	TagsInput           string
-	PageTags            []TagChip
-	AllTags             []TagCount
-	TagName             string
-	TagPages            []BacklinkEntry
-	SyncState           string
-	Error               string
-	Query               string
-	SearchResults       []SearchResult
-	HistoryEntries      []HistoryEntry
-	RevHash             string
-	OldVersionDate      string
-	TotalHistory        int
-	MermaidNeeded       bool
-	RevisionCount       int
-	HeadShortHash       string
-	HeadAuthor          string
-	HeadWhen            string // relative, e.g. "3 hours ago"
-	Username            string
-	StatusMode          string // view|edit|search|log|conflict, drives the statusline mode block
-	StatusContext       string // right-aligned context: revision count / word counts
-	Version             string // shown on login intro
-	RemoteHost          string // host of the git remote, for login intro (empty if none)
-	OIDCEnabled         bool   // show the SSO button on the login page
-	OIDCButtonText      string // SSO button label
-	OIDCLocalLogin      bool   // show the password form alongside SSO
-	OIDCIcon            bool   // show the icon (served at /auth/oidc/icon) on the SSO button
-	SearchElapsed       string // search timing, e.g. "3ms"
-	SearchPages         int    // total pages, for search stats
-	SearchHits          int    // match count, for search stats
-	SyncPollMs          int    // injected as a JS global for sync polling
-	SyncMode            string
-	BlobHash            string // current page blob hash, for client-side change detection
-	ThemeStyle          template.CSS
-	Skin                string // structural skin name; empty = default, only ever a known skinNames entry
-	Settings            *SettingsData
-	SetupHomePreview    template.HTML
-	SetupHelpPreview    template.HTML
-	NeedsSetup          bool
-	NeedsWikiSetup      bool
-	NeedsNamespaceSetup bool
-	NeedsHelpSetup      bool
-	HelpFileExists      bool
-	SetupNamespace      string   // new-namespace name the setup form suggests
-	SetupNamespaces     []string // existing namespaces offered as the landing choice
-	SetupSiteName       string   // portable site-name default for first setup
-	RoutePrefix         string
-	IsHidden            bool
-	IsNamespaceIndex    bool
-	CanWrite            bool
-	CanSettings         bool
-	CanEdit             bool
-	NewPageBase         string
-	NamespaceNames      []string // editor path field: namespaces a move may target
-	NamespaceManagement *NamespaceManagementData
-	Namespace           string // namespace index page: the namespace being listed
-	NamespacePublic     bool
-	NamespaceTitle      string        // public top bar title; falls back to Namespace if empty
-	PageTree            template.HTML // namespace index page: TagPages as a folder tree, see renderLiveTree
-	RecentCommits       []LogEntry    // sidebar LOG section: last commits for the current page
-	HealthMissing       int
-	HealthOrphans       int
-	SyncAge             string // relative age of the last successful sync, e.g. "12 seconds ago"
-	SyncLastUnix        int64  // raw timestamp for the client-side sync-age ticker
-	SidebarWidgets      []*widget
-	RailWidgets         []*widget
-	PageHeadWidgets     []*widget
-	PageFootWidgets     []*widget
-	StatusVariant       string // skin.Status: full | write | quiet
+	SiteName                string
+	AssetPath               string // static asset prefix; /_/static/ in the live app
+	NamespaceHome           string // static namespace index link; empty uses the live route
+	Static                  bool
+	Authed                  bool
+	Title                   string
+	Slug                    string
+	Content                 template.HTML
+	Body                    string
+	BaseHash                string
+	Backlinks               []BacklinkEntry
+	TagsInput               string
+	PageTags                []TagChip
+	AllTags                 []TagCount
+	TagName                 string
+	TagPages                []BacklinkEntry
+	SyncState               string
+	Error                   string
+	Query                   string
+	SearchResults           []SearchResult
+	AttachmentResults       []AttachmentResult
+	AttachmentSearchEnabled bool
+	HistoryEntries          []HistoryEntry
+	RevHash                 string
+	OldVersionDate          string
+	TotalHistory            int
+	MermaidNeeded           bool
+	RevisionCount           int
+	HeadShortHash           string
+	HeadAuthor              string
+	HeadWhen                string // relative, e.g. "3 hours ago"
+	Username                string
+	StatusMode              string // view|edit|search|log|conflict, drives the statusline mode block
+	StatusContext           string // right-aligned context: revision count / word counts
+	Version                 string // shown on login intro
+	RemoteHost              string // host of the git remote, for login intro (empty if none)
+	OIDCEnabled             bool   // show the SSO button on the login page
+	OIDCButtonText          string // SSO button label
+	OIDCLocalLogin          bool   // show the password form alongside SSO
+	OIDCIcon                bool   // show the icon (served at /auth/oidc/icon) on the SSO button
+	SearchElapsed           string // search timing, e.g. "3ms"
+	SearchPages             int    // total pages, for search stats
+	SearchHits              int    // match count, for search stats
+	SyncPollMs              int    // injected as a JS global for sync polling
+	SyncMode                string
+	BlobHash                string // current page blob hash, for client-side change detection
+	ThemeStyle              template.CSS
+	Skin                    string // structural skin name; empty = default, only ever a known skinNames entry
+	Settings                *SettingsData
+	SetupHomePreview        template.HTML
+	SetupHelpPreview        template.HTML
+	NeedsSetup              bool
+	NeedsWikiSetup          bool
+	NeedsNamespaceSetup     bool
+	NeedsHelpSetup          bool
+	HelpFileExists          bool
+	SetupNamespace          string   // new-namespace name the setup form suggests
+	SetupNamespaces         []string // existing namespaces offered as the landing choice
+	SetupSiteName           string   // portable site-name default for first setup
+	RoutePrefix             string
+	IsHidden                bool
+	IsNamespaceIndex        bool
+	CanWrite                bool
+	CanSettings             bool
+	CanEdit                 bool
+	NewPageBase             string
+	NamespaceNames          []string // editor path field: namespaces a move may target
+	NamespaceManagement     *NamespaceManagementData
+	Namespace               string // namespace index page: the namespace being listed
+	NamespacePublic         bool
+	NamespaceTitle          string        // public top bar title; falls back to Namespace if empty
+	PageTree                template.HTML // namespace index page: TagPages as a folder tree, see renderLiveTree
+	RecentCommits           []LogEntry    // sidebar LOG section: last commits for the current page
+	HealthMissing           int
+	HealthOrphans           int
+	SyncAge                 string // relative age of the last successful sync, e.g. "12 seconds ago"
+	SyncLastUnix            int64  // raw timestamp for the client-side sync-age ticker
+	SidebarWidgets          []*widget
+	RailWidgets             []*widget
+	PageHeadWidgets         []*widget
+	PageFootWidgets         []*widget
+	StatusVariant           string // skin.Status: full | write | quiet
 
 	// Widget data — populated in app.render only when something on the page
 	// actually reads it (see populateWidgetData).
@@ -393,6 +403,14 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields["AdminPass"] = FieldState{Value: cfg.AdminPass, Editable: false, EnvVar: adminPassEnv, BootstrapOnly: true}
 
 	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
+	tikaValue := "not set"
+	if cfg.TikaURL != "" {
+		tikaValue = "configured"
+	}
+	fields["TikaURL"] = FieldState{
+		Value: tikaValue, Editable: false, RestartRequired: true,
+		EnvVar: cfg.EnvOverrides["TikaURL"],
+	}
 
 	activeName, activeSkin := effectiveSkin(cfg, prefs)
 
@@ -909,6 +927,9 @@ func (app *App) Routes() http.Handler {
 
 	// Search
 	mux.HandleFunc("GET /_/search", app.handleSearch)
+	if app.Index.documents != nil {
+		mux.HandleFunc("GET /_/search/attachments", app.handleAttachmentSearch)
+	}
 	mux.HandleFunc("GET /_/health-report", app.handleHealthReport)
 
 	// Hidden page handlers (dot-prefixed files, an app-internal drafting
@@ -933,6 +954,9 @@ func (app *App) Routes() http.Handler {
 
 	// API endpoints
 	mux.HandleFunc("GET /_/api/search", app.handleSearchAPI)
+	if app.Index.documents != nil {
+		mux.HandleFunc("GET /_/api/search/attachments", app.handleAttachmentSearchAPI)
+	}
 	mux.HandleFunc("GET /_/api/health", app.handleHealthAPI)
 	mux.HandleFunc("GET /_/api/sync", app.handleSyncAPI)
 	mux.HandleFunc("POST /_/api/sync/push-now", app.handleSyncPushNow)
@@ -1815,7 +1839,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	// performs the write atomically under the store lock, so two concurrent
 	// saves against the same basehash can't both succeed.
 	authorName, authorEmail := app.gitAuthor(username)
-	_, err := app.Store.SaveChecked(oldFile, newFile, basehash, page.Encode(), message, authorName, authorEmail)
+	blobHash, err := app.Store.SaveChecked(oldFile, newFile, basehash, page.Encode(), message, authorName, authorEmail)
 	if errors.Is(err, ErrConflict) {
 		_, currentHash, readErr := app.Store.Read(oldFile)
 		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
@@ -1861,7 +1885,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	if hidden {
 		app.Index.Remove(slug)
 	} else {
-		if err := app.Index.Update(page); err != nil {
+		if err := app.Index.UpdatePage(page, blobHash); err != nil {
 			slog.Error("updating search index", "slug", page.Slug, "err", err)
 		}
 	}
@@ -1938,12 +1962,9 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check extension whitelist (SVG excluded — can carry scripts that execute
-	// when served as image/svg+xml)
-	allowedExts := map[string]bool{
-		".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
-		".webp": true, ".pdf": true,
-	}
-	if !allowedExts[strings.ToLower(ext)] {
+	// when served as image/svg+xml).
+	ext = strings.ToLower(ext)
+	if !supportedAttachmentExtensions[ext] {
 		http.Error(w, "file type not allowed", http.StatusBadRequest)
 		return
 	}
@@ -1977,9 +1998,37 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return JSON response
+	indexed := false
+	var indexErr error
+	var attachmentHash string
+	if app.Index.documents != nil {
+		file, hash, hashErr := app.Store.OpenAttachment(path)
+		if hashErr != nil {
+			indexErr = hashErr
+		} else {
+			attachmentHash = hash
+			_ = file.Close()
+			indexErr = app.Index.ReconcileAttachmentPath(path, hash)
+		}
+		indexed = indexErr == nil && app.Index.AttachmentIndexed(path, attachmentHash)
+	}
+
+	// Return JSON response. The Git commit is already durable even when the
+	// disposable derived index cannot be rebuilt.
 	w.Header().Set("Content-Type", "application/json")
-	resp := map[string]string{"url": fmt.Sprintf("/_/attachments/%s/%s", slug, filename)}
+	if indexErr != nil {
+		slog.Warn("attachment indexing failed", "path", path, "err", indexErr)
+		w.WriteHeader(http.StatusAccepted)
+	} else if app.Index.documents != nil {
+		w.WriteHeader(http.StatusCreated)
+	}
+	resp := map[string]interface{}{
+		"url":     fmt.Sprintf("/_/attachments/%s/%s", slug, filename),
+		"indexed": indexed,
+	}
+	if indexErr != nil {
+		resp["index_error"] = indexErr.Error()
+	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("encoding attachment response", "err", err)
 	}
@@ -2084,6 +2133,25 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 			Tags:    hit.Tags,
 		})
 	}
+	var attachmentResults []AttachmentResult
+	if app.Index.documents != nil && strings.TrimSpace(q) != "" {
+		if hits, searchErr := app.Index.SearchAttachments(r.Context(), q, 50); searchErr != nil {
+			slog.Warn("attachment search failed", "err", searchErr)
+		} else {
+			for _, hit := range hits {
+				if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
+					continue
+				}
+				attachmentResults = append(attachmentResults, AttachmentResult{
+					OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
+					Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
+				})
+				if len(attachmentResults) == 20 {
+					break
+				}
+			}
+		}
+	}
 
 	pageCount := 0
 	for slug := range app.Index.Titles() {
@@ -2096,14 +2164,46 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		title = q
 	}
 	app.render(w, r, http.StatusOK, "search", TemplateData{
-		Authed:        true,
-		Title:         title,
-		Query:         q,
-		SearchResults: results,
-		SearchHits:    len(results),
-		SearchPages:   pageCount,
-		SearchElapsed: elapsed.String(),
-		StatusMode:    "search",
+		Authed:                  true,
+		Title:                   title,
+		Query:                   q,
+		SearchResults:           results,
+		AttachmentResults:       attachmentResults,
+		AttachmentSearchEnabled: app.Index.documents != nil,
+		SearchHits:              len(results),
+		SearchPages:             pageCount,
+		SearchElapsed:           elapsed.String(),
+		StatusMode:              "search",
+	})
+}
+
+func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.FormValue("q"))
+	if q == "" {
+		http.Error(w, "query cannot be empty", http.StatusBadRequest)
+		return
+	}
+	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
+	if err != nil {
+		http.Error(w, "attachment search unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	results := make([]AttachmentResult, 0, 20)
+	for _, hit := range hits {
+		if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
+			continue
+		}
+		results = append(results, AttachmentResult{
+			OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
+			Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
+		})
+		if len(results) == 20 {
+			break
+		}
+	}
+	app.render(w, r, http.StatusOK, "search", TemplateData{
+		Authed: true, Title: q, Query: q, AttachmentResults: results,
+		AttachmentSearchEnabled: true, StatusMode: "search",
 	})
 }
 
@@ -2133,6 +2233,38 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(results); err != nil {
 		slog.Error("encoding search response", "err", err)
+	}
+}
+
+func (app *App) handleAttachmentSearchAPI(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.FormValue("q"))
+	if q == "" {
+		http.Error(w, "query cannot be empty", http.StatusBadRequest)
+		return
+	}
+	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "attachment search unavailable"})
+		return
+	}
+	results := make([]AttachmentResult, 0, 20)
+	for _, hit := range hits {
+		if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
+			continue
+		}
+		results = append(results, AttachmentResult{
+			OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
+			Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
+		})
+		if len(results) == 20 {
+			break
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		slog.Error("encoding attachment search response", "err", err)
 	}
 }
 
@@ -2308,14 +2440,15 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	page.Slug = newSlug
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
 	message := fmt.Sprintf("Rename %s to %s", oldTitle, newTitle)
-	if _, err := app.Store.SaveChecked(pageFile(slug), pageFile(newSlug), hash, page.Encode(), message, authorName, authorEmail); err != nil {
+	newHash, err := app.Store.SaveChecked(pageFile(slug), pageFile(newSlug), hash, page.Encode(), message, authorName, authorEmail)
+	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	if newSlug != slug {
 		app.Index.Remove(slug)
 	}
-	if err := app.Index.Update(page); err != nil {
+	if err := app.Index.UpdatePage(page, newHash); err != nil {
 		slog.Error("updating search index", "slug", page.Slug, "err", err)
 	}
 
@@ -2341,8 +2474,8 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		srcPage.Body = updated
-		if _, err := app.Store.SaveChecked(pageFile(src), pageFile(src), srcHash, srcPage.Encode(), "Update links after rename of "+oldTitle, authorName, authorEmail); err == nil {
-			if err := app.Index.Update(srcPage); err != nil {
+		if sourceHash, err := app.Store.SaveChecked(pageFile(src), pageFile(src), srcHash, srcPage.Encode(), "Update links after rename of "+oldTitle, authorName, authorEmail); err == nil {
+			if err := app.Index.UpdatePage(srcPage, sourceHash); err != nil {
 				slog.Error("updating search index", "slug", srcPage.Slug, "err", err)
 			}
 		}
@@ -2369,11 +2502,12 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	page := ParsePage(slug, content)
 	page.Tags = ParseTags(r.FormValue("tags"))
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	if _, err := app.Store.SaveChecked(pageFile(slug), pageFile(slug), hash, page.Encode(), "Update tags for "+page.Title, authorName, authorEmail); err != nil {
+	newHash, err := app.Store.SaveChecked(pageFile(slug), pageFile(slug), hash, page.Encode(), "Update tags for "+page.Title, authorName, authorEmail)
+	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if err := app.Index.Update(page); err != nil {
+	if err := app.Index.UpdatePage(page, newHash); err != nil {
 		slog.Error("updating search index", "slug", page.Slug, "err", err)
 	}
 	w.Header().Set("Content-Type", "application/json")

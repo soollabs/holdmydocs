@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 //go:embed all:web
@@ -112,9 +113,37 @@ func main() {
 		hashes[slug] = hash
 	}
 
-	index, err := BuildIndex(pages)
+	var documents *DocumentSearch
+	if cfg.TikaURL != "" {
+		documents, err = NewDocumentSearch(cfg)
+		if err != nil {
+			log.Fatalf("setting up document search failed: %v", err)
+		}
+		documents.store = store
+	}
+	attachmentHashes := make(map[string]string)
+	if documents != nil {
+		attachmentPaths, listErr := store.ListAttachments()
+		if listErr != nil {
+			log.Fatalf("store.ListAttachments failed: %v", listErr)
+		}
+		for _, path := range attachmentPaths {
+			file, hash, hashErr := store.OpenAttachment(path)
+			if hashErr != nil {
+				slog.Warn("reading attachment hash", "path", path, "err", hashErr)
+				continue
+			}
+			_ = file.Close()
+			attachmentHashes[path] = hash
+		}
+	}
+	indexDir := cfg.DocumentSearch.IndexDir
+	if indexDir == "" {
+		indexDir = filepath.Join(cfg.AppDir, "search.bleve")
+	}
+	index, err := openIndexAt(indexDir, pages, hashes, attachmentHashes, documents)
 	if err != nil {
-		log.Fatalf("build index failed: %v", err)
+		log.Fatalf("open index failed: %v", err)
 	}
 	slog.Info("index built", "pages", len(pages))
 

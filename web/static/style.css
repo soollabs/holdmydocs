@@ -1552,7 +1552,11 @@ ul.page-tree.branch > li::before {
 }
 
 .palette-results {
-	overflow-y: auto;
+	overflow: hidden;
+}
+
+.palette-shortcuts {
+	border-top: var(--border-w) solid var(--chrome-border);
 }
 
 .palette-row {

@@ -798,12 +798,12 @@ func restrictedTokenPathAllowed(path string) bool {
 		return path != "/"
 	}
 
-	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
+	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/api/search/attachments", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
 		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
-	for _, exact := range []string{"/_/api/preview", "/_/search", "/_/api/search", "/_/api/health", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"} {
+	for _, exact := range []string{"/_/api/preview", "/_/search", "/_/search/attachments", "/_/api/search", "/_/api/search/attachments", "/_/api/health", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"} {
 		if path == exact {
 			return true
 		}

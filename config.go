@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,6 +26,14 @@ type GitConfig struct {
 // MCPConfig groups the MCP-server settings. Restart-required.
 type MCPConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// DocumentSearchConfig is restart-required local model/index configuration.
+// The Tika endpoint is intentionally not part of this portable YAML shape.
+type DocumentSearchConfig struct {
+	Model    string `yaml:"model"`
+	ModelDir string `yaml:"model_dir"`
+	IndexDir string `yaml:"index_dir"`
 }
 
 // oidcFileConfig is the YAML/env shape of the OIDC settings. LocalLogin
@@ -80,9 +89,11 @@ type Config struct {
 	Skin           string
 	Debug          bool
 
-	Git  GitConfig
-	MCP  MCPConfig
-	OIDC OIDCConfig
+	Git            GitConfig
+	MCP            MCPConfig
+	OIDC           OIDCConfig
+	DocumentSearch DocumentSearchConfig
+	TikaURL        string
 }
 
 // fileConfig mirrors Config with the YAML keys accepted in the config file.
@@ -96,9 +107,10 @@ type fileConfig struct {
 	Skin           string `yaml:"skin"`
 	Debug          bool   `yaml:"debug"`
 
-	Git  GitConfig      `yaml:"git"`
-	MCP  MCPConfig      `yaml:"mcp"`
-	OIDC oidcFileConfig `yaml:"oidc"`
+	Git            GitConfig            `yaml:"git"`
+	MCP            MCPConfig            `yaml:"mcp"`
+	OIDC           oidcFileConfig       `yaml:"oidc"`
+	DocumentSearch DocumentSearchConfig `yaml:"document_search"`
 }
 
 func envOr(key, def string) string {
@@ -198,6 +210,19 @@ func LoadConfig() (Config, error) {
 	}
 	envOverrides := make(map[string]string)
 	applyEnvOverrides(reflect.ValueOf(&file).Elem(), "HMD", "", envOverrides)
+	tikaURL := strings.TrimSpace(os.Getenv("HMD_TIKA_URL"))
+	if tikaURL != "" {
+		tikaURL = strings.TrimRight(tikaURL, "/")
+		u, parseErr := url.Parse(tikaURL)
+		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+			return Config{}, fmt.Errorf("HMD_TIKA_URL must be an http or https URL with a host and no user-info")
+		}
+		envOverrides["TikaURL"] = "HMD_TIKA_URL"
+	}
+	modelDir := file.DocumentSearch.ModelDir
+	if modelDir == "" {
+		modelDir = filepath.Join(envOr("HMD_APP_DIR", "/data/app"), "models")
+	}
 
 	or := func(fileVal, def string) string {
 		if fileVal != "" {
@@ -257,6 +282,12 @@ func LoadConfig() (Config, error) {
 			Icon:         file.OIDC.Icon,
 			BaseURL:      file.OIDC.BaseURL,
 		},
+		DocumentSearch: DocumentSearchConfig{
+			Model:    or(file.DocumentSearch.Model, semanticModelName),
+			ModelDir: modelDir,
+			IndexDir: file.DocumentSearch.IndexDir,
+		},
+		TikaURL: tikaURL,
 	}
 
 	// Token file overrides the token value, whichever source named it.
@@ -322,6 +353,7 @@ func (c Config) toFileConfig() fileConfig {
 			Icon:         c.OIDC.Icon,
 			BaseURL:      c.OIDC.BaseURL,
 		},
+		DocumentSearch: c.DocumentSearch,
 	}
 }
 

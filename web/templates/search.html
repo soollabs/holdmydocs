@@ -14,7 +14,21 @@
 		</div>
 		{{end}}
 	{{else if .Query}}
-		<p>No results found.</p>
+		{{if not .AttachmentResults}}<p>No results found.</p>{{end}}
+	{{end}}
+	{{if .AttachmentSearchEnabled}}
+	<section class="attachment-search-results">
+		<h2>Attachments</h2>
+		{{if .AttachmentResults}}
+			{{range .AttachmentResults}}
+			<div class="search-hit attachment-hit">
+				<a href="{{.URL}}" class="hit-title">{{.Filename}}</a>
+				<span class="hit-tags">{{.OwnerSlug}}</span>
+				{{if .Excerpt}}<div class="hit-snippet">{{.Excerpt}}</div>{{end}}
+			</div>
+			{{end}}
+		{{else if .Query}}<p>No attachment results.</p>{{end}}
+	</section>
 	{{end}}
 </div>
 </div>

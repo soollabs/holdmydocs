@@ -38,6 +38,7 @@
 		<button type="button" class="ghost-btn" data-action="code" title="Code">`code`</button>
 		<button type="button" class="ghost-btn" data-action="table" title="Table">table</button>
 		<button type="button" class="ghost-btn" data-action="image" title="Image">img</button>
+		<button type="button" class="ghost-btn" data-action="attachment" title="Upload attachment">attach</button>
 		<button type="button" class="ghost-btn" data-action="toc" title="Table of contents">toc</button>
 		<button type="button" class="ghost-btn" id="toggle-preview-btn" title="Hide preview for more writing space">preview</button>
 		<button type="button" class="ghost-btn" id="toggle-wrap-btn" title="Toggle word wrap">wrap</button>
@@ -54,6 +55,7 @@
 	</div>
 
 	<textarea name="body" id="editor-src" rows="16" style="display:none">{{.Body}}</textarea>
+	<input type="file" id="attachment-input" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" hidden>
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
 

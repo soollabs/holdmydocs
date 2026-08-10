@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -220,7 +223,8 @@ Mermaid code fences render as diagrams:
 
 ## Attachments
 
-Permitted types: png, jpg, jpeg, gif, webp, pdf. SVG is excluded (XSS risk).
+Permitted types: png, jpg, jpeg, gif, webp, pdf, doc, docx, xls, xlsx, ppt,
+pptx, odt, ods and odp. SVG is excluded (XSS risk).
 Paste or drag an image into the editor to upload it, or reference one
 already uploaded by its served URL: ` + "`/_/attachments/<slug>/<file>`" + `.
 
@@ -286,10 +290,11 @@ it keeps every page and hidden template. True deletion is available only when
 there are no pages or hidden files, so move or remove those first. Writing
 ` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
 
-MCP clients can access ordinary pages only: page tools accept a
-` + "`namespace/page`" + ` slug, reads require read scope, and writes require
-write scope. Wiki settings, namespace settings, hidden templates and attachments
-are never exposed through MCP.
+MCP clients can access ordinary pages only by default; when document search is
+enabled they also get attachment search. Page tools accept a
+` + "`namespace/page`" + ` slug, reads require read scope, and writes require write
+scope. Wiki settings, namespace settings, hidden templates and attachment
+source files are never exposed through MCP.
 
 ## Skins
 
@@ -930,6 +935,90 @@ func (s *Store) List() ([]string, error) {
 
 	sort.Strings(paths)
 	return paths, nil
+}
+
+// ListAttachments returns supported regular files below attachments/, sorted
+// by repository-relative path. Symlinks are ignored rather than followed.
+func (s *Store) ListAttachments() ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	root := filepath.Join(s.dir, attachmentsDir)
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(s.dir, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if _, _, ok := parseAttachmentPath(rel); !ok {
+			return nil
+		}
+		paths = append(paths, rel)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading attachments directory: %w", err)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// OpenAttachment validates and opens an attachment while the store lock is
+// held. The returned descriptor remains usable after the lock is released.
+func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, _, ok := parseAttachmentPath(path); !ok {
+		return nil, "", fmt.Errorf("invalid attachment path %q", path)
+	}
+	clean := filepath.Clean(filepath.FromSlash(path))
+	root := filepath.Join(s.dir, attachmentsDir)
+	full := filepath.Join(s.dir, clean)
+	rel, err := filepath.Rel(root, full)
+	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return nil, "", errors.New("attachment path escapes attachments directory")
+	}
+	info, err := os.Lstat(full)
+	if err != nil {
+		return nil, "", err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, "", errors.New("attachment is not a regular file")
+	}
+	file, err := os.Open(full)
+	if err != nil {
+		return nil, "", err
+	}
+	hash := sha1.New()
+	_, _ = fmt.Fprintf(hash, "blob %d\x00", info.Size())
+	if _, err := io.Copy(hash, file); err != nil {
+		file.Close()
+		return nil, "", err
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		file.Close()
+		return nil, "", err
+	}
+	return file, hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // ListHidden returns every hidden page's path (repo-relative,
