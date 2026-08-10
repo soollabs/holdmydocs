@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -131,6 +133,18 @@ type mcpAttachmentSearchHit struct {
 
 type mcpAttachmentSearchOut struct {
 	Hits []mcpAttachmentSearchHit `json:"hits"`
+}
+
+type mcpAttachmentUploadIn struct {
+	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
+	Filename string `json:"filename" jsonschema:"original filename; supported extensions are PDF, Office, OpenDocument, PNG, JPEG, GIF, and WebP"`
+	Content  string `json:"content_base64" jsonschema:"attachment bytes encoded with standard base64; limited by the MCP 1 MiB request limit and HMD_MAX_UPLOAD_BYTES"`
+}
+
+type mcpAttachmentUploadOut struct {
+	URL        string `json:"url"`
+	Indexed    bool   `json:"indexed"`
+	IndexError string `json:"index_error,omitempty"`
 }
 
 type mcpBacklinksOut struct {
@@ -405,6 +419,59 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, out, nil
 		})
 	}
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "upload_attachment",
+		Description: "Upload a base64-encoded attachment to a page. Requires write scope; document indexing runs immediately when enabled. Then add the returned URL to the page body with save_page, using [filename](URL) or ![alt text](URL) for images.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentUploadIn) (*mcp.CallToolResult, mcpAttachmentUploadOut, error) {
+		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
+			return nil, mcpAttachmentUploadOut{}, err
+		}
+		if !validMCPPageSlug(in.Slug) {
+			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		}
+		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+			return nil, mcpAttachmentUploadOut{}, err
+		}
+		content, err := base64.StdEncoding.DecodeString(in.Content)
+		if err != nil {
+			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("decoding content_base64: %w", err)
+		}
+		maxBytes := app.config().MaxUploadBytes
+		if maxBytes <= 0 {
+			maxBytes = 10 * 1024 * 1024
+		}
+		if int64(len(content)) > maxBytes {
+			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("attachment exceeds maximum upload size of %d bytes", maxBytes)
+		}
+		filename := filepath.Base(in.Filename)
+		ext := strings.ToLower(filepath.Ext(filename))
+		name := Slugify(filename[:len(filename)-len(ext)])
+		if name == "" || !supportedAttachmentExtensions[ext] {
+			return nil, mcpAttachmentUploadOut{}, errors.New("file type or filename is not allowed")
+		}
+		filename = name + ext
+		path := attachmentsDir + "/" + in.Slug + "/" + filename
+		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
+		if _, err := app.Store.Save(path, content, "Add attachment "+filename, authorName, authorEmail); err != nil {
+			return nil, mcpAttachmentUploadOut{}, err
+		}
+		out := mcpAttachmentUploadOut{URL: "/_/attachments/" + in.Slug + "/" + filename}
+		if app.Index.documents == nil {
+			return nil, out, nil
+		}
+		file, hash, err := app.Store.OpenAttachment(path)
+		if err == nil {
+			_ = file.Close()
+			err = app.Index.ReconcileAttachmentPath(path, hash)
+			out.Indexed = err == nil && app.Index.AttachmentIndexed(path, hash)
+		}
+		if err != nil {
+			slog.Warn("mcp attachment indexing failed", "path", path, "err", err)
+			out.IndexError = err.Error()
+		}
+		return nil, out, nil
+	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",

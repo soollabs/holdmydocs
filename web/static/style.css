@@ -1711,10 +1711,31 @@ ul.page-tree.branch > li::before {
    Search page
    --------------------------------------------------------------- */
 
-.search-query-line::before {
+.search-query-form {
+	display: flex;
+	align-items: baseline;
+	margin-bottom: 8px;
+}
+
+.search-query-prompt::before {
 	content: var(--prompt-symbol);
 	color: var(--marker-colour);
 	margin-right: 0.3em;
+}
+
+.search-query-form input {
+	min-width: 0;
+	width: 100%;
+	background: transparent;
+	border: 0;
+	border-bottom: var(--field-border-w) solid transparent;
+	border-radius: 0;
+	padding: 0;
+}
+
+.search-query-form input:focus {
+	border-bottom-color: var(--primary);
+	outline: 0;
 }
 
 .search-header .search-stats {

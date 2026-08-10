@@ -2,8 +2,11 @@
 <div class="content-col">
 <div class="search-results">
 	<div class="search-header">
-		<h1 class="page-title search-query-line">{{.Query}}</h1>
-		{{if .Query}}<div class="search-stats">{{.SearchHits}} match{{if ne .SearchHits 1}}es{{end}} across {{.SearchPages}} page{{if ne .SearchPages 1}}s{{end}} &middot; {{.SearchElapsed}}</div>{{end}}
+		<form action="/_/search" method="GET" class="search-query-form">
+			<span class="search-query-prompt" aria-hidden="true"></span>
+			<input class="page-title" type="search" id="search-query" name="q" value="{{.Query}}" placeholder="search" autocomplete="off" aria-label="Search">
+		</form>
+		{{if .Query}}<div class="search-stats">{{.SearchHits}} page match{{if ne .SearchHits 1}}es{{end}}{{if .AttachmentSearchEnabled}} &middot; {{.AttachmentHits}} attachment match{{if ne .AttachmentHits 1}}es{{end}}{{end}} &middot; {{.SearchElapsed}}</div>{{end}}
 	</div>
 	{{if .SearchResults}}
 		{{range .SearchResults}}

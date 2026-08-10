@@ -149,8 +149,8 @@ type TemplateData struct {
 	OIDCLocalLogin          bool   // show the password form alongside SSO
 	OIDCIcon                bool   // show the icon (served at /auth/oidc/icon) on the SSO button
 	SearchElapsed           string // search timing, e.g. "3ms"
-	SearchPages             int    // total pages, for search stats
 	SearchHits              int    // match count, for search stats
+	AttachmentHits          int    // attachment match count, for search stats
 	SyncPollMs              int    // injected as a JS global for sync polling
 	SyncMode                string
 	BlobHash                string // current page blob hash, for client-side change detection
@@ -2153,12 +2153,6 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pageCount := 0
-	for slug := range app.Index.Titles() {
-		if tokenAllowsSlug(r.Context(), slug) {
-			pageCount++
-		}
-	}
 	title := "Search"
 	if q != "" {
 		title = q
@@ -2171,7 +2165,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		AttachmentResults:       attachmentResults,
 		AttachmentSearchEnabled: app.Index.documents != nil,
 		SearchHits:              len(results),
-		SearchPages:             pageCount,
+		AttachmentHits:          len(attachmentResults),
 		SearchElapsed:           elapsed.String(),
 		StatusMode:              "search",
 	})

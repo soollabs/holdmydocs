@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -186,6 +187,7 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 		"list_pages": true, "read_page": true, "save_page": true, "delete_page": true,
 		"search": true, "backlinks": true, "recent_changes": true, "health": true,
 		"list_namespaces": true, "read_namespace": true, "save_namespace": true,
+		"upload_attachment": true,
 	}
 	for _, tool := range result.Tools {
 		if !allowed[tool.Name] {
@@ -195,6 +197,27 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 	}
 	for name := range allowed {
 		t.Errorf("MCP missing page tool %q", name)
+	}
+}
+
+func TestMCPUploadAttachment(t *testing.T) {
+	app, server, token := newMCPTestAppWithApp(t, true)
+	session := connectMCP(t, server, token)
+	content := []byte("PDF content")
+	result := callTool(t, session, "upload_attachment", map[string]any{
+		"slug": testHome, "filename": "Quarterly Report.PDF", "content_base64": base64.StdEncoding.EncodeToString(content),
+	})
+	if result.IsError {
+		t.Fatalf("upload_attachment: %s", toolText(t, result))
+	}
+	var out mcpAttachmentUploadOut
+	toolJSON(t, result, &out)
+	if out.URL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.Indexed {
+		t.Fatalf("upload result = %#v", out)
+	}
+	got, _, err := app.Store.Read("attachments/notes/readme/quarterly-report.pdf")
+	if err != nil || string(got) != string(content) {
+		t.Fatalf("uploaded attachment = %q, %v", got, err)
 	}
 }
 
@@ -1012,6 +1035,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		{"read_page", map[string]any{"slug": "private/denied"}},
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
+		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf", "content_base64": "eA=="}},
 		{"backlinks", map[string]any{"slug": "private/denied"}},
 	}
 	for _, tc := range denied {
@@ -1058,10 +1082,16 @@ func TestMCPScopes(t *testing.T) {
 	if res := callTool(t, reader, "save_page", map[string]any{"slug": "nope", "body": "nope"}); !res.IsError {
 		t.Error("read scope saved a page")
 	}
+	if res := callTool(t, reader, "upload_attachment", map[string]any{"slug": testHome, "filename": "reader.pdf", "content_base64": "eA=="}); !res.IsError {
+		t.Error("read scope uploaded an attachment")
+	}
 
 	writer := connectMCP(t, server, writerToken)
 	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
 		t.Fatalf("write scope save_page: %s", toolText(t, res))
+	}
+	if res := callTool(t, writer, "upload_attachment", map[string]any{"slug": testHome, "filename": "writer.pdf", "content_base64": "eA=="}); res.IsError {
+		t.Fatalf("write scope upload_attachment: %s", toolText(t, res))
 	}
 	if res := callTool(t, writer, "list_pages", nil); !res.IsError {
 		t.Error("write scope listed pages")
