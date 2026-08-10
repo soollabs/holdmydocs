@@ -212,7 +212,7 @@ func TestMCPUploadAttachment(t *testing.T) {
 	}
 	var out mcpAttachmentUploadOut
 	toolJSON(t, result, &out)
-	if !strings.HasPrefix(out.UploadURL, "/_/api/attachment-uploads/") || out.AttachmentURL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.ExpiresAt == "" {
+	if !strings.HasPrefix(out.UploadURL, server.URL+"/_/api/attachment-uploads/") || out.AttachmentURL != "/_/attachments/notes/readme/quarterly-report.pdf" || out.ExpiresAt == "" {
 		t.Fatalf("upload result = %#v", out)
 	}
 	body := &bytes.Buffer{}
@@ -227,7 +227,7 @@ func TestMCPUploadAttachment(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("closing upload: %v", err)
 	}
-	upload, err := http.Post(server.URL+out.UploadURL, writer.FormDataContentType(), body)
+	upload, err := http.Post(out.UploadURL, writer.FormDataContentType(), body)
 	if err != nil {
 		t.Fatalf("posting upload: %v", err)
 	}

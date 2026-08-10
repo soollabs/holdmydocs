@@ -146,6 +146,8 @@ type mcpAttachmentUploadOut struct {
 	ExpiresAt     string `json:"expires_at"`
 }
 
+type mcpBaseURLKey struct{}
+
 type mcpBacklinksOut struct {
 	Backlinks []mcpPageMeta `json:"backlinks"`
 }
@@ -269,6 +271,11 @@ func newMCPHTTPHandler(serverForRequest func(*http.Request) *mcp.Server) http.Ha
 		PropagateRequestCancellation: true,
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		r = r.WithContext(context.WithValue(r.Context(), mcpBaseURLKey{}, scheme+"://"+r.Host))
 		if r.Header.Get("MCP-Protocol-Version") == mcpProtocolVersion {
 			mcpProtocolGate(modern).ServeHTTP(w, r)
 			return
@@ -446,8 +453,9 @@ func (app *App) mcpHandler() http.Handler {
 		expires := time.Now().Add(10 * time.Minute)
 		tokenString := fmt.Sprintf("%x", token)
 		app.uploads.Store(tokenString, uploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires})
+		baseURL, _ := ctx.Value(mcpBaseURLKey{}).(string)
 		return nil, mcpAttachmentUploadOut{
-			UploadURL:     "/_/api/attachment-uploads/" + tokenString,
+			UploadURL:     baseURL + "/_/api/attachment-uploads/" + tokenString,
 			AttachmentURL: "/_/attachments/" + in.Slug + "/" + filename,
 			ExpiresAt:     expires.UTC().Format(time.RFC3339),
 		}, nil
