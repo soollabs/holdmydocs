@@ -1251,8 +1251,8 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 
 	// Cold path: the walk runs under the write lock so a concurrent Save
 	// can't commit mid-walk and then have its prependHistory no-op'd by us
-	// caching a pre-commit result. Pushes and fetches no longer hold mu
-	// across the network, so this is now just the walk itself.
+	// caching a pre-commit result. Network operations release mu before
+	// contacting the remote, so the lock covers only the walk.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1341,7 +1341,7 @@ func (s *Store) RecentCommits(n int) ([]CommitDetail, error) {
 			return storer.ErrStop
 		}
 		var files []string
-		// Stats diffs each commit against its parent; fine for a bounded n
+		// Commit statistics diff each selected commit against its parent.
 		if stats, statErr := c.Stats(); statErr == nil {
 			for _, st := range stats {
 				files = append(files, st.Name)
@@ -1474,7 +1474,7 @@ func (s *Store) UpdateRemote(cfg Options) error {
 	if cfg.Git.RemoteURL == "" {
 		if s.remote != "" {
 			if err := s.repo.DeleteRemote("origin"); err != nil {
-				// not fatal — may already be gone
+				// A missing remote has already reached the required state.
 				slog.Warn("deleting remote", "err", err)
 			}
 		}

@@ -130,7 +130,7 @@ func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 	}
 }
 
-func TestStaticAssetURLsEscapeLegacyCache(t *testing.T) {
+func TestStaticAssetURLsUseVersionedPaths(t *testing.T) {
 	for path, assets := range map[string][]string{
 		"web/templates/base.html": {"/_/static/style.css?v=3", "/_/static/skins.css?v=2", "/_/static/app.js?v=2"},
 		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
@@ -141,7 +141,7 @@ func TestStaticAssetURLsEscapeLegacyCache(t *testing.T) {
 		}
 		for _, asset := range assets {
 			if !bytes.Contains(body, []byte(asset)) {
-				t.Errorf("%s does not request %s, so the legacy cache can serve an obsolete asset", path, asset)
+				t.Errorf("%s does not request versioned asset %s", path, asset)
 			}
 		}
 	}

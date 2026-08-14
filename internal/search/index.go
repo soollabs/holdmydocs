@@ -318,8 +318,7 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 
 // Backlinks lists the pages whose wiki-links resolve to slug, resolved the
 // same way the renderer resolves them.
-// O(pages × links) scan per call, no backward map to keep in sync —
-// index it if a wiki ever gets big enough to notice.
+// This O(pages x links) scan avoids a second index that must stay in sync.
 func (ix *Index) Backlinks(slug string) []string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()

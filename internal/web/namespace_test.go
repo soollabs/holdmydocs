@@ -53,6 +53,14 @@ func TestParseNamespaceConfigUnknownKeyRejected(t *testing.T) {
 	}
 }
 
+func TestNormaliseNamespaceConfigRejectsFixedWidgets(t *testing.T) {
+	for _, id := range []string{"search", "tree", "outline"} {
+		if _, err := normaliseNamespaceConfig("notes", NamespaceConfig{Widgets: []string{id}}, newPageTemplateData{}); err == nil {
+			t.Errorf("fixed widget %q was accepted", id)
+		}
+	}
+}
+
 func TestNormaliseNamespaceConfigAllowsRoot(t *testing.T) {
 	if _, err := normaliseNamespaceConfig("", NamespaceConfig{Widgets: []string{"pages"}}, newPageTemplateData{}); err != nil {
 		t.Fatalf("normalise root namespace config: %v", err)
@@ -100,6 +108,7 @@ func TestLoadNamespaceConfigInvalidSettingsFallBackToDefaults(t *testing.T) {
 		"skin":    "skin: unknown\n",
 		"palette": "palette: unknown\n",
 		"index":   "index: ../private\n",
+		"widgets": "widgets: [tree]\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -689,7 +698,7 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 		}
 	}
 
-	// blog still holds a page, so it stays configured and is no longer public.
+	// blog still holds a page, so its configuration remains intact.
 	cfg, ok := app.Namespaces()["blog"]
 	if !ok {
 		t.Fatal("blog should still be a namespace: it still contains a page")

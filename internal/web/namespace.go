@@ -213,18 +213,6 @@ func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, er
 	return cfg
 }
 
-// withoutFixedChrome accepts existing configurations which list controls now
-// supplied by the shared shell rather than namespace widgets.
-func withoutFixedChrome(ids []string) []string {
-	result := ids[:0]
-	for _, id := range ids {
-		if id != "search" && id != "tree" && id != "outline" {
-			result = append(result, id)
-		}
-	}
-	return result
-}
-
 // validNamespaceName reports whether name can be a namespace: a single
 // non-empty path segment, not a reserved top-level directory, not
 // dot-prefixed (ignored, like hidden files) and not "_"-prefixed (the app's
@@ -280,14 +268,13 @@ func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 		cfg.Widgets = builtinWidgets
 	}
 	for _, id := range cfg.Widgets {
-		if id == "search" || id == "tree" {
-			continue
+		if id == "search" || id == "tree" || id == "outline" {
+			return NamespaceConfig{}, fmt.Errorf("widget %q is fixed application chrome", id)
 		}
 		if _, ok := widgets[id]; !ok {
 			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
 		}
 	}
-	cfg.Widgets = withoutFixedChrome(cfg.Widgets)
 	cfg.Index = strings.TrimSpace(cfg.Index)
 	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)

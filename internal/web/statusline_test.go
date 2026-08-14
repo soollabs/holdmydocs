@@ -72,7 +72,7 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	}
 	for _, body := range []string{docs, journal, minimal} {
 		if strings.Contains(body, `id="new-btn"`) || strings.Contains(body, `id="mobile-new"`) {
-			t.Error("legacy duplicate New control is still rendered")
+			t.Error("duplicate New control is rendered")
 		}
 	}
 

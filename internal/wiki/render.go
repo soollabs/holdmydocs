@@ -163,7 +163,6 @@ func (r *Renderer) RenderStatic(body, ns string, hrefFor func(slug string) (href
 }
 
 func (r *Renderer) processMermaidBlocks(htmlStr string) string {
-	// string post-processing, swap for a goldmark AST extension if it ever misfires
 	// Replace <pre><code class="language-mermaid">...</code></pre> with <pre class="mermaid">...</pre>
 	re := regexp.MustCompile(`<pre>\s*<code class="language-mermaid">([\s\S]*?)</code>\s*</pre>`)
 	return re.ReplaceAllStringFunc(htmlStr, func(match string) string {

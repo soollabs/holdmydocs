@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -32,7 +34,7 @@ type tokenRecord struct {
 	Digest     string    `json:"digest"`
 	Created    time.Time `json:"created"`
 	Expires    time.Time `json:"expires,omitzero"`
-	Scopes     []string  `json:"scopes,omitempty"`
+	Scopes     []string  `json:"scopes"`
 	Namespaces []string  `json:"namespaces,omitempty"`
 }
 
@@ -110,7 +112,7 @@ type userRecord struct {
 	FontUI    string        `json:"font_ui,omitempty"`
 	FontMono  string        `json:"font_mono,omitempty"`
 	Skin      string        `json:"skin,omitempty"`
-	Scopes    []string      `json:"scopes,omitempty"` // empty = full access for existing local accounts
+	Scopes    []string      `json:"scopes"`
 }
 
 type oidcIdentity struct {
@@ -132,13 +134,8 @@ const (
 
 var AllScopes = allScopes
 
-// hasScope reports whether the user may perform an action requiring s. An
-// empty Scopes list means full access, so upgrading an existing install
-// doesn't lock out every user already in users.json.
+// hasScope reports whether the user may perform an action requiring s.
 func (u userRecord) hasScope(s scope) bool {
-	if len(u.Scopes) == 0 {
-		return true
-	}
 	if slices.Contains(u.Scopes, string(scopeSettings)) {
 		return true
 	}
@@ -184,10 +181,11 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string) error {
 }
 
 // SetScopes restricts name to exactly the given scopes ("read", "write",
-// "settings"); an empty list restores full access. Unknown scope names are
-// rejected rather than silently dropped, since a typo here is a permissions
-// bug, not a cosmetic one.
+// "settings").
 func (a *Auth) SetScopes(name string, scopes []string) error {
+	if len(scopes) == 0 {
+		return fmt.Errorf("user scopes cannot be empty")
+	}
 	for _, s := range scopes {
 		valid := false
 		for _, allowed := range allScopes {
@@ -290,6 +288,9 @@ var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad6
 // remain permissive so removing a theme option never blocks startup. Session
 // data is deliberately excluded: it is disposable and handled best-effort below.
 func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
+	if len(rec.Scopes) == 0 {
+		return userRecord{}, fmt.Errorf("user %q scopes cannot be empty", name)
+	}
 	scopes, err := normaliseTokenScopes(rec.Scopes)
 	if err != nil {
 		return userRecord{}, fmt.Errorf("user %q scopes: %w", name, err)
@@ -316,7 +317,7 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 		if err != nil {
 			return userRecord{}, fmt.Errorf("user %q token %q scopes: %w", name, token.Name, err)
 		}
-		if token.Scopes != nil && len(tokenScopes) == 0 {
+		if len(tokenScopes) == 0 {
 			return userRecord{}, fmt.Errorf("user %q token %q scopes cannot be empty", name, token.Name)
 		}
 		token.Scopes = tokenScopes
@@ -360,10 +361,14 @@ func Open(cfg Options) (*Auth, error) {
 	}
 	data, err := os.ReadFile(usersFile)
 	if err == nil {
-		// File exists, load users
-		err = json.Unmarshal(data, &auth.users)
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		err = decoder.Decode(&auth.users)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshalling users: %w", err)
+		}
+		if err := decoder.Decode(&struct{}{}); err != io.EOF {
+			return nil, fmt.Errorf("unmarshalling users: trailing data")
 		}
 		for name, rec := range auth.users {
 			rec, err = normaliseUserRecord(name, rec)
@@ -438,6 +443,7 @@ func (a *Auth) AddUser(name, password string) error {
 	a.mu.Lock()
 	rec := a.users[name] // preserve any existing git author
 	rec.Hash = string(hash)
+	rec.Scopes = append([]string(nil), scopeNames(allScopes)...)
 	a.users[name] = rec
 	err = a.save()
 	if err == nil {
@@ -582,16 +588,15 @@ func normaliseTokenScopes(scopes []string) ([]string, error) {
 	return normalised, nil
 }
 
+func scopeNames(scopes []scope) []string {
+	names := make([]string, len(scopes))
+	for i, scope := range scopes {
+		names[i] = string(scope)
+	}
+	return names
+}
+
 func effectiveTokenScopes(userScopes, tokenScopes []string) []string {
-	if tokenScopes == nil {
-		if len(userScopes) == 0 {
-			return nil
-		}
-		return append([]string(nil), userScopes...)
-	}
-	if len(userScopes) == 0 {
-		return append([]string(nil), tokenScopes...)
-	}
 	user := userRecord{Scopes: userScopes}
 	result := make([]string, 0, len(tokenScopes))
 	for _, name := range tokenScopes {
@@ -609,8 +614,7 @@ func EffectiveTokenScopes(userScopes, tokenScopes []string) []string {
 // AddToken mints a personal access token for name, labelled label, expiring
 // at expires (zero = never). The token value is returned exactly once; only
 // its digest is stored. Labels are unique per user — they are the
-// revocation key. A nil scope list preserves the legacy unrestricted-token
-// behaviour; a non-nil empty list is invalid for a newly scoped token.
+// revocation key.
 func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespaces []string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -633,7 +637,7 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	if err != nil {
 		return "", err
 	}
-	if scopes != nil && len(normalisedScopes) == 0 {
+	if len(normalisedScopes) == 0 {
 		return "", fmt.Errorf("token scopes cannot be empty")
 	}
 	for _, scopeName := range normalisedScopes {
@@ -1050,9 +1054,8 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 // body-carrying method needs "write", a safe one needs "read". MCP scopes
 // are checked by each tool because its JSON-RPC endpoint carries all actions.
 //
-// method-based, not route-based, so a handful of read-only-looking
-// POSTs (e.g. /search) don't exist — check with the route table in
-// handlers.go if a new write-shaped GET or read-shaped POST is ever added.
+// HTTP methods determine content access because all write routes use unsafe
+// methods. Route changes must preserve that invariant.
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
 		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||

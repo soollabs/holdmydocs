@@ -88,7 +88,7 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 	server := httptest.NewServer(auth.Middleware(app.Routes()))
 	t.Cleanup(server.Close)
 
-	token, err := auth.AddToken("admin", "test", time.Time{}, nil, nil)
+	token, err := auth.AddToken("admin", "test", time.Time{}, []string{"read", "write", "settings"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestMCPRejectsMismatchedProtocolMetadata(t *testing.T) {
 	}
 }
 
-func TestMCPRejectsLegacyInitialise(t *testing.T) {
+func TestMCPRejectsUnsupportedInitialise(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
@@ -466,7 +466,7 @@ func TestMCPRejectsLegacyInitialise(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("legacy initialise: got status %d, want %d: %s", resp.StatusCode, http.StatusNotFound, responseBody)
+		t.Fatalf("unsupported initialise: got status %d, want %d: %s", resp.StatusCode, http.StatusNotFound, responseBody)
 	}
 	var response struct {
 		Error struct {
@@ -477,11 +477,11 @@ func TestMCPRejectsLegacyInitialise(t *testing.T) {
 		t.Fatal(err)
 	}
 	if response.Error.Code != -32601 {
-		t.Errorf("legacy initialise: got error code %d, want -32601", response.Error.Code)
+		t.Errorf("unsupported initialise: got error code %d, want -32601", response.Error.Code)
 	}
 }
 
-func TestMCPAcceptsLegacyInitialise(t *testing.T) {
+func TestMCPAcceptsStatefulInitialise(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{}},"clientInfo":{"name":"opencode","version":"1.18.9"}}}`
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
@@ -498,10 +498,10 @@ func TestMCPAcceptsLegacyInitialise(t *testing.T) {
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("legacy initialise: got status %d, want %d", resp.StatusCode, http.StatusOK)
+		t.Fatalf("stateful initialise: got status %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	if resp.Header.Get("Mcp-Session-Id") == "" {
-		t.Fatal("legacy initialise response missing Mcp-Session-Id")
+		t.Fatal("stateful initialise response missing Mcp-Session-Id")
 	}
 }
 
@@ -532,7 +532,7 @@ func TestMCPOnlyAllowsPost(t *testing.T) {
 	}
 }
 
-func TestMCPRejectsLegacySessionHeader(t *testing.T) {
+func TestMCPRejectsSessionHeader(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
@@ -543,7 +543,7 @@ func TestMCPRejectsLegacySessionHeader(t *testing.T) {
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Mcp-Method", "server/discover")
-	req.Header.Set("Mcp-Session-Id", "legacy")
+	req.Header.Set("Mcp-Session-Id", "session")
 	req.Header.Set("MCP-Protocol-Version", mcpProtocolVersion)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -552,7 +552,7 @@ func TestMCPRejectsLegacySessionHeader(t *testing.T) {
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("legacy session header: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
+		t.Fatalf("session header: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 	var response struct {
 		Error struct {
@@ -563,14 +563,14 @@ func TestMCPRejectsLegacySessionHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	if response.Error.Code != -32020 {
-		t.Errorf("legacy session header: got error code %d, want -32020", response.Error.Code)
+		t.Errorf("session header: got error code %d, want -32020", response.Error.Code)
 	}
 }
 
-func TestMCPRejectsLegacySessionQuery(t *testing.T) {
+func TestMCPRejectsSessionQuery(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp?sessionId=legacy", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp?sessionId=session", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -586,7 +586,7 @@ func TestMCPRejectsLegacySessionQuery(t *testing.T) {
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("legacy session query: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
+		t.Fatalf("session query: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 	var response struct {
 		Error struct {
@@ -597,7 +597,7 @@ func TestMCPRejectsLegacySessionQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	if response.Error.Code != -32020 {
-		t.Errorf("legacy session query: got error code %d, want -32020", response.Error.Code)
+		t.Errorf("session query: got error code %d, want -32020", response.Error.Code)
 	}
 }
 
@@ -1105,11 +1105,11 @@ func TestMCPScopes(t *testing.T) {
 			t.Fatalf("SetScopes(%s): %v", user.name, err)
 		}
 	}
-	readerToken, err := app.Auth.AddToken("reader", "mcp", time.Time{}, nil, nil)
+	readerToken, err := app.Auth.AddToken("reader", "mcp", time.Time{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("reader token: %v", err)
 	}
-	writerToken, err := app.Auth.AddToken("writer", "mcp", time.Time{}, nil, nil)
+	writerToken, err := app.Auth.AddToken("writer", "mcp", time.Time{}, []string{"write"}, nil)
 	if err != nil {
 		t.Fatalf("writer token: %v", err)
 	}
@@ -1365,7 +1365,7 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Error("settings page missing 30-day expiry date")
 	}
 
-	// Revoke, then the token no longer authenticates.
+	// Revocation prevents further authentication.
 	revokeResp, err := client.PostForm(server.URL+"/_/settings/tokens/revoke", url.Values{"label": {"laptop"}})
 	if err != nil {
 		t.Fatalf("POST revoke: %v", err)
@@ -1393,7 +1393,7 @@ func TestTokenExpiry(t *testing.T) {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	expired, err := auth.AddToken("admin", "old", time.Now().Add(-time.Minute), nil, nil)
+	expired, err := auth.AddToken("admin", "old", time.Now().Add(-time.Minute), []string{"read", "write", "settings"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}
@@ -1401,7 +1401,7 @@ func TestTokenExpiry(t *testing.T) {
 		t.Error("expired token verified, want rejection")
 	}
 
-	live, err := auth.AddToken("admin", "live", time.Now().Add(time.Hour), nil, nil)
+	live, err := auth.AddToken("admin", "live", time.Now().Add(time.Hour), []string{"read", "write", "settings"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}

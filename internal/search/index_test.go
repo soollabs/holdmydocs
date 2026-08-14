@@ -31,8 +31,7 @@ func TestResolveLink(t *testing.T) {
 	if slug, ok := ix.ResolveLink("Overview", ""); !ok || (slug != "health/overview" && slug != "work/overview") {
 		t.Errorf("ResolveLink(Overview, \"\") = (%q, %v), want a fallback match", slug, ok)
 	}
-	// Casing/punctuation that doesn't match the title exactly still resolves
-	// via the slug, namespace first — as it did before ResolveLink existed.
+	// Casing and punctuation differences resolve through the namespace slug.
 	if slug, ok := ix.ResolveLink("overview", "health"); !ok || slug != "health/overview" {
 		t.Errorf("ResolveLink(overview, health) = (%q, %v), want (health/overview, true)", slug, ok)
 	}

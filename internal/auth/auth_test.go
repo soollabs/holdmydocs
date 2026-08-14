@@ -77,13 +77,21 @@ func TestBootstrapRejectsPlaceholderAndMatchingCredentials(t *testing.T) {
 	}
 }
 
-func TestOpenAuthAcceptsUnknownPersistedAppearanceSettings(t *testing.T) {
+func TestOpenAuthRejectsInvalidPersistedUserRecords(t *testing.T) {
 	appDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(appDir, "users.json"), []byte(`{"alice":{"palette":"nope"}}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := OpenAuth(Config{AppDir: appDir}); err != nil {
-		t.Fatalf("OpenAuth rejected an unknown persisted palette: %v", err)
+	for _, data := range []string{
+		`{"alice":{"hash":"hash"}}`,
+		`{"alice":{"hash":"hash","scopes":[]}}`,
+		`{"alice":{"hash":"hash","scopes":["read"],"unknown":true}}`,
+		`{"alice":{"hash":"hash","scopes":["read"],"tokens":[{"name":"token","digest":"0000000000000000000000000000000000000000000000000000000000000000"}]}}`,
+		`{"alice":{"hash":"hash","scopes":["read"]}} {}`,
+	} {
+		if err := os.WriteFile(filepath.Join(appDir, "users.json"), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := OpenAuth(Config{AppDir: appDir}); err == nil {
+			t.Errorf("OpenAuth accepted invalid users record %s", data)
+		}
 	}
 }
 
@@ -298,7 +306,7 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	unrestricted, err := auth.AddToken("alice", "all", time.Time{}, nil, nil)
+	unrestricted, err := auth.AddToken("alice", "all", time.Time{}, []string{"read", "write", "settings"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,18 +364,18 @@ func TestTokenInputValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := auth.AddToken("alice", "", time.Time{}, nil, nil); err == nil {
+	if _, err := auth.AddToken("alice", "", time.Time{}, []string{"read"}, nil); err == nil {
 		t.Error("blank token name was accepted")
 	}
-	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, nil, nil); err != nil {
+	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, []string{"read"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, nil, nil); err == nil {
+	if _, err := auth.AddToken("alice", "duplicate", time.Time{}, []string{"read"}, nil); err == nil {
 		t.Error("duplicate token name was accepted")
 	}
 
 	for _, namespaces := range [][]string{{" "}, {"_"}, {".private"}, {"notes/private"}} {
-		if _, err := auth.AddToken("alice", "invalid-namespace-"+namespaces[0], time.Time{}, nil, namespaces); err == nil {
+		if _, err := auth.AddToken("alice", "invalid-namespace-"+namespaces[0], time.Time{}, []string{"read"}, namespaces); err == nil {
 			t.Errorf("invalid namespaces %v were accepted", namespaces)
 		}
 	}
@@ -376,6 +384,9 @@ func TestTokenInputValidation(t *testing.T) {
 	}
 	if _, err := auth.AddToken("alice", "empty-scopes", time.Time{}, []string{}, nil); err == nil {
 		t.Error("empty new-token scopes were accepted")
+	}
+	if _, err := auth.AddToken("alice", "missing-scopes", time.Time{}, nil, nil); err == nil {
+		t.Error("missing token scopes were accepted")
 	}
 
 	if _, err := auth.AddToken("alice", "normalised", time.Time{}, []string{"write", "read", "read"}, []string{" notes ", "notes"}); err != nil {

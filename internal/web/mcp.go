@@ -234,11 +234,11 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 			return
 		}
 		if r.Header.Get("Mcp-Session-Id") != "" {
-			writeMCPGateError(w, mcp.CodeHeaderMismatch, nil, "legacy sessions are unsupported", nil)
+			writeMCPGateError(w, mcp.CodeHeaderMismatch, nil, "session headers are unsupported", nil)
 			return
 		}
 		if r.URL.Query().Get("sessionId") != "" {
-			writeMCPGateError(w, mcp.CodeHeaderMismatch, nil, "legacy sessions are unsupported", nil)
+			writeMCPGateError(w, mcp.CodeHeaderMismatch, nil, "session query parameters are unsupported", nil)
 			return
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, mcpGateBodyLimit))
@@ -273,9 +273,9 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 }
 
 func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *mcp.Server) http.Handler {
-	legacy := mcp.NewStreamableHTTPHandler(serverForRequest, nil)
+	stateful := mcp.NewStreamableHTTPHandler(serverForRequest, nil)
 	modern := mcp.NewStreamableHTTPHandler(serverForRequest, &mcp.StreamableHTTPOptions{
-		// stateless — no session state to time out or resume; revisit if a client needs server-initiated messages
+		// Stateless requests require no server-side lifecycle management.
 		Stateless:                    true,
 		PropagateRequestCancellation: true,
 	})
@@ -293,7 +293,7 @@ func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *mcp
 			mcpProtocolGate(modern).ServeHTTP(w, r)
 			return
 		}
-		legacy.ServeHTTP(w, r)
+		stateful.ServeHTTP(w, r)
 	})
 	return http.NewCrossOriginProtection().Handler(handler)
 }

@@ -3249,10 +3249,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 		} else if len(t.Namespaces) > 0 {
 			namespaceLabel = strings.Join(t.Namespaces, ", ") + " only"
 		}
-		scopeLabel := "Inherited scopes"
-		if t.Scopes != nil {
-			scopeLabel = strings.Join(t.Scopes, ", ")
-		}
+		scopeLabel := strings.Join(t.Scopes, ", ")
 		sd.Tokens = append(sd.Tokens, TokenView{
 			Name:           t.Name,
 			Created:        relativeTime(t.Created),

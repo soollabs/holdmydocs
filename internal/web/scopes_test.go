@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-func TestHasScopeDefaultsToFullAccess(t *testing.T) {
+func TestHasScopeRejectsEmptyScopes(t *testing.T) {
 	u := userRecord{}
 	for _, s := range []scope{scopeRead, scopeWrite, scopeSettings} {
-		if !u.HasScope(s) {
-			t.Errorf("user with no Scopes set should have %s access by default", s)
+		if u.HasScope(s) {
+			t.Errorf("user with no scopes has %s access", s)
 		}
 	}
 }
@@ -49,15 +49,11 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 		t.Fatalf("SetScopes: %v", err)
 	}
 	if auth.Prefs("bob").HasScope(scopeWrite) {
-		t.Error("bob should no longer have write access")
+		t.Error("bob retains write access")
 	}
 
-	// Restoring full access is an empty list, not "all scope names".
-	if err := auth.SetScopes("bob", nil); err != nil {
-		t.Fatalf("SetScopes(nil): %v", err)
-	}
-	if !auth.Prefs("bob").HasScope(scopeWrite) {
-		t.Error("bob should have full access again after clearing scopes")
+	if err := auth.SetScopes("bob", nil); err == nil {
+		t.Error("SetScopes(nil) accepted empty scopes")
 	}
 }
 
@@ -123,7 +119,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err := app.Auth.SetScopes("settings-only", []string{"settings"}); err != nil {
 		t.Fatalf("SetScopes(settings-only): %v", err)
 	}
-	settingsToken, err := app.Auth.AddToken("settings-only", "namespace-management", time.Time{}, nil, nil)
+	settingsToken, err := app.Auth.AddToken("settings-only", "namespace-management", time.Time{}, []string{"settings"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken(settings-only): %v", err)
 	}
@@ -143,7 +139,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		}
 	}
 
-	readerToken, err := app.Auth.AddToken("reader", "read-only", time.Time{}, nil, nil)
+	readerToken, err := app.Auth.AddToken("reader", "read-only", time.Time{}, []string{"read"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken(reader): %v", err)
 	}
@@ -393,8 +389,8 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	if app.Auth.Prefs("admin").Scopes != nil {
-		t.Errorf("bootstrap admin scopes = %v, want unchanged (nil = full access)", app.Auth.Prefs("admin").Scopes)
+	if got := app.Auth.Prefs("admin").Scopes; len(got) != 3 {
+		t.Errorf("bootstrap admin scopes = %v, want all scopes", got)
 	}
 
 	settingsResp, err := client.Get(server.URL + "/_/settings")

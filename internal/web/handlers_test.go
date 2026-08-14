@@ -2212,7 +2212,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("home page should contain 'Welcome', body: %s", body4)
 	}
 
-	// Modal should no longer appear after setup.
+	// Setup completion suppresses the modal.
 	resp5, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme after setup failed: %v", err)
