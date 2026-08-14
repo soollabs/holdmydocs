@@ -749,6 +749,9 @@ func (a *Auth) AuthorFor(name string) string {
 
 // SetAuthor stores a per-user git author ("Name <email>", or "" to clear).
 func (a *Auth) SetAuthor(name, author string) error {
+	if err := validateGitAuthor(author); err != nil {
+		return err
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	rec, ok := a.users[name]

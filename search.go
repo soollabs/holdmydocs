@@ -35,6 +35,7 @@ type Index struct {
 	tagNames map[string]string
 	pageTags map[string][]string
 	pinned   map[string]bool // slug -> pin: true, for the pinned widget
+	searches chan struct{}
 }
 
 func newIndex(blevIdx bleve.Index) *Index {
@@ -47,6 +48,7 @@ func newIndex(blevIdx bleve.Index) *Index {
 		pageTags:          make(map[string][]string),
 		pinned:            make(map[string]bool),
 		failedAttachments: make(map[string]string),
+		searches:          make(chan struct{}, 2),
 	}
 }
 
@@ -362,10 +364,13 @@ func (ix *Index) TagsFor(slug string) []string {
 }
 
 func (ix *Index) Search(q string) ([]SearchHit, error) {
+	if err := validateSearchQuery(q); err != nil {
+		return nil, err
+	}
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	queryString := bleve.NewQueryStringQuery(q)
+	queryString := bleve.NewMatchQuery(strings.TrimSpace(q))
 	typeQuery := bleve.NewTermQuery("page")
 	typeQuery.SetField("Type")
 	searchQuery := bleve.NewConjunctionQuery(queryString, typeQuery)

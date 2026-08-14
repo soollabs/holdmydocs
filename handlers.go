@@ -1127,6 +1127,13 @@ func (app *App) externalBaseURL() string { return app.config().BaseURL }
 
 func (app *App) requestSecurity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions && !strings.HasPrefix(r.URL.Path, "/_/api/attachments/") && !strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") && !strings.HasPrefix(r.URL.Path, "/_/mcp") {
+			if r.ContentLength > maxFormBytes {
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+		}
 		if app.isSecureRequest(r) {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
@@ -1159,6 +1166,11 @@ func (app *App) requestSecurity(next http.Handler) http.Handler {
 		token := r.Header.Get("X-CSRF-Token")
 		if token == "" {
 			if err := r.ParseForm(); err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+					return
+				}
 				http.Error(w, "bad request", http.StatusBadRequest)
 				return
 			}
@@ -1171,6 +1183,19 @@ func (app *App) requestSecurity(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func parseRequestForm(w http.ResponseWriter, r *http.Request) bool {
+	if err := r.ParseForm(); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "bad request", http.StatusBadRequest)
+		}
+		return false
+	}
+	return true
 }
 
 // loginData builds the login page TemplateData, including OIDC display state.
@@ -1403,6 +1428,10 @@ func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 // or empty to clear and fall back to the global default).
 func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 	author := strings.TrimSpace(r.FormValue("git_author"))
+	if err := validateGitAuthor(author); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err := app.Auth.SetAuthor(app.currentUser(r), author); err != nil {
 		http.Error(w, "failed to save git author", http.StatusInternalServerError)
 		return
@@ -1937,6 +1966,9 @@ func (app *App) handleSavePage(w http.ResponseWriter, r *http.Request) {
 // differs from oldFile, the page moves between the two namespaces (and the
 // search index is updated or cleared to match).
 func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile string) {
+	if !parseRequestForm(w, r) {
+		return
+	}
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
 		return
@@ -1994,7 +2026,16 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 	}
 
-	page := Page{Slug: targetSlug, Title: title, Tags: ParseTags(tagsInput), Body: body}
+	tags := ParseTags(tagsInput)
+	if err := validatePageInput(title, tags, body); err != nil {
+		status := http.StatusBadRequest
+		if len(body) > maxPageBodyBytes {
+			status = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+	page := Page{Slug: targetSlug, Title: title, Tags: tags, Body: body}
 	// pin has no editor UI yet — round-trip it from whatever was on disk
 	// before this save, untouched.
 	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
@@ -2073,14 +2114,21 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 	// post it form-encoded. Support both.
 	var body string
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+		if !parseRequestForm(w, r) {
+			return
+		}
 		body = r.FormValue("body")
 	} else {
-		b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPageBodyBytes))
 		if err != nil {
 			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 		body = string(b)
+	}
+	if len(body) > maxPageBodyBytes {
+		http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+		return
 	}
 
 	ns, _ := namespaceFor(r.URL.Query().Get("slug"))
@@ -2329,6 +2377,10 @@ func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.FormValue("q")
+	if err := validateSearchQuery(q); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	start := time.Now()
 	hits, err := app.Index.Search(q)
 	if err != nil {
@@ -2352,6 +2404,11 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	var attachmentResults []AttachmentResult
 	if app.Index.documents != nil && strings.TrimSpace(q) != "" {
 		if hits, searchErr := app.Index.SearchAttachments(r.Context(), q, 50); searchErr != nil {
+			if errors.Is(searchErr, errSearchBusy) {
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "search is busy", http.StatusTooManyRequests)
+				return
+			}
 			slog.Warn("attachment search failed", "err", searchErr)
 		} else {
 			for _, hit := range hits {
@@ -2389,12 +2446,21 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.FormValue("q"))
+	if err := validateSearchQuery(q); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if q == "" {
 		http.Error(w, "query cannot be empty", http.StatusBadRequest)
 		return
 	}
 	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
 	if err != nil {
+		if errors.Is(err, errSearchBusy) {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "search is busy", http.StatusTooManyRequests)
+			return
+		}
 		http.Error(w, "attachment search unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -2426,6 +2492,10 @@ type AutocompleteResult struct {
 
 func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 	q := r.FormValue("q")
+	if err := validateSearchQuery(q); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	hits, err := app.Index.Search(q)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -2448,6 +2518,10 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleAttachmentSearchAPI(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.FormValue("q"))
+	if err := validateSearchQuery(q); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if q == "" {
 		http.Error(w, "query cannot be empty", http.StatusBadRequest)
 		return
@@ -2455,6 +2529,12 @@ func (app *App) handleAttachmentSearchAPI(w http.ResponseWriter, r *http.Request
 	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
+		if errors.Is(err, errSearchBusy) {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "search is busy"})
+			return
+		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "attachment search unavailable"})
 		return
@@ -3386,7 +3466,12 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	// if it gets a template page seeded below.
 	creating := !app.Namespaces()[name].Configured
 
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: strings.TrimSpace(r.FormValue("title")), Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
+	title := strings.TrimSpace(r.FormValue("title"))
+	if !validRunes(title, maxNamespaceTitleRunes) {
+		fail(fmt.Sprintf("namespace title must be at most %d characters", maxNamespaceTitleRunes))
+		return
+	}
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.
@@ -3718,6 +3803,10 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if syncMode != "push" && syncMode != "bidirectional" {
 		http.Error(w, "sync mode must be push or bidirectional", http.StatusBadRequest)
+		return
+	}
+	if err := validateGitAuthor(gitAuthor); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+var exportSemaphore = make(chan struct{}, 1)
+
 func pageDisplayTitle(p Page) string {
 	if p.Title != "" {
 		return p.Title
@@ -247,6 +249,14 @@ func copyExportAttachments(store *Store, outDir, ns string) error {
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	select {
+	case exportSemaphore <- struct{}{}:
+		defer func() { <-exportSemaphore }()
+	default:
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "export is busy", http.StatusTooManyRequests)
 		return
 	}
 

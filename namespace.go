@@ -293,6 +293,9 @@ func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
 	}
 	cfg.Title = strings.TrimSpace(cfg.Title)
+	if !validRunes(cfg.Title, maxNamespaceTitleRunes) {
+		return NamespaceConfig{}, fmt.Errorf("namespace title must be at most %d characters", maxNamespaceTitleRunes)
+	}
 	cfg.Description = strings.TrimSpace(cfg.Description)
 	if utf8.RuneCountInString(cfg.Description) > maxNamespaceDescriptionRunes {
 		return NamespaceConfig{}, fmt.Errorf("namespace description must be at most %d characters", maxNamespaceDescriptionRunes)

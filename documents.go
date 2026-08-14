@@ -902,6 +902,15 @@ func (ix *Index) SearchAttachments(ctx context.Context, query string, limit int)
 	if query == "" {
 		return nil, errors.New("attachment search query cannot be empty")
 	}
+	if err := validateSearchQuery(query); err != nil {
+		return nil, err
+	}
+	select {
+	case ix.searches <- struct{}{}:
+		defer func() { <-ix.searches }()
+	default:
+		return nil, errSearchBusy
+	}
 	if limit <= 0 {
 		limit = 20
 	}

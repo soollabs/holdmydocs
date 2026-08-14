@@ -642,6 +642,9 @@ func (app *App) mcpHandler() http.Handler {
 		if title == "" {
 			title = in.Slug
 		}
+		if err := validatePageInput(title, in.Tags, in.Body); err != nil {
+			return nil, mcpSaveOut{}, err
+		}
 		page := Page{
 			Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body,
 			Pin: in.Pin,
