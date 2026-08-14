@@ -563,16 +563,19 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 			app, server, client := newTestAppFull(t)
 			defer server.Close()
 			adminLogin(t, server, client)
-			config := saveConfiguredEmptyNamespace(t, app, "")
+			config, _, err := app.Store.Read(namespaceConfigPath(testNS))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			resp := postNamespaceDelete(t, server, client, name)
 			closeTestBody(t, resp.Body)
 			if resp.StatusCode != http.StatusBadRequest {
 				t.Fatalf("deleting %q = %d, want 400", name, resp.StatusCode)
 			}
-			got, _, err := app.Store.Read(namespaceConfigPath(""))
+			got, _, err := app.Store.Read(namespaceConfigPath(testNS))
 			if err != nil || string(got) != string(config) {
-				t.Fatalf("root config after rejected %q deletion = %q, %v; want %q", name, got, err, config)
+				t.Fatalf("notes config after rejected %q deletion = %q, %v; want %q", name, got, err, config)
 			}
 		})
 	}

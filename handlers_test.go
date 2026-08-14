@@ -26,6 +26,36 @@ import (
 const testNS = "notes"
 const testHome = testNS + "/" + defaultIndexPage
 
+type csrfTestTransport struct {
+	base http.RoundTripper
+	jar  http.CookieJar
+	auth *Auth
+}
+
+func (t csrfTestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodGet || req.Method == http.MethodHead || req.Method == http.MethodOptions || req.Header.Get("Authorization") != "" {
+		return t.base.RoundTrip(req)
+	}
+	cookies := t.jar.Cookies(req.URL)
+	if cookie, err := req.Cookie("hmd_session"); err == nil {
+		cookies = append(cookies, cookie)
+	}
+	for _, cookie := range cookies {
+		if cookie.Name != "hmd_session" {
+			continue
+		}
+		clone := req.Clone(req.Context())
+		clone.Header = req.Header.Clone()
+		for _, jarCookie := range t.jar.Cookies(req.URL) {
+			clone.AddCookie(jarCookie)
+		}
+		clone.Header.Set("Origin", req.URL.Scheme+"://"+req.URL.Host)
+		clone.Header.Set("X-CSRF-Token", t.auth.CSRFToken(cookie.Value))
+		return t.base.RoundTrip(clone)
+	}
+	return t.base.RoundTrip(req)
+}
+
 func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	_, server, client := newTestAppFull(t)
 	return server, client
@@ -216,6 +246,11 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	jar, _ := cookiejar.New(&cookiejar.Options{})
 	client := &http.Client{
 		Jar: jar,
+		Transport: csrfTestTransport{
+			base: http.DefaultTransport,
+			jar:  jar,
+			auth: auth,
+		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

@@ -484,7 +484,7 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 func (s *Store) readHashLocked(path string) (string, error) {
 	content, err := s.readRepositoryFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return "", nil
 		}
 		return "", fmt.Errorf("reading %s: %w", path, err)
@@ -843,7 +843,7 @@ func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
 
 // removeLocked is Remove's body. Callers must hold s.mu.
 func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
-	if _, err := s.readRepositoryFile(path); os.IsNotExist(err) {
+	if _, err := s.readRepositoryFile(path); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("inspecting file to remove: %w", err)
