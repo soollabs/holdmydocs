@@ -447,19 +447,10 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	}
 }
 
-// exportSecretVars lists the env vars naming secrets that toFileConfig
-// would write into config.yaml in plaintext, for the settings-page warning.
-// Git.TokenFile isn't listed: toFileConfig omits the resolved token when a
-// token file is set, so exporting doesn't touch that secret.
+// exportSecretVars is retained for the settings template. Secret values are
+// never included in config exports.
 func exportSecretVars(cfg Config) []string {
-	var vars []string
-	if v := cfg.EnvOverrides["Git.Token"]; v != "" {
-		vars = append(vars, v)
-	}
-	if v := cfg.EnvOverrides["OIDC.ClientSecret"]; v != "" {
-		vars = append(vars, v)
-	}
-	return vars
+	return nil
 }
 
 // render executes the named page template inside the shared layout.
@@ -3746,7 +3737,7 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.SyncPollMs = intPtr(syncPollMs)
 	fc.SyncMode = syncMode
 
-	if gitToken != "" {
+	if gitToken != "" && r.FormValue("store_git_token") == "on" {
 		fc.Git.Token = gitToken
 	}
 

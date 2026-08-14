@@ -7,8 +7,8 @@ services:
       HMD_GIT_REMOTE_URL: "https://git.example.com/you/wiki.git"
       HMD_GIT_USER: "you"
       HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
-      HMD_ADMIN_USER: "admin"
-      HMD_ADMIN_PASSWORD: "change-me"
+      HMD_ADMIN_USER: "${HMD_ADMIN_USER:?set HMD_ADMIN_USER}"
+      HMD_ADMIN_PASSWORD: "${HMD_ADMIN_PASSWORD:?set HMD_ADMIN_PASSWORD}"
       # Uncomment with `--profile documents` to enable extraction/search.
       # HMD_TIKA_URL: "http://tika:9998"
     volumes:

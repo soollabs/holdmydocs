@@ -46,6 +46,26 @@ func TestBootstrapAdmin(t *testing.T) {
 	if ok {
 		t.Errorf("UserFor(token) should fail after Logout")
 	}
+	for _, path := range []string{filepath.Join(appDir, "users.json"), filepath.Join(appDir, "sessions.json")} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("%s mode = %o, want 600", path, info.Mode().Perm())
+		}
+	}
+}
+
+func TestBootstrapRejectsPlaceholderAndMatchingCredentials(t *testing.T) {
+	for _, cfg := range []Config{
+		{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "change-me"},
+		{AppDir: t.TempDir(), AdminUser: "samepassword", AdminPass: "samepassword"},
+	} {
+		if _, err := OpenAuth(cfg); err == nil {
+			t.Fatal("OpenAuth accepted unsafe bootstrap credentials")
+		}
+	}
 }
 
 func TestOpenAuthAcceptsUnknownPersistedAppearanceSettings(t *testing.T) {

@@ -177,6 +177,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("open auth failed: %v", err)
 	}
+	if !auth.HasUsers() && cfg.OIDC.Issuer == "" {
+		log.Fatal("no users.json: set HMD_ADMIN_USER and HMD_ADMIN_PASSWORD or configure OIDC admission")
+	}
 
 	tmpl, err := parseTemplates()
 	if err != nil {

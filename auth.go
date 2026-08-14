@@ -304,10 +304,17 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 }
 
 func OpenAuth(cfg Config) (*Auth, error) {
-	// Create app dir if needed
-	err := os.MkdirAll(cfg.AppDir, 0755)
+	if info, err := os.Lstat(cfg.AppDir); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
+		return nil, fmt.Errorf("app dir must be a directory, not a symlink")
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("checking app dir: %w", err)
+	}
+	err := os.MkdirAll(cfg.AppDir, 0700)
 	if err != nil {
 		return nil, fmt.Errorf("creating app dir: %w", err)
+	}
+	if err := os.Chmod(cfg.AppDir, 0700); err != nil {
+		return nil, fmt.Errorf("securing app dir: %w", err)
 	}
 
 	usersFile := filepath.Join(cfg.AppDir, "users.json")
@@ -322,6 +329,9 @@ func OpenAuth(cfg Config) (*Auth, error) {
 	}
 
 	// Try to load existing users file
+	if err := tightenRegularFile(usersFile); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("checking users file: %w", err)
+	}
 	data, err := os.ReadFile(usersFile)
 	if err == nil {
 		// File exists, load users
@@ -342,15 +352,15 @@ func OpenAuth(cfg Config) (*Auth, error) {
 	} else if os.IsNotExist(err) {
 		// File doesn't exist
 		if cfg.AdminUser != "" && cfg.AdminPass != "" {
+			if !validBootstrapCredentials(cfg.AdminUser, cfg.AdminPass) {
+				return nil, fmt.Errorf("bootstrap credentials must use a valid username, a strong non-placeholder password, and different username and password")
+			}
 			// Bootstrap admin user
 			err = auth.AddUser(cfg.AdminUser, cfg.AdminPass)
 			if err != nil {
 				return nil, fmt.Errorf("bootstrapping admin: %w", err)
 			}
 			slog.Info("bootstrapped admin user", "user", cfg.AdminUser)
-		} else {
-			// No bootstrap, empty users
-			slog.Warn("no users.json and no HMD_ADMIN_USER/HMD_ADMIN_PASSWORD set; set them and restart to create the first user")
 		}
 	} else {
 		return nil, fmt.Errorf("reading users file: %w", err)
@@ -358,6 +368,9 @@ func OpenAuth(cfg Config) (*Auth, error) {
 
 	// Session persistence is best-effort. A missing or corrupt file means users
 	// log in again, so startup continues.
+	if err := tightenRegularFile(auth.sessionsFile); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("checking sessions file: %w", err)
+	}
 	if data, err := os.ReadFile(auth.sessionsFile); err == nil {
 		_ = json.Unmarshal(data, &auth.sessions)
 		if auth.purgeExpiredSessionsLocked() {
@@ -423,6 +436,17 @@ func validPassword(password string) bool {
 	return true
 }
 
+func validBootstrapCredentials(name, password string) bool {
+	if !validUsername(name) || !validPassword(password) || strings.EqualFold(name, password) {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(password)) {
+	case "change-me", "your-password", "your_password", "password":
+		return false
+	}
+	return true
+}
+
 func validTokenLabel(label string) bool {
 	return label != "" && label == strings.TrimSpace(label) && utf8.ValidString(label) && utf8.RuneCountInString(label) <= maxTokenLabelLen && !strings.ContainsFunc(label, unicode.IsControl)
 }
@@ -433,6 +457,12 @@ func (a *Auth) UserExists(name string) bool {
 	defer a.mu.RUnlock()
 	_, ok := a.users[name]
 	return ok
+}
+
+func (a *Auth) HasUsers() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return len(a.users) != 0
 }
 
 // UserSummary is one row in the settings-page user list. Has is keyed by
@@ -738,7 +768,7 @@ func (a *Auth) save() error {
 	}
 
 	tmpFile := a.usersFile + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
 		return fmt.Errorf("writing tmp file: %w", err)
 	}
 	if err := os.Rename(tmpFile, a.usersFile); err != nil {

@@ -88,8 +88,10 @@
 			<input type="password" id="git_token" name="git_token"
 				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
 				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
+			<label class="scope-check"><input type="checkbox" name="store_git_token" value="on" {{if not .Settings.Fields.GitToken.Editable}}disabled{{end}}> store in config file</label>
 			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
 		</div>
+		<p class="settings-note">Prefer <code>HMD_GIT_TOKEN_FILE</code>. Checking this stores the supplied token in the local config file.</p>
 		<div class="settings-row">
 			<label for="sync_mode">sync mode</label>
 			{{if .Settings.Fields.SyncMode.Editable}}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,23 +39,6 @@ func TestLoadConfig(t *testing.T) {
 			wantApp:     "/custom/app",
 			wantGitUser: "alice",
 			wantToken:   "env-token",
-		},
-		{
-			name: "token from file overrides env",
-			setupEnv: func(t *testing.T) {
-				tmpFile := t.TempDir() + "/token.txt"
-				err := os.WriteFile(tmpFile, []byte("file-token\n"), 0644)
-				if err != nil {
-					t.Fatalf("failed to write token file: %v", err)
-				}
-				t.Setenv("HMD_GIT_TOKEN_FILE", tmpFile)
-				t.Setenv("HMD_GIT_TOKEN", "env-token")
-			},
-			wantBind:    ":8080",
-			wantRepo:    "/data/repo",
-			wantApp:     "/data/app",
-			wantGitUser: "hmd",
-			wantToken:   "file-token",
 		},
 	}
 
@@ -150,7 +135,7 @@ func TestLoadConfigYAMLFile(t *testing.T) {
 	})
 }
 
-func TestLoadConfigYAMLZeroValuesAreHonoured(t *testing.T) {
+func TestLoadConfigRejectsNonPositiveLimits(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
 	yaml := "sync_poll_ms: 0\nmax_upload_bytes: 0\n"
@@ -159,15 +144,79 @@ func TestLoadConfigYAMLZeroValuesAreHonoured(t *testing.T) {
 	}
 	t.Setenv("HMD_CONFIG_FILE", cfgFile)
 
-	cfg, err := LoadConfig()
+	if _, err := LoadConfig(); err == nil {
+		t.Fatal("LoadConfig succeeded with non-positive limits")
+	}
+}
+
+func TestConfigSecurityValidation(t *testing.T) {
+	for _, env := range []string{"HMD_DEBUG=not-a-bool", "HMD_MAX_UPLOAD_BYTES=oops", "HMD_SYNC_POLL_MS=oops"} {
+		name, value, _ := strings.Cut(env, "=")
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(name, value)
+			_, err := LoadConfig()
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("LoadConfig error = %v, want %s in error", err, name)
+			}
+		})
+	}
+
+	t.Run("secret files", func(t *testing.T) {
+		dir := t.TempDir()
+		secret := filepath.Join(dir, "token")
+		if err := os.WriteFile(secret, []byte("token\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("HMD_GIT_TOKEN_FILE", secret)
+		cfg, err := LoadConfig()
+		if err != nil || cfg.Git.Token != "token" {
+			t.Fatalf("LoadConfig = %#v, %v", cfg, err)
+		}
+		if err := os.Chmod(secret, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadConfig(); err == nil {
+			t.Fatal("LoadConfig accepted world-readable secret")
+		}
+		if err := os.Chmod(secret, 0600); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(dir, "token-link")
+		if err := os.Symlink(secret, link); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("HMD_GIT_TOKEN_FILE", link)
+		if _, err := LoadConfig(); err == nil {
+			t.Fatal("LoadConfig accepted symlinked secret")
+		}
+	})
+
+	t.Run("path and bind validation", func(t *testing.T) {
+		t.Setenv("HMD_BIND", "invalid")
+		if _, err := LoadConfig(); err == nil {
+			t.Fatal("LoadConfig accepted invalid bind")
+		}
+	})
+}
+
+func TestConfigExportOmitsSecretsAndUsesPrivateMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := SaveFileConfig(path, Config{Git: GitConfig{Token: "git-secret"}, OIDC: OIDCConfig{ClientSecret: "oidc-secret"}}.toFileConfig()); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
+		t.Fatal(err)
 	}
-	if cfg.SyncPollMs != 0 {
-		t.Errorf("SyncPollMs = %d, want 0 (explicit file value, not the default)", cfg.SyncPollMs)
+	if strings.Contains(string(b), "git-secret") || strings.Contains(string(b), "oidc-secret") {
+		t.Fatal("config export contains a secret")
 	}
-	if cfg.MaxUploadBytes != 0 {
-		t.Errorf("MaxUploadBytes = %d, want 0 (explicit file value, not the default)", cfg.MaxUploadBytes)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("config mode = %o, want 600", info.Mode().Perm())
 	}
 }
 

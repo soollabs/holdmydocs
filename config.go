@@ -43,6 +43,7 @@ type oidcFileConfig struct {
 	Issuer                string   `yaml:"issuer"`
 	ClientID              string   `yaml:"client_id"`
 	ClientSecret          string   `yaml:"client_secret"`
+	ClientSecretFile      string   `yaml:"client_secret_file"`
 	LocalLogin            *bool    `yaml:"local_login"`
 	ButtonText            string   `yaml:"button_text"`
 	Icon                  string   `yaml:"icon"`
@@ -60,6 +61,7 @@ type OIDCConfig struct {
 	Issuer                string
 	ClientID              string
 	ClientSecret          string
+	ClientSecretFile      string
 	LocalLogin            bool     // allow the password form alongside SSO
 	ButtonText            string   // login button label, e.g. "Login with Authelia"
 	Icon                  string   // Dashboard Icons name (e.g. "authelia") or path to a square SVG
@@ -142,7 +144,7 @@ func envOr(key, def string) string {
 // an env var equivalent without hand-writing a pick call per field.
 // applied collects path -> env var name for every override actually made,
 // keyed by dotted Go field path (e.g. "Git.RemoteURL"), for the settings UI.
-func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied map[string]string) {
+func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied map[string]string) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
@@ -157,7 +159,9 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 		}
 		fv := v.Field(i)
 		if fv.Kind() == reflect.Struct {
-			applyEnvOverrides(fv, envKey, path, applied)
+			if err := applyEnvOverrides(fv, envKey, path, applied); err != nil {
+				return err
+			}
 			continue
 		}
 		raw, ok := os.LookupEnv(envKey)
@@ -170,25 +174,25 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 		case fv.Kind() == reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
-				continue
+				return fmt.Errorf("%s must be a boolean: %w", envKey, err)
 			}
 			fv.SetBool(b)
 		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
-				continue
+				return fmt.Errorf("%s must be a boolean: %w", envKey, err)
 			}
 			fv.Set(reflect.ValueOf(&b))
 		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Int:
 			n, err := strconv.Atoi(raw)
 			if err != nil {
-				continue
+				return fmt.Errorf("%s must be an integer: %w", envKey, err)
 			}
 			fv.Set(reflect.ValueOf(&n))
 		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Int64:
 			n, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil {
-				continue
+				return fmt.Errorf("%s must be an integer: %w", envKey, err)
 			}
 			fv.Set(reflect.ValueOf(&n))
 		default:
@@ -196,6 +200,7 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 		}
 		applied[path] = envKey
 	}
+	return nil
 }
 
 // ConfigFilePath resolves where the config file lives: HMD_CONFIG_FILE if
@@ -222,7 +227,9 @@ func LoadConfig() (Config, error) {
 		file = fileConfig{} // no file yet: defaults
 	}
 	envOverrides := make(map[string]string)
-	applyEnvOverrides(reflect.ValueOf(&file).Elem(), "HMD", "", envOverrides)
+	if err := applyEnvOverrides(reflect.ValueOf(&file).Elem(), "HMD", "", envOverrides); err != nil {
+		return Config{}, err
+	}
 	tikaURL := strings.TrimSpace(os.Getenv("HMD_TIKA_URL"))
 	if tikaURL != "" {
 		tikaURL = strings.TrimRight(tikaURL, "/")
@@ -292,6 +299,7 @@ func LoadConfig() (Config, error) {
 			Issuer:                file.OIDC.Issuer,
 			ClientID:              file.OIDC.ClientID,
 			ClientSecret:          file.OIDC.ClientSecret,
+			ClientSecretFile:      file.OIDC.ClientSecretFile,
 			LocalLogin:            orBool(file.OIDC.LocalLogin, true),
 			ButtonText:            or(file.OIDC.ButtonText, "Sign in with SSO"),
 			Icon:                  file.OIDC.Icon,
@@ -309,13 +317,25 @@ func LoadConfig() (Config, error) {
 		TikaURL: tikaURL,
 	}
 
-	// Token file overrides the token value, whichever source named it.
-	if f := file.Git.TokenFile; f != "" {
-		b, err := os.ReadFile(f)
+	if cfg.Git.Token != "" && cfg.Git.TokenFile != "" {
+		return Config{}, fmt.Errorf("git.token and git.token_file are mutually exclusive")
+	}
+	if cfg.OIDC.ClientSecret != "" && cfg.OIDC.ClientSecretFile != "" {
+		return Config{}, fmt.Errorf("oidc.client_secret and oidc.client_secret_file are mutually exclusive")
+	}
+	if f := cfg.Git.TokenFile; f != "" {
+		secret, err := readSecretFile(f)
 		if err != nil {
 			return Config{}, fmt.Errorf("reading git token file: %w", err)
 		}
-		cfg.Git.Token = strings.TrimSpace(string(b))
+		cfg.Git.Token = secret
+	}
+	if f := cfg.OIDC.ClientSecretFile; f != "" {
+		secret, err := readSecretFile(f)
+		if err != nil {
+			return Config{}, fmt.Errorf("reading oidc client secret file: %w", err)
+		}
+		cfg.OIDC.ClientSecret = secret
 	}
 
 	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {
@@ -370,6 +390,9 @@ func LoadConfig() (Config, error) {
 		}
 	}
 
+	if err := validateConfig(cfg); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -377,16 +400,11 @@ func LoadConfig() (Config, error) {
 // any env var overrides) into the shape written to config.yaml. Used by
 // the "export" settings action to bake env-sourced values into the file.
 //
-// Git.Token is the resolved token — if TokenFile named the source, that
-// resolution already read the secret off disk, and exporting it here would
-// duplicate it in plaintext right next to the file it was kept out of for.
-// So when TokenFile is set, Token is left out of the export; TokenFile
-// itself is exported unchanged and stays the source of truth.
+// Secret values are deliberately omitted from exports. TokenFile and
+// ClientSecretFile remain references to their external sources of truth.
 func (c Config) toFileConfig() fileConfig {
 	git := c.Git
-	if git.TokenFile != "" {
-		git.Token = ""
-	}
+	git.Token = ""
 	return fileConfig{
 		Bind:           c.Bind,
 		RepoDir:        c.RepoDir,
@@ -403,7 +421,7 @@ func (c Config) toFileConfig() fileConfig {
 		OIDC: oidcFileConfig{
 			Issuer:                c.OIDC.Issuer,
 			ClientID:              c.OIDC.ClientID,
-			ClientSecret:          c.OIDC.ClientSecret,
+			ClientSecretFile:      c.OIDC.ClientSecretFile,
 			LocalLogin:            boolPtr(c.OIDC.LocalLogin),
 			ButtonText:            c.OIDC.ButtonText,
 			Icon:                  c.OIDC.Icon,
@@ -468,6 +486,9 @@ func parseAuthor(s, fallbackName string) (name, email string) {
 // treat it as "defaults".
 func LoadFileConfig(path string) (fileConfig, error) {
 	var fc fileConfig
+	if err := tightenRegularFile(path); err != nil && !os.IsNotExist(err) {
+		return fileConfig{}, fmt.Errorf("checking config file %s: %w", path, err)
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return fileConfig{}, err
@@ -497,7 +518,7 @@ func boolPtr(b bool) *bool {
 // SaveFileConfig marshals fc to YAML and writes it to path atomically
 // (tmp file + rename), matching the pattern used in auth.go.
 func SaveFileConfig(path string, fc fileConfig) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("creating config dir: %w", err)
 	}
 	b, err := yaml.MarshalWithOptions(fc, yaml.Indent(2))
@@ -505,11 +526,107 @@ func SaveFileConfig(path string, fc fileConfig) error {
 		return fmt.Errorf("marshalling config: %w", err)
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0644); err != nil {
+	if err := os.WriteFile(tmp, b, 0600); err != nil {
 		return fmt.Errorf("writing tmp config file: %w", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("renaming tmp config file: %w", err)
 	}
 	return nil
+}
+
+const (
+	maxUploadBytes = 1 << 30
+	minSyncPollMs  = 100
+	maxSecretBytes = 64 << 10
+)
+
+func readSecretFile(path string) (string, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() || !ownedByCurrentUser(info) || info.Mode().Perm()&0077 != 0 {
+		return "", fmt.Errorf("must be an owned, non-world-readable regular file")
+	}
+	if info.Size() > maxSecretBytes {
+		return "", fmt.Errorf("must not exceed %d bytes", maxSecretBytes)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	secret := strings.TrimSpace(string(b))
+	if secret == "" {
+		return "", fmt.Errorf("must not be empty")
+	}
+	return secret, nil
+}
+
+func tightenRegularFile(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || !ownedByCurrentUser(info) {
+		return fmt.Errorf("must be an owned regular file")
+	}
+	if info.Mode().Perm()&0077 != 0 {
+		return os.Chmod(path, 0600)
+	}
+	return nil
+}
+
+func validateConfig(cfg Config) error {
+	if _, port, err := net.SplitHostPort(cfg.Bind); err != nil || port == "" {
+		return fmt.Errorf("bind must be a host:port address")
+	} else if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return fmt.Errorf("bind must use a port from 1 to 65535")
+	}
+	if cfg.MaxUploadBytes < 1 || cfg.MaxUploadBytes > maxUploadBytes {
+		return fmt.Errorf("max_upload_bytes must be from 1 to %d", maxUploadBytes)
+	}
+	if cfg.SyncPollMs < minSyncPollMs {
+		return fmt.Errorf("sync_poll_ms must be at least %d", minSyncPollMs)
+	}
+	if !validBranchName(cfg.DefaultBranch) {
+		return fmt.Errorf("invalid default_branch %q", cfg.DefaultBranch)
+	}
+	app, err := filepath.Abs(cfg.AppDir)
+	if err != nil {
+		return fmt.Errorf("resolving app directory: %w", err)
+	}
+	repo, err := filepath.Abs(cfg.RepoDir)
+	if err != nil {
+		return fmt.Errorf("resolving repository directory: %w", err)
+	}
+	if pathsOverlap(app, repo) {
+		return fmt.Errorf("app_dir and repo_dir must not overlap")
+	}
+	model, err := filepath.Abs(cfg.DocumentSearch.ModelDir)
+	if err != nil {
+		return fmt.Errorf("resolving model directory: %w", err)
+	}
+	if cfg.DocumentSearch.IndexDir != "" {
+		index, err := filepath.Abs(cfg.DocumentSearch.IndexDir)
+		if err != nil {
+			return fmt.Errorf("resolving index directory: %w", err)
+		}
+		if pathsOverlap(model, index) || pathsOverlap(repo, index) {
+			return fmt.Errorf("document model, index and repository directories must not overlap")
+		}
+	}
+	if pathsOverlap(repo, model) {
+		return fmt.Errorf("document model and repository directories must not overlap")
+	}
+	return nil
+}
+
+func pathsOverlap(a, b string) bool {
+	rel, err := filepath.Rel(a, b)
+	return err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))))
+}
+
+func validBranchName(name string) bool {
+	return name != "" && !strings.HasPrefix(name, "-") && !strings.HasSuffix(name, "/") && !strings.Contains(name, "..") && !strings.ContainsAny(name, " ~^:?*[\\")
 }
