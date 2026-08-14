@@ -74,6 +74,9 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 	if len(nsPages) == 0 {
 		return fmt.Errorf("no pages found in namespace %q", ns)
 	}
+	if len(nsPages) > maxExportFiles {
+		return fmt.Errorf("export exceeds %d files", maxExportFiles)
+	}
 
 	hrefs := make(map[string]string, len(nsPages)) // slug -> rest, for RenderStatic's cross-page link check
 	entries := make([]BacklinkEntry, 0, len(nsPages))
@@ -168,7 +171,11 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		}
 	}
 
-	if err := copyExportAttachments(store, outDir, ns); err != nil {
+	files, bytes := len(nsPages), int64(0)
+	for _, p := range nsPages {
+		bytes += int64(len(p.Body))
+	}
+	if err := copyExportAttachments(store, outDir, ns, &files, &bytes); err != nil {
 		return err
 	}
 
@@ -217,7 +224,7 @@ func copyExportAssets(outDir string) error {
 // into outDir/attachments/, unconditionally — a page-by-page reference scan
 // would need to track renames and inline-HTML uploads, so this just mirrors
 // the whole namespace's attachment tree, same as how the app stores it.
-func copyExportAttachments(store *Store, outDir, ns string) error {
+func copyExportAttachments(store *Store, outDir, ns string, files *int, bytes *int64) error {
 	paths, err := store.ListAttachments()
 	if err != nil {
 		return err
@@ -230,6 +237,15 @@ func copyExportAttachments(store *Store, outDir, ns string) error {
 		file, _, err := store.OpenAttachment(attachmentPath)
 		if err != nil {
 			return fmt.Errorf("opening attachment %q: %w", attachmentPath, err)
+		}
+		info, err := file.Stat()
+		if err != nil {
+			file.Close()
+			return fmt.Errorf("stating attachment %q: %w", attachmentPath, err)
+		}
+		if err := exportBudget(files, bytes, info.Size()); err != nil {
+			file.Close()
+			return err
 		}
 		rel := strings.TrimPrefix(attachmentPath, prefix)
 		target := filepath.Join(outDir, "attachments", filepath.FromSlash(rel))

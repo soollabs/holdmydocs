@@ -59,3 +59,13 @@ func TestSearchQueryLimitAndLiteralSyntax(t *testing.T) {
 		t.Errorf("literal query results = %#v", hits)
 	}
 }
+
+func TestExportBudget(t *testing.T) {
+	files, bytes := maxExportFiles-1, int64(maxExportBytes-1)
+	if err := exportBudget(&files, &bytes, 1); err != nil {
+		t.Fatalf("at limit: %v", err)
+	}
+	if err := exportBudget(&files, &bytes, 1); err == nil {
+		t.Error("accepted oversized export")
+	}
+}

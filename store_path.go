@@ -27,6 +27,15 @@ func (s *Store) readRepositoryFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
+	if strings.HasSuffix(path, ".md") {
+		info, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+		if info.Size() > maxStoredPageBytes {
+			return nil, fmt.Errorf("page exceeds %d bytes", maxStoredPageBytes)
+		}
+	}
 	return io.ReadAll(f)
 }
 

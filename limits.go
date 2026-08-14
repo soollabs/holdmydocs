@@ -18,10 +18,22 @@ const (
 	maxSearchQueryRunes    = 512
 	maxGitAuthorRunes      = 256
 	maxNamespaceTitleRunes = 256
+	maxExportFiles         = 10_000
+	maxExportBytes         = 100 << 20
+	maxStoredPageBytes     = maxPageBodyBytes + 64<<10
 )
 
 func validRunes(s string, max int) bool {
 	return utf8.ValidString(s) && utf8.RuneCountInString(s) <= max
+}
+
+func exportBudget(files *int, bytes *int64, size int64) error {
+	*files++
+	*bytes += size
+	if *files > maxExportFiles || *bytes > maxExportBytes {
+		return fmt.Errorf("export exceeds %d files or %d bytes", maxExportFiles, maxExportBytes)
+	}
+	return nil
 }
 
 func validatePageInput(title string, tags []string, body string) error {
