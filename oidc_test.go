@@ -102,7 +102,7 @@ func TestEnsureOIDCUserRejectsCollisionsAndSeparatesIssuers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("admin", "secret"); err != nil {
+	if err := auth.AddUser("admin", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://idp.example.com", Subject: "admin"}, "admin", "", []string{"read"}); err == nil {

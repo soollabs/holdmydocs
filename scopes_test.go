@@ -39,7 +39,7 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAuth: %v", err)
 	}
-	if err := auth.AddUser("bob", "secret"); err != nil {
+	if err := auth.AddUser("bob", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if err := auth.SetScopes("bob", []string{"bogus"}); err == nil {
@@ -68,7 +68,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	app, server, settingsClient := newTestAppFull(t)
 	defer server.Close()
 
-	if err := app.Auth.AddUser("reader", "secret"); err != nil {
+	if err := app.Auth.AddUser("reader", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if err := app.Auth.SetScopes("reader", []string{"read"}); err != nil {
@@ -82,7 +82,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"secret"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user GET /settings = %d, want 403", settingsResp.StatusCode)
 	}
 
-	if err := app.Auth.AddUser("settings-only", "secret"); err != nil {
+	if err := app.Auth.AddUser("settings-only", "password12345"); err != nil {
 		t.Fatalf("AddUser(settings-only): %v", err)
 	}
 	if err := app.Auth.SetScopes("settings-only", []string{"settings"}); err != nil {
@@ -333,14 +333,14 @@ func TestCreateUserViaSettings(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	closeTestBody(t, loginResp.Body)
 
 	createResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
-		"name": {"newbie"}, "password": {"secret"}, "scopes": {"read"},
+		"name": {"newbie"}, "password": {"password12345"}, "scopes": {"read"},
 	})
 	if err != nil {
 		t.Fatalf("POST /settings/users: %v", err)
@@ -353,19 +353,19 @@ func TestCreateUserViaSettings(t *testing.T) {
 	if app.Auth.prefs("newbie").hasScope(scopeWrite) {
 		t.Error("newbie should be read-only per the submitted scopes")
 	}
-	if _, ok := app.Auth.Login("newbie", "secret"); !ok {
+	if _, ok := app.Auth.Login("newbie", "password12345"); !ok {
 		t.Error("newbie should be able to log in with the password set at creation")
 	}
 
 	// Duplicate name is rejected rather than silently resetting the password.
 	dupResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
-		"name": {"newbie"}, "password": {"other"},
+		"name": {"newbie"}, "password": {"otherpassword"},
 	})
 	if err != nil {
 		t.Fatalf("POST /settings/users (dup): %v", err)
 	}
 	closeTestBody(t, dupResp.Body)
-	if _, ok := app.Auth.Login("newbie", "secret"); !ok {
+	if _, ok := app.Auth.Login("newbie", "password12345"); !ok {
 		t.Error("original password should still work after a rejected duplicate create")
 	}
 }
@@ -379,7 +379,7 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -415,14 +415,14 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	if err := app.Auth.AddUser("mod", "secret"); err != nil {
+	if err := app.Auth.AddUser("mod", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if err := app.Auth.SetScopes("mod", []string{"read", "write", "settings"}); err != nil {
 		t.Fatalf("SetScopes: %v", err)
 	}
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"mod"}, "password": {"secret"}})
+	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"mod"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

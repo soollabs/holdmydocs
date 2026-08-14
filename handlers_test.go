@@ -35,7 +35,7 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 // handlers behind the settings scope.
 func adminLogin(t *testing.T, server *httptest.Server, client *http.Client) {
 	t.Helper()
-	resp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"test"}})
+	resp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -92,7 +92,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		AppDir:     appDir,
 		Git:        GitConfig{User: "test"},
 		AdminUser:  "admin",
-		AdminPass:  "test",
+		AdminPass:  "password12345",
 	}
 
 	// When a config file is configured, overlay its values so the settings
@@ -103,7 +103,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 			loaded.RepoDir = repoDir
 			loaded.AppDir = appDir
 			loaded.AdminUser = "admin"
-			loaded.AdminPass = "test"
+			loaded.AdminPass = "password12345"
 			cfg = loaded
 		}
 	}
@@ -184,7 +184,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	// Login
 	loginForm := url.Values{
 		"username": {"admin"},
-		"password": {"test"},
+		"password": {"password12345"},
 	}
 	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1990,7 +1990,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		AppDir:    appDir,
 		Git:       GitConfig{User: "test"},
 		AdminUser: "admin",
-		AdminPass: "test",
+		AdminPass: "password12345",
 	}
 
 	store, err := OpenStore(cfg)
@@ -2035,7 +2035,7 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	loginForm := url.Values{"username": {"admin"}, "password": {"test"}}
+	loginForm := url.Values{"username": {"admin"}, "password": {"password12345"}}
 	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if _, err := client.Do(req); err != nil {

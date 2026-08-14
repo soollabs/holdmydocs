@@ -14,7 +14,7 @@ func TestBootstrapAdmin(t *testing.T) {
 	cfg := Config{
 		AppDir:    appDir,
 		AdminUser: "admin",
-		AdminPass: "pass",
+		AdminPass: "password12345",
 	}
 
 	auth, err := OpenAuth(cfg)
@@ -23,7 +23,7 @@ func TestBootstrapAdmin(t *testing.T) {
 	}
 
 	// Login with correct password
-	token, ok := auth.Login("admin", "pass")
+	token, ok := auth.Login("admin", "password12345")
 	if !ok {
 		t.Errorf("Login with correct password should succeed")
 	}
@@ -35,7 +35,7 @@ func TestBootstrapAdmin(t *testing.T) {
 	}
 
 	// Login with wrong password
-	_, ok = auth.Login("admin", "wrong")
+	_, ok = auth.Login("admin", "wrongpassword")
 	if ok {
 		t.Errorf("Login with wrong password should fail")
 	}
@@ -60,14 +60,14 @@ func TestOpenAuthAcceptsUnknownPersistedAppearanceSettings(t *testing.T) {
 
 func TestSessionExpires(t *testing.T) {
 	appDir := t.TempDir()
-	cfg := Config{AppDir: appDir, AdminUser: "admin", AdminPass: "pass"}
+	cfg := Config{AppDir: appDir, AdminUser: "admin", AdminPass: "password12345"}
 
 	auth, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	token, ok := auth.Login("admin", "pass")
+	token, ok := auth.Login("admin", "password12345")
 	if !ok {
 		t.Fatalf("Login should succeed")
 	}
@@ -95,7 +95,7 @@ func TestAddUserPersists(t *testing.T) {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	err = auth1.AddUser("bob", "secret")
+	err = auth1.AddUser("bob", "password12345")
 	if err != nil {
 		t.Fatalf("AddUser failed: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestAddUserPersists(t *testing.T) {
 	}
 
 	// User should be loadable
-	token, ok := auth2.Login("bob", "secret")
+	token, ok := auth2.Login("bob", "password12345")
 	if !ok {
 		t.Errorf("Login should succeed with persisted user")
 	}
@@ -121,7 +121,7 @@ func TestMiddleware(t *testing.T) {
 	cfg := Config{
 		AppDir:    appDir,
 		AdminUser: "admin",
-		AdminPass: "test",
+		AdminPass: "password12345",
 	}
 
 	auth, err := OpenAuth(cfg)
@@ -130,7 +130,7 @@ func TestMiddleware(t *testing.T) {
 	}
 
 	// Get a valid token for testing
-	token, _ := auth.Login("admin", "test")
+	token, _ := auth.Login("admin", "password12345")
 
 	// Handler that returns 200
 	successHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -196,10 +196,10 @@ func TestUsersListsSortedWithScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAuth: %v", err)
 	}
-	if err := auth.AddUser("zed", "pw"); err != nil {
+	if err := auth.AddUser("zed", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
-	if err := auth.AddUser("amy", "pw"); err != nil {
+	if err := auth.AddUser("amy", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if err := auth.SetScopes("amy", []string{"read"}); err != nil {
@@ -226,7 +226,7 @@ func TestUserExists(t *testing.T) {
 	if auth.UserExists("nobody") {
 		t.Error("UserExists should be false before the user is added")
 	}
-	if err := auth.AddUser("nobody", "pw"); err != nil {
+	if err := auth.AddUser("nobody", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if !auth.UserExists("nobody") {
@@ -236,7 +236,7 @@ func TestUserExists(t *testing.T) {
 
 func TestUserGitAuthorPersists(t *testing.T) {
 	appDir := t.TempDir()
-	auth, err := OpenAuth(Config{AppDir: appDir, AdminUser: "admin", AdminPass: "pw"})
+	auth, err := OpenAuth(Config{AppDir: appDir, AdminUser: "admin", AdminPass: "password12345"})
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestUserGitAuthorPersists(t *testing.T) {
 	if got := auth2.AuthorFor("admin"); got != "Admin <a@x.com>" {
 		t.Errorf("AuthorFor after reload = %q; want %q", got, "Admin <a@x.com>")
 	}
-	if _, ok := auth2.Login("admin", "pw"); !ok {
+	if _, ok := auth2.Login("admin", "password12345"); !ok {
 		t.Errorf("login should still work after author set")
 	}
 }
@@ -265,7 +265,7 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("alice", "secret"); err != nil {
+	if err := auth.AddUser("alice", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -323,7 +323,7 @@ func TestTokenInputValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("alice", "secret"); err != nil {
+	if err := auth.AddUser("alice", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -366,12 +366,46 @@ func TestTokenInputValidation(t *testing.T) {
 	}
 }
 
+func TestAuthInputAndSessionControls(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, password := range []string{"12345678901", string(make([]byte, 73)), "validpassword\n"} {
+		if err := auth.AddUser("alice", password); err == nil {
+			t.Errorf("AddUser accepted invalid password %q", password)
+		}
+	}
+	if err := auth.AddUser("alice", "password12345"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := auth.UserForBearer("hmd_not-hex"); ok {
+		t.Error("invalid bearer token was accepted")
+	}
+	first, ok := auth.Login("alice", "password12345")
+	if !ok {
+		t.Fatal("first login failed")
+	}
+	if _, ok := auth.LoginLimited("127.0.0.1:1", "alice", "wrongpassword"); ok {
+		t.Error("wrong password succeeded")
+	}
+	if _, ok := auth.LoginLimited("127.0.0.1:1", "alice", "wrongpassword"); ok {
+		t.Error("throttled login succeeded")
+	}
+	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := auth.UserFor(first); ok {
+		t.Error("scope change did not revoke session")
+	}
+}
+
 func TestTokenScopeIntersectionAndSettingsBypass(t *testing.T) {
 	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("reader", "secret"); err != nil {
+	if err := auth.AddUser("reader", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.SetScopes("reader", []string{"read", "write"}); err != nil {
@@ -386,7 +420,7 @@ func TestTokenScopeIntersectionAndSettingsBypass(t *testing.T) {
 		t.Fatalf("read token principal = %#v, %v", readPrincipal, ok)
 	}
 
-	if err := auth.AddUser("manager", "secret"); err != nil {
+	if err := auth.AddUser("manager", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {
@@ -407,7 +441,7 @@ func TestBearerScopesUseCurrentUserScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("alice", "secret"); err != nil {
+	if err := auth.AddUser("alice", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 	token, err := auth.AddToken("alice", "writer", time.Time{}, []string{"write"}, nil)
@@ -445,7 +479,7 @@ func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("manager", "secret"); err != nil {
+	if err := auth.AddUser("manager", "password12345"); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {

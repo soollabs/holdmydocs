@@ -1090,7 +1090,7 @@ func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 
-	token, ok := app.Auth.Login(username, r.FormValue("password"))
+	token, ok := app.Auth.LoginLimited(r.RemoteAddr, username, r.FormValue("password"))
 	if !ok {
 		slog.Warn("login failed", "username", username, "remote", r.RemoteAddr)
 		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password"))

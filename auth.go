@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,16 +17,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // tokenRecord is a stored personal access token. The token value is shown
-// once at creation; only its bcrypt hash is kept. A zero Expires means the
+// once at creation; only its SHA-256 digest is kept. A zero Expires means the
 // token never expires.
 type tokenRecord struct {
 	Name       string    `json:"name"`
-	Hash       string    `json:"hash"`
+	Digest     string    `json:"digest"`
 	Created    time.Time `json:"created"`
 	Expires    time.Time `json:"expires,omitzero"`
 	Scopes     []string  `json:"scopes,omitempty"`
@@ -185,7 +189,11 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 	}
 	rec.Scopes = scopes
 	a.users[name] = rec
-	return a.save()
+	if err := a.save(); err != nil {
+		return err
+	}
+	a.revokeUserSessionsLocked(name)
+	return a.saveSessions()
 }
 
 // ctxUserKey carries the Bearer-authenticated username through the request
@@ -226,13 +234,30 @@ func (s sessionRecord) expired() bool {
 }
 
 type Auth struct {
-	usersFile    string
-	sessionsFile string
-	users        map[string]userRecord    // username -> record
-	sessions     map[string]sessionRecord // token -> session
-	tokenCache   map[string]cachedToken   // verified PAT value -> user + expiry
-	mu           sync.RWMutex
+	usersFile     string
+	sessionsFile  string
+	users         map[string]userRecord    // username -> record
+	sessions      map[string]sessionRecord // token -> session
+	tokenCache    map[string]cachedToken   // PAT digest -> user + expiry
+	loginAttempts map[string]loginAttempt
+	bcryptSem     chan struct{}
+	mu            sync.RWMutex
 }
+
+type loginAttempt struct {
+	failures int
+	until    time.Time
+}
+
+const (
+	minPasswordChars = 12
+	maxPasswordBytes = 72
+	maxTokenLabelLen = 64
+	maxTokensPerUser = 64
+	maxLoginAttempts = 1024
+)
+
+var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
 
 // normaliseUserRecord validates persisted access policy. Appearance preferences
 // remain permissive so removing a theme option never blocks startup. Session
@@ -243,6 +268,9 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 		return userRecord{}, fmt.Errorf("user %q scopes: %w", name, err)
 	}
 	rec.Scopes = scopes
+	if len(rec.Tokens) > maxTokensPerUser {
+		return userRecord{}, fmt.Errorf("user %q has too many tokens", name)
+	}
 	seen := make(map[string]struct{}, len(rec.Tokens))
 	for i := range rec.Tokens {
 		token := &rec.Tokens[i]
@@ -254,8 +282,8 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 			return userRecord{}, fmt.Errorf("user %q has duplicate token name %q", name, token.Name)
 		}
 		seen[token.Name] = struct{}{}
-		if _, err := bcrypt.Cost([]byte(token.Hash)); err != nil {
-			return userRecord{}, fmt.Errorf("user %q token %q has invalid hash: %w", name, token.Name, err)
+		if !validTokenDigest(token.Digest) {
+			return userRecord{}, fmt.Errorf("user %q token %q has invalid digest", name, token.Name)
 		}
 		tokenScopes, err := normaliseTokenScopes(token.Scopes)
 		if err != nil {
@@ -283,11 +311,13 @@ func OpenAuth(cfg Config) (*Auth, error) {
 
 	usersFile := filepath.Join(cfg.AppDir, "users.json")
 	auth := &Auth{
-		usersFile:    usersFile,
-		sessionsFile: filepath.Join(cfg.AppDir, "sessions.json"),
-		users:        make(map[string]userRecord),
-		sessions:     make(map[string]sessionRecord),
-		tokenCache:   make(map[string]cachedToken),
+		usersFile:     usersFile,
+		sessionsFile:  filepath.Join(cfg.AppDir, "sessions.json"),
+		users:         make(map[string]userRecord),
+		sessions:      make(map[string]sessionRecord),
+		tokenCache:    make(map[string]cachedToken),
+		loginAttempts: make(map[string]loginAttempt),
+		bcryptSem:     make(chan struct{}, 4),
 	}
 
 	// Try to load existing users file
@@ -304,6 +334,9 @@ func OpenAuth(cfg Config) (*Auth, error) {
 				return nil, err
 			}
 			auth.users[name] = rec
+			for _, token := range rec.Tokens {
+				auth.tokenCache[token.Digest] = cachedToken{user: name, scopes: append([]string(nil), token.Scopes...), namespaces: append([]string(nil), token.Namespaces...), expires: token.Expires}
+			}
 		}
 	} else if os.IsNotExist(err) {
 		// File doesn't exist
@@ -326,6 +359,11 @@ func OpenAuth(cfg Config) (*Auth, error) {
 	// log in again, so startup continues.
 	if data, err := os.ReadFile(auth.sessionsFile); err == nil {
 		_ = json.Unmarshal(data, &auth.sessions)
+		if auth.purgeExpiredSessionsLocked() {
+			if err := auth.saveSessions(); err != nil {
+				slog.Warn("purging expired sessions", "error", err)
+			}
+		}
 	}
 
 	return auth, nil
@@ -334,6 +372,9 @@ func OpenAuth(cfg Config) (*Auth, error) {
 func (a *Auth) AddUser(name, password string) error {
 	if !validUsername(name) {
 		return fmt.Errorf("invalid username")
+	}
+	if !validPassword(password) {
+		return fmt.Errorf("password must be at least 12 characters, at most 72 bytes, and contain no control characters")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -345,6 +386,10 @@ func (a *Auth) AddUser(name, password string) error {
 	rec.Hash = string(hash)
 	a.users[name] = rec
 	err = a.save()
+	if err == nil {
+		a.revokeUserSessionsLocked(name)
+		err = a.saveSessions()
+	}
 	a.mu.Unlock()
 
 	if err == nil {
@@ -354,7 +399,7 @@ func (a *Auth) AddUser(name, password string) error {
 }
 
 func validUsername(name string) bool {
-	if len(name) == 0 || len(name) > 64 {
+	if name == "" || name != strings.TrimSpace(name) || len(name) > 64 || !utf8.ValidString(name) {
 		return false
 	}
 	for _, r := range name {
@@ -363,6 +408,22 @@ func validUsername(name string) bool {
 		}
 	}
 	return true
+}
+
+func validPassword(password string) bool {
+	if !utf8.ValidString(password) || utf8.RuneCountInString(password) < minPasswordChars || len(password) > maxPasswordBytes {
+		return false
+	}
+	for _, r := range password {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func validTokenLabel(label string) bool {
+	return label != "" && label == strings.TrimSpace(label) && utf8.ValidString(label) && utf8.RuneCountInString(label) <= maxTokenLabelLen && !strings.ContainsFunc(label, unicode.IsControl)
 }
 
 // UserExists reports whether name has a user record.
@@ -467,7 +528,7 @@ func effectiveTokenScopes(userScopes, tokenScopes []string) []string {
 
 // AddToken mints a personal access token for name, labelled label, expiring
 // at expires (zero = never). The token value is returned exactly once; only
-// its bcrypt hash is stored. Labels are unique per user — they are the
+// its digest is stored. Labels are unique per user — they are the
 // revocation key. A nil scope list preserves the legacy unrestricted-token
 // behaviour; a non-nil empty list is invalid for a newly scoped token.
 func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespaces []string) (string, error) {
@@ -477,14 +538,16 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	if !ok {
 		return "", fmt.Errorf("unknown user %q", name)
 	}
-	label = strings.TrimSpace(label)
-	if label == "" {
-		return "", fmt.Errorf("token name cannot be blank")
+	if !validTokenLabel(label) {
+		return "", fmt.Errorf("invalid token name")
 	}
 	for _, t := range rec.Tokens {
 		if t.Name == label {
 			return "", fmt.Errorf("a token named %q already exists", label)
 		}
+	}
+	if len(rec.Tokens) >= maxTokensPerUser {
+		return "", fmt.Errorf("token limit reached")
 	}
 	normalisedScopes, err := normaliseTokenScopes(scopes)
 	if err != nil {
@@ -509,13 +572,10 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	}
 	token := "hmd_" + hex.EncodeToString(b)
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("hashing token: %w", err)
-	}
+	digest := tokenDigest(token)
 	rec.Tokens = append(rec.Tokens, tokenRecord{
 		Name:       label,
-		Hash:       string(hash),
+		Digest:     digest,
 		Created:    time.Now(),
 		Expires:    expires,
 		Scopes:     normalisedScopes,
@@ -525,11 +585,12 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	if err := a.save(); err != nil {
 		return "", err
 	}
+	a.tokenCache[digest] = cachedToken{user: name, scopes: append([]string(nil), normalisedScopes...), namespaces: append([]string(nil), normalisedNamespaces...), expires: expires}
 	return token, nil
 }
 
-// TokensFor returns name's stored tokens (metadata only — the hashes are of
-// no use to callers and stay out of templates).
+// TokensFor returns name's stored tokens (metadata only — digests stay out of
+// templates).
 func (a *Auth) TokensFor(name string) []tokenRecord {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -546,10 +607,8 @@ func (a *Auth) TokensFor(name string) []tokenRecord {
 	return tokens
 }
 
-// RemoveToken revokes name's token labelled label. All of name's cached
-// verifications are dropped — we can't tell which cached value matched the
-// removed hash without re-running bcrypt, so the user's other tokens simply
-// re-verify on next use.
+// RemoveToken revokes name's token labelled label and drops the user's digest
+// index entries. Remaining tokens are rebuilt from the persisted user record.
 func (a *Auth) RemoveToken(name, label string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -573,20 +632,21 @@ func (a *Auth) RemoveToken(name, label string) error {
 			delete(a.tokenCache, value)
 		}
 	}
+	for _, token := range kept {
+		a.tokenCache[token.Digest] = cachedToken{user: name, scopes: append([]string(nil), token.Scopes...), namespaces: append([]string(nil), token.Namespaces...), expires: token.Expires}
+	}
 	return a.save()
 }
 
-// UserForBearer resolves a Bearer PAT value to its raw policy. Verified tokens
-// are cached so bcrypt runs once per token per process, not per request; the
-// current user's scopes are deliberately not cached here.
-// linear scan over users' tokens on first use; fine for a handful of users
+// UserForBearer resolves a fixed-format Bearer PAT through its SHA-256 digest.
 func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
-	if !strings.HasPrefix(token, "hmd_") {
+	if !validBearerToken(token) {
 		return tokenPrincipal{}, false
 	}
+	digest := tokenDigest(token)
 
 	a.mu.RLock()
-	if cached, ok := a.tokenCache[token]; ok {
+	if cached, ok := a.tokenCache[digest]; ok {
 		a.mu.RUnlock()
 		// Expiry is wall-clock, so the cache can't answer it once and for
 		// all — check on every use.
@@ -599,40 +659,54 @@ func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
 			Namespaces: append([]string(nil), cached.namespaces...),
 		}, true
 	}
-	// Snapshot the candidate tokens so the slow bcrypt compares run unlocked.
-	type candidate struct {
-		user string
-		tok  tokenRecord
-	}
-	var candidates []candidate
-	for user, rec := range a.users {
-		for _, t := range rec.Tokens {
-			candidates = append(candidates, candidate{user, t})
-		}
-	}
 	a.mu.RUnlock()
-
-	for _, c := range candidates {
-		if bcrypt.CompareHashAndPassword([]byte(c.tok.Hash), []byte(token)) == nil {
-			if c.tok.expired() {
-				return tokenPrincipal{}, false
-			}
-			a.mu.Lock()
-			a.tokenCache[token] = cachedToken{
-				user:       c.user,
-				scopes:     append([]string(nil), c.tok.Scopes...),
-				namespaces: append([]string(nil), c.tok.Namespaces...),
-				expires:    c.tok.Expires,
-			}
-			a.mu.Unlock()
-			return tokenPrincipal{
-				User:       c.user,
-				Scopes:     append([]string(nil), c.tok.Scopes...),
-				Namespaces: append([]string(nil), c.tok.Namespaces...),
-			}, true
-		}
-	}
 	return tokenPrincipal{}, false
+}
+
+// UserForBearerLimited throttles malformed and unknown Bearer values by
+// source address before their digest is looked up.
+func (a *Auth) UserForBearerLimited(remote, token string) (tokenPrincipal, bool) {
+	key := "bearer\x00" + loginKey(remote, "")
+	a.mu.Lock()
+	attempt, limited := a.loginAttempts[key]
+	if limited && time.Now().Before(attempt.until) {
+		a.mu.Unlock()
+		return tokenPrincipal{}, false
+	}
+	a.mu.Unlock()
+
+	principal, ok := a.UserForBearer(token)
+	if ok {
+		a.mu.Lock()
+		delete(a.loginAttempts, key)
+		a.mu.Unlock()
+		return principal, true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.recordFailedAttemptLocked(key, attempt)
+	return tokenPrincipal{}, false
+}
+
+func tokenDigest(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func validTokenDigest(digest string) bool {
+	if len(digest) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(digest)
+	return err == nil
+}
+
+func validBearerToken(token string) bool {
+	if len(token) != len("hmd_")+sha256.Size*2 || !strings.HasPrefix(token, "hmd_") {
+		return false
+	}
+	_, err := hex.DecodeString(token[len("hmd_"):])
+	return err == nil
 }
 
 // AuthorFor returns the user's stored git author string, or "" if unset.
@@ -687,6 +761,60 @@ func (a *Auth) saveSessions() error {
 }
 
 func (a *Auth) Login(name, password string) (token string, ok bool) {
+	return a.login(name, password)
+}
+
+func (a *Auth) LoginLimited(remote, name, password string) (token string, ok bool) {
+	key := loginKey(remote, name)
+	a.mu.Lock()
+	attempt, limited := a.loginAttempts[key]
+	if limited && time.Now().Before(attempt.until) {
+		a.mu.Unlock()
+		return "", false
+	}
+	a.mu.Unlock()
+
+	token, ok = a.login(name, password)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if ok {
+		delete(a.loginAttempts, key)
+		return token, true
+	}
+	a.recordFailedAttemptLocked(key, attempt)
+	return "", false
+}
+
+func (a *Auth) recordFailedAttemptLocked(key string, attempt loginAttempt) {
+	if len(a.loginAttempts) >= maxLoginAttempts {
+		for k, v := range a.loginAttempts {
+			if time.Now().After(v.until) {
+				delete(a.loginAttempts, k)
+				break
+			}
+		}
+		if len(a.loginAttempts) >= maxLoginAttempts {
+			for k := range a.loginAttempts {
+				delete(a.loginAttempts, k)
+				break
+			}
+		}
+	}
+	attempt.failures++
+	delay := 250 * time.Millisecond << min(attempt.failures-1, 5)
+	attempt.until = time.Now().Add(delay)
+	a.loginAttempts[key] = attempt
+}
+
+func loginKey(remote, name string) string {
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		host = remote
+	}
+	return strings.ToLower(host) + "\x00" + strings.ToLower(name)
+}
+
+func (a *Auth) login(name, password string) (token string, ok bool) {
 	a.mu.RLock()
 	rec, exists := a.users[name]
 	a.mu.RUnlock()
@@ -694,12 +822,17 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 	// Empty hash marks an SSO-provisioned user: password login must always
 	// fail for those records, so guard before bcrypt (which would error on
 	// an empty hash anyway, but that is too subtle to rely on).
-	if !exists || rec.Hash == "" {
+	if !validPassword(password) {
 		return "", false
 	}
-
-	err := bcrypt.CompareHashAndPassword([]byte(rec.Hash), []byte(password))
-	if err != nil {
+	hash := dummyPasswordHash
+	if exists && rec.Hash != "" {
+		hash = []byte(rec.Hash)
+	}
+	a.bcryptSem <- struct{}{}
+	err := bcrypt.CompareHashAndPassword(hash, []byte(password))
+	<-a.bcryptSem
+	if !exists || rec.Hash == "" || err != nil {
 		return "", false
 	}
 
@@ -708,13 +841,14 @@ func (a *Auth) Login(name, password string) (token string, ok bool) {
 
 // newSession mints a session token for name and persists it.
 func (a *Auth) newSession(name string) (token string, ok bool) {
-	b := make([]byte, 16)
+	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", false
 	}
 	token = hex.EncodeToString(b)
 
 	a.mu.Lock()
+	a.revokeUserSessionsLocked(name)
 	a.sessions[token] = sessionRecord{User: name, Expires: time.Now().Add(sessionTTL)}
 	err := a.saveSessions()
 	a.mu.Unlock()
@@ -761,14 +895,40 @@ func (a *Auth) Logout(token string) {
 	}
 }
 
+func (a *Auth) revokeUserSessionsLocked(name string) {
+	for token, session := range a.sessions {
+		if session.User == name {
+			delete(a.sessions, token)
+		}
+	}
+}
+
+func (a *Auth) purgeExpiredSessionsLocked() bool {
+	purged := false
+	for token, session := range a.sessions {
+		if session.expired() {
+			delete(a.sessions, token)
+			purged = true
+		}
+	}
+	return purged
+}
+
 // UserFor resolves a session token to its username. An expired session is
 // treated as absent; it is lazily dropped on the next Logout or load rather
 // than requiring a background sweep.
 func (a *Auth) UserFor(token string) (username string, ok bool) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	rec, exists := a.sessions[token]
-	if !exists || rec.expired() {
+	if !exists {
+		return "", false
+	}
+	if rec.expired() {
+		delete(a.sessions, token)
+		if err := a.saveSessions(); err != nil {
+			slog.Warn("purging expired session", "error", err)
+		}
 		return "", false
 	}
 	return rec.User, true
@@ -875,7 +1035,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		// Bearer PAT: an explicit credential, so a bad one is denied rather
 		// than falling through to the cookie check.
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			rawPrincipal, authed = a.UserForBearer(strings.TrimPrefix(h, "Bearer "))
+			rawPrincipal, authed = a.UserForBearerLimited(r.RemoteAddr, strings.TrimPrefix(h, "Bearer "))
 			if authed {
 				user = rawPrincipal.User
 				bearer = true

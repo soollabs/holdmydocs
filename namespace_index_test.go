@@ -113,7 +113,7 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 		}
 	}
 
-	if err := app.Auth.AddUser("reader", "secret"); err != nil {
+	if err := app.Auth.AddUser("reader", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
 	if err := app.Auth.SetScopes("reader", []string{"read"}); err != nil {
@@ -124,7 +124,7 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 		t.Fatalf("cookie jar: %v", err)
 	}
 	reader := &http.Client{Jar: jar}
-	resp, err := reader.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"secret"}})
+	resp, err := reader.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("reader login: %v", err)
 	}

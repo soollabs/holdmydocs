@@ -42,7 +42,7 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 		AppDir:    t.TempDir(),
 		Git:       GitConfig{User: "test"},
 		AdminUser: "admin",
-		AdminPass: "test",
+		AdminPass: "password12345",
 		MCP:       MCPConfig{Enabled: mcpEnabled},
 	}
 
@@ -1098,7 +1098,7 @@ func TestMCPScopes(t *testing.T) {
 		{"writer", "write"},
 		{"manager", "settings"},
 	} {
-		if err := app.Auth.AddUser(user.name, "secret"); err != nil {
+		if err := app.Auth.AddUser(user.name, "password12345"); err != nil {
 			t.Fatalf("AddUser(%s): %v", user.name, err)
 		}
 		if err := app.Auth.SetScopes(user.name, []string{user.scope}); err != nil {
@@ -1387,7 +1387,7 @@ func TestTokenSettingsUI(t *testing.T) {
 }
 
 func TestTokenExpiry(t *testing.T) {
-	cfg := Config{AppDir: t.TempDir(), RepoDir: t.TempDir(), AdminUser: "admin", AdminPass: "test"}
+	cfg := Config{AppDir: t.TempDir(), RepoDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"}
 	auth, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
@@ -1411,9 +1411,10 @@ func TestTokenExpiry(t *testing.T) {
 
 	// Expiry is enforced on cache hits too, not just first verification.
 	auth.mu.Lock()
-	cached := auth.tokenCache[live]
+	digest := tokenDigest(live)
+	cached := auth.tokenCache[digest]
 	cached.expires = time.Now().Add(-time.Minute)
-	auth.tokenCache[live] = cached
+	auth.tokenCache[digest] = cached
 	auth.mu.Unlock()
 	if _, ok := auth.UserForBearer(live); ok {
 		t.Error("cache-expired token verified, want rejection")
