@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -39,26 +40,34 @@ type DocumentSearchConfig struct {
 // oidcFileConfig is the YAML/env shape of the OIDC settings. LocalLogin
 // needs a pointer because its default is true, not the bool zero value.
 type oidcFileConfig struct {
-	Issuer       string `yaml:"issuer"`
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"`
-	LocalLogin   *bool  `yaml:"local_login"`
-	ButtonText   string `yaml:"button_text"`
-	Icon         string `yaml:"icon"`
-	BaseURL      string `yaml:"base_url"`
+	Issuer                string   `yaml:"issuer"`
+	ClientID              string   `yaml:"client_id"`
+	ClientSecret          string   `yaml:"client_secret"`
+	LocalLogin            *bool    `yaml:"local_login"`
+	ButtonText            string   `yaml:"button_text"`
+	Icon                  string   `yaml:"icon"`
+	BaseURL               string   `yaml:"base_url"`
+	DefaultScopes         []string `yaml:"default_scopes"`
+	AllowedSubjects       []string `yaml:"allowed_subjects"`
+	AllowedEmailDomains   []string `yaml:"allowed_email_domains"`
+	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback"`
 }
 
 // OIDCConfig is the resolved runtime shape of the OIDC settings (LocalLogin
 // defaulted to a concrete bool). Empty Issuer means OIDC is disabled. All
 // restart-required, not editable from the settings UI.
 type OIDCConfig struct {
-	Issuer       string
-	ClientID     string
-	ClientSecret string
-	LocalLogin   bool   // allow the password form alongside SSO
-	ButtonText   string // login button label, e.g. "Login with Authelia"
-	Icon         string // Dashboard Icons name (e.g. "authelia") or path to a square SVG
-	BaseURL      string // public base URL, used to build the OIDC redirect URI
+	Issuer                string
+	ClientID              string
+	ClientSecret          string
+	LocalLogin            bool     // allow the password form alongside SSO
+	ButtonText            string   // login button label, e.g. "Login with Authelia"
+	Icon                  string   // Dashboard Icons name (e.g. "authelia") or path to a square SVG
+	BaseURL               string   // public base URL, used to build the OIDC redirect URI
+	DefaultScopes         []string // scopes granted to newly provisioned OIDC users
+	AllowedSubjects       []string // immutable identities permitted to sign in
+	AllowedEmailDomains   []string // verified email domains permitted to sign in
+	AllowInsecureLoopback bool     // development only: permits http URLs on loopback
 }
 
 // Config is the install-wide runtime configuration. Portable wiki identity
@@ -274,13 +283,17 @@ func LoadConfig() (Config, error) {
 		},
 		MCP: file.MCP,
 		OIDC: OIDCConfig{
-			Issuer:       file.OIDC.Issuer,
-			ClientID:     file.OIDC.ClientID,
-			ClientSecret: file.OIDC.ClientSecret,
-			LocalLogin:   orBool(file.OIDC.LocalLogin, true),
-			ButtonText:   or(file.OIDC.ButtonText, "Sign in with SSO"),
-			Icon:         file.OIDC.Icon,
-			BaseURL:      file.OIDC.BaseURL,
+			Issuer:                file.OIDC.Issuer,
+			ClientID:              file.OIDC.ClientID,
+			ClientSecret:          file.OIDC.ClientSecret,
+			LocalLogin:            orBool(file.OIDC.LocalLogin, true),
+			ButtonText:            or(file.OIDC.ButtonText, "Sign in with SSO"),
+			Icon:                  file.OIDC.Icon,
+			BaseURL:               file.OIDC.BaseURL,
+			DefaultScopes:         append([]string(nil), file.OIDC.DefaultScopes...),
+			AllowedSubjects:       append([]string(nil), file.OIDC.AllowedSubjects...),
+			AllowedEmailDomains:   append([]string(nil), file.OIDC.AllowedEmailDomains...),
+			AllowInsecureLoopback: file.OIDC.AllowInsecureLoopback,
 		},
 		DocumentSearch: DocumentSearchConfig{
 			Model:    or(file.DocumentSearch.Model, semanticModelName),
@@ -314,6 +327,28 @@ func LoadConfig() (Config, error) {
 		if cfg.OIDC.BaseURL == "" {
 			return Config{}, fmt.Errorf("oidc.base_url must be set when oidc.issuer is set (needed for the redirect URI)")
 		}
+		if err := validateOIDCURL("oidc.issuer", cfg.OIDC.Issuer, cfg.OIDC.AllowInsecureLoopback); err != nil {
+			return Config{}, err
+		}
+		if err := validateOIDCURL("oidc.base_url", cfg.OIDC.BaseURL, cfg.OIDC.AllowInsecureLoopback); err != nil {
+			return Config{}, err
+		}
+		if len(cfg.OIDC.AllowedSubjects) == 0 && len(cfg.OIDC.AllowedEmailDomains) == 0 {
+			return Config{}, fmt.Errorf("oidc.allowed_subjects or oidc.allowed_email_domains must be set when oidc.issuer is set")
+		}
+		if len(cfg.OIDC.DefaultScopes) == 0 {
+			cfg.OIDC.DefaultScopes = []string{string(scopeRead)}
+		}
+		scopes, err := normaliseTokenScopes(cfg.OIDC.DefaultScopes)
+		if err != nil || len(scopes) == 0 {
+			return Config{}, fmt.Errorf("invalid oidc.default_scopes")
+		}
+		cfg.OIDC.DefaultScopes = scopes
+		for _, domain := range cfg.OIDC.AllowedEmailDomains {
+			if strings.TrimSpace(domain) == "" || strings.ContainsAny(domain, "@/ ") {
+				return Config{}, fmt.Errorf("invalid oidc.allowed_email_domains entry %q", domain)
+			}
+		}
 	}
 
 	return cfg, nil
@@ -345,16 +380,38 @@ func (c Config) toFileConfig() fileConfig {
 		Git:            git,
 		MCP:            c.MCP,
 		OIDC: oidcFileConfig{
-			Issuer:       c.OIDC.Issuer,
-			ClientID:     c.OIDC.ClientID,
-			ClientSecret: c.OIDC.ClientSecret,
-			LocalLogin:   boolPtr(c.OIDC.LocalLogin),
-			ButtonText:   c.OIDC.ButtonText,
-			Icon:         c.OIDC.Icon,
-			BaseURL:      c.OIDC.BaseURL,
+			Issuer:                c.OIDC.Issuer,
+			ClientID:              c.OIDC.ClientID,
+			ClientSecret:          c.OIDC.ClientSecret,
+			LocalLogin:            boolPtr(c.OIDC.LocalLogin),
+			ButtonText:            c.OIDC.ButtonText,
+			Icon:                  c.OIDC.Icon,
+			BaseURL:               c.OIDC.BaseURL,
+			DefaultScopes:         append([]string(nil), c.OIDC.DefaultScopes...),
+			AllowedSubjects:       append([]string(nil), c.OIDC.AllowedSubjects...),
+			AllowedEmailDomains:   append([]string(nil), c.OIDC.AllowedEmailDomains...),
+			AllowInsecureLoopback: c.OIDC.AllowInsecureLoopback,
 		},
 		DocumentSearch: c.DocumentSearch,
 	}
+}
+
+func validateOIDCURL(field, raw string, allowInsecureLoopback bool) error {
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil || u.Fragment != "" {
+		return fmt.Errorf("%s must be an absolute URL without user-info or fragment", field)
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && allowInsecureLoopback && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("%s must use https (http is allowed only for loopback with oidc.allow_insecure_loopback)", field)
+}
+
+func isLoopbackHost(host string) bool {
+	return strings.EqualFold(host, "localhost") || (net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback())
 }
 
 // parseAuthor splits a git author string in the standard "Name <email>" form

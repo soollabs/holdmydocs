@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -19,7 +20,8 @@ func TestOIDCUsernameFallback(t *testing.T) {
 		want   string
 	}{
 		{oidcClaims{PreferredUsername: "alice", Email: "alice@example.com"}, "alice"},
-		{oidcClaims{Email: "bob@example.com"}, "bob"},
+		{oidcClaims{Email: "bob@example.com", EmailVerified: true}, "bob"},
+		{oidcClaims{Email: "bob@example.com"}, ""},
 		{oidcClaims{Email: "@example.com"}, ""},
 		{oidcClaims{}, ""},
 	}
@@ -35,7 +37,7 @@ func TestEmptyHashCannotPasswordLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
-	if err := auth.EnsureOIDCUser("sso-user", ""); err != nil {
+	if _, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://idp.example.com", Subject: "sso-user"}, "sso-user", "", []string{"read"}); err != nil {
 		t.Fatalf("EnsureOIDCUser failed: %v", err)
 	}
 
@@ -54,23 +56,35 @@ func TestEnsureOIDCUser(t *testing.T) {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	// First login provisions with the claims author.
-	if err := auth.EnsureOIDCUser("alice", "Alice <alice@example.com>"); err != nil {
+	identity := oidcIdentity{Issuer: "https://idp.example.com", Subject: "alice-id"}
+	// First login provisions with the claims author and requested scopes.
+	username, err := auth.EnsureOIDCUser(identity, "alice", "Alice <alice@example.com>", []string{"read"})
+	if err != nil {
 		t.Fatalf("first EnsureOIDCUser failed: %v", err)
+	}
+	if username != "alice" {
+		t.Fatalf("username = %q, want alice", username)
 	}
 	if got := auth.AuthorFor("alice"); got != "Alice <alice@example.com>" {
 		t.Errorf("AuthorFor = %q, want claims author", got)
 	}
 
-	// A user-set author is not clobbered by later logins.
+	// A returning identity resolves to the original user despite changed display claims.
 	if err := auth.SetAuthor("alice", "Custom <me@example.com>"); err != nil {
 		t.Fatalf("SetAuthor failed: %v", err)
 	}
-	if err := auth.EnsureOIDCUser("alice", "Alice <alice@example.com>"); err != nil {
+	username, err = auth.EnsureOIDCUser(identity, "renamed", "Changed <alice@example.com>", []string{"settings"})
+	if err != nil {
 		t.Fatalf("second EnsureOIDCUser failed: %v", err)
+	}
+	if username != "alice" {
+		t.Errorf("returning username = %q, want alice", username)
 	}
 	if got := auth.AuthorFor("alice"); got != "Custom <me@example.com>" {
 		t.Errorf("AuthorFor = %q, second login clobbered the user's override", got)
+	}
+	if auth.users["alice"].hasScope(scopeSettings) {
+		t.Error("returning OIDC login changed the provisioned scopes")
 	}
 
 	// Record persists across restart.
@@ -80,6 +94,48 @@ func TestEnsureOIDCUser(t *testing.T) {
 	}
 	if got := auth2.AuthorFor("alice"); got != "Custom <me@example.com>" {
 		t.Errorf("provisioned record did not persist, AuthorFor = %q", got)
+	}
+}
+
+func TestEnsureOIDCUserRejectsCollisionsAndSeparatesIssuers(t *testing.T) {
+	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("admin", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://idp.example.com", Subject: "admin"}, "admin", "", []string{"read"}); err == nil {
+		t.Error("OIDC username collision with local admin was accepted")
+	}
+	first, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://one.example.com", Subject: "same"}, "one", "", []string{"read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://two.example.com", Subject: "same"}, "two", "", []string{"read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Error("same subject from different issuers resolved to one user")
+	}
+	if _, err := auth.AddToken(first, "admin", time.Time{}, []string{"settings"}, nil); err == nil {
+		t.Error("read-only OIDC user minted an administrative token")
+	}
+}
+
+func TestOIDCAdmission(t *testing.T) {
+	cfg := OIDCConfig{AllowedSubjects: []string{"allowed"}, AllowedEmailDomains: []string{"example.com"}}
+	if !(oidcClaims{Subject: "allowed", EmailVerified: true}).admitted(cfg) {
+		t.Error("allowed subject was rejected")
+	}
+	if !(oidcClaims{Email: "alice@example.com", EmailVerified: true}).admitted(cfg) {
+		t.Error("verified allowed domain was rejected")
+	}
+	for _, claims := range []oidcClaims{{Subject: "allowed"}, {Subject: "other", EmailVerified: true}, {Email: "alice@example.com"}, {Email: "alice@other.example", EmailVerified: true}} {
+		if claims.admitted(cfg) {
+			t.Errorf("disallowed claims were admitted: %+v", claims)
+		}
 	}
 }
 
@@ -103,6 +159,11 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 	app.handleOIDCCallback(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("mismatched state: got %d, want 400", w.Code)
+	}
+	for _, c := range w.Result().Cookies() {
+		if (c.Name == "hmd_oidc_state" || c.Name == "hmd_oidc_pkce") && c.MaxAge >= 0 {
+			t.Errorf("%s cookie was not cleared", c.Name)
+		}
 	}
 }
 

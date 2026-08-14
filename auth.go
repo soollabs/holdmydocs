@@ -101,13 +101,19 @@ var allScopes = []scope{scopeRead, scopeWrite, scopeSettings}
 // editable from /settings; zero values fall back to the built-in defaults.
 type userRecord struct {
 	Hash      string        `json:"hash"`
+	OIDC      *oidcIdentity `json:"oidc,omitempty"`
 	GitAuthor string        `json:"git_author,omitempty"`
 	Tokens    []tokenRecord `json:"tokens,omitempty"`
 	Palette   string        `json:"palette,omitempty"`
 	FontUI    string        `json:"font_ui,omitempty"`
 	FontMono  string        `json:"font_mono,omitempty"`
 	Skin      string        `json:"skin,omitempty"`
-	Scopes    []string      `json:"scopes,omitempty"` // empty = full access (default, and every user before scopes existed)
+	Scopes    []string      `json:"scopes,omitempty"` // empty = full access for existing local accounts
+}
+
+type oidcIdentity struct {
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
 }
 
 // hasScope reports whether the user may perform an action requiring s. An
@@ -326,6 +332,9 @@ func OpenAuth(cfg Config) (*Auth, error) {
 }
 
 func (a *Auth) AddUser(name, password string) error {
+	if !validUsername(name) {
+		return fmt.Errorf("invalid username")
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("hashing password: %w", err)
@@ -342,6 +351,18 @@ func (a *Auth) AddUser(name, password string) error {
 		slog.Info("user added", "user", name)
 	}
 	return err
+}
+
+func validUsername(name string) bool {
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
+			return false
+		}
+	}
+	return true
 }
 
 // UserExists reports whether name has a user record.
@@ -707,20 +728,27 @@ func (a *Auth) newSession(name string) (token string, ok bool) {
 // EnsureOIDCUser provisions name on first SSO login: a record with an empty
 // hash (password login impossible). gitAuthor ("Name <email>") is stored only
 // when the record has none, so a user's own override is never clobbered.
-func (a *Auth) EnsureOIDCUser(name, gitAuthor string) error {
+func (a *Auth) EnsureOIDCUser(identity oidcIdentity, name, gitAuthor string, scopes []string) (string, error) {
+	if identity.Issuer == "" || identity.Subject == "" || !validUsername(name) || len(scopes) == 0 {
+		return "", fmt.Errorf("invalid OIDC user")
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	rec, exists := a.users[name]
-	if exists && (rec.GitAuthor != "" || gitAuthor == "") {
-		return nil
+	for username, rec := range a.users {
+		if rec.OIDC != nil && *rec.OIDC == identity {
+			return username, nil
+		}
 	}
-	rec.GitAuthor = gitAuthor
-	a.users[name] = rec
-	if !exists {
-		slog.Info("provisioned OIDC user", "user", name)
+	if _, exists := a.users[name]; exists {
+		return "", fmt.Errorf("OIDC display username already exists")
 	}
-	return a.save()
+	a.users[name] = userRecord{OIDC: &identity, GitAuthor: gitAuthor, Scopes: append([]string(nil), scopes...)}
+	if err := a.save(); err != nil {
+		return "", err
+	}
+	slog.Info("provisioned OIDC user", "user", name)
+	return name, nil
 }
 
 func (a *Auth) Logout(token string) {

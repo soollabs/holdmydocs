@@ -22,7 +22,9 @@ import (
 type oidcClaims struct {
 	PreferredUsername string `json:"preferred_username"`
 	Email             string `json:"email"`
+	EmailVerified     bool   `json:"email_verified"`
 	Name              string `json:"name"`
+	Subject           string `json:"sub"`
 }
 
 // oidcUsername resolves the local username from ID-token claims:
@@ -32,10 +34,33 @@ func oidcUsername(c oidcClaims) string {
 	if c.PreferredUsername != "" {
 		return c.PreferredUsername
 	}
-	if i := strings.Index(c.Email, "@"); i > 0 {
-		return c.Email[:i]
+	if c.EmailVerified {
+		if i := strings.Index(c.Email, "@"); i > 0 {
+			return c.Email[:i]
+		}
 	}
 	return ""
+}
+
+func (c oidcClaims) admitted(cfg OIDCConfig) bool {
+	if !c.EmailVerified {
+		return false
+	}
+	for _, subject := range cfg.AllowedSubjects {
+		if c.Subject == subject {
+			return true
+		}
+	}
+	_, domain, ok := strings.Cut(c.Email, "@")
+	if !ok || domain == "" {
+		return false
+	}
+	for _, allowed := range cfg.AllowedEmailDomains {
+		if strings.EqualFold(domain, strings.TrimSpace(allowed)) {
+			return true
+		}
+	}
+	return false
 }
 
 // oidcGitAuthor builds a "Name <email>" author string from claims, or ""
@@ -190,6 +215,13 @@ func oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) 
 	})
 }
 
+func clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
+	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
+		// MaxAge below zero asks the browser to delete the cookie immediately.
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: isSecureRequest(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
+	}
+}
+
 func (app *App) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	if app.OIDC == nil {
 		http.NotFound(w, r)
@@ -215,51 +247,58 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	defer clearOIDCFlowCookies(w, r)
 
 	stateCookie, err := r.Cookie("hmd_oidc_state")
 	if err != nil || stateCookie.Value == "" || r.URL.Query().Get("state") != stateCookie.Value {
 		slog.Warn("OIDC callback state mismatch", "remote", r.RemoteAddr)
-		http.Error(w, "invalid state", http.StatusBadRequest)
+		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
 	pkceCookie, err := r.Cookie("hmd_oidc_pkce")
 	if err != nil || pkceCookie.Value == "" {
-		http.Error(w, "missing PKCE verifier", http.StatusBadRequest)
+		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
 
 	token, err := app.OIDC.oauth.Exchange(r.Context(), r.URL.Query().Get("code"), oauth2.VerifierOption(pkceCookie.Value))
 	if err != nil {
 		slog.Warn("OIDC code exchange failed", "error", err)
-		http.Error(w, "code exchange failed", http.StatusBadGateway)
+		http.Error(w, "OIDC login failed", http.StatusBadGateway)
 		return
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		http.Error(w, "no id_token in token response", http.StatusBadGateway)
+		http.Error(w, "OIDC login failed", http.StatusBadGateway)
 		return
 	}
 	idToken, err := app.OIDC.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		slog.Warn("OIDC ID token verification failed", "error", err)
-		http.Error(w, "invalid ID token", http.StatusUnauthorized)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 
 	var claims oidcClaims
 	if err := idToken.Claims(&claims); err != nil {
-		http.Error(w, "reading claims", http.StatusBadGateway)
+		http.Error(w, "OIDC login failed", http.StatusBadGateway)
+		return
+	}
+	if claims.Subject == "" || !claims.EmailVerified || !claims.admitted(app.config().OIDC) {
+		slog.Warn("OIDC login rejected", "remote", r.RemoteAddr)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 	username := oidcUsername(claims)
-	if username == "" {
-		http.Error(w, "no usable username in ID token", http.StatusUnauthorized)
+	if !validUsername(username) {
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 
-	if err := app.Auth.EnsureOIDCUser(username, oidcGitAuthor(claims)); err != nil {
-		slog.Error("provisioning OIDC user", "user", username, "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+	username, err = app.Auth.EnsureOIDCUser(oidcIdentity{Issuer: idToken.Issuer, Subject: claims.Subject}, username, oidcGitAuthor(claims), app.config().OIDC.DefaultScopes)
+	if err != nil {
+		slog.Warn("OIDC provisioning rejected", "remote", r.RemoteAddr, "error", err)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 	sessionToken, ok := app.Auth.newSession(username)

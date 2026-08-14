@@ -309,3 +309,35 @@ func TestSkinInvalid(t *testing.T) {
 		t.Fatal("LoadConfig should reject invalid skin")
 	}
 }
+
+func TestOIDCConfigValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		ok   bool
+	}{
+		{"valid", "oidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n  allowed_subjects: [alice]\n", true},
+		{"missing admission", "oidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n", false},
+		{"http public", "oidc:\n  issuer: http://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n  allowed_subjects: [alice]\n", false},
+		{"http loopback opted in", "oidc:\n  issuer: http://127.0.0.1:5556\n  client_id: hmd\n  client_secret: secret\n  base_url: http://localhost:8080\n  allowed_subjects: [alice]\n  allow_insecure_loopback: true\n", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := t.TempDir() + "/config.yaml"
+			if err := os.WriteFile(path, []byte(tt.yaml), 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HMD_CONFIG_FILE", path)
+			cfg, err := LoadConfig()
+			if tt.ok && err != nil {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if !tt.ok && err == nil {
+				t.Fatal("LoadConfig succeeded, want error")
+			}
+			if tt.ok && (len(cfg.OIDC.DefaultScopes) != 1 || cfg.OIDC.DefaultScopes[0] != "read") {
+				t.Errorf("OIDC default scopes = %v, want [read]", cfg.OIDC.DefaultScopes)
+			}
+		})
+	}
+}
