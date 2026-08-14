@@ -2179,20 +2179,59 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	// Limit request body to the configured maximum
+	// Leave room for multipart framing; the copied file itself is capped below.
 	maxBytes := app.config().MaxUploadBytes
 	if maxBytes <= 0 {
 		maxBytes = 10 * 1024 * 1024
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-
-	file, header, err := r.FormFile("file")
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes+(1<<20))
+	reader, err := r.MultipartReader()
 	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		http.Error(w, "no file uploaded", http.StatusBadRequest)
+		return
+	}
+	var file *os.File
+	filenameInput := ""
+	for {
+		part, partErr := reader.NextPart()
+		if errors.Is(partErr, io.EOF) {
+			break
+		}
+		if partErr != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(partErr, &maxBytesErr) {
+				http.Error(w, "attachment exceeds maximum upload size", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "invalid upload", http.StatusBadRequest)
+			return
+		}
+		if part.FormName() != "file" || part.FileName() == "" || file != nil {
+			part.Close()
+			continue
+		}
+		file, err = os.CreateTemp("", "hmd-upload-*")
+		if err != nil {
+			http.Error(w, "error preparing upload", http.StatusInternalServerError)
+			return
+		}
+		filenameInput = part.FileName()
+		copied, copyErr := io.Copy(file, io.LimitReader(part, maxBytes+1))
+		part.Close()
+		if copyErr != nil {
+			file.Close()
+			os.Remove(file.Name())
+			http.Error(w, "error reading file", http.StatusInternalServerError)
+			return
+		}
+		if copied > maxBytes {
+			file.Close()
+			os.Remove(file.Name())
 			http.Error(w, "attachment exceeds maximum upload size", http.StatusRequestEntityTooLarge)
 			return
 		}
+	}
+	if file == nil {
 		http.Error(w, "no file uploaded", http.StatusBadRequest)
 		return
 	}
@@ -2200,10 +2239,13 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		if err := file.Close(); err != nil {
 			slog.Warn("closing uploaded file", "err", err)
 		}
+		if err := os.Remove(file.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.Warn("removing upload temporary file", "err", err)
+		}
 	}()
 
 	// Sanitise filename: base name only, slugify name part, keep extension
-	filename := filepath.Base(header.Filename)
+	filename := filepath.Base(filenameInput)
 	ext := filepath.Ext(filename)
 	name := filename[:len(filename)-len(ext)]
 	name = Slugify(name)
@@ -2234,6 +2276,10 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 	}
 
 	// Read file content
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		http.Error(w, "error reading file", http.StatusInternalServerError)
+		return
+	}
 	content, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, "error reading file", http.StatusInternalServerError)
@@ -2246,7 +2292,7 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		if app.Index.documents != nil {
 			tika = app.Index.documents.tika
 		}
-		text, extractErr := extractAttachmentText(r.Context(), tika, bytes.NewReader(content), filename)
+		text, extractErr := extractAttachmentText(r.Context(), tika, file, filename)
 		if extractErr == nil && text != "" {
 			files[extractedAttachmentPath(path)] = encodeExtractedAttachment(attachmentBlobHash(content), text)
 		}
