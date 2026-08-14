@@ -10,7 +10,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 )
 
 //go:embed all:web
@@ -201,7 +204,9 @@ func main() {
 	// Pages can be added or edited directly on disk (outside the UI, e.g. by
 	// git pull), so poll for changes rather than relying solely on handler
 	// updates.
-	go pollFS(store, index, hashes, app.SetNamespaces, app.SetWikiConfig)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go pollFS(ctx, store, index, hashes, app.SetNamespaces, app.SetWikiConfig)
 
 	// OIDC: run discovery at startup when configured; fail loudly if the
 	// issuer is unreachable rather than serving a broken SSO button.
@@ -213,6 +218,32 @@ func main() {
 		slog.Info("OIDC enabled", "issuer", cfg.OIDC.Issuer)
 	}
 
+	handler := accessLog(recoverPanic(compression(securityHeaders(auth.Middleware(app.requestSecurity(app.Routes()))))))
+	server := &http.Server{
+		Addr:              cfg.Bind,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	go func() {
+		<-ctx.Done()
+		slog.Info("shutting down")
+		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdown); err != nil {
+			slog.Error("graceful shutdown failed", "err", err)
+			_ = server.Close()
+		}
+		if err := index.Close(); err != nil {
+			slog.Warn("closing search index", "err", err)
+		}
+	}()
+
 	slog.Info("listening", "bind", cfg.Bind)
-	log.Fatal(http.ListenAndServe(cfg.Bind, compression(securityHeaders(auth.Middleware(app.requestSecurity(app.Routes()))))))
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }

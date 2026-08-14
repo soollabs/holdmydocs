@@ -252,7 +252,8 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 
 	paths, err := app.Store.List()
 	if err != nil {
-		http.Error(w, "listing pages: "+err.Error(), http.StatusInternalServerError)
+		slog.Error("listing export pages", "namespace", name, "err", err)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
 	var pages []Page
@@ -263,7 +264,8 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		}
 		content, _, err := app.Store.Read(path)
 		if err != nil {
-			http.Error(w, "reading "+path+": "+err.Error(), http.StatusInternalServerError)
+			slog.Error("reading export page", "namespace", name, "err", err)
+			http.Error(w, "export failed", http.StatusInternalServerError)
 			return
 		}
 		pages = append(pages, ParsePage(slug, content))
@@ -271,13 +273,15 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 
 	tmpDir, err := os.MkdirTemp("", "hmd-export-*")
 	if err != nil {
-		http.Error(w, "creating temp dir: "+err.Error(), http.StatusInternalServerError)
+		slog.Error("creating export directory", "namespace", name, "err", err)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
 	defer os.RemoveAll(tmpDir)
 
 	if err := ExportNamespace(pages, app.Render, app.Namespaces(), app.Store, name, tmpDir, ""); err != nil {
-		http.Error(w, "export failed: "+err.Error(), http.StatusInternalServerError)
+		slog.Error("exporting namespace", "namespace", name, "err", err)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
 

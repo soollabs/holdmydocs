@@ -1047,7 +1047,7 @@ func restrictedTokenPathAllowed(path string) bool {
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow /_/login, the OIDC flow and /_/static/ without authentication
-		if r.URL.Path == "/_/login" || strings.HasPrefix(r.URL.Path, "/_/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/_/static/") || strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") {
+		if r.URL.Path == "/_/live" || r.URL.Path == "/_/ready" || r.URL.Path == "/_/login" || strings.HasPrefix(r.URL.Path, "/_/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/_/static/") || strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") {
 			next.ServeHTTP(w, r)
 			return
 		}

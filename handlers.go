@@ -874,6 +874,8 @@ func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /_/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("GET /_/ready", app.handleReady)
 
 	// Root: redirect to the configured landing slug.
 	mux.HandleFunc("GET /{$}", app.handleRoot)
@@ -981,6 +983,14 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /{path...}", app.handlePagePost)
 
 	return mux
+}
+
+func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
+	if _, err := app.Store.List(); err != nil || !app.Index.Ready() {
+		http.Error(w, "not ready", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // securityHeaders sets response headers that apply to every request
@@ -2231,7 +2241,7 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		"indexed": indexed,
 	}
 	if indexErr != nil {
-		resp["index_error"] = indexErr.Error()
+		resp["index_error"] = "attachment indexing pending"
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("encoding attachment response", "err", err)

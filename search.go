@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"sort"
 	"strings"
@@ -100,8 +101,15 @@ func BuildIndex(pages []Page) (*Index, error) {
 //
 // polling, not fsnotify — this is a personal wiki, a 5s lag on
 // externally-written pages is fine. Switch to fsnotify if that stops being true.
-func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
-	for range time.Tick(5 * time.Second) {
+func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 		store.DropHistoryOnExternalCommit()
 
 		if reg, err := BuildNamespaceRegistryFromStore(store); err != nil {
@@ -173,6 +181,19 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 			ix.ReconcileAttachments(attachmentHashes)
 		}
 	}
+}
+
+func (ix *Index) Close() error {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	return ix.bleve.Close()
+}
+
+func (ix *Index) Ready() bool {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+	_, err := ix.bleve.DocCount()
+	return err == nil
 }
 
 func (ix *Index) Update(p Page) error {
