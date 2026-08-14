@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search"
@@ -115,6 +116,40 @@ func TestTikaClient(t *testing.T) {
 	if text != "extracted text" {
 		t.Fatalf("Extract returned %q, want %q", text, "extracted text")
 	}
+}
+
+func TestTikaClientBoundsHostileResponses(t *testing.T) {
+	t.Run("cancellation", func(t *testing.T) {
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-release
+		}))
+		defer server.Close()
+		defer close(release)
+		client, err := NewTikaClient(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+		defer cancel()
+		if _, err := client.Extract(ctx, strings.NewReader("document"), "slow.pdf"); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Extract error = %v, want context deadline", err)
+		}
+	})
+
+	t.Run("oversized output", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.WriteString(w, strings.Repeat("x", attachmentMaxExtractedBytes+1))
+		}))
+		defer server.Close()
+		client, err := NewTikaClient(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.Extract(context.Background(), strings.NewReader("document"), "large.pdf"); err == nil || !strings.Contains(err.Error(), "exceeded") {
+			t.Fatalf("Extract error = %v, want output limit", err)
+		}
+	})
 }
 
 func TestExtractAttachmentTextBypassesTikaForUTF8Text(t *testing.T) {
@@ -313,7 +348,7 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 	}
 }
 
-func TestOldManifestSchemaRebuilds(t *testing.T) {
+func TestInvalidManifestSchemaRebuilds(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "search.bleve")
 	if err := os.MkdirAll(path, 0755); err != nil {
 		t.Fatal(err)
@@ -328,5 +363,26 @@ func TestOldManifestSchemaRebuilds(t *testing.T) {
 	defer closeTestBody(t, ix.bleve)
 	if ix.manifest.SchemaVersion != documentIndexSchemaVersion {
 		t.Fatalf("schema version = %d, want %d", ix.manifest.SchemaVersion, documentIndexSchemaVersion)
+	}
+}
+
+func TestCorruptIndexRebuilds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "search.bleve")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "store"), []byte("not a Bleve index"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSearchManifest(manifestPath(path), newSearchManifest("")); err != nil {
+		t.Fatal(err)
+	}
+	ix, err := OpenIndexAt(path, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeTestBody(t, ix.bleve)
+	if !ix.Ready() {
+		t.Fatal("rebuilt index is not ready")
 	}
 }

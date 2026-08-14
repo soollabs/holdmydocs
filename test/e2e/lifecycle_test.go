@@ -56,6 +56,8 @@ func TestCompiledServerLifecycle(t *testing.T) {
 
 	ready := "http://" + address + "/_/ready"
 	deadline := time.Now().Add(15 * time.Second)
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		response, requestErr := http.Get(ready)
 		if requestErr == nil {
@@ -67,7 +69,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("server did not become ready at %s", ready)
 		}
-		time.Sleep(25 * time.Millisecond)
+		<-ticker.C
 	}
 
 	if err := command.Process.Signal(os.Interrupt); err != nil {

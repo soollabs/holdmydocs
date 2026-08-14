@@ -1,4 +1,3 @@
-/hmd
 .env
 
 # Test binary, built with `go test -c`
@@ -13,4 +12,3 @@ profile.cov
 # Go workspace file
 go.work
 go.work.sum
-

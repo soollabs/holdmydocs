@@ -97,6 +97,9 @@ func Zip(w io.Writer, dir string) (err error) {
 		if walkErr != nil || info.IsDir() {
 			return walkErr
 		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing symlink in export: %s", name)
+		}
 		rel, err := filepath.Rel(dir, name)
 		if err != nil {
 			return err

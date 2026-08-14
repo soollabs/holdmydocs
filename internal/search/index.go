@@ -27,10 +27,9 @@ type Index struct {
 	manifest          searchManifest
 	documents         *DocumentSearch
 	failedAttachments map[string]string
-	// forward maps a page slug to the raw [[titles]] it links to. There is
-	// no backward map: link targets are resolved on read via ResolveLink, so
-	// backlinks agree with what the renderer actually linked to and start
-	// counting as soon as the target page exists.
+	// forward maps a page slug to the raw [[titles]] it links to. Link targets
+	// are resolved on read so backlinks match the renderer and start counting
+	// as soon as the target page exists.
 	titles   map[string]string
 	forward  map[string][]string
 	tags     map[string]map[string]bool

@@ -56,11 +56,8 @@ func TestResolveLink(t *testing.T) {
 	}
 }
 
-// TestResolveLinkLiteralSlug covers a link written as a namespace-qualified
-// slug (e.g. [[health/overview]] instead of [[Overview]]): Slugify turns "/"
-// into "-", so the old fallback mangled "health/overview" into
-// "health-overview" and never found the page. ResolveLink must try the link
-// text as a literal slug before Slugify.
+// TestResolveLinkLiteralSlug covers a namespace-qualified link, which must be
+// tried literally before Slugify turns its slash into a hyphen.
 func TestResolveLinkLiteralSlug(t *testing.T) {
 	pages := []Page{
 		{Slug: "health/overview", Title: "Overview"},

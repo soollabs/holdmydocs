@@ -947,10 +947,6 @@ func TestHistoryListAndRevert(t *testing.T) {
 		t.Errorf("History page should contain 'History'")
 	}
 
-	// Extract the older commit hash from the response
-	// For this test, we'll just verify we can view an old version
-	// In a real test, we'd parse the HTML to get the hash
-	// For now, assume the second entry in history is the old one
 }
 
 func TestRevertToOldVersion(t *testing.T) {

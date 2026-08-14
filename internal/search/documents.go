@@ -205,8 +205,8 @@ func directTextAttachment(filename string) bool {
 	}
 }
 
-// TikaClient is deliberately just net/http. Parser isolation, OCR and resource
-// limits belong to the operator-owned Tika deployment, not to HMD.
+// TikaClient bounds HMD's requests and output. Parser isolation and parser-level
+// limits remain the responsibility of the operator-owned Tika deployment.
 type TikaClient struct {
 	baseURL string
 	client  *http.Client

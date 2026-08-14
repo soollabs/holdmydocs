@@ -155,10 +155,7 @@ func Run() {
 		}
 	}
 
-	server := &http.Server{
-		Addr: cfg.Bind, Handler: web.Handler(application), ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20,
-	}
+	server := newHTTPServer(cfg.Bind, web.Handler(application))
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -167,11 +164,21 @@ func Run() {
 			slog.Error("graceful shutdown failed", "err", err)
 			_ = server.Close()
 		}
+		if err := content.WaitForPushes(shutdown); err != nil {
+			slog.Error("waiting for Git pushes", "err", err)
+		}
 		if err := index.Close(); err != nil {
 			slog.Warn("closing search index", "err", err)
 		}
 	}()
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
+	}
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr: address, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20,
 	}
 }

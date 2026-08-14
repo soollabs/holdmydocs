@@ -73,11 +73,11 @@ func (app *App) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
+	app.clearOIDCFlowCookies(w, r)
 	if app.OIDC == nil {
 		http.NotFound(w, r)
 		return
 	}
-	defer app.clearOIDCFlowCookies(w, r)
 	stateCookie, err := r.Cookie("hmd_oidc_state")
 	if err != nil || stateCookie.Value == "" || r.URL.Query().Get("state") != stateCookie.Value {
 		slog.Warn("OIDC callback state mismatch")

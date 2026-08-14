@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -170,10 +171,53 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 func TestOIDCCallbackDisabled(t *testing.T) {
 	app := &App{}
 	r := httptest.NewRequest("GET", "/auth/oidc/callback", nil)
+	r.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
+	r.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
 	w := httptest.NewRecorder()
 	app.handleOIDCCallback(w, r)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("disabled OIDC callback: got %d, want 404", w.Code)
+	}
+	assertOIDCFlowCookiesCleared(t, w)
+}
+
+func TestOIDCCallbackFailuresAreGenericAndClearCookies(t *testing.T) {
+	cases := []struct {
+		name        string
+		claims      oidcClaims
+		authErr     error
+		withoutPKCE bool
+		wantStatus  int
+	}{
+		{name: "missing PKCE", withoutPKCE: true, wantStatus: http.StatusBadRequest},
+		{name: "exchange failure", authErr: errors.New("provider included a secret"), wantStatus: http.StatusBadGateway},
+		{name: "missing subject", claims: oidcClaims{PreferredUsername: "alice", Email: "alice@example.com", EmailVerified: true}, wantStatus: http.StatusUnauthorized},
+		{name: "unverified email", claims: oidcClaims{Subject: "subject", PreferredUsername: "alice", Email: "alice@example.com"}, wantStatus: http.StatusUnauthorized},
+		{name: "invalid username", claims: oidcClaims{Subject: "subject", PreferredUsername: "../alice", Email: "alice@example.com", EmailVerified: true}, wantStatus: http.StatusUnauthorized},
+		{name: "username collision", claims: oidcClaims{Subject: "subject", PreferredUsername: "admin", Email: "admin@example.com", EmailVerified: true}, wantStatus: http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			authn, err := OpenAuth(Config{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := &App{Auth: authn, OIDC: &OIDCAuth{AuthenticateFunc: func(context.Context, string, string) (oidcClaims, string, error) {
+				return tc.claims, "https://idp.example.com", tc.authErr
+			}}}
+			app.SetConfig(Config{OIDC: OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
+			request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
+			request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
+			if !tc.withoutPKCE {
+				request.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
+			}
+			response := httptest.NewRecorder()
+			app.handleOIDCCallback(response, request)
+			if response.Code != tc.wantStatus || response.Body.String() != "OIDC login failed\n" {
+				t.Fatalf("response = %d %q, want %d generic failure", response.Code, response.Body.String(), tc.wantStatus)
+			}
+			assertOIDCFlowCookiesCleared(t, response)
+		})
 	}
 }
 
@@ -211,6 +255,22 @@ func TestOIDCCallbackSuccess(t *testing.T) {
 	}
 	if !foundSession {
 		t.Fatal("callback did not set a session cookie")
+	}
+	assertOIDCFlowCookiesCleared(t, response)
+}
+
+func assertOIDCFlowCookiesCleared(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	cleared := map[string]bool{}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == "hmd_oidc_state" || cookie.Name == "hmd_oidc_pkce" {
+			cleared[cookie.Name] = cookie.MaxAge < 0 && cookie.Value == ""
+		}
+	}
+	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
+		if !cleared[name] {
+			t.Errorf("%s was not cleared", name)
+		}
 	}
 }
 

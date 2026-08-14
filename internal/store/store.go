@@ -94,6 +94,7 @@ type Store struct {
 	// goroutine piling onto pushMu.
 	pushMu    sync.Mutex
 	pushDirty atomic.Bool
+	pushWG    sync.WaitGroup
 
 	// fetchMu serializes fetches against each other. lastFetchNano throttles
 	// FetchAndFF so a burst of sync polls across open tabs collapses to one
@@ -701,7 +702,7 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 		}
 		if s.remote != "" {
 			s.syncState = "pending"
-			go s.push()
+			s.startPush()
 		}
 	}
 
@@ -765,7 +766,7 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 	// Async push if remote configured
 	if s.remote != "" {
 		s.syncState = "pending"
-		go s.push()
+		s.startPush()
 	}
 
 	return blobHash, nil
@@ -932,7 +933,7 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	s.noteCommit(commitHash, preHead)
 	if s.remote != "" {
 		s.syncState = "pending"
-		go s.push()
+		s.startPush()
 	}
 	return nil
 }
@@ -986,7 +987,7 @@ func (s *Store) removeLocked(path, message, authorName, authorEmail string) erro
 
 	if s.remote != "" {
 		s.syncState = "pending"
-		go s.push()
+		s.startPush()
 	}
 	return nil
 }
@@ -1019,6 +1020,28 @@ func (s *Store) push() {
 		if !s.pushDirty.Load() {
 			return
 		}
+	}
+}
+
+func (s *Store) startPush() {
+	s.pushWG.Go(func() {
+		s.push()
+	})
+}
+
+// WaitForPushes waits for asynchronous pushes already started by saves.
+// Call it only after the HTTP server has stopped accepting writes.
+func (s *Store) WaitForPushes(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		s.pushWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

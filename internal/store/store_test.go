@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	appconfig "hmd/internal/config"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -280,6 +282,51 @@ func TestRepositoryPathsRejectSymlinksAndTraversal(t *testing.T) {
 	if got, err := os.ReadFile(outside); err != nil || string(got) != "outside" {
 		t.Errorf("outside file = %q, %v", got, err)
 	}
+}
+
+func TestRepositoryReadCannotRaceIntoSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("descriptor-relative no-follow reads are Unix-specific")
+	}
+	repoDir := t.TempDir()
+	store, err := OpenStore(Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save("notes/page.md", []byte("inside"), "seed", "test", "test@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.md")
+	if err := os.WriteFile(outside, []byte("outside-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	page := filepath.Join(repoDir, "notes", "page.md")
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_ = os.Remove(page)
+			_ = os.Symlink(outside, page)
+			_ = os.Remove(page)
+			_ = os.WriteFile(page, []byte("inside"), 0o644)
+		}
+	}()
+	for range 2_000 {
+		content, _, err := store.Read("notes/page.md")
+		if err == nil && strings.Contains(string(content), "outside-secret") {
+			close(stop)
+			<-done
+			t.Fatalf("read escaped repository: %q", content)
+		}
+	}
+	close(stop)
+	<-done
 }
 
 func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
@@ -588,14 +635,8 @@ func TestPushToLocalBareRemote(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	// Poll until sync state is "ok" (max 2s)
-	start := time.Now()
-	for time.Since(start) < 2*time.Second {
-		state, _ := store.SyncState()
-		if state == "ok" {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
+	if err := waitForPushes(store, 2*time.Second); err != nil {
+		t.Fatal(err)
 	}
 
 	state, _ := store.SyncState()
@@ -665,22 +706,15 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 		t.Errorf("History should have entries after save")
 	}
 
-	// Poll until sync state reports "failed"
-	start := time.Now()
-	for time.Since(start) < 2*time.Second {
-		state, detail := store.SyncState()
-		if state == "failed" {
-			if detail == "" {
-				t.Errorf("Detail should be non-empty for failed push")
-			}
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
+	if err := waitForPushes(store, 2*time.Second); err != nil {
+		t.Fatal(err)
 	}
-
 	state, detail := store.SyncState()
 	if state != "failed" {
-		t.Errorf("SyncState should eventually report failed, got %q (detail: %s)", state, detail)
+		t.Errorf("SyncState = %q, want failed (detail: %s)", state, detail)
+	}
+	if detail == "" {
+		t.Error("sync failure detail is empty")
 	}
 }
 
@@ -731,17 +765,12 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 
 	// SyncState() blocks on s.mu, so this loop only returns once push()
 	// (which is holding the lock during its network call) releases it.
-	deadline := time.Now().Add(3 * time.Second)
-	var state string
-	for time.Now().Before(deadline) {
-		state, _ = store.SyncState()
-		if state == "failed" {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if err := waitForPushes(store, 3*time.Second); err != nil {
+		t.Fatal(err)
 	}
 	elapsed := time.Since(start)
 
+	state, _ := store.SyncState()
 	if state != "failed" {
 		t.Fatalf("SyncState = %q, want %q — push should have timed out", state, "failed")
 	}
@@ -902,7 +931,9 @@ func TestFetchAndFFBehind(t *testing.T) {
 	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	dirB := t.TempDir()
 	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
@@ -914,7 +945,9 @@ func TestFetchAndFFBehind(t *testing.T) {
 	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A 2: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := storeB.FetchAndFF()
 	if err != nil {
@@ -952,7 +985,9 @@ func TestFetchAndFFEqual(t *testing.T) {
 	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	dirB := t.TempDir()
 	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
@@ -988,7 +1023,9 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	dirB := t.TempDir()
 	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
@@ -1000,12 +1037,16 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	if _, err := storeA.Save("page2.md", []byte("from A"), "add page2", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A 2: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := storeB.Save("page3.md", []byte("from B"), "add page3", "bob", "bob@hmd.local"); err != nil {
 		t.Fatalf("save B: %v", err)
 	}
-	waitForSync(storeB, 2*time.Second)
+	if err := waitForPushes(storeB, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = storeB.FetchAndFF()
 	if err == nil {
@@ -1088,6 +1129,45 @@ func TestStalledPushDoesNotBlockReadOrSave(t *testing.T) {
 	}
 }
 
+func TestWaitForPushesHonoursContext(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startedOnce sync.Once
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		startedOnce.Do(func() { close(started) })
+		<-release
+	}))
+	defer unblock()
+	defer server.Close()
+
+	store, err := OpenStore(Config{RepoDir: t.TempDir(), AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateRemote(storepkg.Options{Git: storepkg.GitOptions{RemoteURL: server.URL + "/repo.git", User: "test"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save("notes/page.md", []byte("content"), "save", "test", "test@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("push did not start")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := store.WaitForPushes(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("WaitForPushes = %v, want context cancellation", err)
+	}
+	unblock()
+	if err := waitForPushes(store, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestFetchThrottle covers the fetch coalescing added to remove FetchAndFF
 // from the per-tab sync-poll storm: a second call within fetchThrottle of a
 // successful fetch must return immediately without a network round trip.
@@ -1108,7 +1188,9 @@ func TestFetchThrottle(t *testing.T) {
 	if _, err := storeA.Save("page.md", []byte("hello"), "add page", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	dirB := t.TempDir()
 	cfgB := Config{RepoDir: dirB, AppDir: t.TempDir(), Git: GitConfig{RemoteURL: bareDir, User: "B"}}
@@ -1120,7 +1202,9 @@ func TestFetchThrottle(t *testing.T) {
 	if _, err := storeA.Save("page2.md", []byte("world"), "add page2", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("save A 2: %v", err)
 	}
-	waitForSync(storeA, 2*time.Second)
+	if err := waitForPushes(storeA, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := storeB.FetchAndFF(); err != nil {
 		t.Fatalf("first FetchAndFF: %v", err)
@@ -1135,15 +1219,10 @@ func TestFetchThrottle(t *testing.T) {
 	}
 }
 
-func waitForSync(store *Store, timeout time.Duration) {
-	start := time.Now()
-	for time.Since(start) < timeout {
-		state, _ := store.SyncState()
-		if state == "ok" || state == "failed" {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+func waitForPushes(store *Store, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return store.WaitForPushes(ctx)
 }
 
 // History results are cached; the cache must stay correct across UI saves
