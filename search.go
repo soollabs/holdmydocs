@@ -104,7 +104,7 @@ func pollFS(store *Store, ix *Index, hashes map[string]string, setNamespaces fun
 	for range time.Tick(5 * time.Second) {
 		store.DropHistoryOnExternalCommit()
 
-		if reg, err := BuildNamespaceRegistry(store.dir); err != nil {
+		if reg, err := BuildNamespaceRegistryFromStore(store); err != nil {
 			slog.Warn("pollFS: namespace registry rebuild failed", "err", err)
 		} else {
 			setNamespaces(reg)

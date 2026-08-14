@@ -259,6 +259,30 @@ func TestViewHome(t *testing.T) {
 	}
 }
 
+func TestAttachmentSymlinkIsNotServed(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	path := filepath.Join(app.config().RepoDir, "attachments", testHome, "linked.txt")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, path); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(server.URL + "/_/attachments/" + testHome + "/linked.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("symlink attachment status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestCreateAffordance(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

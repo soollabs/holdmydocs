@@ -2279,19 +2279,12 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitise path - prevent directory traversal
-	cleanPath := filepath.Join("attachments", slug, file)
-	repoPath := filepath.Join(app.config().RepoDir, cleanPath)
-
-	// Verify the cleaned path is still under attachments/
-	absRepo := filepath.Join(app.config().RepoDir, "attachments")
-	absPath, _ := filepath.Abs(repoPath)
-	absRepoAbs, _ := filepath.Abs(absRepo)
-
-	if !strings.HasPrefix(absPath, absRepoAbs+string(filepath.Separator)) {
-		http.Error(w, "not found", http.StatusNotFound)
+	attachment, _, err := app.Store.OpenAttachment("attachments/" + slug + "/" + file)
+	if err != nil {
+		http.NotFound(w, r)
 		return
 	}
+	defer attachment.Close()
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	switch strings.ToLower(filepath.Ext(file)) {
@@ -2299,7 +2292,7 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Content-Disposition", "attachment")
 	}
-	http.ServeFile(w, r, repoPath)
+	http.ServeContent(w, r, file, time.Time{}, attachment)
 }
 
 func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
@@ -3527,7 +3520,7 @@ func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request)
 // this on its own timer anyway; the settings handlers call it so the redirect
 // they issue already reflects the save.
 func (app *App) refreshNamespaces() {
-	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
+	reg, err := BuildNamespaceRegistryFromStore(app.Store)
 	if err != nil {
 		slog.Warn("rebuilding namespace registry", "err", err)
 		return

@@ -154,7 +154,7 @@ func main() {
 	}
 	slog.Info("index built", "pages", len(pages))
 
-	namespaces, err := BuildNamespaceRegistry(cfg.RepoDir)
+	namespaces, err := BuildNamespaceRegistryFromStore(store)
 	if err != nil {
 		log.Fatalf("build namespace registry failed: %v", err)
 	}
@@ -167,7 +167,7 @@ func main() {
 		if *exportDir == "" {
 			log.Fatalf("-export-namespace requires -export-dir")
 		}
-		if err := ExportNamespace(pages, renderer, namespaces, cfg.RepoDir, *exportNS, *exportDir, *exportTitle); err != nil {
+		if err := ExportNamespace(pages, renderer, namespaces, store, *exportNS, *exportDir, *exportTitle); err != nil {
 			log.Fatalf("export failed: %v", err)
 		}
 		return

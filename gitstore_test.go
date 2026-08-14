@@ -204,6 +204,89 @@ func TestListRecurses(t *testing.T) {
 	}
 }
 
+func TestRepositoryPathsRejectSymlinksAndTraversal(t *testing.T) {
+	repoDir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.md")
+	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenStore(Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"notes/linked.md", "notes/.linked.md", "notes/.namespace.yaml"} {
+		full := filepath.Join(repoDir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, full); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := store.Read(path); err == nil {
+			t.Errorf("Read(%q) followed a symlink", path)
+		}
+	}
+	if paths, err := store.List(); err != nil || len(paths) != 0 {
+		t.Errorf("List() = %v, %v; want no symlink pages", paths, err)
+	}
+	if hidden, err := store.ListHidden(); err != nil || len(hidden) != 0 {
+		t.Errorf("ListHidden() = %v, %v; want no symlink pages", hidden, err)
+	}
+	if reg, err := BuildNamespaceRegistryFromStore(store); err != nil || reg["notes"].Configured {
+		t.Errorf("BuildNamespaceRegistryFromStore() = %#v, %v; want default notes config", reg["notes"], err)
+	}
+
+	for _, path := range []string{"../outside.md", "/tmp/outside.md", `notes\\page.md`, ".git/config", "notes/../page.md"} {
+		if _, err := store.Save(path, []byte("new"), "save", "test", "test@hmd.local"); err == nil {
+			t.Errorf("Save(%q) succeeded", path)
+		}
+	}
+	if _, err := store.Save("notes/linked.md", []byte("new"), "save", "test", "test@hmd.local"); err == nil {
+		t.Error("Save over symlink succeeded")
+	}
+	if got, err := os.ReadFile(outside); err != nil || string(got) != "outside" {
+		t.Errorf("outside file = %q, %v", got, err)
+	}
+}
+
+func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
+	repoDir := t.TempDir()
+	store, err := OpenStore(Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save("attachments/docs/page/real.txt", []byte("real"), "seed", "test", "test@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linked := filepath.Join(repoDir, "attachments", "docs", "page", "linked.txt")
+	if err := os.Symlink(outside, linked); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.OpenAttachment("attachments/docs/page/linked.txt"); err == nil {
+		t.Error("OpenAttachment followed a symlink")
+	}
+	paths, err := store.ListAttachments()
+	if err != nil || len(paths) != 1 || paths[0] != "attachments/docs/page/real.txt" {
+		t.Errorf("ListAttachments() = %v, %v", paths, err)
+	}
+	outDir := t.TempDir()
+	pages := []Page{{Slug: "docs/page", Title: "Page", Body: "body"}}
+	reg := NamespaceRegistry{"docs": {}}
+	if err := ExportNamespace(pages, NewRenderer(func(string, string) (string, bool) { return "", false }), reg, store, "docs", outDir, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(outDir, "attachments", "page", "real.txt")); err != nil || string(got) != "real" {
+		t.Errorf("exported real attachment = %q, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "attachments", "page", "linked.txt")); !os.IsNotExist(err) {
+		t.Errorf("exported symlink attachment: %v", err)
+	}
+}
+
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	// Pre-create a git repo with a commit (root content but no namespace).
 	tmpDir := t.TempDir()

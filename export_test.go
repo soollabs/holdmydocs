@@ -17,9 +17,14 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repoDir := t.TempDir()
+	store, err := OpenStore(Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	outDir := t.TempDir()
 	reg := NamespaceRegistry{"docs": {Index: "home", Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
-	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, t.TempDir(), "docs", outDir, ""); err != nil {
+	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, store, "docs", outDir, ""); err != nil {
 		t.Fatal(err)
 	}
 

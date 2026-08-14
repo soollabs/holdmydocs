@@ -470,8 +470,7 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	fullPath := filepath.Join(s.dir, path)
-	content, err = os.ReadFile(fullPath)
+	content, err = s.readRepositoryFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("reading %s: %w", path, err)
 	}
@@ -483,8 +482,7 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 // readHashLocked returns path's current blob hash, or "" if the file
 // doesn't exist. Callers must hold s.mu.
 func (s *Store) readHashLocked(path string) (string, error) {
-	fullPath := filepath.Join(s.dir, path)
-	content, err := os.ReadFile(fullPath)
+	content, err := s.readRepositoryFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -564,14 +562,10 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 	changed := make([]string, 0, len(paths))
 	for _, path := range paths {
 		content := files[path]
-		fullPath := filepath.Join(s.dir, path)
-		if existing, err := os.ReadFile(fullPath); err == nil && string(existing) == string(content) {
+		if existing, err := s.readRepositoryFile(path); err == nil && string(existing) == string(content) {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-			return nil, fmt.Errorf("creating directory: %w", err)
-		}
-		if err := os.WriteFile(fullPath, content, 0644); err != nil {
+		if err := s.writeRepositoryFile(path, content); err != nil {
 			return nil, fmt.Errorf("writing file: %w", err)
 		}
 		changed = append(changed, path)
@@ -612,24 +606,15 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 
 // saveLocked is Save's body. Callers must hold s.mu.
 func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
-	fullPath := filepath.Join(s.dir, path)
-
 	// Skip the write and commit entirely if the content is unchanged, so an
 	// untouched file (including its on-disk mode) never produces a no-op commit.
-	if existing, readErr := os.ReadFile(fullPath); readErr == nil && string(existing) == string(content) {
+	if existing, readErr := s.readRepositoryFile(path); readErr == nil && string(existing) == string(content) {
 		slog.Debug("save skipped, content unchanged", "path", path)
 		hash := plumbing.ComputeHash(plumbing.BlobObject, content)
 		return hash.String(), nil
 	}
 
-	// Write file
-	dir := filepath.Dir(fullPath)
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return "", fmt.Errorf("creating directory: %w", err)
-	}
-
-	err = os.WriteFile(fullPath, content, 0644)
+	err = s.writeRepositoryFile(path, content)
 	if err != nil {
 		return "", fmt.Errorf("writing file: %w", err)
 	}
@@ -728,7 +713,7 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 		return errors.New("This namespace has no configuration to delete.")
 	}
 
-	config, err := os.ReadFile(filepath.Join(s.dir, configPath))
+	config, err := s.readRepositoryFile(configPath)
 	if err != nil {
 		return errors.New("Unable to read namespace configuration; deletion was not performed.")
 	}
@@ -853,23 +838,17 @@ func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
 	if sidecar == "" {
 		return nil, fmt.Errorf("invalid attachment path %q", path)
 	}
-	info, err := os.Lstat(filepath.Join(s.dir, filepath.FromSlash(sidecar)))
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New("extracted attachment is not a regular file")
-	}
-	return os.Open(filepath.Join(s.dir, filepath.FromSlash(sidecar)))
+	return s.openRepositoryFile(sidecar, os.O_RDONLY, 0, false)
 }
 
 // removeLocked is Remove's body. Callers must hold s.mu.
 func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
-	fullPath := filepath.Join(s.dir, path)
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+	if _, err := s.readRepositoryFile(path); os.IsNotExist(err) {
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("inspecting file to remove: %w", err)
 	}
-	if err := os.Remove(fullPath); err != nil {
+	if err := s.removeRepositoryFile(path); err != nil {
 		return fmt.Errorf("removing file: %w", err)
 	}
 
@@ -987,6 +966,12 @@ func (s *Store) List() ([]string, error) {
 			return nil
 		}
 		name := d.Name()
+		if d.Type()&os.ModeSymlink != 0 {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if d.IsDir() {
 			if strings.HasPrefix(name, ".") || name == attachmentsDir {
 				return filepath.SkipDir
@@ -1023,8 +1008,12 @@ func (s *Store) ListAttachments() ([]string, error) {
 	defer s.mu.RUnlock()
 
 	root := filepath.Join(s.dir, attachmentsDir)
-	if _, err := os.Stat(root); os.IsNotExist(err) {
+	if info, err := os.Lstat(root); os.IsNotExist(err) {
 		return []string{}, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("inspecting attachments directory: %w", err)
+	} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("attachments directory is not a real directory")
 	}
 	var paths []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
@@ -1072,22 +1061,13 @@ func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
 	if _, _, ok := parseAttachmentPath(path); !ok {
 		return nil, "", fmt.Errorf("invalid attachment path %q", path)
 	}
-	clean := filepath.Clean(filepath.FromSlash(path))
-	root := filepath.Join(s.dir, attachmentsDir)
-	full := filepath.Join(s.dir, clean)
-	rel, err := filepath.Rel(root, full)
-	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return nil, "", errors.New("attachment path escapes attachments directory")
-	}
-	info, err := os.Lstat(full)
+	file, err := s.openRepositoryFile(path, os.O_RDONLY, 0, false)
 	if err != nil {
 		return nil, "", err
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, "", errors.New("attachment is not a regular file")
-	}
-	file, err := os.Open(full)
+	info, err := file.Stat()
 	if err != nil {
+		file.Close()
 		return nil, "", err
 	}
 	hash := sha1.New()
@@ -1117,6 +1097,12 @@ func (s *Store) ListHidden() ([]string, error) {
 			return err
 		}
 		if path == s.dir {
+			return nil
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		rel, err := filepath.Rel(s.dir, path)
@@ -1304,6 +1290,9 @@ func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if _, err := repositoryPathParts(path); err != nil {
+		return nil, err
+	}
 	hash := plumbing.NewHash(commitHash)
 	commit, err := s.repo.CommitObject(hash)
 	if err != nil {

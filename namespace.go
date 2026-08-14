@@ -181,8 +181,12 @@ func parseNamespaceConfig(data []byte) (NamespaceConfig, error) {
 // It never errors — a broken namespace config must never 500 a page or
 // block the wiki.
 func loadNamespaceConfig(dir, name string) NamespaceConfig {
+	return loadNamespaceConfigWith(dir, name, os.ReadFile)
+}
+
+func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, error)) NamespaceConfig {
 	path := filepath.Join(dir, namespaceConfigFile)
-	data, err := os.ReadFile(path)
+	data, err := readFile(path)
 	if err != nil {
 		return defaultNamespaceConfig()
 	}
@@ -537,6 +541,22 @@ func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name s
 // non-dot-prefixed, non-reserved top-level subdirectory. Namespaces are
 // exactly one level deep — nothing here walks further.
 func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
+	return buildNamespaceRegistry(repoDir, os.ReadFile)
+}
+
+// BuildNamespaceRegistryFromStore reads namespace configuration through the
+// Store boundary so a synchronised repository cannot smuggle in a symlink.
+func BuildNamespaceRegistryFromStore(store *Store) (NamespaceRegistry, error) {
+	return buildNamespaceRegistry(store.dir, func(path string) ([]byte, error) {
+		rel, err := filepath.Rel(store.dir, path)
+		if err != nil {
+			return nil, err
+		}
+		return store.readRepositoryFile(filepath.ToSlash(rel))
+	})
+}
+
+func buildNamespaceRegistry(repoDir string, readFile func(string) ([]byte, error)) (NamespaceRegistry, error) {
 	reg := NamespaceRegistry{}
 
 	entries, err := os.ReadDir(repoDir)
@@ -547,7 +567,7 @@ func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
 		if !e.IsDir() || !validNamespaceName(e.Name()) {
 			continue
 		}
-		reg[e.Name()] = loadNamespaceConfig(filepath.Join(repoDir, e.Name()), e.Name())
+		reg[e.Name()] = loadNamespaceConfigWith(filepath.Join(repoDir, e.Name()), e.Name(), readFile)
 	}
 	return reg, nil
 }

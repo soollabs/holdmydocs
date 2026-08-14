@@ -62,7 +62,7 @@ func staticAssetPrefix(rest string) string {
 // the namespaces settings page (handleExportNamespace), run by whoever owns
 // the repo, so it doesn't re-check the namespace's public flag — that's a
 // website-serving concern, not an export one.
-func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, repoDir, ns, outDir, title string) error {
+func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, store *Store, ns, outDir, title string) error {
 	var nsPages []Page
 	for _, p := range pages {
 		if pns, _ := namespaceFor(p.Slug); pns == ns {
@@ -166,7 +166,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, re
 		}
 	}
 
-	if err := copyExportAttachments(repoDir, outDir, ns); err != nil {
+	if err := copyExportAttachments(store, outDir, ns); err != nil {
 		return err
 	}
 
@@ -215,33 +215,29 @@ func copyExportAssets(outDir string) error {
 // into outDir/attachments/, unconditionally — a page-by-page reference scan
 // would need to track renames and inline-HTML uploads, so this just mirrors
 // the whole namespace's attachment tree, same as how the app stores it.
-func copyExportAttachments(repoDir, outDir, ns string) error {
-	src := filepath.Join(repoDir, "attachments", ns)
-	info, err := os.Stat(src)
+func copyExportAttachments(store *Store, outDir, ns string) error {
+	paths, err := store.ListAttachments()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("stat %s: %w", src, err)
+		return err
 	}
-	if !info.IsDir() {
-		return nil
+	prefix := attachmentsDir + "/" + ns + "/"
+	for _, attachmentPath := range paths {
+		if !strings.HasPrefix(attachmentPath, prefix) {
+			continue
+		}
+		file, _, err := store.OpenAttachment(attachmentPath)
+		if err != nil {
+			return fmt.Errorf("opening attachment %q: %w", attachmentPath, err)
+		}
+		rel := strings.TrimPrefix(attachmentPath, prefix)
+		target := filepath.Join(outDir, "attachments", filepath.FromSlash(rel))
+		if err := copyOpenFile(file, target); err != nil {
+			file.Close()
+			return fmt.Errorf("copying attachment %q: %w", attachmentPath, err)
+		}
+		file.Close()
 	}
-	dest := filepath.Join(outDir, "attachments")
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		return copyFile(path, target)
-	})
+	return nil
 }
 
 // handleExportNamespace is the web-UI equivalent of the -export-namespace
@@ -280,7 +276,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	if err := ExportNamespace(pages, app.Render, app.Namespaces(), app.config().RepoDir, name, tmpDir, ""); err != nil {
+	if err := ExportNamespace(pages, app.Render, app.Namespaces(), app.Store, name, tmpDir, ""); err != nil {
 		http.Error(w, "export failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -317,12 +313,7 @@ func zipDir(w io.Writer, dir string) error {
 	})
 }
 
-func copyFile(src, dest string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
+func copyOpenFile(in *os.File, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
