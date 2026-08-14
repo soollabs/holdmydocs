@@ -16,7 +16,7 @@
 	<div class="settings-banner">
 		<code>.help.md</code> differs from hmd's built-in help text for this version.
 		It may have been edited, or written by an older version of hmd.
-		<form method="POST" action="/_/settings/help/reset" style="display:contents">
+		<form method="POST" action="/_/settings/help/reset" style="display:contents">{{template "csrf" .}}
 			<button type="submit" class="ghost-btn">Reset to built-in</button>
 		</form>
 	</div>
@@ -34,7 +34,7 @@
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
 	</div>
 
-	<form method="POST" action="/_/admin" class="settings-form">
+	<form method="POST" action="/_/admin" class="settings-form">{{template "csrf" .}}
 
 		<fieldset class="settings-section settings-panel" data-panel="server">
 			<legend>server</legend>
@@ -157,7 +157,7 @@
 		{{range .Settings.Users}}
 		{{$u := .}}
 		{{if ne $u.Name $.Settings.Fields.AdminUser.Value}}
-		<form method="POST" action="/_/settings/users/scopes" class="settings-row user-row">
+		<form method="POST" action="/_/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}
 			<input type="hidden" name="name" value="{{$u.Name}}">
 			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
 			<span class="scope-checks">
@@ -170,7 +170,7 @@
 		{{end}}
 		{{end}}
 
-		<form method="POST" action="/_/settings/users" class="settings-form">
+		<form method="POST" action="/_/settings/users" class="settings-form">{{template "csrf" .}}
 			<div class="settings-row">
 				<label for="new_user_name">new user</label>
 				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
@@ -212,7 +212,7 @@
 			exporting and keep the secret in the environment.
 		</div>
 		{{end}}
-		<form method="POST" action="/_/settings/export" id="export-config-form">
+		<form method="POST" action="/_/settings/export" id="export-config-form">{{template "csrf" .}}
 			<div class="settings-actions">
 				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
 			</div>
@@ -226,7 +226,7 @@
 	<h2 class="settings-zone-title"><span class="h"></span>wiki configuration</h2>
 	<p class="settings-zone-desc">Travels with the content repository. Saved in <code>{{.Settings.WikiConfigPath}}</code>, committed to git and available to every hmd instance using this repo; it is not part of <code>{{.Settings.ConfigPath}}</code>.</p>
 
-	<form method="POST" action="/_/settings/wiki" class="settings-form">
+	<form method="POST" action="/_/settings/wiki" class="settings-form">{{template "csrf" .}}
 		<fieldset class="settings-section">
 			<legend>{{.Settings.WikiConfigPath}}</legend>
 			<div class="settings-row">
@@ -248,7 +248,7 @@
 		<legend>wiki setup</legend>
 		<div class="settings-row">
 			<label>re-seed setup</label>
-			<form method="POST" action="/_/settings/setup" style="display:contents">
+			<form method="POST" action="/_/settings/setup" style="display:contents">{{template "csrf" .}}
 				<button type="submit" class="ghost-btn">Re-run setup</button>
 			</form>
 		</div>
@@ -256,7 +256,7 @@
 </section>
 {{end}}
 </div>
-<script>
+<script nonce="{{.CSPNonce}}">
 (function () {
 	// Settings tabs: one independent tab strip per zone. Panels default to
 	// visible (so the page still works with JS disabled); this only hides

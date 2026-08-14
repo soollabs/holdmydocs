@@ -20,6 +20,11 @@
 # --- Server ---
 bind: ":8080"
 repo_dir: /data/repo
+# Canonical public origin. Required when MCP is enabled; also enables strict
+# browser Origin checks and Secure cookies behind a TLS-terminating proxy.
+# base_url: https://wiki.example.com
+# Only peers in these CIDRs may supply X-Forwarded-Proto.
+# trusted_proxies: ["172.16.0.0/12"]
 
 # --- Git remote ---
 git:

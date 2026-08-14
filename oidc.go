@@ -203,22 +203,22 @@ func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
 
 // oidcFlowCookie sets a short-lived HttpOnly cookie carrying flow state
 // (state nonce, PKCE verifier) between the login redirect and the callback.
-func oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
+func (app *App) oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
 		MaxAge:   300,
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   app.isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/_/auth/oidc/",
 	})
 }
 
-func clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
+func (app *App) clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
 	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
 		// MaxAge below zero asks the browser to delete the cookie immediately.
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: isSecureRequest(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: app.isSecureRequest(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
 	}
 }
 
@@ -236,8 +236,8 @@ func (app *App) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	state := hex.EncodeToString(b)
 	pkce := oauth2.GenerateVerifier()
 
-	oidcFlowCookie(w, r, "hmd_oidc_state", state)
-	oidcFlowCookie(w, r, "hmd_oidc_pkce", pkce)
+	app.oidcFlowCookie(w, r, "hmd_oidc_state", state)
+	app.oidcFlowCookie(w, r, "hmd_oidc_pkce", pkce)
 
 	http.Redirect(w, r, app.OIDC.oauth.AuthCodeURL(state, oauth2.S256ChallengeOption(pkce)), http.StatusSeeOther)
 }
@@ -247,7 +247,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	defer clearOIDCFlowCookies(w, r)
+	defer app.clearOIDCFlowCookies(w, r)
 
 	stateCookie, err := r.Cookie("hmd_oidc_state")
 	if err != nil || stateCookie.Value == "" || r.URL.Query().Get("state") != stateCookie.Value {
@@ -312,7 +312,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		Name:     "hmd_session",
 		Value:    sessionToken,
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   app.isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 		MaxAge:   30 * 24 * 60 * 60, // SSO users get the "remember me" lifetime

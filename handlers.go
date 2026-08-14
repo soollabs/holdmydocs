@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +15,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -158,6 +162,8 @@ type TemplateData struct {
 	SyncMode                string
 	BlobHash                string // current page blob hash, for client-side change detection
 	ThemeStyle              template.CSS
+	CSRFToken               string
+	CSPNonce                string
 	Skin                    string // structural skin name; empty = default, only ever a known skinNames entry
 	Settings                *SettingsData
 	SetupHomePreview        template.HTML
@@ -470,6 +476,14 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	if data.Authed && data.Username == "" {
 		data.Username = app.currentUser(r)
+	}
+	if cookie, err := r.Cookie("hmd_session"); err == nil {
+		data.CSRFToken = app.Auth.CSRFToken(cookie.Value)
+	}
+	// Anonymous error pages deliberately remain byte-identical so private and
+	// missing pages cannot become an existence oracle.
+	if data.Authed || data.NamespacePublic {
+		data.CSPNonce = cspNonce(r.Context())
 	}
 	if data.Authed && data.AllTags == nil {
 		ns, _ := namespaceFor(data.Slug)
@@ -982,16 +996,29 @@ func (app *App) Routes() http.Handler {
 // regardless of route or auth state: clickjacking and MIME-sniffing
 // protection always, HSTS whenever the request arrived over HTTPS (directly
 // or via a terminating proxy).
+type cspNonceKey struct{}
+
+func cspNonce(ctx context.Context) string {
+	nonce, _ := ctx.Value(cspNonceKey{}).(string)
+	return nonce
+}
+
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, 16)
+		if _, err := rand.Read(b); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		nonce := base64.RawStdEncoding.EncodeToString(b)
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		if isSecureRequest(r) {
-			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		}
-		next.ServeHTTP(w, r)
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()")
+		h.Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data:; script-src 'self' 'nonce-"+nonce+"'; style-src 'self' 'nonce-"+nonce+"' 'unsafe-inline'; worker-src 'self' blob:")
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), cspNonceKey{}, nonce)))
 	})
 }
 
@@ -1062,12 +1089,87 @@ func compression(next http.Handler) http.Handler {
 	})
 }
 
-// isSecureRequest reports whether the request arrived over TLS, either
-// directly or (trusting the proxy) via X-Forwarded-Proto.
-// trusts X-Forwarded-Proto unconditionally, no allowed-proxy list — fine here since a
-// spoofed header only affects whether the cookie is marked Secure, add an allowlist if that changes.
-func isSecureRequest(r *http.Request) bool {
-	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+// isSecureRequest reports whether the request arrived over TLS, directly or
+// via X-Forwarded-Proto from a configured trusted proxy.
+func (app *App) isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if !app.trustedProxy(r.RemoteAddr) {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]), "https")
+}
+
+func (app *App) trustedProxy(remote string) bool {
+	if app.cfg.Load() == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range app.config().TrustedProxies {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func (app *App) externalBaseURL() string { return app.config().BaseURL }
+
+func (app *App) requestSecurity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if app.isSecureRequest(r) {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions || strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if _, bearer := tokenPrincipalFromContext(r.Context()); bearer {
+			next.ServeHTTP(w, r)
+			return
+		}
+		cookie, err := r.Cookie("hmd_session")
+		if err != nil || cookie.Value == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		origin := r.Header.Get("Origin")
+		base := app.externalBaseURL()
+		if base == "" {
+			scheme := "http"
+			if app.isSecureRequest(r) {
+				scheme = "https"
+			}
+			base = scheme + "://" + r.Host
+		}
+		if origin == "" || origin != base {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		token := r.Header.Get("X-CSRF-Token")
+		if token == "" {
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			token = r.Form.Get("csrf_token")
+		}
+		expected := app.Auth.CSRFToken(cookie.Value)
+		if expected == "" || subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // loginData builds the login page TemplateData, including OIDC display state.
@@ -1084,10 +1186,12 @@ func (app *App) loginData(errMsg string) TemplateData {
 }
 
 func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	app.render(w, r, http.StatusOK, "login", app.loginData(""))
 }
 
 func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	username := r.FormValue("username")
 
 	token, ok := app.Auth.LoginLimited(r.RemoteAddr, username, r.FormValue("password"))
@@ -1103,7 +1207,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		Name:     "hmd_session",
 		Value:    token,
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   app.isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
@@ -1126,7 +1230,7 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   app.isSecureRequest(r),
 		Path:     "/",
 	})
 

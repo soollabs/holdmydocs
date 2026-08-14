@@ -97,6 +97,8 @@ type Config struct {
 	DefaultBranch  string
 	Skin           string
 	Debug          bool
+	BaseURL        string
+	TrustedProxies []string
 
 	Git            GitConfig
 	MCP            MCPConfig
@@ -107,14 +109,16 @@ type Config struct {
 
 // fileConfig mirrors Config with the YAML keys accepted in the config file.
 type fileConfig struct {
-	Bind           string `yaml:"bind"`
-	RepoDir        string `yaml:"repo_dir"`
-	MaxUploadBytes *int64 `yaml:"max_upload_bytes"`
-	SyncPollMs     *int   `yaml:"sync_poll_ms"`
-	SyncMode       string `yaml:"sync_mode"`
-	DefaultBranch  string `yaml:"default_branch"`
-	Skin           string `yaml:"skin"`
-	Debug          bool   `yaml:"debug"`
+	Bind           string   `yaml:"bind"`
+	RepoDir        string   `yaml:"repo_dir"`
+	MaxUploadBytes *int64   `yaml:"max_upload_bytes"`
+	SyncPollMs     *int     `yaml:"sync_poll_ms"`
+	SyncMode       string   `yaml:"sync_mode"`
+	DefaultBranch  string   `yaml:"default_branch"`
+	Skin           string   `yaml:"skin"`
+	Debug          bool     `yaml:"debug"`
+	BaseURL        string   `yaml:"base_url"`
+	TrustedProxies []string `yaml:"trusted_proxies"`
 
 	Git            GitConfig            `yaml:"git"`
 	MCP            MCPConfig            `yaml:"mcp"`
@@ -273,6 +277,8 @@ func LoadConfig() (Config, error) {
 		DefaultBranch:  or(file.DefaultBranch, "main"),
 		Skin:           or(file.Skin, defaultSkin),
 		Debug:          file.Debug,
+		BaseURL:        strings.TrimRight(file.BaseURL, "/"),
+		TrustedProxies: append([]string(nil), file.TrustedProxies...),
 
 		Git: GitConfig{
 			RemoteURL: file.Git.RemoteURL,
@@ -318,6 +324,19 @@ func LoadConfig() (Config, error) {
 
 	if _, ok := skins[cfg.Skin]; !ok {
 		return Config{}, fmt.Errorf("invalid skin %q: must be one of %v", cfg.Skin, skinNames)
+	}
+	if cfg.BaseURL != "" {
+		if err := validateExternalURL("base_url", cfg.BaseURL); err != nil {
+			return Config{}, err
+		}
+	}
+	for _, cidr := range cfg.TrustedProxies {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return Config{}, fmt.Errorf("invalid trusted_proxies entry %q", cidr)
+		}
+	}
+	if cfg.MCP.Enabled && cfg.BaseURL == "" {
+		return Config{}, fmt.Errorf("base_url must be set when mcp.enabled is true")
 	}
 
 	if cfg.OIDC.Issuer != "" {
@@ -377,6 +396,8 @@ func (c Config) toFileConfig() fileConfig {
 		DefaultBranch:  c.DefaultBranch,
 		Skin:           c.Skin,
 		Debug:          c.Debug,
+		BaseURL:        c.BaseURL,
+		TrustedProxies: append([]string(nil), c.TrustedProxies...),
 		Git:            git,
 		MCP:            c.MCP,
 		OIDC: oidcFileConfig{
@@ -408,6 +429,14 @@ func validateOIDCURL(field, raw string, allowInsecureLoopback bool) error {
 		return nil
 	}
 	return fmt.Errorf("%s must use https (http is allowed only for loopback with oidc.allow_insecure_loopback)", field)
+}
+
+func validateExternalURL(field, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return fmt.Errorf("%s must be an http or https origin without a path, query, fragment or user-info", field)
+	}
+	return nil
 }
 
 func isLoopbackHost(host string) bool {

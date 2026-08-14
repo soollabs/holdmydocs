@@ -82,6 +82,46 @@ func TestCompression(t *testing.T) {
 	}
 }
 
+func TestRequestSecurity(t *testing.T) {
+	app := &App{Auth: &Auth{sessions: make(map[string]sessionRecord)}}
+	app.SetConfig(Config{BaseURL: "https://wiki.example.com", TrustedProxies: []string{"10.0.0.0/8"}})
+	app.Auth.sessions["session"] = sessionRecord{User: "admin", Expires: time.Now().Add(time.Hour), CSRF: "token"}
+	called := 0
+	handler := app.requestSecurity(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called++ }))
+
+	request := func(origin, token string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+token))
+		r.Host = "wiki.example.com"
+		r.Header.Set("Origin", origin)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.AddCookie(&http.Cookie{Name: "hmd_session", Value: "session"})
+		return r
+	}
+	for _, tc := range []struct{ origin, token string }{{"https://evil.example", "token"}, {"https://wiki.example.com", "wrong"}, {"", "token"}} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, request(tc.origin, tc.token))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("origin=%q token=%q status=%d, want 403", tc.origin, tc.token, rec.Code)
+		}
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, request("https://wiki.example.com", "token"))
+	if rec.Code != http.StatusOK || called != 1 {
+		t.Fatalf("valid CSRF status/calls = %d/%d, want 200/1", rec.Code, called)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://wiki.example.com/", nil)
+	req.RemoteAddr = "192.0.2.1:1234"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	if app.isSecureRequest(req) {
+		t.Fatal("untrusted forwarded proto marked request secure")
+	}
+	req.RemoteAddr = "10.1.2.3:1234"
+	if !app.isSecureRequest(req) {
+		t.Fatal("trusted forwarded proto did not mark request secure")
+	}
+}
+
 func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()

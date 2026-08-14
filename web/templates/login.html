@@ -8,7 +8,7 @@
 		<div class="error">{{.Error}}</div>
 	{{end}}
 	{{if .OIDCLocalLogin}}
-	<form method="POST" action="/_/login" class="login-form">
+	<form method="POST" action="/_/login" class="login-form">{{template "csrf" .}}
 		<div class="edit-field">
 			<label for="username">login:</label>
 			<input type="text" id="username" name="username" required autofocus>

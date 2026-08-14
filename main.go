@@ -211,5 +211,5 @@ func main() {
 	}
 
 	slog.Info("listening", "bind", cfg.Bind)
-	log.Fatal(http.ListenAndServe(cfg.Bind, compression(securityHeaders(auth.Middleware(app.Routes())))))
+	log.Fatal(http.ListenAndServe(cfg.Bind, compression(securityHeaders(auth.Middleware(app.requestSecurity(app.Routes()))))))
 }

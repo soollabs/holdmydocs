@@ -635,7 +635,7 @@ func TestMCPHandlerPropagatesRequestCancellation(t *testing.T) {
 		close(cancelled)
 		return nil, nil, ctx.Err()
 	})
-	httpServer := httptest.NewServer(newMCPHTTPHandler(func(*http.Request) *mcp.Server { return server }))
+	httpServer := httptest.NewServer(newMCPHTTPHandler("https://wiki.example.com", func(*http.Request) *mcp.Server { return server }))
 	t.Cleanup(httpServer.Close)
 
 	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"block","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`

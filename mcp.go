@@ -272,7 +272,7 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 	})
 }
 
-func newMCPHTTPHandler(serverForRequest func(*http.Request) *mcp.Server) http.Handler {
+func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *mcp.Server) http.Handler {
 	legacy := mcp.NewStreamableHTTPHandler(serverForRequest, nil)
 	modern := mcp.NewStreamableHTTPHandler(serverForRequest, &mcp.StreamableHTTPOptions{
 		// stateless — no session state to time out or resume; revisit if a client needs server-initiated messages
@@ -280,11 +280,15 @@ func newMCPHTTPHandler(serverForRequest func(*http.Request) *mcp.Server) http.Ha
 		PropagateRequestCancellation: true,
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
+		// Config validation requires base_url in live MCP deployments. The
+		// fallback only keeps direct handler tests and embedded callers usable.
+		if baseURL == "" {
+			baseURL = "http://" + r.Host
+			if r.TLS != nil {
+				baseURL = "https://" + r.Host
+			}
 		}
-		r = r.WithContext(context.WithValue(r.Context(), mcpBaseURLKey{}, scheme+"://"+r.Host))
+		r = r.WithContext(context.WithValue(r.Context(), mcpBaseURLKey{}, baseURL))
 		if r.Header.Get("MCP-Protocol-Version") == mcpProtocolVersion {
 			mcpProtocolGate(modern).ServeHTTP(w, r)
 			return
@@ -815,5 +819,5 @@ func (app *App) mcpHandler() http.Handler {
 		return nil, out, nil
 	})
 
-	return newMCPHTTPHandler(func(*http.Request) *mcp.Server { return server })
+	return newMCPHTTPHandler(app.externalBaseURL(), func(*http.Request) *mcp.Server { return server })
 }

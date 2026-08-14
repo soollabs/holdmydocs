@@ -341,3 +341,29 @@ func TestOIDCConfigValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestProxyConfigValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		ok   bool
+	}{
+		{"valid", "base_url: https://wiki.example.com\ntrusted_proxies: [10.0.0.0/8]\nmcp:\n  enabled: true\n", true},
+		{"mcp needs base URL", "mcp:\n  enabled: true\n", false},
+		{"base URL path", "base_url: https://wiki.example.com/hmd\n", false},
+		{"bad proxy CIDR", "trusted_proxies: [not-a-cidr]\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := t.TempDir() + "/config.yaml"
+			if err := os.WriteFile(path, []byte(tt.yaml), 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HMD_CONFIG_FILE", path)
+			_, err := LoadConfig()
+			if (err == nil) != tt.ok {
+				t.Fatalf("LoadConfig error = %v, want success %v", err, tt.ok)
+			}
+		})
+	}
+}

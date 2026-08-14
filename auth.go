@@ -227,6 +227,7 @@ const sessionTTL = 30 * 24 * time.Hour
 type sessionRecord struct {
 	User    string    `json:"user"`
 	Expires time.Time `json:"expires"`
+	CSRF    string    `json:"csrf"`
 }
 
 func (s sessionRecord) expired() bool {
@@ -846,10 +847,14 @@ func (a *Auth) newSession(name string) (token string, ok bool) {
 		return "", false
 	}
 	token = hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", false
+	}
+	csrf := hex.EncodeToString(b)
 
 	a.mu.Lock()
 	a.revokeUserSessionsLocked(name)
-	a.sessions[token] = sessionRecord{User: name, Expires: time.Now().Add(sessionTTL)}
+	a.sessions[token] = sessionRecord{User: name, Expires: time.Now().Add(sessionTTL), CSRF: csrf}
 	err := a.saveSessions()
 	a.mu.Unlock()
 	if err != nil {
@@ -857,6 +862,16 @@ func (a *Auth) newSession(name string) (token string, ok bool) {
 	}
 
 	return token, true
+}
+
+// CSRFToken returns the synchroniser token bound to a live session.
+func (a *Auth) CSRFToken(session string) string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if rec, ok := a.sessions[session]; ok && !rec.expired() {
+		return rec.CSRF
+	}
+	return ""
 }
 
 // EnsureOIDCUser provisions name on first SSO login: a record with an empty
@@ -1083,6 +1098,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			}
 			ctx = context.WithValue(ctx, ctxTokenPrincipalKey{}, principal)
 		}
+		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

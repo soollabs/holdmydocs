@@ -16,7 +16,7 @@
 		<span class="message">{{.Message}}</span>
 		{{if not .Current}}
 		<a href="/{{$.Slug}}?do=rev&hash={{.Hash}}" class="view-link">view</a>
-		<form method="POST" action="/{{$.Slug}}?do=revert" style="display:contents">
+		<form method="POST" action="/{{$.Slug}}?do=revert" style="display:contents">{{template "csrf" $}}
 			<input type="hidden" name="hash" value="{{.Hash}}">
 			<button type="submit" class="revert-link">revert</button>
 		</form>

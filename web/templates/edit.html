@@ -8,7 +8,7 @@
 <div id="remote-changed-banner" class="remote-changed-banner" style="display:none">
 	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
 </div>
-<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">
+<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">{{template "csrf" .}}
 	<div class="edit-topbar">
 		<div class="edit-field">
 			<label for="new-slug">path:</label>
@@ -59,7 +59,7 @@
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
 
-{{if ne .BaseHash ""}}<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=delete" id="delete-form" onsubmit="return confirm('Delete this page? History stays in git, but it disappears from the wiki.')"></form>{{end}}
+{{if ne .BaseHash ""}}<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=delete" id="delete-form" data-confirm="Delete this page? History stays in git, but it disappears from the wiki.">{{template "csrf" .}}</form>{{end}}
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>
@@ -67,7 +67,7 @@
 </div>
 
 <noscript>
-	<style>#cm-host, #preview, .zen-status { display: none !important; }</style>
+	<style nonce="{{.CSPNonce}}">#cm-host, #preview, .zen-status { display: none !important; }</style>
 	<textarea name="body" rows="16" style="display:block">{{.Body}}</textarea>
 </noscript>
 

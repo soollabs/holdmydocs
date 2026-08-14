@@ -1,3 +1,4 @@
+{{define "csrf"}}{{if .CSRFToken}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}{{end}}
 {{define "layout"}}
 <!DOCTYPE html>
 <html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
@@ -12,14 +13,24 @@
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-	{{if .ThemeStyle}}<style>{{.ThemeStyle}}</style>{{end}}
-	<script>
+	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}">{{.ThemeStyle}}</style>{{end}}
+	<script nonce="{{.CSPNonce}}">
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
 		window.hmdNewEnabled = {{.NewPageEnabled}};
 		window.hmdNewNamespace = {{.NewNamespace}};
 		window.hmdNamespaceIndex = {{.IsNamespaceIndex}};
 		window.hmdNamespace = {{.Namespace}};
+		window.hmdCSRFToken = {{.CSRFToken}};
+		var hmdFetch = window.fetch;
+		window.fetch = function(input, init) {
+			init = init || {};
+			if ((init.method || 'GET').toUpperCase() !== 'GET' && window.hmdCSRFToken) {
+				init.headers = new Headers(init.headers || {});
+				init.headers.set('X-CSRF-Token', window.hmdCSRFToken);
+			}
+			return hmdFetch(input, init);
+		};
 		window.HMDSyncThemeColor = function() {
 			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 		};
@@ -53,7 +64,7 @@
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
 					<button type="button" id="theme-toggle">Light / dark</button>
-					<form method="POST" action="/_/logout"><button type="submit">Logout</button></form>
+					<form method="POST" action="/_/logout">{{template "csrf" .}}<button type="submit">Logout</button></form>
 				</div>
 			</details>
 		</div>
@@ -130,7 +141,7 @@
 			<h1 class="page-title"><span class="h"></span>Set up wiki</h1>
 			<p>Nothing is written until you submit &ldquo;Add selected&rdquo;.</p>
 
-			<form method="POST" action="/_/setup">
+			<form method="POST" action="/_/setup">{{template "csrf" .}}
 
 			{{if .NeedsWikiSetup}}
 			<div class="setup-item">
@@ -196,7 +207,7 @@
 		</div>
 	</div>
 	{{end}}
-	<script>
+	<script nonce="{{.CSPNonce}}">
 		var themeToggle = document.getElementById('theme-toggle');
 		if (themeToggle) {
 			themeToggle.addEventListener('click', function() {
@@ -212,10 +223,15 @@
 				if (window.HMDSetMermaidTheme) window.HMDSetMermaidTheme(next);
 			});
 		}
+		document.querySelectorAll('form[data-confirm]').forEach(function(form) {
+			form.addEventListener('submit', function(event) {
+				if (!confirm(form.dataset.confirm)) event.preventDefault();
+			});
+		});
 	</script>
 	{{if .MermaidNeeded}}
 	<script src="{{if .Static}}{{.AssetPath}}mermaid.min.js{{else}}/_/static/mermaid.min.js{{end}}"></script>
-	<script>
+	<script nonce="{{.CSPNonce}}">
 		window.HMDSetMermaidTheme = function(theme) {
 			if (window.mermaid) mermaid.initialize({startOnLoad:false, theme: theme === 'light' ? 'default' : 'dark'});
 		};
