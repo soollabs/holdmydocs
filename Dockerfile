@@ -11,7 +11,7 @@ COPY --from=lint /usr/bin/golangci-lint /usr/bin/golangci-lint
 RUN golangci-lint run ./... \
     && go test ./... \
     && go vet ./... \
-    && CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X main.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd . \
+    && CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X hmd/internal/app.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd ./cmd/hmd \
     && mkdir -m 1777 /scratch-tmp \
     && install -d -m 0700 -o 65532 -g 65532 /data/app /data/repo
 

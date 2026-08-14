@@ -28,7 +28,7 @@ The Compose example binds HMD to loopback, runs it as UID/GID 65532 with a read-
 ### Bare Binary
 
 ```sh
-go build -o hmd .
+go build -o hmd ./cmd/hmd
 HMD_BIND=:8080 \
 HMD_REPO_DIR=./data/repo \
 HMD_APP_DIR=./data/app \
