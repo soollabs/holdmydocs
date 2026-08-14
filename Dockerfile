@@ -7,11 +7,12 @@ COPY . .
 
 RUN go test ./... \
     && go vet ./... \
-    && go build -trimpath -ldflags="-s -w -X main.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd .
+    && CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X main.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd . \
+    && mkdir -m 1777 /scratch-tmp
 
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM scratch
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build --chmod=1777 /scratch-tmp /tmp
 COPY --from=build /hmd /hmd
 EXPOSE 8080
 ENTRYPOINT ["/hmd"]
