@@ -1197,12 +1197,12 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 
 	token, ok := app.Auth.LoginLimited(r.RemoteAddr, username, r.FormValue("password"))
 	if !ok {
-		slog.Warn("login failed", "username", username, "remote", r.RemoteAddr)
+		slog.Warn("login failed", "username", username)
 		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password"))
 		return
 	}
 
-	slog.Info("login", "username", username, "remote", r.RemoteAddr)
+	slog.Info("login", "username", username)
 
 	cookie := &http.Cookie{
 		Name:     "hmd_session",

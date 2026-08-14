@@ -251,7 +251,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 	stateCookie, err := r.Cookie("hmd_oidc_state")
 	if err != nil || stateCookie.Value == "" || r.URL.Query().Get("state") != stateCookie.Value {
-		slog.Warn("OIDC callback state mismatch", "remote", r.RemoteAddr)
+		slog.Warn("OIDC callback state mismatch")
 		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
@@ -285,7 +285,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if claims.Subject == "" || !claims.EmailVerified || !claims.admitted(app.config().OIDC) {
-		slog.Warn("OIDC login rejected", "remote", r.RemoteAddr)
+		slog.Warn("OIDC login rejected")
 		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
@@ -297,7 +297,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 	username, err = app.Auth.EnsureOIDCUser(oidcIdentity{Issuer: idToken.Issuer, Subject: claims.Subject}, username, oidcGitAuthor(claims), app.config().OIDC.DefaultScopes)
 	if err != nil {
-		slog.Warn("OIDC provisioning rejected", "remote", r.RemoteAddr, "error", err)
+		slog.Warn("OIDC provisioning rejected", "error", err)
 		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
@@ -307,7 +307,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("OIDC login", "username", username, "remote", r.RemoteAddr)
+	slog.Info("OIDC login", "username", username)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "hmd_session",
 		Value:    sessionToken,
