@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
@@ -113,6 +114,18 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 	}
 	if strings.Contains(body, "cached || fetch(e.request)") {
 		t.Error("cache-first static assets keep obsolete CSS across deployments")
+	}
+}
+
+func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	server.Close()
+	req := httptest.NewRequest(http.MethodGet, "/_/static/style.css?v=3", nil)
+	rec := httptest.NewRecorder()
+	app.Routes().ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=3600" {
+		t.Fatalf("Cache-Control = %q, want browser caching", got)
 	}
 }
 

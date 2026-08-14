@@ -47,10 +47,8 @@ type Store struct {
 	syncErr   string
 	// historyCache holds History() results keyed by path, protected by mu.
 	// Save/Remove update it incrementally (O(1)); FetchAndFF drops it
-	// wholesale since a pull can touch any path. Without this, every page
-	// view re-walks the entire repo history (go-git's path-filtered Log has
-	// no shortcut - it diffs every commit), which is fine at dozens of
-	// commits and unusable at thousands.
+	// wholesale since a pull can touch any path. A cold lookup fills every
+	// path in one repository walk so opening each new page does not repeat it.
 	historyCache map[string][]CommitInfo
 	// knownHead is the HEAD hash after the last commit or reset made by this
 	// process, protected by mu. When HEAD differs from it, a commit was made
@@ -1167,30 +1165,58 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 		return cached, nil
 	}
 
-	iter, err := s.repo.Log(&git.LogOptions{FileName: &path})
+	iter, err := s.repo.Log(&git.LogOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("getting log: %w", err)
 	}
 
-	var commits []CommitInfo
+	histories := make(map[string][]CommitInfo)
 	if err := iter.ForEach(func(c *object.Commit) error {
-		commits = append(commits, CommitInfo{
+		current, err := c.Tree()
+		if err != nil {
+			return err
+		}
+		previous := &object.Tree{}
+		if c.NumParents() > 0 {
+			parent, err := c.Parent(0)
+			if err != nil {
+				return err
+			}
+			previous, err = parent.Tree()
+			if err != nil {
+				return err
+			}
+		}
+		patch, err := previous.Patch(current)
+		if err != nil {
+			return err
+		}
+		entry := CommitInfo{
 			Hash:    c.Hash.String(),
 			Message: c.Message,
 			Author:  c.Author.Name,
 			When:    c.Author.When,
-		})
+		}
+		for _, filePatch := range patch.FilePatches() {
+			from, to := filePatch.Files()
+			paths := map[string]bool{}
+			if from != nil {
+				paths[from.Path()] = true
+			}
+			if to != nil {
+				paths[to.Path()] = true
+			}
+			for path := range paths {
+				histories[path] = append(histories[path], entry)
+			}
+		}
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("walking history: %w", err)
 	}
 
-	if s.historyCache == nil {
-		s.historyCache = make(map[string][]CommitInfo)
-	}
-	s.historyCache[path] = commits
-
-	return commits, nil
+	s.historyCache = histories
+	return histories[path], nil
 }
 
 // CommitDetail is CommitInfo plus the files the commit touched, for the MCP

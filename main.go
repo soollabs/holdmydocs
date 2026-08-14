@@ -112,6 +112,13 @@ func main() {
 		pages = append(pages, ParsePage(slug, content))
 		hashes[slug] = hash
 	}
+	if len(paths) > 0 {
+		go func() {
+			if _, err := store.History(paths[0]); err != nil {
+				slog.Warn("warming page history", "err", err)
+			}
+		}()
+	}
 
 	var documents *DocumentSearch
 	if cfg.TikaURL != "" {
@@ -204,5 +211,5 @@ func main() {
 	}
 
 	slog.Info("listening", "bind", cfg.Bind)
-	log.Fatal(http.ListenAndServe(cfg.Bind, securityHeaders(auth.Middleware(app.Routes()))))
+	log.Fatal(http.ListenAndServe(cfg.Bind, compression(securityHeaders(auth.Middleware(app.Routes())))))
 }

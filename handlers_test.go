@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -45,6 +46,39 @@ func closeTestBody(t *testing.T, closer io.Closer) {
 	t.Helper()
 	if err := closer.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
+	}
+}
+
+func TestCompression(t *testing.T) {
+	body := strings.Repeat("compress me ", 100)
+	handler := compression(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = io.WriteString(w, body)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", got)
+	}
+	reader, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	decoded, err := io.ReadAll(reader)
+	closeTestBody(t, reader)
+	if err != nil || string(decoded) != body {
+		t.Fatalf("decoded response = %q, %v", decoded, err)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept-Encoding", "gzip;q=0")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Content-Encoding"); got != "" {
+		t.Fatalf("disabled gzip Content-Encoding = %q", got)
 	}
 }
 

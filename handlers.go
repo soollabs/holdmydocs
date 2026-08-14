@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -882,13 +883,12 @@ func (app *App) Routes() http.Handler {
 	// namespace with a `new:` block.
 	mux.HandleFunc("POST /_/new", app.handleNewPage)
 
-	// Static files. embed.FS carries no real mtime/ETag, so browsers have
-	// nothing to conditionally revalidate against and can cache a stale
-	// copy indefinitely across binary rebuilds — force revalidation instead.
+	// Static files. Most asset URLs carry a version query; the short lifetime
+	// also bounds staleness for unversioned fonts and service-worker assets.
 	fsys, _ := fs.Sub(webFS, "web/static")
 	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(fsys))
 	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		staticHandler.ServeHTTP(w, r)
 	}))
 
@@ -992,6 +992,73 @@ func securityHeaders(next http.Handler) http.Handler {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer      *gzip.Writer
+	wroteHeader bool
+}
+
+func (w *gzipResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
+	contentType := w.Header().Get("Content-Type")
+	if status >= 200 && status != http.StatusNoContent && status != http.StatusNotModified &&
+		w.Header().Get("Content-Encoding") == "" &&
+		(strings.HasPrefix(contentType, "text/") || strings.Contains(contentType, "json") || strings.Contains(contentType, "javascript")) {
+		w.Header().Del("Content-Length")
+		w.Header().Set("Content-Encoding", "gzip")
+		w.writer = gzip.NewWriter(w.ResponseWriter)
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *gzipResponseWriter) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", http.DetectContentType(p))
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+	if w.writer != nil {
+		return w.writer.Write(p)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func acceptsGzip(header string) bool {
+	for _, value := range strings.Split(header, ",") {
+		parts := strings.Split(strings.TrimSpace(value), ";")
+		if parts[0] != "gzip" && parts[0] != "*" {
+			continue
+		}
+		quality := 1.0
+		for _, param := range parts[1:] {
+			if raw, ok := strings.CutPrefix(strings.TrimSpace(param), "q="); ok {
+				quality, _ = strconv.ParseFloat(raw, 64)
+			}
+		}
+		return quality > 0
+	}
+	return false
+}
+
+func compression(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Accept-Encoding")
+		if r.Method == http.MethodHead || r.Header.Get("Range") != "" || r.URL.Path == "/_/mcp" || !acceptsGzip(r.Header.Get("Accept-Encoding")) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		compressed := &gzipResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(compressed, r)
+		if compressed.writer != nil {
+			_ = compressed.writer.Close()
+		}
 	})
 }
 

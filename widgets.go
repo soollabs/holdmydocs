@@ -136,10 +136,13 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	}
 
 	ns, _ := namespaceFor(data.Slug)
+	var titles map[string]string
+	if needs("namespaces") || ns != "" {
+		titles = app.Index.Titles()
+	}
 	needsDates := needs("calendar") || needs("writing-stats") || needs("prev-entries")
 	var dates []string
 	if needsDates {
-		titles := app.Index.Titles()
 		slugs := make([]string, 0, len(titles))
 		for slug := range titles {
 			slugs = append(slugs, slug)
@@ -176,7 +179,7 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 		data.PinnedPages = app.Index.PinnedPages()
 	}
 	if needs("namespaces") {
-		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), app.Index.Titles()), ns)
+		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), titles), ns)
 	}
 	// Token/PAT filtering happens back in render(), after this call, the
 	// same way PinnedPages and NamespaceNav do — this only stages the raw
@@ -184,7 +187,7 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	// to HTML. The tree is fixed sidebar chrome; a page outside any namespace
 	// has no tree to show.
 	if ns != "" {
-		summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), ns)
+		summary := namespaceSummaryFor(app.Namespaces(), titles, ns)
 		if summary != nil {
 			data.SidebarTreeNS = ns
 			data.SidebarTreeEntries = summary.Pages

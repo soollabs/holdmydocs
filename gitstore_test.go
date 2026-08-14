@@ -1094,3 +1094,29 @@ func TestHistoryCacheExternalCommit(t *testing.T) {
 		t.Fatalf("history after external commit = %+v, want 3 entries, newest 'external' by bob", history)
 	}
 }
+
+func TestHistoryColdLookupCachesEveryPath(t *testing.T) {
+	store, err := OpenStore(Config{RepoDir: t.TempDir(), AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	for _, path := range []string{"one.md", "two.md"} {
+		if _, err := store.Save(path, []byte(path), "add "+path, "alice", "alice@hmd.local"); err != nil {
+			t.Fatalf("Save %s failed: %v", path, err)
+		}
+	}
+	content, hash, err := store.Read("two.md")
+	if err != nil {
+		t.Fatalf("Read two.md failed: %v", err)
+	}
+	if _, err := store.SaveChecked("two.md", "renamed.md", hash, content, "rename two", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("renaming two.md failed: %v", err)
+	}
+
+	if _, err := store.History("one.md"); err != nil {
+		t.Fatalf("History failed: %v", err)
+	}
+	if history, ok := store.historyCache["renamed.md"]; !ok || len(history) != 1 {
+		t.Fatalf("cold lookup did not cache renamed.md history: %+v", history)
+	}
+}
