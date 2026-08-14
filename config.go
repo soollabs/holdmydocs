@@ -622,6 +622,26 @@ func validateConfig(cfg Config) error {
 	return nil
 }
 
+// validateWritableDataDir rejects pre-existing data directories which the
+// runtime user cannot safely own. Container volumes are initialised from the
+// image; a root-owned volume must be recreated rather than silently repaired.
+func validateWritableDataDir(path string) error {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			return fmt.Errorf("creating: %w", err)
+		}
+		info, err = os.Lstat(path)
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || !ownedByCurrentUser(info) || info.Mode().Perm()&0077 != 0 {
+		return fmt.Errorf("must be an owned private directory (mode 0700); recreate root-owned container volumes")
+	}
+	return nil
+}
+
 func pathsOverlap(a, b string) bool {
 	rel, err := filepath.Rel(a, b)
 	return err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))))

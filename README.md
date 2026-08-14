@@ -23,7 +23,7 @@ HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='choose-a-strong-password' docker compos
 
 Visit <http://localhost:8080> and sign in with the bootstrap credentials you supplied. Remove the bootstrap environment variables after the first successful start.
 
-The Compose example includes an internal Apache Tika 3.x service under the `documents` profile. Uncomment `HMD_TIKA_URL` and run with `docker compose --profile documents up` to enable it; without that variable, supported attachments remain immutable Git files but are not extracted or embedded.
+The Compose example binds HMD to loopback, runs it as UID/GID 65532 with a read-only root filesystem, and limits it to 1 CPU, 512 MiB and 128 processes. Its named volumes are initialised with that ownership; recreate old root-owned volumes rather than changing their ownership in place. Uncomment `HMD_TIKA_URL` and run with `docker compose --profile documents up` to enable the internal-only, separately limited Apache Tika service. Without that variable, supported attachments remain immutable Git files but are not extracted or embedded.
 
 ### Bare Binary
 
@@ -36,7 +36,7 @@ HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='choose-a-strong-password' \
 ./hmd
 ```
 
-To enable document search, set `HMD_TIKA_URL=https://your-tika-server:9998`. On first start, HMD downloads the pinned `BAAI/bge-small-en-v1.5` ONNX model into `<HMD_APP_DIR>/models`; each file is size- and checksum-verified before use. This applies to both containers and bare binaries, so model data is never part of the image. `HMD_DOCUMENT_SEARCH_MODEL` selects another Hugging Face model; it must provide Hugot-compatible ONNX files and 384-dimensional output. The default model is pinned and verified; a selected alternative is trusted as operator configuration. Tika owns parser isolation and OCR resource limits; keep it private and apply the server-side limits recommended for untrusted documents.
+To enable document search, set `HMD_TIKA_URL=https://your-tika-server:9998`. On first start, HMD downloads the pinned `BAAI/bge-small-en-v1.5` ONNX model into `<HMD_APP_DIR>/models`; each file is size- and checksum-verified before use. This applies to both containers and bare binaries, so model data is never part of the image. `HMD_DOCUMENT_SEARCH_MODEL` selects another Hugging Face model; it must provide Hugot-compatible ONNX files and 384-dimensional output. The default model is pinned and verified; a selected alternative is trusted as operator configuration. Tika owns parser isolation and OCR resource limits; keep it private and use a dedicated sandbox with parser-specific limits when processing hostile documents.
 
 `HMD_REPO_DIR` holds the Git-backed content. Keep `HMD_APP_DIR` on local disk; it contains application state and must not be on NFS.
 

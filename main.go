@@ -69,7 +69,14 @@ func main() {
 	exportNS := flag.String("export-namespace", "", "export this namespace to static HTML and exit, instead of serving")
 	exportDir := flag.String("export-dir", "", "output directory for -export-namespace")
 	exportTitle := flag.String("export-title", "", "override the configured namespace title in the static export")
+	healthcheck := flag.Bool("healthcheck", false, "check local readiness and exit")
 	flag.Parse()
+	if *healthcheck {
+		if err := checkReadiness(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	loadThemeDefaults()
 
@@ -86,6 +93,11 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 	slog.Info("hmd starting", "bind", cfg.Bind, "debug", cfg.Debug, "sync_mode", cfg.SyncMode)
+	for _, path := range []string{cfg.AppDir, cfg.RepoDir} {
+		if err := validateWritableDataDir(path); err != nil {
+			log.Fatalf("unsafe data directory %s: %v", path, err)
+		}
+	}
 
 	// Open store
 	store, err := OpenStore(cfg)
@@ -246,4 +258,21 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func checkReadiness() error {
+	return checkReadinessAt("http://127.0.0.1:8080/_/ready")
+}
+
+func checkReadinessAt(url string) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("checking readiness: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("checking readiness: HTTP %d", resp.StatusCode)
+	}
+	return nil
 }

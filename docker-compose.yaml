@@ -2,8 +2,9 @@ services:
   hmd:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
+      GOMEMLIMIT: 384MiB
       HMD_GIT_REMOTE_URL: "https://git.example.com/you/wiki.git"
       HMD_GIT_USER: "you"
       HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
@@ -18,12 +19,43 @@ services:
       - app:/data/app
     secrets:
       - git_token
+    networks:
+      - default
+      - tika
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=64m,mode=1777,nosuid,nodev,noexec
+    healthcheck:
+      test: ["CMD", "/hmd", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # Optional document extraction service. It is internal-only by default.
   tika:
     profiles: [documents]
     image: apache/tika:3.2.3.0-full@sha256:21d8052de04e491ccf66e8680ade4da6f3d453a56d59f740b4167e54167219b7
+    user: "35002:35002"
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    tmpfs:
+      - /tmp:size=256m,mode=1777,nosuid,nodev,noexec
+    networks: [tika]
 
 secrets:
   git_token:
@@ -32,3 +64,7 @@ secrets:
 volumes:
   repo:
   app:
+
+networks:
+  tika:
+    internal: true
