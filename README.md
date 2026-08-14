@@ -46,7 +46,7 @@ Full installation, configuration, operations, writing, MCP, and development guid
 
 ## Development
 
-Requires Go 1.26.5.
+Requires Go 1.26.6.
 
 ```sh
 go test ./...

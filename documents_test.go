@@ -165,7 +165,7 @@ func TestOpenIndexRebuildsPageMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openIndexAt: %v", err)
 	}
-	defer ix.bleve.Close()
+	defer closeTestBody(t, ix.bleve)
 
 	if slug, ok := ix.ResolveLink("Home", "notes"); !ok || slug != page.Slug {
 		t.Fatalf("ResolveLink after open = %q, %v", slug, ok)
@@ -216,7 +216,7 @@ func TestReplaceAttachmentPersistsAndRemovesVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer idx.Close()
+	defer closeTestBody(t, idx)
 	ix := newIndex(idx)
 	ix.manifest = newSearchManifest("test")
 	ix.manifestPath = filepath.Join(t.TempDir(), "search.manifest.json")
@@ -295,7 +295,7 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reopened.bleve.Close()
+	defer closeTestBody(t, reopened.bleve)
 	if embedder.calls != 0 {
 		t.Fatalf("reopening re-embedded %d times", embedder.calls)
 	}
@@ -317,7 +317,7 @@ func TestOldManifestSchemaRebuilds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ix.bleve.Close()
+	defer closeTestBody(t, ix.bleve)
 	if ix.manifest.SchemaVersion != documentIndexSchemaVersion {
 		t.Fatalf("schema version = %d, want %d", ix.manifest.SchemaVersion, documentIndexSchemaVersion)
 	}

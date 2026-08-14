@@ -329,6 +329,9 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Fatalf("GET namespace directory: %v", err)
 	}
 	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading namespace directory: %v", err)
+	}
 	closeTestBody(t, resp.Body)
 	body := string(content)
 	if !strings.Contains(body, "blog") || !strings.Contains(body, "0 pages") {
@@ -343,6 +346,9 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Fatalf("GET namespace editor: %v", err)
 	}
 	content, err = io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading namespace editor: %v", err)
+	}
 	closeTestBody(t, resp.Body)
 	body = string(content)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/delete-all`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `ON THIS PAGE`) {

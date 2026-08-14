@@ -19,12 +19,12 @@ func (s *Store) openRepositoryParent(parts []string, create bool) (int, error) {
 		next, openErr := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if openErr != nil && create && openErr == unix.ENOENT {
 			if err := unix.Mkdirat(fd, part, 0o755); err != nil && err != unix.EEXIST {
-				unix.Close(fd)
+				_ = unix.Close(fd)
 				return -1, err
 			}
 			next, openErr = unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		}
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		if openErr != nil {
 			return -1, openErr
 		}
@@ -42,7 +42,7 @@ func (s *Store) openRepositoryFile(path string, flags int, perm os.FileMode, cre
 	if err != nil {
 		return nil, fmt.Errorf("opening repository path %q: %w", path, err)
 	}
-	defer unix.Close(parent)
+	defer func() { _ = unix.Close(parent) }()
 	fd, err := unix.Openat(parent, parts[len(parts)-1], flags|unix.O_NOFOLLOW|unix.O_CLOEXEC, uint32(perm))
 	if err != nil {
 		return nil, fmt.Errorf("opening repository path %q: %w", path, err)
@@ -50,7 +50,7 @@ func (s *Store) openRepositoryFile(path string, flags int, perm os.FileMode, cre
 	f := os.NewFile(uintptr(fd), filepath.Base(path))
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		f.Close()
+		_ = f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("stating repository path %q: %w", path, err)
 		}
@@ -68,7 +68,7 @@ func (s *Store) removeRepositoryFile(path string) error {
 	if err != nil {
 		return err
 	}
-	defer unix.Close(parent)
+	defer func() { _ = unix.Close(parent) }()
 	if err := unix.Unlinkat(parent, parts[len(parts)-1], 0); err != nil {
 		return err
 	}

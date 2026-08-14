@@ -191,9 +191,12 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", outPath, err)
 	}
-	defer f.Close()
 	if err := tmpl.ExecuteTemplate(f, "layout", data); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("writing %s: %w", outPath, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing %s: %w", outPath, err)
 	}
 	return nil
 }
@@ -240,20 +243,22 @@ func copyExportAttachments(store *Store, outDir, ns string, files *int, bytes *i
 		}
 		info, err := file.Stat()
 		if err != nil {
-			file.Close()
+			_ = file.Close()
 			return fmt.Errorf("stating attachment %q: %w", attachmentPath, err)
 		}
 		if err := exportBudget(files, bytes, info.Size()); err != nil {
-			file.Close()
+			_ = file.Close()
 			return err
 		}
 		rel := strings.TrimPrefix(attachmentPath, prefix)
 		target := filepath.Join(outDir, "attachments", filepath.FromSlash(rel))
 		if err := copyOpenFile(file, target); err != nil {
-			file.Close()
+			_ = file.Close()
 			return fmt.Errorf("copying attachment %q: %w", attachmentPath, err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("closing attachment %q: %w", attachmentPath, err)
+		}
 	}
 	return nil
 }
@@ -303,7 +308,11 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			slog.Warn("removing export directory", "dir", tmpDir, "err", err)
+		}
+	}()
 
 	if err := ExportNamespace(pages, app.Render, app.Namespaces(), app.Store, name, tmpDir, ""); err != nil {
 		slog.Error("exporting namespace", "namespace", name, "err", err)
@@ -318,12 +327,16 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func zipDir(w io.Writer, dir string) error {
+func zipDir(w io.Writer, dir string) (err error) {
 	zw := zip.NewWriter(w)
-	defer zw.Close()
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return err
+	defer func() {
+		if closeErr := zw.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+	return filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() {
+			return walkErr
 		}
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
@@ -337,9 +350,12 @@ func zipDir(w io.Writer, dir string) error {
 		if err != nil {
 			return err
 		}
-		defer src.Close()
-		_, err = io.Copy(dest, src)
-		return err
+		_, copyErr := io.Copy(dest, src)
+		closeErr := src.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
 	})
 }
 
@@ -351,7 +367,10 @@ func copyOpenFile(in *os.File, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
 }

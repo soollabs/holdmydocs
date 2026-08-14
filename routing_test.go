@@ -74,7 +74,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || m == nil {
 		t.Fatalf("?do=edit: status = %d, body = %s", resp.StatusCode, body)
 	}
-	basehash := m[1]
+	basehash := ""
 
 	// ?do=history
 	resp = get("/" + testNS + "/routing-target?do=history")

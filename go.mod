@@ -1,6 +1,6 @@
 module hmd
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0
@@ -13,13 +13,13 @@ require (
 	github.com/yuin/goldmark v1.8.5
 	golang.org/x/crypto v0.55.0
 	golang.org/x/oauth2 v0.36.0
+	golang.org/x/sys v0.47.0
 )
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
-	github.com/RoaringBitmap/roaring v1.2.3 // indirect
 	github.com/RoaringBitmap/roaring/v2 v2.14.5 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.2 // indirect
@@ -51,9 +51,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
-	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/gomlx/compute v0.1.2 // indirect
 	github.com/gomlx/exceptions v0.0.3 // indirect
@@ -85,7 +83,6 @@ require (
 	golang.org/x/image v0.44.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

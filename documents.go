@@ -204,7 +204,7 @@ func NewTikaClient(raw string) (*TikaClient, error) {
 	return &TikaClient{baseURL: raw, client: &http.Client{}, sem: make(chan struct{}, 1)}, nil
 }
 
-func (c *TikaClient) Validate(ctx context.Context) error {
+func (c *TikaClient) Validate(ctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/tika", nil)
@@ -215,18 +215,22 @@ func (c *TikaClient) Validate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("validating Tika server: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("closing Tika validation response: %w", closeErr)
+		}
+	}()
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if readErr != nil {
 		return fmt.Errorf("reading Tika validation response: %w", readErr)
 	}
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "This is Tika Server") {
-		return fmt.Errorf("Tika validation failed: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("tika validation failed: HTTP %d", resp.StatusCode)
 	}
 	return nil
 }
 
-func (c *TikaClient) Extract(ctx context.Context, body io.ReadSeeker, filename string) (string, error) {
+func (c *TikaClient) Extract(ctx context.Context, body io.ReadSeeker, filename string) (text string, err error) {
 	select {
 	case c.sem <- struct{}{}:
 		defer func() { <-c.sem }()
@@ -252,17 +256,21 @@ func (c *TikaClient) Extract(ctx context.Context, body io.ReadSeeker, filename s
 	if err != nil {
 		return "", fmt.Errorf("extracting attachment with Tika: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("closing Tika extraction response: %w", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return "", fmt.Errorf("Tika extraction failed: HTTP %d: %q", resp.StatusCode, string(body))
+		return "", fmt.Errorf("tika extraction failed: HTTP %d: %q", resp.StatusCode, string(body))
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, attachmentMaxExtractedBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("reading Tika extraction: %w", err)
 	}
 	if len(data) > attachmentMaxExtractedBytes {
-		return "", fmt.Errorf("Tika extraction exceeded %d bytes", attachmentMaxExtractedBytes)
+		return "", fmt.Errorf("tika extraction exceeded %d bytes", attachmentMaxExtractedBytes)
 	}
 	return normaliseExtractedText(string(data)), nil
 }
@@ -320,12 +328,16 @@ func ensureEmbeddingModel(ctx context.Context, modelDir, baseURL string, files [
 			return fmt.Errorf("downloading embedding model file %q: %w", file.Path, err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				return fmt.Errorf("closing embedding model response: %w", closeErr)
+			}
 			return fmt.Errorf("downloading embedding model file %q: HTTP %d", file.Path, resp.StatusCode)
 		}
 		tmp, err := os.CreateTemp(filepath.Dir(destination), ".hmd-model-*")
 		if err != nil {
-			resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				return fmt.Errorf("closing embedding model response: %w", closeErr)
+			}
 			return fmt.Errorf("creating embedding model file %q: %w", file.Path, err)
 		}
 		body := io.Reader(resp.Body)
@@ -726,7 +738,11 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 		if err != nil {
 			return err
 		}
-		defer body.Close()
+		defer func() {
+			if err := body.Close(); err != nil {
+				slog.Warn("closing attachment during reconciliation", "path", path, "err", err)
+			}
+		}()
 		if hash != "" && actualHash != hash {
 			return fmt.Errorf("attachment %q changed during reconciliation", path)
 		}
@@ -738,7 +754,7 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 	}
 	chunks := chunkText(text)
 	if len(chunks) == 0 {
-		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, errors.New("Tika extracted no text"))
+		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, errors.New("tika extracted no text"))
 	}
 	texts := make([]string, len(chunks))
 	for i := range chunks {

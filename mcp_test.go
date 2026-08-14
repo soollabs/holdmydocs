@@ -231,7 +231,7 @@ func TestMCPUploadAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("posting upload: %v", err)
 	}
-	defer upload.Body.Close()
+	defer closeTestBody(t, upload.Body)
 	if upload.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want %d", upload.StatusCode, http.StatusOK)
 	}

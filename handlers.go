@@ -2207,7 +2207,10 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 			return
 		}
 		if part.FormName() != "file" || part.FileName() == "" || file != nil {
-			part.Close()
+			if err := part.Close(); err != nil {
+				http.Error(w, "error reading upload", http.StatusInternalServerError)
+				return
+			}
 			continue
 		}
 		file, err = os.CreateTemp("", "hmd-upload-*")
@@ -2217,16 +2220,22 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		}
 		filenameInput = part.FileName()
 		copied, copyErr := io.Copy(file, io.LimitReader(part, maxBytes+1))
-		part.Close()
+		closeErr := part.Close()
 		if copyErr != nil {
-			file.Close()
-			os.Remove(file.Name())
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+			http.Error(w, "error reading file", http.StatusInternalServerError)
+			return
+		}
+		if closeErr != nil {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
 			http.Error(w, "error reading file", http.StatusInternalServerError)
 			return
 		}
 		if copied > maxBytes {
-			file.Close()
-			os.Remove(file.Name())
+			_ = file.Close()
+			_ = os.Remove(file.Name())
 			http.Error(w, "attachment exceeds maximum upload size", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -2315,7 +2324,9 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 			indexErr = hashErr
 		} else {
 			attachmentHash = hash
-			_ = file.Close()
+			if err := file.Close(); err != nil {
+				slog.Warn("closing indexed attachment", "path", path, "err", err)
+			}
 			indexErr = app.Index.ReconcileAttachmentPath(path, hash)
 		}
 		indexed = indexErr == nil && app.Index.AttachmentIndexed(path, attachmentHash)
@@ -2379,7 +2390,11 @@ func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	defer attachment.Close()
+	defer func() {
+		if err := attachment.Close(); err != nil {
+			slog.Warn("closing served attachment", "path", path, "err", err)
+		}
+	}()
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	switch strings.ToLower(filepath.Ext(file)) {
@@ -3658,16 +3673,6 @@ func (app *App) refreshNamespaces() {
 		return
 	}
 	app.SetNamespaces(reg)
-}
-
-// refreshWikiConfig reloads repository settings after a pull or direct edit.
-func (app *App) refreshWikiConfig() {
-	wiki, _, err := LoadWikiConfig(app.config().RepoDir)
-	if err != nil {
-		slog.Warn("reloading wiki config", "err", err)
-		return
-	}
-	app.SetWikiConfig(wiki)
 }
 
 // ensureNewPageTemplate creates a namespace's new-page template as a hidden

@@ -26,7 +26,7 @@ func (s *Store) readRepositoryFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if strings.HasSuffix(path, ".md") {
 		info, err := f.Stat()
 		if err != nil {
@@ -44,7 +44,7 @@ func (s *Store) writeRepositoryFile(path string, content []byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.Write(content)
 	return err
 }

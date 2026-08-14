@@ -427,10 +427,7 @@ func (app *App) mcpHandler() http.Handler {
 				if err := app.mcpRequireSlug(ctx, hit.OwnerSlug); err != nil || !tokenAllowsSlug(ctx, hit.OwnerSlug) {
 					continue
 				}
-				out.Hits = append(out.Hits, mcpAttachmentSearchHit{
-					OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
-					Excerpt: hit.Excerpt, Score: hit.Score,
-				})
+				out.Hits = append(out.Hits, mcpAttachmentSearchHit(hit))
 				if len(out.Hits) == limit {
 					break
 				}
@@ -505,10 +502,13 @@ func (app *App) mcpHandler() http.Handler {
 		if err != nil {
 			return nil, mcpAttachmentReadOut{}, errors.New("attachment has no cached extraction")
 		}
-		defer sidecar.Close()
 		content, err := io.ReadAll(io.LimitReader(sidecar, attachmentMaxExtractedBytes+256))
+		closeErr := sidecar.Close()
 		if err != nil {
 			return nil, mcpAttachmentReadOut{}, fmt.Errorf("reading extracted attachment: %w", err)
+		}
+		if closeErr != nil {
+			return nil, mcpAttachmentReadOut{}, fmt.Errorf("closing extracted attachment: %w", closeErr)
 		}
 		text, ok := decodeExtractedAttachment(hash, content)
 		if !ok {

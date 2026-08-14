@@ -687,11 +687,11 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 	namespaceDir := filepath.Join(s.dir, name)
 	info, err := os.Lstat(namespaceDir)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+		return errors.New("unable to inspect namespace contents; deletion was not performed")
 	}
 	entries, err := os.ReadDir(namespaceDir)
 	if err != nil {
-		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+		return errors.New("unable to inspect namespace contents; deletion was not performed")
 	}
 
 	configPath := namespaceConfigPath(name)
@@ -699,23 +699,23 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 	for _, entry := range entries {
 		if entry.Name() == namespaceConfigFile {
 			if !entry.Type().IsRegular() {
-				return errors.New("The namespace configuration is not a regular file; deletion was not performed.")
+				return errors.New("the namespace configuration is not a regular file; deletion was not performed")
 			}
 			configFound = true
 			continue
 		}
 		if strings.HasSuffix(entry.Name(), ".md") {
-			return errors.New("This namespace still contains indexed pages; deletion was not performed.")
+			return errors.New("this namespace still contains indexed pages; deletion was not performed")
 		}
-		return errors.New("This namespace still contains directory content; deletion was not performed.")
+		return errors.New("this namespace still contains directory content; deletion was not performed")
 	}
 	if !configFound {
-		return errors.New("This namespace has no configuration to delete.")
+		return errors.New("this namespace has no configuration to delete")
 	}
 
 	config, err := s.readRepositoryFile(configPath)
 	if err != nil {
-		return errors.New("Unable to read namespace configuration; deletion was not performed.")
+		return errors.New("unable to read namespace configuration; deletion was not performed")
 	}
 	restore := func() error {
 		_, restoreErr := s.saveLocked(configPath, config, "Restore namespace config "+configPath, authorName, authorEmail)
@@ -751,11 +751,11 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	namespaceDir := filepath.Join(s.dir, name)
 	info, err := os.Lstat(namespaceDir)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("Unable to inspect namespace contents; deletion was not performed.")
+		return errors.New("unable to inspect namespace contents; deletion was not performed")
 	}
 	config := filepath.Join(namespaceDir, namespaceConfigFile)
 	if info, err := os.Lstat(config); err != nil || !info.Mode().IsRegular() {
-		return errors.New("This namespace has no configuration to delete.")
+		return errors.New("this namespace has no configuration to delete")
 	}
 
 	var paths []string
@@ -1067,17 +1067,17 @@ func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
 	}
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, "", err
 	}
 	hash := sha1.New()
 	_, _ = fmt.Fprintf(hash, "blob %d\x00", info.Size())
 	if _, err := io.Copy(hash, file); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, "", err
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, "", err
 	}
 	return file, hex.EncodeToString(hash.Sum(nil)), nil
