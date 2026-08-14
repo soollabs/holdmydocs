@@ -143,13 +143,14 @@ func EnvOr(key, def string) string {
 	return def
 }
 
-// applyEnvOverrides walks v's fields, overwriting each from an env var
+// applyEnvOverrides walks v's fields, overwriting each scalar from an env var
 // named <envPrefix>_<yaml tag, upper-cased> wherever that var is set and
 // non-empty — e.g. under prefix "HMD", yaml:"repo_dir" is overridden by
 // HMD_REPO_DIR. Struct fields (GitConfig, OIDC, ...) recurse with the
 // field's own tag folded into the prefix, so GitConfig.RemoteURL becomes
-// HMD_GIT_REMOTE_URL. This gives every config-file field, nested or not,
-// an env var equivalent without hand-writing a pick call per field.
+// HMD_GIT_REMOTE_URL. YAML lists remain file-only. This gives every scalar
+// config-file field, nested or not, an env var equivalent without hand-writing
+// a pick call per field.
 // applied collects path -> env var name for every override actually made,
 // keyed by dotted Go field path (e.g. "Git.RemoteURL"), for the settings UI.
 func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied map[string]string) error {

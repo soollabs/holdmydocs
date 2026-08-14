@@ -5,11 +5,11 @@
 # commenting out unsuitable placeholders, including the remote and token settings.
 # Set HMD_CONFIG_FILE to use another path.
 #
-# Every key here also has a HMD_<KEY, upper-cased> env var equivalent, with
+# Scalar keys here also have a HMD_<KEY, upper-cased> env var equivalent, with
 # nested keys folding their section into the name (e.g. repo_dir <->
 # HMD_REPO_DIR, git.remote_url <-> HMD_GIT_REMOTE_URL, oidc.client_id <->
-# HMD_OIDC_CLIENT_ID). Environment values override this file, useful for
-# Docker/k8s deployments. Unknown keys are rejected at startup.
+# HMD_OIDC_CLIENT_ID). Lists remain YAML-only. Environment values override this
+# file, useful for Docker/k8s deployments. Unknown keys are rejected at startup.
 #
 # All keys are optional; omit anything you want left at its default. Wiki
 # identity and landing settings are stored separately in <repo_dir>/.wiki.yaml.
@@ -44,7 +44,7 @@ git:
 
 # --- Bootstrap admin user ---
 # Set via HMD_ADMIN_USER / HMD_ADMIN_PASSWORD env vars only (first run).
-# Manage users afterwards with `hmd adduser <name>`.
+# Manage users afterwards at `/_/admin`.
 
 # --- Behaviour ---
 max_upload_bytes: 10485760   # 10 MiB
@@ -54,7 +54,7 @@ sync_poll_ms: 10000
 # so changes pushed by other writers appear in the UI automatically)
 # sync_mode: bidirectional
 # default_branch: main   # branch name used when initialising a fresh local repo
-# Install-wide default skin: phosphor | newsprint | journal | soft | bare.
+# Install-wide default skin: phosphor | newsprint | journal | bare.
 # A skin controls presentation, not widget composition or storage. Users can
 # override it from /settings.
 # skin: phosphor
@@ -107,7 +107,7 @@ sync_poll_ms: 10000
 # HTML, so publishing a page publishes its raw HTML too.
 
 # --- MCP server ---
-# Expose the wiki to AI agents over MCP (streamable HTTP at /mcp).
+# Expose the wiki to AI agents over MCP (streamable HTTP at /_/mcp).
 # Requires a personal access token from /settings. Restart required.
 # mcp:
 #   enabled: true

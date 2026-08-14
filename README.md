@@ -18,7 +18,10 @@ The HMD documentation site is itself a static export of HMD.
 ### Docker
 
 ```sh
-HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='choose-a-strong-password' docker compose up
+export HMD_ADMIN_USER=admin
+export HMD_ADMIN_PASSWORD='use-a-unique-password-of-at-least-12-characters'
+docker compose up -d
+curl -f http://127.0.0.1:8080/_/ready
 ```
 
 Visit <http://localhost:8080> and sign in with the bootstrap credentials you supplied. Remove the bootstrap environment variables after the first successful start.
@@ -32,7 +35,7 @@ go build -o hmd ./cmd/hmd
 HMD_BIND=:8080 \
 HMD_REPO_DIR=./data/repo \
 HMD_APP_DIR=./data/app \
-HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='choose-a-strong-password' \
+HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='use-a-unique-password-of-at-least-12-characters' \
 ./hmd
 ```
 
@@ -42,7 +45,7 @@ To enable document search, set `HMD_TIKA_URL=https://your-tika-server:9998`. On 
 
 ## Documentation
 
-Full installation, configuration, operations, writing, MCP, and development guides are published with the HMD documentation site.
+Read the [installation guide](https://docs.example.com/hmd/getting-started/install) before exposing HMD to a network. It covers TLS, secrets, storage, backup and recovery. The full documentation site also has configuration, operations, MCP, and development guides.
 
 ## Development
 
