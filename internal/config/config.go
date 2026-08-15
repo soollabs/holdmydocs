@@ -55,7 +55,6 @@ type oidcFileConfig struct {
 	LocalLogin            *bool    `yaml:"local_login"`
 	ButtonText            string   `yaml:"button_text"`
 	Icon                  string   `yaml:"icon"`
-	BaseURL               string   `yaml:"base_url"`
 	DefaultScopes         []string `yaml:"default_scopes"`
 	AllowedSubjects       []string `yaml:"allowed_subjects"`
 	AllowedEmailDomains   []string `yaml:"allowed_email_domains"`
@@ -73,7 +72,6 @@ type OIDCConfig struct {
 	LocalLogin            bool     // allow the password form alongside SSO
 	ButtonText            string   // login button label, e.g. "Login with Authelia"
 	Icon                  string   // Dashboard Icons name (e.g. "authelia") or path to a square SVG
-	BaseURL               string   // public base URL, used to build the OIDC redirect URI
 	DefaultScopes         []string // scopes granted to newly provisioned OIDC users
 	AllowedSubjects       []string // immutable identities permitted to sign in
 	AllowedEmailDomains   []string // verified email domains permitted to sign in
@@ -312,7 +310,6 @@ func LoadConfig() (Config, error) {
 			LocalLogin:            orBool(file.OIDC.LocalLogin, true),
 			ButtonText:            or(file.OIDC.ButtonText, "Sign in with SSO"),
 			Icon:                  file.OIDC.Icon,
-			BaseURL:               file.OIDC.BaseURL,
 			DefaultScopes:         append([]string(nil), file.OIDC.DefaultScopes...),
 			AllowedSubjects:       append([]string(nil), file.OIDC.AllowedSubjects...),
 			AllowedEmailDomains:   append([]string(nil), file.OIDC.AllowedEmailDomains...),
@@ -372,13 +369,10 @@ func LoadConfig() (Config, error) {
 		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" {
 			return Config{}, fmt.Errorf("oidc.client_id/oidc.client_secret must be set when oidc.issuer is set")
 		}
-		if cfg.OIDC.BaseURL == "" {
-			return Config{}, fmt.Errorf("oidc.base_url must be set when oidc.issuer is set (needed for the redirect URI)")
+		if cfg.BaseURL == "" {
+			return Config{}, fmt.Errorf("base_url must be set when oidc.issuer is set (needed for the redirect URI)")
 		}
 		if err := validateOIDCURL("oidc.issuer", cfg.OIDC.Issuer, cfg.OIDC.AllowInsecureLoopback); err != nil {
-			return Config{}, err
-		}
-		if err := validateOIDCURL("oidc.base_url", cfg.OIDC.BaseURL, cfg.OIDC.AllowInsecureLoopback); err != nil {
 			return Config{}, err
 		}
 		if len(cfg.OIDC.AllowedSubjects) == 0 && len(cfg.OIDC.AllowedEmailDomains) == 0 {
@@ -434,7 +428,6 @@ func (c Config) toFileConfig() fileConfig {
 			LocalLogin:            new(c.OIDC.LocalLogin),
 			ButtonText:            c.OIDC.ButtonText,
 			Icon:                  c.OIDC.Icon,
-			BaseURL:               c.OIDC.BaseURL,
 			DefaultScopes:         append([]string(nil), c.OIDC.DefaultScopes...),
 			AllowedSubjects:       append([]string(nil), c.OIDC.AllowedSubjects...),
 			AllowedEmailDomains:   append([]string(nil), c.OIDC.AllowedEmailDomains...),

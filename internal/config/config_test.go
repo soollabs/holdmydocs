@@ -365,10 +365,10 @@ func TestOIDCConfigValidation(t *testing.T) {
 		yaml string
 		ok   bool
 	}{
-		{"valid", "oidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n  allowed_subjects: [alice]\n", true},
-		{"missing admission", "oidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n", false},
-		{"http public", "oidc:\n  issuer: http://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  base_url: https://wiki.example.com\n  allowed_subjects: [alice]\n", false},
-		{"http loopback opted in", "oidc:\n  issuer: http://127.0.0.1:5556\n  client_id: hmd\n  client_secret: secret\n  base_url: http://localhost:8080\n  allowed_subjects: [alice]\n  allow_insecure_loopback: true\n", true},
+		{"valid", "base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n", true},
+		{"missing admission", "base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n", false},
+		{"http public", "base_url: https://wiki.example.com\noidc:\n  issuer: http://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n", false},
+		{"http loopback opted in", "base_url: http://localhost:8080\noidc:\n  issuer: http://127.0.0.1:5556\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n  allow_insecure_loopback: true\n", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

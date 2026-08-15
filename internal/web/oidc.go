@@ -25,7 +25,7 @@ const maxIconBytes = internalauth.MaxIconBytes
 func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
 	return internalauth.NewOIDC(ctx, internalauth.OIDCOptions{
 		Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret,
-		BaseURL: cfg.OIDC.BaseURL, Icon: cfg.OIDC.Icon,
+		BaseURL: cfg.BaseURL, Icon: cfg.OIDC.Icon,
 	})
 }
 
