@@ -6,7 +6,7 @@
 
 @font-face {
 	font-family: "JetBrains Mono";
-	src: url("/static/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+	src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -14,7 +14,7 @@
 
 @font-face {
 	font-family: "JetBrains Mono";
-	src: url("/static/fonts/JetBrainsMono-Bold.woff2") format("woff2");
+	src: url("fonts/JetBrainsMono-Bold.woff2") format("woff2");
 	font-weight: 700;
 	font-style: normal;
 	font-display: swap;
@@ -1203,6 +1203,61 @@ ul.page-tree.branch > li::before {
 	background: var(--surface);
 }
 
+.tree-order-editor {
+	margin: 0.25rem 0 0.75rem 6.5rem;
+}
+
+.tree-order-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.tree-order-editor > .tree-order-list {
+	border: var(--field-border-w) solid var(--border-visible);
+	border-radius: var(--radius);
+	max-height: 28rem;
+	overflow: auto;
+}
+
+.tree-order-node > details > .tree-order-list {
+	border-left: 2px solid var(--border-visible);
+	margin: 0.25rem 0 0.25rem 1.1rem;
+	padding-left: 0.65rem;
+}
+
+.tree-order-item {
+	align-items: center;
+	border-bottom: var(--border-w) solid var(--border-visible);
+	cursor: grab;
+	display: flex;
+	gap: 0.5rem;
+	min-height: 2rem;
+	padding: 0.25rem 0.5rem;
+}
+
+.tree-order-list > .tree-order-node:last-child > .tree-order-item,
+.tree-order-list > .tree-order-node:last-child > details > .tree-order-item { border-bottom: 0; }
+.tree-order-item.dragging { background: var(--surface-raised); opacity: 0.55; }
+.tree-order-item.fixed { cursor: default; }
+summary.tree-order-item { list-style: none; }
+summary.tree-order-item::-webkit-details-marker { display: none; }
+.tree-order-toggle,
+.tree-order-toggle-placeholder {
+	color: var(--fg-muted);
+	flex: 0 0 0.75rem;
+	text-align: center;
+}
+.tree-order-node > details[open] > .tree-order-item .tree-order-toggle { transform: rotate(90deg); }
+.tree-order-handle { color: var(--fg-faint); cursor: grab; }
+.tree-order-title { color: var(--fg-strong); flex: 1; min-width: 0; }
+.tree-order-item code { color: var(--fg-muted); font-size: 0.75rem; }
+.tree-order-index {
+	color: var(--primary);
+	font-size: 0.75rem;
+	text-transform: uppercase;
+}
+
 .published-preview {
 	margin: 0.75rem 0 0 6.5rem;
 }
@@ -1230,7 +1285,8 @@ ul.page-tree.branch > li::before {
 		text-align: center;
 		min-height: 44px;
 	}
-	.published-preview {
+	.published-preview,
+	.tree-order-editor {
 		margin-left: 0;
 	}
 }

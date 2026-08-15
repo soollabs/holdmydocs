@@ -132,7 +132,7 @@ func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 
 func TestStaticAssetURLsUseVersionedPaths(t *testing.T) {
 	for path, assets := range map[string][]string{
-		"web/templates/base.html": {"/_/static/style.css?v=3", "/_/static/skins.css?v=2", "/_/static/app.js?v=2"},
+		"web/templates/base.html": {"/_/static/style.css?v=4", "/_/static/skins.css?v=2", "/_/static/app.js?v=3"},
 		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
 	} {
 		body, err := webFS.ReadFile(path)

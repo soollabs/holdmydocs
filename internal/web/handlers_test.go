@@ -994,7 +994,7 @@ func TestPageChrome(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
-		`src="/_/static/app.js?v=2"`,
+		`src="/_/static/app.js?v=3"`,
 		`class="app-topbar"`,
 		`class="sidebar"`,
 		`action="/_/logout"`,

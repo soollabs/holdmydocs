@@ -5,7 +5,7 @@
 	<span class="sep">/</span>
 	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
 </div>
-<div id="remote-changed-banner" class="remote-changed-banner" style="display:none">
+<div id="remote-changed-banner" class="remote-changed-banner" hidden>
 	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
 </div>
 <form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">{{template "csrf" .}}
@@ -54,7 +54,7 @@
 		<div id="preview" class="split-pane"></div>
 	</div>
 
-	<textarea name="body" id="editor-src" rows="16" style="display:none">{{.Body}}</textarea>
+	<textarea name="body" id="editor-src" rows="16" hidden>{{.Body}}</textarea>
 	<input type="file" id="attachment-input" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" hidden>
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>

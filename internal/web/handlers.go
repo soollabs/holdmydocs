@@ -214,6 +214,13 @@ type TemplateData struct {
 
 // NamespaceManagementData is deliberately smaller than SettingsData: the
 // namespace directory and editor do not need the system configuration model.
+type NamespaceTreeItem struct {
+	Path    string
+	Title   string
+	Folder  bool
+	IsIndex bool
+}
+
 type NamespaceManagementData struct {
 	CanWrite     bool
 	CanSettings  bool
@@ -226,6 +233,7 @@ type NamespaceManagementData struct {
 	Palettes     map[string]themePreset // JSON-encoded for the published-view preview
 	SkinPalettes map[string]string      // skin -> default palette for the preview
 	Now          time.Time
+	TreeEditor   template.HTML
 	Error        string
 	Flash        string
 }
@@ -3415,10 +3423,115 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	for _, entry := range namespaceListEntries(app.Namespaces(), user) {
 		if entry.Name == name && tokenAllowsNamespace(r.Context(), entry.Name) {
 			data.Form = entry
+			data.TreeEditor = namespaceTreeEditor(app.Index.Titles(), entry.Name, entry.Index, entry.Tree)
 			break
 		}
 	}
 	return data
+}
+
+// namespaceTreeItems returns every visible page and implied folder in the same
+// order as the namespace tree. The editor serialises this complete list, so a
+// drag operation makes the displayed order explicit rather than losing pages
+// which were previously relying on alphabetical fallback.
+func namespaceTreeItems(titles map[string]string, namespace, index string, tree []string) []NamespaceTreeItem {
+	entries := make([]BacklinkEntry, 0)
+	for slug, title := range titles {
+		if ns, rest := namespaceFor(slug); ns == namespace && rest != "" {
+			entries = append(entries, BacklinkEntry{Slug: slug, Title: title})
+		}
+	}
+	root := buildPageTree(entries, namespace, index, tree)
+	items := make([]NamespaceTreeItem, 0, len(entries))
+	var walk func([]*navNode)
+	walk = func(nodes []*navNode) {
+		for _, node := range nodes {
+			item := NamespaceTreeItem{Path: node.Path, Title: node.Title, Folder: !node.IsPage, IsIndex: node.Path == index}
+			if item.Title == "" {
+				item.Title = node.Name
+			}
+			items = append(items, item)
+			walk(node.Children)
+		}
+	}
+	walk(root.Children)
+	return items
+}
+
+// namespaceTreeEditor renders a collapsed, draggable hierarchy. Reordering is
+// deliberately confined to siblings: tree order changes presentation, never a
+// page's path or folder.
+func namespaceTreeEditor(titles map[string]string, namespace, index string, tree []string) template.HTML {
+	entries := make([]BacklinkEntry, 0)
+	for slug, title := range titles {
+		if ns, rest := namespaceFor(slug); ns == namespace && rest != "" {
+			entries = append(entries, BacklinkEntry{Slug: slug, Title: title})
+		}
+	}
+	root := buildPageTree(entries, namespace, index, tree)
+	var b strings.Builder
+	var writeNodes func([]*navNode, string)
+	writeNodes = func(nodes []*navNode, parent string) {
+		b.WriteString(`<ul class="tree-order-list" data-parent="`)
+		b.WriteString(html.EscapeString(parent))
+		b.WriteString(`">`)
+		for _, node := range nodes {
+			path := html.EscapeString(node.Path)
+			title := node.Title
+			if title == "" {
+				title = node.Name
+			}
+			classes := "tree-order-item"
+			if node.Path == index {
+				classes += " fixed"
+			}
+			row := func() {
+				if len(node.Children) > 0 {
+					b.WriteString(`<span class="tree-order-toggle" aria-hidden="true">▸</span>`)
+				} else {
+					b.WriteString(`<span class="tree-order-toggle-placeholder" aria-hidden="true"></span>`)
+				}
+				b.WriteString(`<span class="tree-order-handle" aria-hidden="true">⠿</span><span class="tree-order-title">`)
+				b.WriteString(html.EscapeString(title))
+				b.WriteString(`</span><code>`)
+				b.WriteString(path)
+				b.WriteString(`</code>`)
+				if node.Path == index {
+					b.WriteString(`<span class="tree-order-index">index</span>`)
+				}
+			}
+			if len(node.Children) > 0 {
+				b.WriteString(`<li class="tree-order-node"><details><summary class="`)
+				b.WriteString(classes)
+				b.WriteString(`" data-path="`)
+				b.WriteString(path)
+				b.WriteString(`"`)
+				if node.Path != index {
+					b.WriteString(` draggable="true"`)
+				}
+				b.WriteString(`>`)
+				row()
+				b.WriteString(`</summary>`)
+				writeNodes(node.Children, node.Path)
+				b.WriteString(`</details></li>`)
+				continue
+			}
+			b.WriteString(`<li class="tree-order-node `)
+			b.WriteString(classes)
+			b.WriteString(`" data-path="`)
+			b.WriteString(path)
+			b.WriteString(`"`)
+			if node.Path != index {
+				b.WriteString(` draggable="true"`)
+			}
+			b.WriteString(`>`)
+			row()
+			b.WriteString(`</li>`)
+		}
+		b.WriteString(`</ul>`)
+	}
+	writeNodes(root.Children, "")
+	return template.HTML(b.String())
 }
 
 func (app *App) renderNamespace(w http.ResponseWriter, r *http.Request, status int, templateName, name, errMsg string) {

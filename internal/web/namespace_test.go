@@ -68,6 +68,39 @@ func TestNormaliseNamespaceConfigAllowsRoot(t *testing.T) {
 	}
 }
 
+func TestNamespaceTreeItems(t *testing.T) {
+	items := namespaceTreeItems(map[string]string{
+		"docs/home":         "Home",
+		"docs/guides/setup": "Set up",
+		"docs/reference":    "Reference",
+		"other/page":        "Other",
+	}, "docs", "home", []string{"reference", "guides"})
+	got := make([]string, len(items))
+	for i, item := range items {
+		got[i] = item.Path
+	}
+	want := []string{"home", "reference", "guides", "guides/setup"}
+	if !slices.Equal(got, want) {
+		t.Errorf("paths = %v, want %v", got, want)
+	}
+	if !items[0].IsIndex || !items[2].Folder {
+		t.Errorf("items = %+v, want a fixed index followed by a folder", items)
+	}
+}
+
+func TestNamespaceTreeEditorIsCollapsedAndHierarchical(t *testing.T) {
+	editor := string(namespaceTreeEditor(map[string]string{
+		"docs/home":         "Home",
+		"docs/guides/setup": "Set up",
+	}, "docs", "home", []string{"guides"}))
+	if strings.Contains(editor, "<details open") || !strings.Contains(editor, `data-parent="guides"`) || !strings.Contains(editor, `class="tree-order-toggle"`) {
+		t.Errorf("editor = %s, want a collapsed guides subtree", editor)
+	}
+	if !strings.Contains(editor, `data-path="home"`) || !strings.Contains(editor, `tree-order-item fixed`) {
+		t.Errorf("editor = %s, want fixed index row", editor)
+	}
+}
+
 func TestNormaliseNamespaceConfigTreePaths(t *testing.T) {
 	cfg, err := normaliseNamespaceConfig("docs", NamespaceConfig{Tree: []string{" guides ", "guides/setup"}}, newPageTemplateData{})
 	if err != nil {

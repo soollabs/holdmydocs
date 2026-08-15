@@ -211,7 +211,7 @@
 
     function showRemoteChangedBanner() {
       const banner = $('#remote-changed-banner');
-      if (banner) banner.style.display = 'block';
+      if (banner) banner.hidden = false;
     }
 
     function pollSync() {
@@ -846,6 +846,7 @@
         extensions: [
           HMD.basicSetup,
           HMD.markdown(),
+          HMD.EditorView.cspNonce.of(window.hmdCSPNonce),
           ...(wrapEnabled ? [HMD.EditorView.lineWrapping] : []),
           HMD.EditorView.updateListener.of(update => {
             if (update.docChanged) {
