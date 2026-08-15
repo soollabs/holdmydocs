@@ -46,6 +46,7 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 	}
 	_ = connection.Close()
 
+	server.ReadHeaderTimeout = 10 * time.Second
 	connection, err = net.Dial("tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
