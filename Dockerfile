@@ -21,7 +21,7 @@ ARG VCS_REF=unknown
 LABEL org.opencontainers.image.source="https://github.com/soollabs/holdmydocs" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.version="$BUILD_VERSION" \
-      org.opencontainers.image.licenses="UNLICENSED"
+      org.opencontainers.image.licenses="MIT"
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build --chmod=1777 /scratch-tmp /tmp
 COPY --from=build /hmd /hmd

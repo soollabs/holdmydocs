@@ -4,8 +4,6 @@ package config
 
 import (
 	"os"
-	"os/user"
-	"strconv"
 	"syscall"
 )
 
@@ -14,10 +12,5 @@ func ownedByCurrentUser(info os.FileInfo) bool {
 	if !ok {
 		return false
 	}
-	current, err := user.Current()
-	if err != nil {
-		return false
-	}
-	uid, err := strconv.ParseUint(current.Uid, 10, 32)
-	return err == nil && stat.Uid == uint32(uid)
+	return stat.Uid == uint32(os.Geteuid())
 }
