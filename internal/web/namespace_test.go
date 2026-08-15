@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +65,21 @@ func TestNormaliseNamespaceConfigRejectsFixedWidgets(t *testing.T) {
 func TestNormaliseNamespaceConfigAllowsRoot(t *testing.T) {
 	if _, err := normaliseNamespaceConfig("", NamespaceConfig{Widgets: []string{"pages"}}, newPageTemplateData{}); err != nil {
 		t.Fatalf("normalise root namespace config: %v", err)
+	}
+}
+
+func TestNormaliseNamespaceConfigTreePaths(t *testing.T) {
+	cfg, err := normaliseNamespaceConfig("docs", NamespaceConfig{Tree: []string{" guides ", "guides/setup"}}, newPageTemplateData{})
+	if err != nil {
+		t.Fatalf("normalise tree paths: %v", err)
+	}
+	if want := []string{"guides", "guides/setup"}; !slices.Equal(cfg.Tree, want) {
+		t.Errorf("Tree = %v, want %v", cfg.Tree, want)
+	}
+	for _, tree := range [][]string{{"../private"}, {"guides", "guides"}} {
+		if _, err := normaliseNamespaceConfig("docs", NamespaceConfig{Tree: tree}, newPageTemplateData{}); err == nil {
+			t.Errorf("invalid tree %v was accepted", tree)
+		}
 	}
 }
 
@@ -856,7 +872,7 @@ func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
 		{Slug: "docs/a/two", Title: "Two"},
 		{Slug: "docs/b/three", Title: "Three"},
 	}
-	root := buildPageTree(entries, "docs")
+	root := buildPageTree(entries, "docs", "", nil)
 	html := string(renderLiveTree(root, "docs", "a/one"))
 
 	if strings.Count(html, "<details open>") != 1 {
@@ -867,5 +883,23 @@ func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
 	}
 	if !strings.Contains(html, `<details open><summary><span class="dir">a</span>`) {
 		t.Errorf("branch \"a\" (ancestor of the current page) should render open:\n%s", html)
+	}
+}
+
+func TestBuildPageTreeOrdersIndexAndSections(t *testing.T) {
+	entries := []BacklinkEntry{
+		{Slug: "docs/about", Title: "About"},
+		{Slug: "docs/guides/setup", Title: "Setup"},
+		{Slug: "docs/home", Title: "Home"},
+		{Slug: "docs/reference/api", Title: "API"},
+	}
+	root := buildPageTree(entries, "docs", "home", []string{"reference", "guides"})
+
+	got := make([]string, len(root.Children))
+	for i, node := range root.Children {
+		got[i] = node.Path
+	}
+	if want := []string{"home", "reference", "guides", "about"}; !slices.Equal(got, want) {
+		t.Errorf("root tree = %v, want %v", got, want)
 	}
 }

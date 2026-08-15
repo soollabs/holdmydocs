@@ -289,7 +289,7 @@ func TestMCPNamespaceTools(t *testing.T) {
 
 	res = callTool(t, session, "save_namespace", map[string]any{
 		"name": testNS, "widgets": []string{"pages"}, "public": true,
-		"title": "Notes", "description": "Personal notes", "skin": "newsprint", "index": defaultIndexPage,
+		"title": "Notes", "description": "Personal notes", "skin": "newsprint", "index": defaultIndexPage, "tree": []string{"guides", "reference"},
 		"basehash": current.Hash,
 	})
 	if res.IsError {
@@ -297,7 +297,7 @@ func TestMCPNamespaceTools(t *testing.T) {
 	}
 	var saved mcpNamespaceOut
 	toolJSON(t, res, &saved)
-	if saved.Hash == "" || !saved.Public || saved.Title != "Notes" || saved.Description != "Personal notes" || saved.Palette != "" {
+	if saved.Hash == "" || !saved.Public || saved.Title != "Notes" || saved.Description != "Personal notes" || saved.Palette != "" || !slices.Equal(saved.Tree, []string{"guides", "reference"}) {
 		t.Errorf("save_namespace = %+v", saved)
 	}
 	res = callTool(t, session, "list_namespaces", nil)

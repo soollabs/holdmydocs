@@ -81,8 +81,6 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: title})
 	}
 
-	tree := buildPageTree(entries, ns)
-
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
@@ -91,6 +89,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 	}
 
 	cfg := reg[ns]
+	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)
 	if title = strings.TrimSpace(title); title == "" {
 		title = namespaceDisplayTitle(ns, cfg)
 	}

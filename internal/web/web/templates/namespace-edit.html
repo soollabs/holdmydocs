@@ -11,6 +11,7 @@
 <div class="settings-row"><label for="namespace-name">name</label><input id="namespace-name" name="name" value="{{$form.Name}}" placeholder="e.g. blog" autocomplete="off" required {{if $form.Name}}readonly{{end}}></div>
 <div class="settings-row"><label for="namespace-description">description</label><textarea id="namespace-description" name="description" maxlength="255" placeholder="optional brief summary for namespace listings">{{$form.Description}}</textarea></div>
 <div class="settings-row"><label for="namespace-index">index page</label><input id="namespace-index" name="index" value="{{$form.Index}}" placeholder="optional — page name shown at /{{if $form.Name}}{{$form.Name}}{{else}}ns{{end}}/ instead of the page list"></div>
+<div class="settings-row"><label for="namespace-tree">tree order</label><input id="namespace-tree" name="tree" value="{{$form.TreeCSV}}" placeholder="optional — pages or folders, comma-separated"></div>
 </fieldset>
 <fieldset class="settings-section settings-panel"><legend>published view</legend>
 <div class="settings-row"><label for="namespace-public">visibility</label><label class="scope-check"><input id="namespace-public" type="checkbox" name="public" {{if $form.Public}}checked{{end}}> allow anonymous access</label></div>

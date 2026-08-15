@@ -59,6 +59,7 @@ type mcpNamespaceOut struct {
 	Skin        string         `json:"skin,omitempty"`
 	Palette     string         `json:"palette,omitempty"`
 	Index       string         `json:"index,omitempty"`
+	Tree        []string       `json:"tree,omitempty"`
 	New         *NewPageConfig `json:"new,omitempty"`
 	Hash        string         `json:"hash"`
 }
@@ -72,6 +73,7 @@ type mcpSaveNamespaceIn struct {
 	Skin        string         `json:"skin,omitempty"`
 	Palette     string         `json:"palette,omitempty"`
 	Index       string         `json:"index,omitempty"`
+	Tree        []string       `json:"tree,omitempty" jsonschema:"ordered page or folder paths for the tree"`
 	New         *NewPageConfig `json:"new,omitempty"`
 	BaseHash    string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
 }
@@ -362,7 +364,7 @@ func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
 func mcpNamespaceOutput(name string, cfg NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
 		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
-		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, New: cfg.New, Hash: hash,
+		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, Tree: cfg.Tree, New: cfg.New, Hash: hash,
 	}
 }
 
@@ -567,7 +569,7 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{
 			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
-			Palette: in.Palette, Index: in.Index, New: in.New,
+			Palette: in.Palette, Index: in.Index, Tree: in.Tree, New: in.New,
 		}, newPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
 		if err != nil {
 			return nil, mcpNamespaceOut{}, err

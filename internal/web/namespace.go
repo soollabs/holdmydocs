@@ -56,6 +56,10 @@ type NamespaceConfig struct {
 	// means no override — the default listing serves the index.
 	Index string `yaml:"index,omitempty" json:"index,omitempty"`
 
+	// Tree lists page or folder paths in their preferred tree order. The
+	// configured index remains first; entries not listed here sort by name.
+	Tree []string `yaml:"tree,omitempty" json:"tree,omitempty"`
+
 	// Configured records whether this config came from a .namespace.yaml on
 	// disk or is just the built-in defaults — the settings UI needs to know
 	// which namespaces actually have a file it could remove. LoadError holds
@@ -279,6 +283,18 @@ func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
 		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
 	}
+	seenTreePaths := make(map[string]bool, len(cfg.Tree))
+	for i, path := range cfg.Tree {
+		path = strings.TrimSpace(path)
+		if !validPagePath(path) {
+			return NamespaceConfig{}, fmt.Errorf("%q is not a valid tree path", path)
+		}
+		if seenTreePaths[path] {
+			return NamespaceConfig{}, fmt.Errorf("tree path %q is repeated", path)
+		}
+		seenTreePaths[path] = true
+		cfg.Tree[i] = path
+	}
 	cfg.Title = strings.TrimSpace(cfg.Title)
 	if !validRunes(cfg.Title, maxNamespaceTitleRunes) {
 		return NamespaceConfig{}, fmt.Errorf("namespace title must be at most %d characters", maxNamespaceTitleRunes)
@@ -358,8 +374,9 @@ type navNode struct {
 
 // buildPageTree builds the page hierarchy for namespace ns from entries
 // already filtered to it (BacklinkEntry.Slug is a full slug, namespace
-// prefix included).
-func buildPageTree(entries []BacklinkEntry, ns string) *navNode {
+// prefix included). index is the configured namespace index, which is always
+// shown first; tree lists any additional page or folder paths in order.
+func buildPageTree(entries []BacklinkEntry, ns, index string, tree []string) *navNode {
 	root := &navNode{}
 	for _, e := range entries {
 		_, rest := namespaceFor(e.Slug)
@@ -380,7 +397,11 @@ func buildPageTree(entries []BacklinkEntry, ns string) *navNode {
 			}
 		}
 	}
-	sortNavTree(root)
+	order := make(map[string]int, len(tree))
+	for i, path := range tree {
+		order[path] = i
+	}
+	sortNavTree(root, index, order)
 	return root
 }
 
@@ -395,10 +416,24 @@ func navChild(node *navNode, name string) *navNode {
 	return c
 }
 
-func sortNavTree(node *navNode) {
-	sort.Slice(node.Children, func(i, j int) bool { return node.Children[i].Name < node.Children[j].Name })
+func sortNavTree(node *navNode, index string, order map[string]int) {
+	sort.Slice(node.Children, func(i, j int) bool {
+		iPath, jPath := node.Children[i].Path, node.Children[j].Path
+		if iPath == index || jPath == index {
+			return iPath == index
+		}
+		iOrder, iOK := order[iPath]
+		jOrder, jOK := order[jPath]
+		if iOK || jOK {
+			if iOK != jOK {
+				return iOK
+			}
+			return iOrder < jOrder
+		}
+		return node.Children[i].Name < node.Children[j].Name
+	})
 	for _, c := range node.Children {
-		sortNavTree(c)
+		sortNavTree(c, index, order)
 	}
 }
 
@@ -640,13 +675,14 @@ type NamespaceListEntry struct {
 	Name        string
 	Widgets     []string
 	Public      bool
-	Title       string // published-site title; falls back to Name if empty
-	Description string // brief namespace summary
-	Skin        string // structural skin shown to public viewers; empty = defaultSkin
-	Palette     string // colour preset shown to public viewers; empty = skin's own default
-	Configured  bool   // has a .namespace.yaml — i.e. there is something to remove
-	LoadError   string // why an existing .namespace.yaml was ignored, if it was
-	Index       string // page name that replaces the page-list view at /{namespace}/, if any
+	Title       string   // published-site title; falls back to Name if empty
+	Description string   // brief namespace summary
+	Skin        string   // structural skin shown to public viewers; empty = defaultSkin
+	Palette     string   // colour preset shown to public viewers; empty = skin's own default
+	Configured  bool     // has a .namespace.yaml — i.e. there is something to remove
+	LoadError   string   // why an existing .namespace.yaml was ignored, if it was
+	Index       string   // page name that replaces the page-list view at /{namespace}/, if any
+	Tree        []string // explicit page or folder order in the rendered tree
 
 	// New-page (ctrl-j) state. Template is carried through the form as a
 	// hidden field rather than asked for: it's a convention, and a
@@ -683,6 +719,7 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 			Configured:  cfg.Configured,
 			LoadError:   cfg.LoadError,
 			Index:       cfg.Index,
+			Tree:        cfg.Tree,
 			Template:    defaultNewPageTemplate,
 			SlugPreset:  slugPresets[0].Key,
 		}
@@ -701,4 +738,9 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 		entries = append(entries, e)
 	}
 	return entries
+}
+
+// TreeCSV renders Tree as the comma-separated value of the tree-order form field.
+func (e NamespaceListEntry) TreeCSV() string {
+	return strings.Join(e.Tree, ", ")
 }

@@ -593,7 +593,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.SidebarTreeNS != "" {
 		entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
 		_, currentPath := namespaceFor(data.Slug)
-		data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS), data.SidebarTreeNS, currentPath)
+		cfg := app.Namespaces().Resolve(data.SidebarTreeNS)
+		data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS, cfg.Index, cfg.Tree), data.SidebarTreeNS, currentPath)
 	}
 
 	// Load mermaid only when the page content or editor body contains
@@ -1843,7 +1844,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		ThemeStyle:         themeStyle,
 		IsNamespaceIndex:   true,
 		TagPages:           tagPages,
-		PageTree:           renderLiveTree(buildPageTree(tagPages, name), name, ""),
+		PageTree:           renderLiveTree(buildPageTree(tagPages, name, summary.Config.Index, summary.Config.Tree), name, ""),
 		SidebarTreeNS:      name,
 		SidebarTreeEntries: summary.Pages,
 	})
@@ -3518,7 +3519,13 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		fail(fmt.Sprintf("namespace title must be at most %d characters", maxNamespaceTitleRunes))
 		return
 	}
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index"))}
+	var tree []string
+	for path := range strings.SplitSeq(r.FormValue("tree"), ",") {
+		if path = strings.TrimSpace(path); path != "" {
+			tree = append(tree, path)
+		}
+	}
+	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index")), Tree: tree}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.
