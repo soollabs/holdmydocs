@@ -58,6 +58,7 @@ type oidcFileConfig struct {
 	DefaultScopes         []string `yaml:"default_scopes"`
 	AllowedSubjects       []string `yaml:"allowed_subjects"`
 	AllowedEmailDomains   []string `yaml:"allowed_email_domains"`
+	AllowAnyAuthenticated bool     `yaml:"allow_any_authenticated"`
 	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback"`
 }
 
@@ -75,6 +76,7 @@ type OIDCConfig struct {
 	DefaultScopes         []string // scopes granted to newly provisioned OIDC users
 	AllowedSubjects       []string // immutable identities permitted to sign in
 	AllowedEmailDomains   []string // verified email domains permitted to sign in
+	AllowAnyAuthenticated bool     // delegate admission to the identity provider
 	AllowInsecureLoopback bool     // development only: permits http URLs on loopback
 }
 
@@ -313,6 +315,7 @@ func LoadConfig() (Config, error) {
 			DefaultScopes:         append([]string(nil), file.OIDC.DefaultScopes...),
 			AllowedSubjects:       append([]string(nil), file.OIDC.AllowedSubjects...),
 			AllowedEmailDomains:   append([]string(nil), file.OIDC.AllowedEmailDomains...),
+			AllowAnyAuthenticated: file.OIDC.AllowAnyAuthenticated,
 			AllowInsecureLoopback: file.OIDC.AllowInsecureLoopback,
 		},
 		DocumentSearch: DocumentSearchConfig{
@@ -375,7 +378,7 @@ func LoadConfig() (Config, error) {
 		if err := validateOIDCURL("oidc.issuer", cfg.OIDC.Issuer, cfg.OIDC.AllowInsecureLoopback); err != nil {
 			return Config{}, err
 		}
-		if len(cfg.OIDC.AllowedSubjects) == 0 && len(cfg.OIDC.AllowedEmailDomains) == 0 {
+		if !cfg.OIDC.AllowAnyAuthenticated && len(cfg.OIDC.AllowedSubjects) == 0 && len(cfg.OIDC.AllowedEmailDomains) == 0 {
 			return Config{}, fmt.Errorf("oidc.allowed_subjects or oidc.allowed_email_domains must be set when oidc.issuer is set")
 		}
 		if len(cfg.OIDC.DefaultScopes) == 0 {
@@ -431,6 +434,7 @@ func (c Config) toFileConfig() fileConfig {
 			DefaultScopes:         append([]string(nil), c.OIDC.DefaultScopes...),
 			AllowedSubjects:       append([]string(nil), c.OIDC.AllowedSubjects...),
 			AllowedEmailDomains:   append([]string(nil), c.OIDC.AllowedEmailDomains...),
+			AllowAnyAuthenticated: c.OIDC.AllowAnyAuthenticated,
 			AllowInsecureLoopback: c.OIDC.AllowInsecureLoopback,
 		},
 		DocumentSearch: c.DocumentSearch,

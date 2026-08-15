@@ -29,6 +29,10 @@ func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
 	})
 }
 
+func oidcAdmitted(claims oidcClaims, cfg OIDCConfig) bool {
+	return claims.Subject != "" && (cfg.AllowAnyAuthenticated || claims.Admitted(cfg.AllowedSubjects, cfg.AllowedEmailDomains))
+}
+
 func (app *App) handleOIDCIcon(w http.ResponseWriter, r *http.Request) {
 	if app.OIDC == nil || app.OIDC.Icon() == nil {
 		http.NotFound(w, r)
@@ -96,7 +100,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	oidcConfig := app.config().OIDC
-	if claims.Subject == "" || !claims.Admitted(oidcConfig.AllowedSubjects, oidcConfig.AllowedEmailDomains) {
+	if !oidcAdmitted(claims, oidcConfig) {
 		slog.Warn("OIDC login rejected")
 		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return

@@ -140,6 +140,15 @@ func TestOIDCAdmission(t *testing.T) {
 	}
 }
 
+func TestOIDCAdmissionDelegatedToIdentityProvider(t *testing.T) {
+	if !oidcAdmitted(oidcClaims{Subject: "authenticated"}, OIDCConfig{AllowAnyAuthenticated: true}) {
+		t.Error("authenticated subject was rejected when identity-provider admission is enabled")
+	}
+	if oidcAdmitted(oidcClaims{}, OIDCConfig{AllowAnyAuthenticated: true}) {
+		t.Error("claim without a subject was admitted")
+	}
+}
+
 func TestOIDCCallbackRejectsBadState(t *testing.T) {
 	// State is checked before the OAuth config is touched, so an empty
 	// OIDCAuth is enough here.

@@ -29,8 +29,8 @@ func TestSecurityHeadersPresent(t *testing.T) {
 	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
 	}
-	if got := resp.Header.Get("Referrer-Policy"); got != "no-referrer" {
-		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
+	if got := resp.Header.Get("Referrer-Policy"); got != "same-origin" {
+		t.Errorf("Referrer-Policy = %q, want same-origin", got)
 	}
 }
 

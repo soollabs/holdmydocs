@@ -82,11 +82,13 @@ sync_poll_ms: 10000
 #   client_id: hmd
 #   # Prefer HMD_OIDC_CLIENT_SECRET_FILE over putting the secret in this file.
 #   client_secret_file: /run/secrets/oidc_client_secret
-#   # Admission is mandatory. Identities use the immutable issuer/subject pair;
-#   # display names and email addresses are never used as account keys.
+#   # Choose HMD admission or explicitly delegate it to the identity provider.
+#   # Identities use the immutable issuer/subject pair; display names and email
+#   # addresses are never used as account keys.
 #   allowed_subjects: ["idp-subject-123"]
 #   # Or admit verified addresses from these domains.
 #   # allowed_email_domains: [example.com]
+#   # allow_any_authenticated: true
 #   default_scopes: [read]               # default when omitted; never settings
 #   # Development only. Allows http URLs only for localhost/loopback addresses.
 #   # allow_insecure_loopback: true
