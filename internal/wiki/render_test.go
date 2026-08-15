@@ -68,6 +68,19 @@ func TestRender(t *testing.T) {
 			input:           `<img src="x" onerror="alert(1)">`,
 			wantNotContains: []string{"onerror"},
 		},
+		{
+			name:            "image alt survives the sanitizer",
+			resolve:         func(title, ns string) (string, bool) { return "", false },
+			input:           `![alt with + ? & and an em dash —](/_/attachments/x.png)`,
+			wantContains:    []string{`alt="alt with + ? &amp; and an em dash —"`, `src="/_/attachments/x.png"`},
+		},
+		{
+			name:            "raw img alt with special characters is kept",
+			resolve:         func(title, ns string) (string, bool) { return "", false },
+			input:           `<img src="/x.png" alt="screenshot + ? — (step 1)">`,
+			wantContains:    []string{`alt="screenshot + ? — (step 1)"`},
+			wantNotContains: []string{`<img src="/x.png">`},
+		},
 	}
 
 	for _, tt := range tests {

@@ -27,6 +27,13 @@ func newSanitizePolicy() *bluemonday.Policy {
 	p.AllowAttrs("role").OnElements("a", "div", "sup")
 	p.AllowElements("input")
 	p.AllowAttrs("type", "checked", "disabled").OnElements("input")
+	// UGC's img alt policy is Matching(Paragraph): a value containing any
+	// character outside letters/numbers/space/-_',[]!.\() silently drops the
+	// whole attribute, so author-written alt text like "+ / ? / —" is lost.
+	// Allow alt outright — the HTML tokenizer and bluemonday's output
+	// escaping already prevent attribute breakout, so there is no injection
+	// surface beyond what a plain-text alt policy would allow.
+	p.AllowAttrs("alt").OnElements("img")
 	return p
 }
 
