@@ -76,7 +76,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 			t.Errorf("root tree link %q is outside the sidebar", earlier)
 		}
 	}
-	if got := []int{strings.Index(string(root), `href="home/index.html"`), strings.Index(string(root), `href="reference/api/index.html"`), strings.Index(string(root), `href="guides/setup/index.html"`), strings.Index(string(root), `href="about/index.html"`)}; !(got[0] < got[1] && got[1] < got[2] && got[2] < got[3]) {
+	if got := []int{strings.Index(string(root), `href="home/index.html"`), strings.Index(string(root), `href="reference/api/index.html"`), strings.Index(string(root), `href="guides/setup/index.html"`), strings.Index(string(root), `href="about/index.html"`)}; got[0] >= got[1] || got[1] >= got[2] || got[2] >= got[3] {
 		t.Errorf("exported tree order = %v, want home, reference, guides, about", got)
 	}
 	pageNamedIndex, err := os.ReadFile(filepath.Join(outDir, "index", "index.html"))
