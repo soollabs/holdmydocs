@@ -199,7 +199,8 @@
 			});
 		});
 		var hashId = location.hash.slice(1);
-		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
+		var defaultTab = {{if or .Settings.NewToken .Settings.TokenError}}"access-tokens"{{else}}tabs[0].dataset.tab{{end}};
+		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : defaultTab);
 	});
 
 	[['font_ui', '--font-ui'], ['font_mono', '--font-mono']].forEach(function (pair) {

@@ -1162,6 +1162,9 @@ func createTokenViaUI(t *testing.T, server *httptest.Server, client *http.Client
 	}
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `var defaultTab = "access-tokens";`) {
+		t.Error("token creation did not return with the access-tokens tab active")
+	}
 	token := tokenRe.FindString(string(body))
 	if token == "" {
 		t.Fatalf("no token in settings response (status %d)", resp.StatusCode)
