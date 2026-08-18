@@ -27,8 +27,6 @@
     saveQueue(queue);
   }
 
-  // sequential, stops at the first failure so a stale basehash
-  // conflict doesn't clobber later queued edits out of order.
   async function flushOfflineQueue() {
     const queue = loadQueue();
     while (queue.length) {

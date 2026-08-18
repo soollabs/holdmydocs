@@ -1,5 +1,3 @@
-// caches static assets only, not auth-gated page content —
-// upgrade to a page cache if full offline browsing of wiki pages is needed.
 const CACHE = 'hmd-static-v3';
 const ASSETS = ['/_/static/style.css?v=3', '/_/static/skins.css?v=2', '/_/static/app.js?v=2', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
 

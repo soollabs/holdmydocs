@@ -14,11 +14,7 @@
      --chrome-border-w the shell's own region edges (sidebar rule,
                        statusline rule, mobile topbar)
    A skin that wants "no chrome" zeroes the first and keeps the second at a
-   hairline, or the three regions bleed into one undifferentiated field.
-
-   --radius-lg isn't in the spec's per-skin token lists, but every
-   flat skin below also zeroes it — otherwise the 6px "card" panels stay
-   rounded while the 4px ones go square. */
+   hairline, or the three regions bleed into one undifferentiated field. */
 
 /* phosphor is the default look; the block is empty because style.css's
    :root already holds its values. It exists so the settings picker has an
