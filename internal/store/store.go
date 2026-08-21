@@ -107,7 +107,23 @@ const (
 	attachmentsDir         = "attachments"
 	namespaceConfigFile    = ".namespace.yaml"
 	extractedAttachmentDir = ".hmd/extracted"
+	slowLockWait           = time.Second
 )
+
+// traceSlowLockWait reports lock contention while it is happening, rather
+// than only after a blocked operation eventually returns. Fast, routine lock
+// acquisitions stay silent even with debug logging enabled.
+func traceSlowLockWait(operation string) func() {
+	started := time.Now()
+	timer := time.AfterFunc(slowLockWait, func() {
+		slog.Warn("repository lock wait exceeded threshold", "operation", operation, "threshold", slowLockWait)
+	})
+	return func() {
+		if !timer.Stop() {
+			slog.Info("repository lock acquired after slow wait", "operation", operation, "wait", time.Since(started))
+		}
+	}
+}
 
 func namespaceConfigPath(namespace string) string { return namespace + "/" + namespaceConfigFile }
 
@@ -1086,13 +1102,20 @@ func (s *Store) pushOnce() {
 // of the slug — namespaceFor is what decides namespace membership, not how
 // deep this walk goes, so the walk itself is unbounded.
 func (s *Store) List() ([]string, error) {
+	lockWaitDone := traceSlowLockWait("list repository")
 	s.mu.RLock()
+	lockWaitDone()
 	defer s.mu.RUnlock()
 
 	var paths []string
+	walkStarted := time.Now()
+	slog.Debug("repository walk started", "path", s.dir)
 	err := filepath.WalkDir(s.dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() {
+			slog.Debug("repository walk entering directory", "path", path)
 		}
 		if path == s.dir {
 			return nil
@@ -1130,13 +1153,16 @@ func (s *Store) List() ([]string, error) {
 	}
 
 	sort.Strings(paths)
+	slog.Debug("repository walk completed", "path", s.dir, "pages", len(paths), "duration", time.Since(walkStarted))
 	return paths, nil
 }
 
 // ListAttachments returns regular source attachments below attachments/, sorted
 // by repository-relative path. Internal .hmd sidecars and symlinks are ignored.
 func (s *Store) ListAttachments() ([]string, error) {
+	lockWaitDone := traceSlowLockWait("list attachments")
 	s.mu.RLock()
+	lockWaitDone()
 	defer s.mu.RUnlock()
 
 	root := filepath.Join(s.dir, attachmentsDir)
@@ -1151,6 +1177,9 @@ func (s *Store) ListAttachments() ([]string, error) {
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() {
+			slog.Debug("attachment walk entering directory", "path", path)
 		}
 		if d.Type()&os.ModeSymlink != 0 {
 			if d.IsDir() {
@@ -1555,6 +1584,8 @@ type FetchResult struct {
 // remote are equal or local is ahead, returns empty. If divergent, sets
 // syncState to "failed" and returns an error.
 func (s *Store) FetchAndFF() (FetchResult, error) {
+	fetchStarted := time.Now()
+	slog.Debug("fetch and fast-forward started")
 	s.mu.RLock()
 	remote, repo, auth := s.remote, s.repo, s.auth
 	s.mu.RUnlock()
@@ -1580,6 +1611,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		RemoteName: "origin",
 		Auth:       auth,
 	})
+	slog.Debug("remote fetch completed", "duration", time.Since(fetchStarted), "err", err)
 	s.lastFetchNano.Store(time.Now().UnixNano())
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		s.mu.Lock()
@@ -1591,7 +1623,9 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	// The rest (HEAD comparison through worktree reset) is local and fast,
 	// so it runs under the full write lock like the rest of Store's mutating
 	// operations.
+	lockWaitDone := traceSlowLockWait("apply fetched repository state")
 	s.mu.Lock()
+	lockWaitDone()
 	defer s.mu.Unlock()
 
 	headRef, err := s.repo.Head()
@@ -1639,17 +1673,23 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		return FetchResult{}, fmt.Errorf("%s", s.syncErr)
 	}
 
+	diffStarted := time.Now()
+	slog.Debug("fetch diffing commits", "local", localHash.String()[:8], "remote", remoteHash.String()[:8])
 	result, err := s.diffCommits(localHash, remoteHash)
 	if err != nil {
 		s.failSync("diff-commits", err)
 		return FetchResult{}, err
 	}
+	slog.Debug("fetch diffed commits", "duration", time.Since(diffStarted), "paths", len(result.ChangedPaths), "commits", len(result.Commits))
 
+	slog.Debug("fetch opening worktree")
 	wt, err := s.repo.Worktree()
 	if err != nil {
 		s.failSync("worktree", err)
 		return FetchResult{}, err
 	}
+	resetStarted := time.Now()
+	slog.Debug("fetch resetting worktree", "remote", remoteHash.String()[:8])
 	if err := wt.Reset(&git.ResetOptions{
 		Commit: remoteHash,
 		Mode:   git.HardReset,
@@ -1657,6 +1697,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 		s.failSync("worktree-reset", err)
 		return FetchResult{}, err
 	}
+	slog.Debug("fetch reset worktree", "duration", time.Since(resetStarted))
 
 	// Only the paths this fast-forward actually touched can be stale;
 	// dropping the whole cache would force a full path-filtered git log walk

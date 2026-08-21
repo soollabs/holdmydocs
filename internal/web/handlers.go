@@ -993,6 +993,7 @@ func (app *App) Routes() http.Handler {
 }
 
 func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("readiness check listing repository")
 	if _, err := app.Store.List(); err != nil || !app.Index.Ready() {
 		http.Error(w, "not ready", http.StatusServiceUnavailable)
 		return
@@ -1220,6 +1221,7 @@ func (app *App) loginData(errMsg string) TemplateData {
 }
 
 func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("rendering login page")
 	w.Header().Set("Cache-Control", "no-store")
 	app.render(w, r, http.StatusOK, "login", app.loginData(""))
 }

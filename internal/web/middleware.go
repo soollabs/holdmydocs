@@ -45,6 +45,7 @@ func accessLog(next http.Handler) http.Handler {
 		id := requestID()
 		w.Header().Set("X-Request-ID", id)
 		started := time.Now()
+		slog.Debug("request started", "request_id", id, "method", r.Method, "path", r.URL.Path)
 		logged := &requestLogWriter{ResponseWriter: w}
 		next.ServeHTTP(logged, r)
 		if logged.status == 0 {

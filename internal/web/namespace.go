@@ -584,6 +584,7 @@ func BuildNamespaceRegistryFromStore(store *Store) (NamespaceRegistry, error) {
 func buildNamespaceRegistry(repoDir string, readFile func(string) ([]byte, error)) (NamespaceRegistry, error) {
 	reg := NamespaceRegistry{}
 
+	slog.Debug("namespace registry reading repository directory", "path", repoDir)
 	entries, err := os.ReadDir(repoDir)
 	if err != nil {
 		return nil, fmt.Errorf("reading repo directory: %w", err)
@@ -592,8 +593,10 @@ func buildNamespaceRegistry(repoDir string, readFile func(string) ([]byte, error
 		if !e.IsDir() || !validNamespaceName(e.Name()) {
 			continue
 		}
+		slog.Debug("namespace registry loading namespace", "namespace", e.Name())
 		reg[e.Name()] = loadNamespaceConfigWith(filepath.Join(repoDir, e.Name()), e.Name(), readFile)
 	}
+	slog.Debug("namespace registry built", "namespaces", len(reg))
 	return reg, nil
 }
 

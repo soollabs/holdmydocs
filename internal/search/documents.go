@@ -610,6 +610,8 @@ func OpenIndex(appDir string, pages []wiki.Page, pageHashes map[string]string, a
 }
 
 func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]string, attachments map[string]string, documents *DocumentSearch) (*Index, error) {
+	started := time.Now()
+	slog.Debug("search index open started", "path", indexDir, "pages", len(pages), "attachments", len(attachments), "documents", documents != nil)
 	appDir := filepath.Dir(indexDir)
 	if err := os.MkdirAll(appDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating search directory: %w", err)
@@ -619,6 +621,7 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 		revision = documents.embedder.Revision()
 	}
 	manifestFile := manifestPath(indexDir)
+	slog.Debug("search index loading manifest", "path", manifestFile)
 	manifest, hasManifest, manifestErr := loadSearchManifest(manifestFile)
 	if manifestErr != nil || (hasManifest && manifest.ModelRevision != revision) {
 		if err := removeDerivedSearchState(indexDir); err != nil {
@@ -630,6 +633,7 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 	var idx bleve.Index
 	var err error
 	if hasManifest {
+		slog.Debug("search index opening existing index", "path", indexDir)
 		idx, err = bleve.Open(indexDir)
 		if err != nil {
 			if err := removeDerivedSearchState(indexDir); err != nil {
@@ -643,6 +647,7 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 		}
 	}
 	if !hasManifest {
+		slog.Debug("search index creating index", "path", indexDir)
 		idx, err = bleve.New(indexDir, mapping)
 		if err != nil {
 			return nil, fmt.Errorf("creating search index: %w", err)
@@ -668,12 +673,17 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 			ix.tagNames[tagSlug] = tag
 		}
 	}
+	reconcileStarted := time.Now()
+	slog.Debug("search index reconciling pages", "pages", len(pages))
 	if err := ix.reconcilePages(pages, pageHashes); err != nil {
 		_ = idx.Close()
 		return nil, err
 	}
+	slog.Debug("search index reconciled pages", "duration", time.Since(reconcileStarted))
 	if documents != nil {
-		for _, path := range sortedAttachmentPaths(attachments) {
+		attachmentPaths := sortedAttachmentPaths(attachments)
+		slog.Debug("search index reconciling attachments", "attachments", len(attachmentPaths))
+		for _, path := range attachmentPaths {
 			if err := ix.ReconcileAttachmentPath(path, attachments[path]); err != nil {
 				slog.Warn("indexing attachment", "path", path, "err", err)
 			}
@@ -686,6 +696,7 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 			}
 		}
 	}
+	slog.Debug("search index open completed", "path", indexDir, "duration", time.Since(started))
 	return ix, nil
 }
 
