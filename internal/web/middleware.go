@@ -51,7 +51,13 @@ func accessLog(next http.Handler) http.Handler {
 		if logged.status == 0 {
 			logged.status = http.StatusOK
 		}
-		slog.Info("request", "request_id", id, "method", r.Method, "route", r.Pattern, "status", logged.status, "bytes", logged.bytes, "duration", time.Since(started))
+		route := r.Pattern
+		if route == "" {
+			// accessLog wraps the mux, so a route pattern is not guaranteed to
+			// be populated here.
+			route = r.URL.Path
+		}
+		slog.Debug("request", "request_id", id, "method", r.Method, "route", route, "status", logged.status, "bytes", logged.bytes, "duration", time.Since(started))
 	})
 }
 
