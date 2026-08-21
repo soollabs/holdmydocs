@@ -30,6 +30,7 @@
 		<button type="button" class="settings-tab" data-tab="server">server</button>
 		<button type="button" class="settings-tab" data-tab="git-remote">git remote</button>
 		<button type="button" class="settings-tab" data-tab="behaviour">behaviour</button>
+		<button type="button" class="settings-tab" data-tab="advanced-config">advanced config</button>
 		<button type="button" class="settings-tab" data-tab="users">users</button>
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">advanced</button>{{end}}
 	</div>
@@ -126,6 +127,34 @@
 				<span class="badge-restart">restart reqd</span>
 			</div>
 			<p class="settings-note">Set <code>HMD_TIKA_URL</code> to enable PDF and Office extraction. The endpoint is local deployment configuration and is not saved in the repository.</p>
+		</fieldset>
+
+		<fieldset class="settings-section settings-panel" data-panel="advanced-config">
+			<legend>advanced configuration</legend>
+			<p class="settings-note">Instance settings not covered above. Comma-separated fields accept one value per line too. Changes marked restart reqd take effect after restarting hmd.</p>
+			<div class="settings-row"><label for="default_branch">default branch</label><input id="default_branch" name="default_branch" value="{{.Settings.Fields.DefaultBranch.Value}}" {{if not .Settings.Fields.DefaultBranch.Editable}}readonly{{end}}>{{if .Settings.Fields.DefaultBranch.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}</div>
+			<div class="settings-row"><label for="skin">default skin</label><select id="skin" name="skin">{{range .Settings.SkinNames}}<option value="{{.}}" {{if eq . $.Settings.Fields.Skin.Value}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+			<div class="settings-row"><label for="debug">debug logging</label><input type="checkbox" id="debug" name="debug" {{if eq .Settings.Fields.Debug.Value "true"}}checked{{end}} {{if not .Settings.Fields.Debug.Editable}}disabled{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="base_url">base URL</label><input id="base_url" name="base_url" value="{{.Settings.Fields.BaseURL.Value}}" {{if not .Settings.Fields.BaseURL.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="trusted_proxies">trusted proxies</label><input id="trusted_proxies" name="trusted_proxies" value="{{.Settings.Fields.TrustedProxies.Value}}" {{if not .Settings.Fields.TrustedProxies.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="git_token_file">git token file</label><input id="git_token_file" name="git_token_file" value="{{.Settings.Fields.GitTokenFile.Value}}" {{if not .Settings.Fields.GitTokenFile.Editable}}readonly{{end}}></div>
+			<div class="settings-row"><label for="mcp_enabled">enable MCP</label><input type="checkbox" id="mcp_enabled" name="mcp_enabled" {{if eq .Settings.Fields.MCPEnabled.Value "true"}}checked{{end}} {{if not .Settings.Fields.MCPEnabled.Editable}}disabled{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="document_model">search model</label><input id="document_model" name="document_model" value="{{.Settings.Fields.DocumentModel.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="document_model_dir">model directory</label><input id="document_model_dir" name="document_model_dir" value="{{.Settings.Fields.DocumentModelDir.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="document_index_dir">search index directory</label><input id="document_index_dir" name="document_index_dir" value="{{.Settings.Fields.DocumentIndexDir.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<h3>OIDC single sign-on</h3>
+			<div class="settings-row"><label for="oidc_issuer">issuer</label><input id="oidc_issuer" name="oidc_issuer" value="{{.Settings.Fields.OIDCIssuer.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_client_id">client ID</label><input id="oidc_client_id" name="oidc_client_id" value="{{.Settings.Fields.OIDCClientID.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_client_secret">client secret</label><input type="password" id="oidc_client_secret" name="oidc_client_secret" placeholder="{{.Settings.Fields.OIDCClientSecret.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_client_secret_file">client secret file</label><input id="oidc_client_secret_file" name="oidc_client_secret_file" value="{{.Settings.Fields.OIDCClientSecretFile.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_local_login">allow local login</label><input type="checkbox" id="oidc_local_login" name="oidc_local_login" {{if eq .Settings.Fields.OIDCLocalLogin.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_button_text">button text</label><input id="oidc_button_text" name="oidc_button_text" value="{{.Settings.Fields.OIDCButtonText.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_icon">icon</label><input id="oidc_icon" name="oidc_icon" value="{{.Settings.Fields.OIDCIcon.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_default_scopes">default scopes</label><input id="oidc_default_scopes" name="oidc_default_scopes" value="{{.Settings.Fields.OIDCDefaultScopes.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_allowed_subjects">allowed subjects</label><input id="oidc_allowed_subjects" name="oidc_allowed_subjects" value="{{.Settings.Fields.OIDCAllowedSubjects.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_allowed_email_domains">allowed email domains</label><input id="oidc_allowed_email_domains" name="oidc_allowed_email_domains" value="{{.Settings.Fields.OIDCAllowedEmailDomains.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_allow_any_authenticated">allow any authenticated identity</label><input type="checkbox" id="oidc_allow_any_authenticated" name="oidc_allow_any_authenticated" {{if eq .Settings.Fields.OIDCAllowAnyAuthenticated.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row"><label for="oidc_allow_insecure_loopback">allow insecure loopback</label><input type="checkbox" id="oidc_allow_insecure_loopback" name="oidc_allow_insecure_loopback" {{if eq .Settings.Fields.OIDCAllowInsecureLoopback.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
 		</fieldset>
 
 		<div class="settings-actions settings-actions-sticky">

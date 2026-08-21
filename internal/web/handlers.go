@@ -418,6 +418,32 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields["AdminPass"] = FieldState{Value: cfg.AdminPass, Editable: false, EnvVar: adminPassEnv, BootstrapOnly: true}
 
 	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
+	fields["DefaultBranch"] = mkField(cfg.DefaultBranch, "DefaultBranch", false, false)
+	fields["Skin"] = mkField(cfg.Skin, "Skin", false, false)
+	fields["Debug"] = mkField(strconv.FormatBool(cfg.Debug), "Debug", true, false)
+	fields["BaseURL"] = mkField(cfg.BaseURL, "BaseURL", true, false)
+	fields["TrustedProxies"] = mkField(strings.Join(cfg.TrustedProxies, ", "), "TrustedProxies", true, false)
+	fields["GitTokenFile"] = mkField(cfg.Git.TokenFile, "Git.TokenFile", false, false)
+	fields["MCPEnabled"] = mkField(strconv.FormatBool(cfg.MCP.Enabled), "MCP.Enabled", true, false)
+	fields["DocumentModel"] = mkField(cfg.DocumentSearch.Model, "DocumentSearch.Model", true, false)
+	fields["DocumentModelDir"] = mkField(cfg.DocumentSearch.ModelDir, "DocumentSearch.ModelDir", true, false)
+	fields["DocumentIndexDir"] = mkField(cfg.DocumentSearch.IndexDir, "DocumentSearch.IndexDir", true, false)
+	fields["OIDCIssuer"] = mkField(cfg.OIDC.Issuer, "OIDC.Issuer", true, false)
+	fields["OIDCClientID"] = mkField(cfg.OIDC.ClientID, "OIDC.ClientID", true, false)
+	oidcSecretValue := "not set"
+	if cfg.OIDC.ClientSecret != "" {
+		oidcSecretValue = "set"
+	}
+	fields["OIDCClientSecret"] = FieldState{Value: oidcSecretValue, Editable: cfg.EnvOverrides["OIDC.ClientSecret"] == "", RestartRequired: true, EnvVar: cfg.EnvOverrides["OIDC.ClientSecret"]}
+	fields["OIDCClientSecretFile"] = mkField(cfg.OIDC.ClientSecretFile, "OIDC.ClientSecretFile", true, false)
+	fields["OIDCLocalLogin"] = mkField(strconv.FormatBool(cfg.OIDC.LocalLogin), "OIDC.LocalLogin", true, false)
+	fields["OIDCButtonText"] = mkField(cfg.OIDC.ButtonText, "OIDC.ButtonText", true, false)
+	fields["OIDCIcon"] = mkField(cfg.OIDC.Icon, "OIDC.Icon", true, false)
+	fields["OIDCDefaultScopes"] = mkField(strings.Join(cfg.OIDC.DefaultScopes, ", "), "OIDC.DefaultScopes", true, false)
+	fields["OIDCAllowedSubjects"] = mkField(strings.Join(cfg.OIDC.AllowedSubjects, ", "), "OIDC.AllowedSubjects", true, false)
+	fields["OIDCAllowedEmailDomains"] = mkField(strings.Join(cfg.OIDC.AllowedEmailDomains, ", "), "OIDC.AllowedEmailDomains", true, false)
+	fields["OIDCAllowAnyAuthenticated"] = mkField(strconv.FormatBool(cfg.OIDC.AllowAnyAuthenticated), "OIDC.AllowAnyAuthenticated", true, false)
+	fields["OIDCAllowInsecureLoopback"] = mkField(strconv.FormatBool(cfg.OIDC.AllowInsecureLoopback), "OIDC.AllowInsecureLoopback", true, false)
 	tikaValue := "not set"
 	if cfg.TikaURL != "" {
 		tikaValue = "configured"
@@ -3944,6 +3970,9 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	maxUploadStr := r.FormValue("max_upload_bytes")
 	syncPollStr := r.FormValue("sync_poll_ms")
 	syncMode := r.FormValue("sync_mode")
+	list := func(name string) []string {
+		return strings.FieldsFunc(r.FormValue(name), func(r rune) bool { return r == ',' || r == '\n' })
+	}
 
 	if bind == "" {
 		http.Error(w, "bind cannot be empty", http.StatusBadRequest)
@@ -3995,6 +4024,31 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	fc.MaxUploadBytes = new(maxUploadBytes)
 	fc.SyncPollMs = new(syncPollMs)
 	fc.SyncMode = syncMode
+	fc.DefaultBranch = r.FormValue("default_branch")
+	fc.Skin = r.FormValue("skin")
+	fc.Debug = r.FormValue("debug") == "on"
+	fc.BaseURL = r.FormValue("base_url")
+	fc.TrustedProxies = list("trusted_proxies")
+	fc.Git.TokenFile = r.FormValue("git_token_file")
+	fc.MCP.Enabled = r.FormValue("mcp_enabled") == "on"
+	fc.DocumentSearch.Model = r.FormValue("document_model")
+	fc.DocumentSearch.ModelDir = r.FormValue("document_model_dir")
+	fc.DocumentSearch.IndexDir = r.FormValue("document_index_dir")
+	fc.OIDC.Issuer = r.FormValue("oidc_issuer")
+	fc.OIDC.ClientID = r.FormValue("oidc_client_id")
+	fc.OIDC.ClientSecretFile = r.FormValue("oidc_client_secret_file")
+	if secret := r.FormValue("oidc_client_secret"); secret != "" {
+		fc.OIDC.ClientSecret = secret
+	}
+	localLogin := r.FormValue("oidc_local_login") == "on"
+	fc.OIDC.LocalLogin = &localLogin
+	fc.OIDC.ButtonText = r.FormValue("oidc_button_text")
+	fc.OIDC.Icon = r.FormValue("oidc_icon")
+	fc.OIDC.DefaultScopes = list("oidc_default_scopes")
+	fc.OIDC.AllowedSubjects = list("oidc_allowed_subjects")
+	fc.OIDC.AllowedEmailDomains = list("oidc_allowed_email_domains")
+	fc.OIDC.AllowAnyAuthenticated = r.FormValue("oidc_allow_any_authenticated") == "on"
+	fc.OIDC.AllowInsecureLoopback = r.FormValue("oidc_allow_insecure_loopback") == "on"
 
 	if gitToken != "" && r.FormValue("store_git_token") == "on" {
 		fc.Git.Token = gitToken
