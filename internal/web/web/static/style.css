@@ -2205,6 +2205,15 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	font-size: inherit;
 }
 
+.settings-row input[type="checkbox"] {
+	/* The general input rule makes controls flex: 1, which turns a checkbox
+	   into a wide, confusing click target. Keep native toggles compact. */
+	flex: 0 0 auto;
+	min-width: 1rem;
+	width: 1rem;
+	accent-color: var(--primary);
+}
+
 .settings-row input:focus {
 	border-bottom-color: var(--primary);
 }

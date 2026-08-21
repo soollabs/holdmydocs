@@ -379,6 +379,8 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	}
 
 	fields["Bind"] = mkField(cfg.Bind, "Bind", true, false)
+	fields["MaxUploadBytes"] = mkField(strconv.FormatInt(cfg.MaxUploadBytes, 10), "MaxUploadBytes", false, false)
+	fields["SyncPollMs"] = mkField(strconv.Itoa(cfg.SyncPollMs), "SyncPollMs", false, false)
 	fields["RepoDir"] = mkField(cfg.RepoDir, "RepoDir", true, false)
 	appDirEnv := ""
 	if os.Getenv("HMD_APP_DIR") != "" {
@@ -4016,43 +4018,54 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fc.Bind = bind
-	fc.RepoDir = repoDir
-	fc.Git.RemoteURL = remoteURL
-	fc.Git.User = gitUser
-	fc.Git.Author = gitAuthor
-	fc.MaxUploadBytes = new(maxUploadBytes)
-	fc.SyncPollMs = new(syncPollMs)
-	fc.SyncMode = syncMode
-	fc.DefaultBranch = r.FormValue("default_branch")
-	fc.Skin = r.FormValue("skin")
-	fc.Debug = r.FormValue("debug") == "on"
-	fc.BaseURL = r.FormValue("base_url")
-	fc.TrustedProxies = list("trusted_proxies")
-	fc.Git.TokenFile = r.FormValue("git_token_file")
-	fc.MCP.Enabled = r.FormValue("mcp_enabled") == "on"
-	fc.DocumentSearch.Model = r.FormValue("document_model")
-	fc.DocumentSearch.ModelDir = r.FormValue("document_model_dir")
-	fc.DocumentSearch.IndexDir = r.FormValue("document_index_dir")
-	fc.OIDC.Issuer = r.FormValue("oidc_issuer")
-	fc.OIDC.ClientID = r.FormValue("oidc_client_id")
-	fc.OIDC.ClientSecretFile = r.FormValue("oidc_client_secret_file")
-	if secret := r.FormValue("oidc_client_secret"); secret != "" {
-		fc.OIDC.ClientSecret = secret
+	// Environment variables are authoritative. Do not let a crafted form change
+	// their on-disk fallback values (and, especially, do not turn an omitted
+	// disabled checkbox into false).
+	set := func(path string, apply func()) {
+		if app.config().EnvOverrides[path] == "" {
+			apply()
+		}
 	}
-	localLogin := r.FormValue("oidc_local_login") == "on"
-	fc.OIDC.LocalLogin = &localLogin
-	fc.OIDC.ButtonText = r.FormValue("oidc_button_text")
-	fc.OIDC.Icon = r.FormValue("oidc_icon")
-	fc.OIDC.DefaultScopes = list("oidc_default_scopes")
-	fc.OIDC.AllowedSubjects = list("oidc_allowed_subjects")
-	fc.OIDC.AllowedEmailDomains = list("oidc_allowed_email_domains")
-	fc.OIDC.AllowAnyAuthenticated = r.FormValue("oidc_allow_any_authenticated") == "on"
-	fc.OIDC.AllowInsecureLoopback = r.FormValue("oidc_allow_insecure_loopback") == "on"
+	set("Bind", func() { fc.Bind = bind })
+	set("RepoDir", func() { fc.RepoDir = repoDir })
+	set("Git.RemoteURL", func() { fc.Git.RemoteURL = remoteURL })
+	set("Git.User", func() { fc.Git.User = gitUser })
+	set("Git.Author", func() { fc.Git.Author = gitAuthor })
+	set("MaxUploadBytes", func() { fc.MaxUploadBytes = new(maxUploadBytes) })
+	set("SyncPollMs", func() { fc.SyncPollMs = new(syncPollMs) })
+	set("SyncMode", func() { fc.SyncMode = syncMode })
+	set("DefaultBranch", func() { fc.DefaultBranch = r.FormValue("default_branch") })
+	set("Skin", func() { fc.Skin = r.FormValue("skin") })
+	set("Debug", func() { fc.Debug = r.FormValue("debug") == "on" })
+	set("BaseURL", func() { fc.BaseURL = r.FormValue("base_url") })
+	set("TrustedProxies", func() { fc.TrustedProxies = list("trusted_proxies") })
+	set("Git.TokenFile", func() { fc.Git.TokenFile = r.FormValue("git_token_file") })
+	set("MCP.Enabled", func() { fc.MCP.Enabled = r.FormValue("mcp_enabled") == "on" })
+	set("DocumentSearch.Model", func() { fc.DocumentSearch.Model = r.FormValue("document_model") })
+	set("DocumentSearch.ModelDir", func() { fc.DocumentSearch.ModelDir = r.FormValue("document_model_dir") })
+	set("DocumentSearch.IndexDir", func() { fc.DocumentSearch.IndexDir = r.FormValue("document_index_dir") })
+	set("OIDC.Issuer", func() { fc.OIDC.Issuer = r.FormValue("oidc_issuer") })
+	set("OIDC.ClientID", func() { fc.OIDC.ClientID = r.FormValue("oidc_client_id") })
+	set("OIDC.ClientSecretFile", func() { fc.OIDC.ClientSecretFile = r.FormValue("oidc_client_secret_file") })
+	set("OIDC.ClientSecret", func() {
+		if secret := r.FormValue("oidc_client_secret"); secret != "" {
+			fc.OIDC.ClientSecret = secret
+		}
+	})
+	set("OIDC.LocalLogin", func() { localLogin := r.FormValue("oidc_local_login") == "on"; fc.OIDC.LocalLogin = &localLogin })
+	set("OIDC.ButtonText", func() { fc.OIDC.ButtonText = r.FormValue("oidc_button_text") })
+	set("OIDC.Icon", func() { fc.OIDC.Icon = r.FormValue("oidc_icon") })
+	set("OIDC.DefaultScopes", func() { fc.OIDC.DefaultScopes = list("oidc_default_scopes") })
+	set("OIDC.AllowedSubjects", func() { fc.OIDC.AllowedSubjects = list("oidc_allowed_subjects") })
+	set("OIDC.AllowedEmailDomains", func() { fc.OIDC.AllowedEmailDomains = list("oidc_allowed_email_domains") })
+	set("OIDC.AllowAnyAuthenticated", func() { fc.OIDC.AllowAnyAuthenticated = r.FormValue("oidc_allow_any_authenticated") == "on" })
+	set("OIDC.AllowInsecureLoopback", func() { fc.OIDC.AllowInsecureLoopback = r.FormValue("oidc_allow_insecure_loopback") == "on" })
 
-	if gitToken != "" && r.FormValue("store_git_token") == "on" {
-		fc.Git.Token = gitToken
-	}
+	set("Git.Token", func() {
+		if gitToken != "" && r.FormValue("store_git_token") == "on" {
+			fc.Git.Token = gitToken
+		}
+	})
 
 	if err := SaveFileConfig(configPath, fc); err != nil {
 		slog.Error("saving config", "err", err)
