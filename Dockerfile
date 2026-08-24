@@ -1,5 +1,5 @@
 FROM golangci/golangci-lint:v2.13.0@sha256:8bd3a16a42f03207464b9f7cf3f9e8d3549d976ace271e583cad11aa11218974 AS lint
-FROM golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 AS build
+FROM golang:1.27.0-bookworm@sha256:484ef6066fa69acb059fdfeda7ba2b8f7391f2ef6abc6f9b8411e669ebd56466 AS build
 ARG BUILD_VERSION=dev
 ARG VCS_REF=unknown
 WORKDIR /src
