@@ -275,27 +275,20 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 }
 
 func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *mcp.Server) http.Handler {
-	stateful := mcp.NewStreamableHTTPHandler(serverForRequest, nil)
 	modern := mcp.NewStreamableHTTPHandler(serverForRequest, &mcp.StreamableHTTPOptions{
-		// Stateless requests require no server-side lifecycle management.
 		Stateless:                    true,
 		PropagateRequestCancellation: true,
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Config validation requires base_url in live MCP deployments. The
-		// fallback only keeps direct handler tests and embedded callers usable.
-		if baseURL == "" {
-			baseURL = "http://" + r.Host
+		requestBaseURL := baseURL
+		if requestBaseURL == "" {
+			requestBaseURL = "http://" + r.Host
 			if r.TLS != nil {
-				baseURL = "https://" + r.Host
+				requestBaseURL = "https://" + r.Host
 			}
 		}
-		r = r.WithContext(context.WithValue(r.Context(), mcpBaseURLKey{}, baseURL))
-		if r.Header.Get("MCP-Protocol-Version") == mcpProtocolVersion {
-			mcpProtocolGate(modern).ServeHTTP(w, r)
-			return
-		}
-		stateful.ServeHTTP(w, r)
+		r = r.WithContext(context.WithValue(r.Context(), mcpBaseURLKey{}, requestBaseURL))
+		mcpProtocolGate(modern).ServeHTTP(w, r)
 	})
 	return http.NewCrossOriginProtection().Handler(handler)
 }

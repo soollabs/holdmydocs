@@ -481,30 +481,6 @@ func TestMCPRejectsUnsupportedInitialise(t *testing.T) {
 	}
 }
 
-func TestMCPAcceptsStatefulInitialise(t *testing.T) {
-	server, token := newMCPTestApp(t, true)
-	body := `{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{}},"clientInfo":{"name":"opencode","version":"1.18.9"}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("stateful initialise: got status %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-	if resp.Header.Get("Mcp-Session-Id") == "" {
-		t.Fatal("stateful initialise response missing Mcp-Session-Id")
-	}
-}
-
 func TestMCPOnlyAllowsPost(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	for _, method := range []string{http.MethodGet, http.MethodDelete, http.MethodPut} {
