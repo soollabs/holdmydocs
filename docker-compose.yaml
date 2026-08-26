@@ -43,7 +43,7 @@ services:
   # Optional document extraction service. It is internal-only by default.
   tika:
     profiles: [documents]
-    image: apache/tika:3.2.3.0-full@sha256:21d8052de04e491ccf66e8680ade4da6f3d453a56d59f740b4167e54167219b7
+    image: apache/tika:3.3.1.0-full@sha256:d8e6ed96260ad89307a93195a1b856102987a818ac648502f8efbaf313d32470
     user: "35002:35002"
     restart: unless-stopped
     read_only: true
