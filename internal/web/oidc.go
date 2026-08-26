@@ -48,14 +48,14 @@ func (app *App) handleOIDCIcon(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: value, MaxAge: 300, HttpOnly: true, Secure: app.isSecureRequest(r),
+		Name: name, Value: value, MaxAge: 300, HttpOnly: true, Secure: app.secureCookie(r),
 		SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/",
 	})
 }
 
 func (app *App) clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
 	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: app.isSecureRequest(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: app.secureCookie(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
 	}
 }
 
@@ -122,6 +122,6 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("OIDC login", "username", username)
-	http.SetCookie(w, &http.Cookie{Name: "hmd_session", Value: sessionToken, HttpOnly: true, Secure: app.isSecureRequest(r), SameSite: http.SameSiteLaxMode, Path: "/", MaxAge: 30 * 24 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: "hmd_session", Value: sessionToken, HttpOnly: true, Secure: app.secureCookie(r), SameSite: http.SameSiteLaxMode, Path: "/", MaxAge: 30 * 24 * 60 * 60})
 	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }

@@ -463,7 +463,9 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		expires := time.Now().Add(10 * time.Minute)
 		tokenString := fmt.Sprintf("%x", token)
-		app.uploads.Store(tokenString, uploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires})
+		if err := app.addUploadCapability(tokenString, uploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires}); err != nil {
+			return nil, mcpAttachmentUploadOut{}, err
+		}
 		baseURL, _ := ctx.Value(mcpBaseURLKey{}).(string)
 		return nil, mcpAttachmentUploadOut{
 			UploadURL:     baseURL + "/_/api/attachment-uploads/" + tokenString,

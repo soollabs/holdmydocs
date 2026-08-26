@@ -1,6 +1,10 @@
 package wiki
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 const reservedNamespace = "_"
 
@@ -16,14 +20,18 @@ func NamespaceFor(slug string) (namespace, rest string) {
 
 func NamespaceSlug(namespace, rest string) string { return namespace + "/" + rest }
 
+func validPathText(name string) bool {
+	return utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl)
+}
+
 func ValidNamespaceName(name string) bool {
-	return name != "" && !reservedTopLevel[name] &&
+	return name != "" && validPathText(name) && !reservedTopLevel[name] &&
 		!strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 
 func ValidPageSegment(name string) bool {
-	return name != "" && !strings.ContainsAny(name, `/\`) &&
+	return name != "" && validPathText(name) && !strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 

@@ -59,6 +59,51 @@ func TestRecoveryReturnsGenericErrorAndRequestID(t *testing.T) {
 	}
 }
 
+func TestRequestSecurityRejectsCrossOriginLogin(t *testing.T) {
+	app := &App{}
+	app.SetConfig(Config{BaseURL: "https://wiki.example.com"})
+	called := 0
+	handler := app.requestSecurity(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	tests := []struct {
+		name          string
+		origin        string
+		secFetchSite  string
+		wantStatus    int
+		wantForwarded bool
+	}{
+		{name: "same origin", origin: "https://wiki.example.com", wantStatus: http.StatusNoContent, wantForwarded: true},
+		{name: "foreign origin", origin: "https://evil.example", wantStatus: http.StatusForbidden},
+		{name: "null origin", origin: "null", wantStatus: http.StatusForbidden},
+		{name: "cross-site fetch metadata", secFetchSite: "cross-site", wantStatus: http.StatusForbidden},
+		{name: "non-browser client", wantStatus: http.StatusNoContent, wantForwarded: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			before := called
+			request := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/_/login", strings.NewReader("username=admin"))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.secFetchSite != "" {
+				request.Header.Set("Sec-Fetch-Site", tc.secFetchSite)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", response.Code, tc.wantStatus)
+			}
+			if forwarded := called == before+1; forwarded != tc.wantForwarded {
+				t.Fatalf("forwarded = %t, want %t", forwarded, tc.wantForwarded)
+			}
+		})
+	}
+}
+
 func FuzzRequestSecurityOrigin(f *testing.F) {
 	auth, err := OpenAuth(Config{AppDir: f.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
 	if err != nil {

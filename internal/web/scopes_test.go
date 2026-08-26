@@ -353,6 +353,19 @@ func TestCreateUserViaSettings(t *testing.T) {
 		t.Error("newbie should be able to log in with the password set at creation")
 	}
 
+	// A missing policy is rejected before persistence; it must not leave the
+	// full-access intermediate record AddUser historically created.
+	emptyResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
+		"name": {"no-policy"}, "password": {"password12345"},
+	})
+	if err != nil {
+		t.Fatalf("POST /settings/users (empty scopes): %v", err)
+	}
+	closeTestBody(t, emptyResp.Body)
+	if app.Auth.UserExists("no-policy") {
+		t.Error("user with no submitted scopes should not have been persisted")
+	}
+
 	// Duplicate name is rejected rather than silently resetting the password.
 	dupResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
 		"name": {"newbie"}, "password": {"otherpassword"},

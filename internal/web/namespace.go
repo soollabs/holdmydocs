@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
@@ -222,7 +223,7 @@ func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, er
 // dot-prefixed (ignored, like hidden files) and not "_"-prefixed (the app's
 // own route segment, reserved the same way page segments reserve it).
 func validNamespaceName(name string) bool {
-	return name != "" && !reservedTopLevel[name] &&
+	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !reservedTopLevel[name] &&
 		!strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
@@ -231,7 +232,7 @@ func validNamespaceName(name string) bool {
 // separate from validMCPPageSlug because namespace templates and generated
 // names must remain single-segment even though MCP pages may be namespaced.
 func validMCPPageSegment(name string) bool {
-	return name != "" && !strings.ContainsAny(name, `/\`) &&
+	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 

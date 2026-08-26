@@ -106,6 +106,27 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	}
 }
 
+func TestAnonymousHeadMatchesPublicGetAccess(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	defer server.Close()
+
+	setNamespacePublic(t, app, "blog", true)
+	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
+
+	req, err := http.NewRequest(http.MethodHead, server.URL+"/blog/hello", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := noAuthClient().Do(req)
+	if err != nil {
+		t.Fatalf("HEAD: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("HEAD public page = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestAnonymousPublicNamespaceSkinUsesDefaultPalette(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()

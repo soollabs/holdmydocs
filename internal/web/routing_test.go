@@ -13,6 +13,38 @@ import (
 
 // TestSecurityHeadersPresent checks the clickjacking/MIME-sniffing headers
 // land on every response, including ones auth denies before reaching a route.
+func TestStaticDirectoriesAreNotListed(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, path := range []string{"/_/static/", "/_/static/fonts/"} {
+		resp, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestMalformedPagePathsAreNotInternalErrors(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, path := range []string{"/notes/%00", "/notes/.git/config"} {
+		resp, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		closeTestBody(t, resp.Body)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, resp.StatusCode)
+		}
+	}
+}
+
 func TestSecurityHeadersPresent(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()

@@ -429,6 +429,25 @@ func tightenRegularFile(path string) error {
 }
 
 func (a *Auth) AddUser(name, password string) error {
+	return a.addUser(name, password, scopeNames(allScopes))
+}
+
+// AddUserWithScopes creates a user with its final policy in one persisted
+// update. Keeping creation and scope assignment atomic prevents a failed or
+// malformed second operation from leaving behind an unintended full-access
+// account.
+func (a *Auth) AddUserWithScopes(name, password string, scopes []string) error {
+	normalised, err := normaliseTokenScopes(scopes)
+	if err != nil {
+		return err
+	}
+	if len(normalised) == 0 {
+		return fmt.Errorf("user scopes cannot be empty")
+	}
+	return a.addUser(name, password, normalised)
+}
+
+func (a *Auth) addUser(name, password string, scopes []string) error {
 	if !validUsername(name) {
 		return fmt.Errorf("invalid username")
 	}
@@ -443,7 +462,7 @@ func (a *Auth) AddUser(name, password string) error {
 	a.mu.Lock()
 	rec := a.users[name] // preserve any existing git author
 	rec.Hash = string(hash)
-	rec.Scopes = append([]string(nil), scopeNames(allScopes)...)
+	rec.Scopes = append([]string(nil), scopes...)
 	a.users[name] = rec
 	err = a.save()
 	if err == nil {
@@ -1153,7 +1172,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			user, authed = a.UserFor(cookie.Value)
 		}
 		if !authed {
-			if r.Method == http.MethodGet && anonymousEligible(r.URL.Path, r.URL.Query()) {
+			if (r.Method == http.MethodGet || r.Method == http.MethodHead) && anonymousEligible(r.URL.Path, r.URL.Query()) {
 				next.ServeHTTP(w, r)
 				return
 			}

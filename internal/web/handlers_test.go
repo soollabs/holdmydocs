@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -76,6 +77,24 @@ func closeTestBody(t *testing.T, closer io.Closer) {
 	t.Helper()
 	if err := closer.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
+	}
+}
+
+func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
+	app := &App{}
+	future := time.Now().Add(time.Minute)
+	for i := range maxPendingUploadCapabilities {
+		token := fmt.Sprintf("token-%d", i)
+		if err := app.addUploadCapability(token, uploadCapability{Expires: future}); err != nil {
+			t.Fatalf("adding capability %d: %v", i, err)
+		}
+	}
+	if err := app.addUploadCapability("overflow", uploadCapability{Expires: future}); err == nil {
+		t.Fatal("pending upload capability limit was not enforced")
+	}
+	app.uploads["token-0"] = uploadCapability{Expires: time.Now().Add(-time.Second)}
+	if err := app.addUploadCapability("replacement", uploadCapability{Expires: future}); err != nil {
+		t.Fatalf("expired capability was not purged: %v", err)
 	}
 }
 
@@ -154,9 +173,17 @@ func TestRequestSecurity(t *testing.T) {
 	if app.isSecureRequest(req) {
 		t.Fatal("untrusted forwarded proto marked request secure")
 	}
+	if !app.secureCookie(req) {
+		t.Fatal("HTTPS base_url did not enforce Secure cookies")
+	}
 	req.RemoteAddr = "10.1.2.3:1234"
 	if !app.isSecureRequest(req) {
 		t.Fatal("trusted forwarded proto did not mark request secure")
+	}
+	app.SetConfig(Config{BaseURL: "http://wiki.example.com"})
+	req.RemoteAddr = "192.0.2.1:1234"
+	if app.secureCookie(req) {
+		t.Fatal("plain HTTP deployment unexpectedly enforced Secure cookies")
 	}
 }
 

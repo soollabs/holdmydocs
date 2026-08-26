@@ -40,7 +40,8 @@ type App struct {
 	cfg        atomic.Pointer[Config]
 	wiki       atomic.Pointer[WikiConfig]
 	namespaces atomic.Pointer[NamespaceRegistry]
-	uploads    sync.Map
+	uploadMu   sync.Mutex
+	uploads    map[string]uploadCapability
 	Store      *Store
 	Auth       *Auth
 	Index      *Index
@@ -930,6 +931,13 @@ func (app *App) Routes() http.Handler {
 	fsys, _ := fs.Sub(webFS, "web/static")
 	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(fsys))
 	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// FileServer renders directory listings. Assets are public, but listing
+		// embedded directories needlessly advertises every shipped file and can
+		// expose one added by mistake in a later build.
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		staticHandler.ServeHTTP(w, r)
 	}))
@@ -1139,6 +1147,21 @@ func (app *App) isSecureRequest(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]), "https")
 }
 
+// secureCookie reports the externally visible transport policy. base_url is
+// authoritative when TLS terminates before an untrusted network hop; relying
+// only on the immediate request would silently omit Secure from cookies even
+// though the browser always uses HTTPS.
+func (app *App) secureCookie(r *http.Request) bool {
+	if app.isSecureRequest(r) {
+		return true
+	}
+	if app.cfg.Load() == nil {
+		return false
+	}
+	base, err := url.Parse(app.externalBaseURL())
+	return err == nil && strings.EqualFold(base.Scheme, "https")
+}
+
 func (app *App) trustedProxy(remote string) bool {
 	if app.cfg.Load() == nil {
 		return false
@@ -1162,6 +1185,18 @@ func (app *App) trustedProxy(remote string) bool {
 
 func (app *App) externalBaseURL() string { return app.config().BaseURL }
 
+func (app *App) requestOrigin(r *http.Request) string {
+	base := app.externalBaseURL()
+	if base != "" {
+		return base
+	}
+	scheme := "http"
+	if app.isSecureRequest(r) {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
 func (app *App) requestSecurity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions && !strings.HasPrefix(r.URL.Path, "/_/api/attachments/") && !strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") && !strings.HasPrefix(r.URL.Path, "/_/mcp") {
@@ -1182,21 +1217,24 @@ func (app *App) requestSecurity(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if r.URL.Path == "/_/login" {
+			origin := r.Header.Get("Origin")
+			if origin != "" && origin != app.requestOrigin(r) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			if origin == "" && r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
 		cookie, err := r.Cookie("hmd_session")
 		if err != nil || cookie.Value == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
 		origin := r.Header.Get("Origin")
-		base := app.externalBaseURL()
-		if base == "" {
-			scheme := "http"
-			if app.isSecureRequest(r) {
-				scheme = "https"
-			}
-			base = scheme + "://" + r.Host
-		}
-		if origin == "" || origin != base {
+		if origin == "" || origin != app.requestOrigin(r) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1271,7 +1309,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		Name:     "hmd_session",
 		Value:    token,
 		HttpOnly: true,
-		Secure:   app.isSecureRequest(r),
+		Secure:   app.secureCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
@@ -1294,7 +1332,7 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   app.isSecureRequest(r),
+		Secure:   app.secureCookie(r),
 		Path:     "/",
 	})
 
@@ -1770,8 +1808,7 @@ func reservedPath(path string) bool {
 // plus at least one segment inside it. A single segment names a namespace,
 // so it is served by the namespace index or not at all.
 func isPageSlug(slug string) bool {
-	ns, rest := namespaceFor(slug)
-	return ns != "" && rest != ""
+	return validMCPPageSlug(slug)
 }
 
 // handlePageGet dispatches every read of a page's own URL. The action is
@@ -2197,13 +2234,41 @@ type uploadCapability struct {
 	Expires  time.Time
 }
 
+const maxPendingUploadCapabilities = 1024
+
+func (app *App) addUploadCapability(token string, capability uploadCapability) error {
+	app.uploadMu.Lock()
+	defer app.uploadMu.Unlock()
+	if app.uploads == nil {
+		app.uploads = make(map[string]uploadCapability)
+	}
+	now := time.Now()
+	for key, pending := range app.uploads {
+		if now.After(pending.Expires) {
+			delete(app.uploads, key)
+		}
+	}
+	if len(app.uploads) >= maxPendingUploadCapabilities {
+		return errors.New("too many pending attachment uploads")
+	}
+	app.uploads[token] = capability
+	return nil
+}
+
+func (app *App) takeUploadCapability(token string) (uploadCapability, bool) {
+	app.uploadMu.Lock()
+	defer app.uploadMu.Unlock()
+	capability, ok := app.uploads[token]
+	delete(app.uploads, token)
+	return capability, ok
+}
+
 func (app *App) handleCapabilityUpload(w http.ResponseWriter, r *http.Request) {
-	value, ok := app.uploads.LoadAndDelete(r.PathValue("token"))
+	capability, ok := app.takeUploadCapability(r.PathValue("token"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	capability := value.(uploadCapability)
 	if time.Now().After(capability.Expires) {
 		http.Error(w, "upload URL expired", http.StatusGone)
 		return
@@ -3878,9 +3943,8 @@ func newPageTemplateBody(ns string) string {
 		"or backlinks. Delete all of this and make it yours.\n"
 }
 
-// handleCreateUser adds a new user from the settings page, with the scopes
-// selected in the form (none checked = full access, matching AddUser's
-// existing default for CLI-added users).
+// handleCreateUser adds a new user from the settings page with the scopes
+// selected in the form. At least one scope is required.
 func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	password := r.FormValue("password")
@@ -3900,11 +3964,7 @@ func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		fail(fmt.Sprintf("User %q already exists", name))
 		return
 	}
-	if err := app.Auth.AddUser(name, password); err != nil {
-		fail(err.Error())
-		return
-	}
-	if err := app.Auth.SetScopes(name, scopes); err != nil {
+	if err := app.Auth.AddUserWithScopes(name, password, scopes); err != nil {
 		fail(err.Error())
 		return
 	}
