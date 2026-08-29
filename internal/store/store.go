@@ -25,9 +25,6 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
-// gitNetworkTimeout bounds push/fetch network calls, which run with s.mu
-// held — without a cap, a stalled remote would block every save and read.
-// A var (not const) so tests can shrink it to exercise the timeout path.
 var gitNetworkTimeout atomic.Int64
 
 func init() {
@@ -70,35 +67,24 @@ type Store struct {
 	syncState string
 	syncErr   string
 	// historyCache holds History() results keyed by path, protected by mu.
-	// Save/Remove update it incrementally (O(1)); FetchAndFF drops it
-	// wholesale since a pull can touch any path. A cold lookup fills every
-	// path in one repository walk so opening each new page does not repeat it.
 	historyCache map[string][]CommitInfo
-	// knownHead is the HEAD hash after the last commit or reset made by this
-	// process, protected by mu. When HEAD differs from it, a commit was made
-	// outside the UI (git CLI on the server) and historyCache is stale.
-	// Zero value means "not yet observed" and safely triggers one drop of an
-	// empty cache.
+	// knownHead is the HEAD hash after the last commit or reset made by this process, protected by mu.
 	knownHead  plumbing.Hash
 	NeedsSetup atomic.Bool
-	// ForceSetup is set by the "re-run setup" button in settings — it shows
-	// the modal even when a namespace, .wiki.yaml and .help.md already exist, unlike
-	// NeedsSetup which only reflects what is actually missing.
+	// ForceSetup is set by the "re-run setup" button in settings — it shows the modal even when a namespace,
+	// .wiki.yaml and .help.md already exist, unlike NeedsSetup which only reflects what is actually missing.
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
 
-	// pushMu serializes pushes against each other; it is held for the
-	// network round trip instead of mu, so reads and saves never queue
-	// behind a push. pushDirty is set when a save arrives while a push is
-	// already running, so that push loops once more instead of a second
-	// goroutine piling onto pushMu.
+	// pushMu serializes pushes against each other; it is held for the network round trip instead of mu, so reads
+	// and saves never queue behind a push. pushDirty is set when a save arrives while a push is already running,
+	// so that push loops once more instead of a second goroutine piling onto pushMu.
 	pushMu    sync.Mutex
 	pushDirty atomic.Bool
 	pushWG    sync.WaitGroup
 
-	// fetchMu serializes fetches against each other. lastFetchNano throttles
-	// FetchAndFF so a burst of sync polls across open tabs collapses to one
-	// network call every fetchThrottle.
+	// fetchMu serializes fetches against each other. lastFetchNano throttles FetchAndFF so a burst of sync polls
+	// across open tabs collapses to one network call every fetchThrottle.
 	fetchMu       sync.Mutex
 	lastFetchNano atomic.Int64
 }
@@ -110,9 +96,6 @@ const (
 	slowLockWait           = time.Second
 )
 
-// traceSlowLockWait reports lock contention while it is happening, rather
-// than only after a blocked operation eventually returns. Fast, routine lock
-// acquisitions stay silent even with debug logging enabled.
 func traceSlowLockWait(operation string) func() {
 	started := time.Now()
 	timer := time.AfterFunc(slowLockWait, func() {
@@ -178,9 +161,6 @@ func (s *Store) ReadRepositoryFile(path string) ([]byte, error) {
 	return s.readRepositoryFile(path)
 }
 
-// fetchThrottle is the minimum interval between two FetchAndFF network
-// calls; a call inside the window returns immediately with an empty result.
-// A var (not const) so tests can shrink it.
 var fetchThrottle atomic.Int64
 
 func fetchThrottleDuration() time.Duration { return time.Duration(fetchThrottle.Load()) }
@@ -205,13 +185,8 @@ func (s *Store) CachedHistoryLength(path string) (int, bool) {
 	return len(history), ok
 }
 
-// defaultIndexPage is the name of the index page seeded into the first
-// namespace: the page that takes over /{namespace}/ in place of the built-in
-// listing (NamespaceConfig.Index).
 const defaultIndexPage = "readme"
 
-// defaultHomeMD is the clean welcome page seeded as the first namespace's
-// index page. Its TOC token lists that namespace's pages.
 const defaultHomeMD = `# Welcome to hold my docs (hmd)
 
 This wiki is plain markdown files in a git repository. Every save is a commit
@@ -223,11 +198,6 @@ namespaces (top-level directories) and linked with ` + "`[[Page Title]]`" + ` wi
 ` + "<!-- hmd:toc -->" + `
 `
 
-// rootReadmeMD is repo furniture, not a page: git hosts (GitHub, git, …)
-// render readme.md on a repository's front page, so a plain one at the repo
-// root gives anyone browsing the content repo directly some orientation.
-// Store.List skips top-level .md files, so the wiki itself never indexes,
-// serves or edits it — it's written once at setup and left alone.
 const rootReadmeMD = `# hold my docs (hmd)
 
 A wiki, stored as markdown. Each top-level directory is a namespace and each
@@ -241,9 +211,6 @@ const (
 	RootReadmeMD     = rootReadmeMD
 )
 
-// defaultHelpMD is the built-in "how hold my docs (hmd) works" guide seeded as a hidden
-// dot-file (.help.md), offered as its own item in the setup modal. Covers both
-// UI usage and the on-disk markdown conventions, for humans and agents alike.
 const defaultHelpMD = `# Help
 
 ## Finding pages
@@ -441,13 +408,6 @@ each save. Reverting creates a new commit; history is never rewritten.
 
 const DefaultHelpMD = defaultHelpMD
 
-// HelpDrifted reports whether .help.md on disk differs from the built-in
-// defaultHelpMD for the running version. Used to warn on the settings page.
-// seedOrFlagSetup never writes anything without consent: it only sets the
-// NeedsSetup flag when the repo holds no namespace to file pages in, lacks its
-// portable .wiki.yaml and/or has no .help.md, on any repo — fresh, cloned, or
-// existing. The setup modal decides what actually gets seeded, based on what
-// the user selects.
 func seedOrFlagSetup(store *Store) {
 	_, wikiErr := os.Stat(filepath.Join(store.dir, ".wiki.yaml"))
 	_, helpErr := os.Stat(filepath.Join(store.dir, ".help.md"))
@@ -456,9 +416,6 @@ func seedOrFlagSetup(store *Store) {
 	}
 }
 
-// hasNamespace reports whether dir holds at least one namespace directory —
-// the wiki has somewhere to put a page. Cheaper and more direct than
-// building the whole registry, which is what the app does on its own timer.
 func hasNamespace(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -476,10 +433,8 @@ func HasNamespace(dir string) bool { return hasNamespace(dir) }
 func SeedOrFlagSetup(store *Store) { seedOrFlagSetup(store) }
 
 func Open(cfg Options) (*Store, error) {
-	// First, try to open existing repo
 	repo, err := git.PlainOpen(cfg.RepoDir)
 	if err == nil {
-		// Repo exists
 		remote := ""
 		if cfg.Git.RemoteURL != "" {
 			remote = "origin"
@@ -502,7 +457,7 @@ func Open(cfg Options) (*Store, error) {
 		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
 		return store, nil
 	}
-	// Try to clone if remote is set
+
 	if cfg.Git.RemoteURL != "" {
 		var auth *githttp.BasicAuth
 		if cfg.Git.Token != "" {
@@ -518,9 +473,7 @@ func Open(cfg Options) (*Store, error) {
 		repo, err := git.PlainCloneContext(cloneCtx, cfg.RepoDir, false, cloneOpts)
 		cloneCancel()
 		if err != nil {
-			// Check if this is an empty remote repo error
 			if err == transport.ErrEmptyRemoteRepository {
-				// Fall through to init with empty repo
 				goto init_empty_remote
 			}
 			return nil, fmt.Errorf("cloning repo: %w", err)
@@ -537,13 +490,11 @@ func Open(cfg Options) (*Store, error) {
 
 		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.Git.RemoteURL)
 
-		// Seed if the cloned repo is fresh or missing pages
 		seedOrFlagSetup(store)
 
 		return store, nil
 	}
 
-	// Initialize repo without remote
 init_empty_remote:
 	defaultBranch := cfg.DefaultBranch
 	if defaultBranch == "" {
@@ -568,9 +519,7 @@ init_empty_remote:
 
 	slog.Info("initialised new repo", "dir", cfg.RepoDir, "branch", defaultBranch)
 
-	// Create index.md for local-only repos, or for empty remote case
 	if cfg.Git.RemoteURL != "" {
-		// Empty remote case: add remote and push
 		_, err := repo.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{cfg.Git.RemoteURL}})
 		if err != nil {
 			return nil, fmt.Errorf("creating remote: %w", err)
@@ -582,15 +531,12 @@ init_empty_remote:
 		}
 	}
 
-	// Seed help + home for fresh repos
 	seedOrFlagSetup(store)
 
 	return store, nil
 }
 
-// Read reads path's content and blob hash. Takes a read lock so it can't
-// observe a Save() mid-write (os.WriteFile is open/truncate/write, not
-// atomic) or a FetchAndFF() mid fast-forward checkout.
+// Read reads path's content and blob hash.
 func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -604,8 +550,6 @@ func (s *Store) Read(path string) (content []byte, blobHash string, err error) {
 	return content, hash.String(), nil
 }
 
-// readHashLocked returns path's current blob hash, or "" if the file
-// doesn't exist. Callers must hold s.mu.
 func (s *Store) readHashLocked(path string) (string, error) {
 	content, err := s.readRepositoryFile(path)
 	if err != nil {
@@ -618,20 +562,11 @@ func (s *Store) readHashLocked(path string) (string, error) {
 	return hash.String(), nil
 }
 
-// ErrConflict is returned by SaveChecked when the file's current blob hash
-// doesn't match the caller's expected hash.
+// ErrConflict is returned by SaveChecked when the file's current blob hash doesn't match the caller's
+// expected hash.
 var ErrConflict = errors.New("optimistic lock conflict")
 
-// SaveChecked performs an optimistic-lock-protected save: the check against
-// oldPath's current blob hash and the write (with an optional move to
-// newPath) happen as one operation under s.mu, so two concurrent saves
-// against the same basehash can't both succeed the way they could with a
-// separate unlocked Read() followed by Save(). Returns ErrConflict if
-// oldPath's current hash doesn't match expectedHash.
-//
-// On a move (oldPath != newPath), newPath is written before oldPath is
-// removed, so a failure partway through leaves the content reachable at
-// both paths rather than lost entirely.
+// SaveChecked atomically saves content when expectedHash matches oldPath, optionally moving it to newPath.
 func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -672,8 +607,7 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 	return s.saveLocked(path, content, message, authorName, authorEmail)
 }
 
-// SaveAll writes files in one Git commit. It is used for source attachments
-// and their derived extraction sidecars so they cannot be committed apart.
+// SaveAll writes files in one Git commit.
 func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmail string) (map[string]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -729,7 +663,6 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 	return hashes, nil
 }
 
-// saveLocked is Save's body. Callers must hold s.mu.
 func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
 	// Skip the write and commit entirely if the content is unchanged, so an
 	// untouched file (including its on-disk mode) never produces a no-op commit.
@@ -744,21 +677,17 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 		return "", fmt.Errorf("writing file: %w", err)
 	}
 
-	// Get worktree and add file
 	wt, err := s.repo.Worktree()
 	if err != nil {
 		return "", fmt.Errorf("getting worktree: %w", err)
 	}
 
-	// SkipStatus: we just wrote path ourselves, so there's no need for Add's
-	// default full-worktree Status() scan (which hashes every file in the
-	// repo) to discover what changed.
+	// SkipStatus avoids hashing the whole worktree after writing path.
 	err = wt.AddWithOptions(&git.AddOptions{Path: path, SkipStatus: true})
 	if err != nil {
 		return "", fmt.Errorf("adding file to index: %w", err)
 	}
 
-	// Commit
 	preHead := s.headHash()
 	when := time.Now()
 	commitHash, err := wt.Commit(message, &git.CommitOptions{
@@ -775,11 +704,9 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 	s.prependHistory(path, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
 	slog.Debug("committed", "path", path, "hash", commitHash.String()[:8], "author", authorName)
 
-	// Compute blob hash
 	hash := plumbing.ComputeHash(plumbing.BlobObject, content)
 	blobHash = hash.String()
 
-	// Async push if remote configured
 	if s.remote != "" {
 		s.syncState = "pending"
 		s.startPush()
@@ -789,7 +716,6 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 }
 
 // Remove deletes path from disk and the git index, committing the removal.
-// A no-op (returns nil) if the file is already gone.
 func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -799,9 +725,8 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 var errInvalidNamespaceName = errors.New("invalid namespace name")
 var ErrInvalidNamespaceName = errInvalidNamespaceName
 
-// DeleteNamespace removes a configured namespace only when its configuration
-// is the directory's sole regular entry. The inspection and mutation share
-// s.mu so a Store save cannot add content after preflight has passed.
+// DeleteNamespace removes a configured namespace only when its configuration is the directory's sole regular
+// entry.
 func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -865,8 +790,7 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 	return nil
 }
 
-// DeleteNamespaceAll removes a configured namespace and every file beneath it
-// in one commit. The namespace name is validated before joining it to s.dir.
+// DeleteNamespaceAll removes a configured namespace and every file beneath it in one commit.
 func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -954,8 +878,7 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	return nil
 }
 
-// OpenExtractedAttachment opens an internal sidecar for a valid source
-// attachment. Sidecars are not ordinary attachments and are never served.
+// OpenExtractedAttachment opens an internal sidecar for a valid source attachment.
 func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -967,7 +890,6 @@ func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
 	return s.openRepositoryFile(sidecar, os.O_RDONLY, 0, false)
 }
 
-// removeLocked is Remove's body. Callers must hold s.mu.
 func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
 	if _, err := s.readRepositoryFile(path); errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -1008,9 +930,6 @@ func (s *Store) removeLocked(path, message, authorName, authorEmail string) erro
 	return nil
 }
 
-// prependHistory adds a newly-created commit to the cached history for path,
-// if a cache entry already exists (i.e. some earlier History() call paid the
-// full-walk cost). Callers must hold s.mu.
 func (s *Store) prependHistory(path string, entry CommitInfo) {
 	cached, ok := s.historyCache[path]
 	if !ok {
@@ -1019,10 +938,6 @@ func (s *Store) prependHistory(path string, entry CommitInfo) {
 	s.historyCache[path] = append([]CommitInfo{entry}, cached...)
 }
 
-// push serializes on pushMu (held for the network round trip) rather than
-// s.mu, so a stalled remote never blocks reads or saves. A save that arrives
-// while a push is already running sets pushDirty instead of starting a
-// second goroutine; the running push loops once more to pick it up.
 func (s *Store) push() {
 	if !s.pushMu.TryLock() {
 		s.pushDirty.Store(true)
@@ -1046,7 +961,6 @@ func (s *Store) startPush() {
 }
 
 // WaitForPushes waits for asynchronous pushes already started by saves.
-// Call it only after the HTTP server has stopped accepting writes.
 func (s *Store) WaitForPushes(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {
@@ -1061,10 +975,6 @@ func (s *Store) WaitForPushes(ctx context.Context) error {
 	}
 }
 
-// pushOnce runs a single push network round trip. repo/auth/remote are
-// immutable after OpenStore except via UpdateRemote (which takes s.mu), so a
-// snapshot read under RLock is enough — no lock is held across the network
-// call itself.
 func (s *Store) pushOnce() {
 	s.mu.RLock()
 	repo, auth := s.repo, s.auth
@@ -1094,13 +1004,9 @@ func (s *Store) pushOnce() {
 	}
 }
 
-// List returns every ordinary page path in the store (repo-relative,
-// "/"-separated), sorted: top-level .md files plus, recursively, .md files
-// inside any non-dot-prefixed subdirectory other than attachments/ (assets,
-// not pages). Namespaces are exactly one level deep for config purposes, but
-// filing subdirectories within a namespace ("blog/drafts/post.md") are part
-// of the slug — namespaceFor is what decides namespace membership, not how
-// deep this walk goes, so the walk itself is unbounded.
+// List returns every ordinary page path in the store (repo-relative, "/"-separated), sorted: top-level .md
+// files plus, recursively, .md files inside any non-dot-prefixed subdirectory other than attachments/
+// (assets, not pages).
 func (s *Store) List() ([]string, error) {
 	lockWaitDone := traceSlowLockWait("list repository")
 	s.mu.RLock()
@@ -1157,8 +1063,7 @@ func (s *Store) List() ([]string, error) {
 	return paths, nil
 }
 
-// ListAttachments returns regular source attachments below attachments/, sorted
-// by repository-relative path. Internal .hmd sidecars and symlinks are ignored.
+// ListAttachments returns regular source attachments below attachments/, sorted by repository-relative path.
 func (s *Store) ListAttachments() ([]string, error) {
 	lockWaitDone := traceSlowLockWait("list attachments")
 	s.mu.RLock()
@@ -1214,8 +1119,7 @@ func (s *Store) ListAttachments() ([]string, error) {
 	return paths, nil
 }
 
-// OpenAttachment validates and opens an attachment while the store lock is
-// held. The returned descriptor remains usable after the lock is released.
+// OpenAttachment validates and opens an attachment while the store lock is held.
 func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1244,10 +1148,7 @@ func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
 	return file, hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// ListHidden returns every hidden page's path (repo-relative,
-// "/"-separated), sorted. Hidden pages have a dot-prefixed basename, including
-// namespace templates such as `ai/.template.md`. `.git` is skipped: it's not
-// content.
+// ListHidden returns every hidden page's path (repo-relative, "/"-separated), sorted.
 func (s *Store) ListHidden() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1292,8 +1193,7 @@ func (s *Store) ListHidden() ([]string, error) {
 }
 
 func (s *Store) History(path string) ([]CommitInfo, error) {
-	// Fast path: a cache hit only needs a read lock, so a page view never
-	// queues behind a push/fetch holding mu for a network round trip.
+	// A cache hit needs only a read lock and does not wait for network operations.
 	s.mu.RLock()
 	cached, ok := s.historyCache[path]
 	s.mu.RUnlock()
@@ -1301,10 +1201,7 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 		return cached, nil
 	}
 
-	// Cold path: the walk runs under the write lock so a concurrent Save
-	// can't commit mid-walk and then have its prependHistory no-op'd by us
-	// caching a pre-commit result. Network operations release mu before
-	// contacting the remote, so the lock covers only the walk.
+	// The cache miss walk runs under the write lock to stay consistent with concurrent saves.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1366,8 +1263,7 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	return histories[path], nil
 }
 
-// CommitDetail is CommitInfo plus the files the commit touched, for the MCP
-// recent_changes tool.
+// CommitDetail is CommitInfo plus the files the commit touched, for the MCP recent_changes tool.
 type CommitDetail struct {
 	Hash    string
 	Message string
@@ -1376,8 +1272,7 @@ type CommitDetail struct {
 	Files   []string
 }
 
-// RecentCommits walks the log head-first and returns the newest n commits
-// with the files each touched.
+// RecentCommits walks the log head-first and returns the newest n commits with the files each touched.
 func (s *Store) RecentCommits(n int) ([]CommitDetail, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1393,7 +1288,7 @@ func (s *Store) RecentCommits(n int) ([]CommitDetail, error) {
 			return storer.ErrStop
 		}
 		var files []string
-		// Commit statistics diff each selected commit against its parent.
+
 		if stats, statErr := c.Stats(); statErr == nil {
 			for _, st := range stats {
 				files = append(files, st.Name)
@@ -1414,8 +1309,6 @@ func (s *Store) RecentCommits(n int) ([]CommitDetail, error) {
 	return commits, nil
 }
 
-// headHash returns the current HEAD hash, or ZeroHash for an unborn branch.
-// Callers must hold s.mu.
 func (s *Store) headHash() plumbing.Hash {
 	ref, err := s.repo.Head()
 	if err != nil {
@@ -1424,9 +1317,6 @@ func (s *Store) headHash() plumbing.Hash {
 	return ref.Hash()
 }
 
-// noteCommit records a commit made by this process. If HEAD had moved since
-// our last known commit (an external commit slipped in), the cache may miss
-// it for any path, so drop it wholesale. Callers must hold s.mu.
 func (s *Store) noteCommit(newHead, preHead plumbing.Hash) {
 	if s.knownHead != preHead {
 		s.historyCache = nil
@@ -1434,10 +1324,7 @@ func (s *Store) noteCommit(newHead, preHead plumbing.Hash) {
 	s.knownHead = newHead
 }
 
-// DropHistoryOnExternalCommit invalidates the history cache when HEAD has
-// moved to a commit this process didn't create (e.g. git CLI on the server,
-// which pollFS exists to pick up). Cheap when nothing changed; called every
-// poll tick.
+// DropHistoryOnExternalCommit invalidates history after an external commit.
 func (s *Store) DropHistoryOnExternalCommit() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1473,10 +1360,6 @@ func (s *Store) FileAt(path, commitHash string) ([]byte, error) {
 	return []byte(content), nil
 }
 
-// failSync records err as the reason the store's sync state went "failed"
-// and logs it, so a fetch/pull problem is as visible in the logs as a push
-// failure already is — not just parked silently in in-memory state until
-// someone opens the statusline. Caller must hold s.mu.
 func (s *Store) failSync(stage string, err error) {
 	s.syncState = "failed"
 	s.syncErr = err.Error()
@@ -1494,8 +1377,8 @@ func (s *Store) LastSyncUnix() int64 {
 	return s.lastSuccessUnix.Load()
 }
 
-// PushNow performs an immediate synchronous push (the ">sync" palette verb)
-// and returns the resulting sync state.
+// PushNow performs an immediate synchronous push (the ">sync" palette verb) and returns the resulting sync
+// state.
 func (s *Store) PushNow() (state, detail string) {
 	s.mu.Lock()
 	noRemote := s.remote == ""
@@ -1516,9 +1399,7 @@ func (s *Store) PushNow() (state, detail string) {
 	return s.SyncState()
 }
 
-// UpdateRemote reconfigures the store's remote URL and auth credentials
-// on the live repository. If cfg.Git.RemoteURL is empty, the remote is removed.
-// If non-empty, the origin remote is created or updated with set-url.
+// UpdateRemote reconfigures the store's remote URL and auth credentials on the live repository.
 func (s *Store) UpdateRemote(cfg Options) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1526,7 +1407,6 @@ func (s *Store) UpdateRemote(cfg Options) error {
 	if cfg.Git.RemoteURL == "" {
 		if s.remote != "" {
 			if err := s.repo.DeleteRemote("origin"); err != nil {
-				// A missing remote has already reached the required state.
 				slog.Warn("deleting remote", "err", err)
 			}
 		}
@@ -1579,10 +1459,7 @@ type FetchResult struct {
 	Commits      []CommitInfo
 }
 
-// FetchAndFF fetches from origin and fast-forwards the local branch if the
-// remote is ahead. Returns the paths and commits that came in. If local and
-// remote are equal or local is ahead, returns empty. If divergent, sets
-// syncState to "failed" and returns an error.
+// FetchAndFF fetches from origin and fast-forwards the local branch if the remote is ahead.
 func (s *Store) FetchAndFF() (FetchResult, error) {
 	fetchStarted := time.Now()
 	slog.Debug("fetch and fast-forward started")
@@ -1595,7 +1472,6 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	}
 
 	if !s.fetchMu.TryLock() {
-		// A fetch is already in flight; its result will cover us too.
 		return FetchResult{}, nil
 	}
 	defer s.fetchMu.Unlock()
@@ -1712,8 +1588,6 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	return result, nil
 }
 
-// isAncestor walks the commit graph from descendant toward roots, checking
-// whether ancestor is reachable.
 func (s *Store) isAncestor(ancestor, descendant plumbing.Hash) (bool, error) {
 	if ancestor == descendant {
 		return true, nil
@@ -1746,7 +1620,6 @@ func (s *Store) isAncestor(ancestor, descendant plumbing.Hash) (bool, error) {
 }
 
 // Diff returns the unified diff for a specific file between two commits.
-// If either hash cannot be resolved, returns an error.
 func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1774,7 +1647,6 @@ func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
 		return "", fmt.Errorf("diffing trees: %w", err)
 	}
 
-	// Only the requested file — the two commits may touch other pages too.
 	var fileChanges object.Changes
 	for _, c := range changes {
 		if c.From.Name == filename || c.To.Name == filename {
@@ -1789,8 +1661,6 @@ func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
 	return patch.String(), nil
 }
 
-// diffCommits computes changed file paths and commit list between oldHash and
-// newHash (exclusive of oldHash, inclusive of newHash).
 func (s *Store) diffCommits(oldHash, newHash plumbing.Hash) (FetchResult, error) {
 	oldCommit, err := s.repo.CommitObject(oldHash)
 	if err != nil {

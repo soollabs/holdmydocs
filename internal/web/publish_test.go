@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-// writeNamespaceConfig writes <repoDir>/<ns>/.namespace.yaml (creating the
-// namespace directory if needed) and rebuilds the app's namespace registry
-// so the change takes effect immediately, without waiting on pollFS.
 func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
 	t.Helper()
 	dir := app.config().RepoDir
@@ -32,8 +29,6 @@ func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
 	return nil
 }
 
-// setNamespacePublic writes <repoDir>/<ns>/.namespace.yaml with public: true
-// (or does nothing for false, since absence already means private).
 func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
 	t.Helper()
 	if !public {
@@ -44,9 +39,6 @@ func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
 	}
 }
 
-// seedPage saves slug directly through the store/index, bypassing HTTP (the
-// tests in this file need pages to exist before an anonymous client can be
-// used to probe them).
 func seedPage(t *testing.T, app *App, page Page) {
 	t.Helper()
 	authorName, authorEmail := app.gitAuthor("admin")
@@ -58,8 +50,6 @@ func seedPage(t *testing.T, app *App, page Page) {
 	}
 }
 
-// noAuthClient is a plain http.Client with no cookie jar, so every request
-// it makes is anonymous.
 func noAuthClient() *http.Client {
 	return &http.Client{}
 }
@@ -183,7 +173,6 @@ func TestAnonymousPrivateAndNonexistentPagesByteIdentical404(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()
 
-	// blog/ is NOT public. blog/private exists but nothing is public here.
 	seedPage(t, app, Page{Slug: "blog/private", Title: "Private"})
 
 	client := noAuthClient()
@@ -215,7 +204,7 @@ func TestAnonymousWikiLinkToPrivatePageUnwraps(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "secret", Title: "Secret"}) // private (root namespace)
+	seedPage(t, app, Page{Slug: "secret", Title: "Secret"})
 	seedPage(t, app, Page{Slug: "blog/post", Title: "Post", Body: "See [[Secret]] and [[Nowhere]]."})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/post")

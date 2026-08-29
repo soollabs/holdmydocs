@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// seedNewPageTemplate configures the notes namespace with a `new:` block
-// and seeds its hidden entry template page.
 func seedNewPageTemplate(t *testing.T, app *App, slugTemplate, titleTemplate, bodyTemplate string) {
 	t.Helper()
 	yaml := "new:\n  template: entry\n  slug: '" + slugTemplate + "'\n"
@@ -213,14 +211,11 @@ func TestNewPageUnknownNamespace404s(t *testing.T) {
 	}
 }
 
-// TestNewPageMissingTemplateFallsBack covers a namespace whose declared
-// new.template page doesn't exist — hand-written config, or a deleted
-// template. Quick-create must still create the page rather than failing.
+// TestNewPageMissingTemplateFallsBack ensures page creation works without its template page.
 func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	// Config only: no template page seeded.
 	if err := writeNamespaceConfig(t, app, testNS, "new:\n  template: entry\n  slug: '{{.Now.Format \"2006-01-02\"}}'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
@@ -244,9 +239,7 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	}
 }
 
-// TestNewPageSubstitutesTitleTagsAndBody covers all three templated fields of
-// a template page — a substitution that worked in the title and body but not
-// the tags would just be a trap.
+// TestNewPageSubstitutesTitleTagsAndBody ensures templates substitute all page fields.
 func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -255,7 +248,6 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 		`{{.Now.Format "Monday, 2 January 2006"}}`,
 		`Written by {{.User}} in {{.Namespace}} at {{.Now.Format "15:04"}}.`)
 
-	// seedNewPageTemplate doesn't set tags, so add a templated one.
 	tpl := Page{
 		Slug:  testNS + "/entry",
 		Title: `{{.Now.Format "Monday, 2 January 2006"}}`,

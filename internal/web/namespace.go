@@ -17,32 +17,23 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// namespaceConfigFile is the name of the optional per-namespace config file.
 const namespaceConfigFile = ".namespace.yaml"
 
 const maxNamespaceDescriptionRunes = 255
 
-// attachmentsDir is the top-level directory uploads live under.
 const attachmentsDir = "attachments"
 
-// reservedNamespace is the top-level segment the app's own routes live
-// under, so no namespace may take it.
 const reservedNamespace = "_"
 
-// reservedTopLevel names every top-level directory that is repo furniture
-// rather than a namespace: the route segment plus the upload directory.
 var reservedTopLevel = map[string]bool{reservedNamespace: true, attachmentsDir: true}
 
-// NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a
-// page in this namespace.
+// NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a page in this namespace.
 type NewPageConfig struct {
 	Template string `yaml:"template" json:"template"`
 	Slug     string `yaml:"slug" json:"slug"`
 }
 
-// NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml. Every
-// field is optional; its absence is not an error, it just means the built-in
-// defaults apply.
+// NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml.
 type NamespaceConfig struct {
 	Widgets     []string       `yaml:"widgets,omitempty"`
 	Public      bool           `yaml:"public,omitempty"`
@@ -52,50 +43,31 @@ type NamespaceConfig struct {
 	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
 	New         *NewPageConfig `yaml:"new,omitempty"`
 
-	// Index names a page in this namespace (one segment, e.g. "home") that
-	// takes over /{namespace}/ in place of the built-in page-list view. Empty
-	// means no override — the default listing serves the index.
+	// Index names a page in this namespace (one segment, e.g.
 	Index string `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// Tree lists page or folder paths in their preferred tree order. The
-	// configured index remains first; entries not listed here sort by name.
+	// Tree lists page or folder paths in their preferred tree order.
 	Tree []string `yaml:"tree,omitempty" json:"tree,omitempty"`
 
-	// Configured records whether this config came from a .namespace.yaml on
-	// disk or is just the built-in defaults — the settings UI needs to know
-	// which namespaces actually have a file it could remove. LoadError holds
-	// why a file that does exist was ignored in favour of the defaults, so
-	// that's visible in the UI instead of only in the logs. Neither is ever
-	// serialised: they're provenance, not configuration.
+	// Configured reports whether this config came from a .namespace.yaml on disk.
 	Configured bool   `yaml:"-"`
 	LoadError  string `yaml:"-"`
 }
 
-// Encode marshals cfg back to .namespace.yaml bytes — the write half of
-// parseNamespaceConfig, used by the admin namespaces form.
+// Encode marshals cfg back to .namespace.yaml bytes — the write half of parseNamespaceConfig, used by the
+// admin namespaces form.
 func (c NamespaceConfig) Encode() ([]byte, error) {
 	return yaml.Marshal(c)
 }
 
-// defaultNewPageTemplate is the template page every namespace configured
-// through the UI uses: hidden page "<ns>/template", i.e. the file
-// `.<ns>/template.md`. The name is a convention, not a choice — the settings
-// form never asks for one. A hand-written .namespace.yaml naming something
-// else still works, and the form preserves whatever it finds.
 const defaultNewPageTemplate = "template"
 
-// slugPreset is one option in the settings form's "slug" select: a named
-// pattern for what ctrl-j calls the page it creates. Anything the presets
-// don't cover is still writable as a custom pattern (or by hand in
-// .namespace.yaml) — these are the shapes worth one click.
 type slugPreset struct {
 	Key     string // form value
 	Label   string // what the option says
 	Pattern string // the Go template written to new.slug
 }
 
-// slugPresetCustom is the select's escape hatch, which reveals the raw
-// pattern field instead of naming a preset.
 const slugPresetCustom = "custom"
 
 var slugPresets = []slugPreset{
@@ -105,9 +77,6 @@ var slugPresets = []slugPreset{
 	{"daily-per-user", "one page per day, per user", `{{.User}}-{{.Now.Format "2006-01-02"}}`},
 }
 
-// slugPresetFor returns the preset key matching pattern, or slugPresetCustom
-// if no preset produces it — how the form decides which option to select for
-// a namespace's existing config.
 func slugPresetFor(pattern string) string {
 	for _, p := range slugPresets {
 		if p.Pattern == pattern {
@@ -117,33 +86,25 @@ func slugPresetFor(pattern string) string {
 	return slugPresetCustom
 }
 
-// slugPresetView is one rendered option of the slug select: the label plus
-// what the pattern produces right now, so the choice is concrete ("one page
-// per day — 2026-07-28") instead of asking anyone to read a Go template.
 type slugPresetView struct {
 	Key     string
 	Label   string
 	Example string
 }
 
-// slugPresetViews renders every preset for the acting user. No preset
-// mentions .Namespace, so one list serves every namespace's form.
 func slugPresetViews(user string) []slugPresetView {
 	data := newPageTemplateData{Now: time.Now(), User: user}
 	views := make([]slugPresetView, 0, len(slugPresets))
 	for _, p := range slugPresets {
 		example, err := renderNewPageText(p.Pattern, data)
 		if err != nil {
-			example = p.Pattern // never happens for a built-in preset
+			example = p.Pattern
 		}
 		views = append(views, slugPresetView{Key: p.Key, Label: p.Label, Example: example})
 	}
 	return views
 }
 
-// slugPatternFor resolves a submitted preset key to its pattern. The custom
-// key (and any unknown one) resolves to nothing, leaving the caller to use
-// the form's custom field.
 func slugPatternFor(key string) string {
 	for _, p := range slugPresets {
 		if p.Key == key {
@@ -153,25 +114,16 @@ func slugPatternFor(key string) string {
 	return ""
 }
 
-// namespaceConfigPath is the repo-relative path of ns's config file.
 func namespaceConfigPath(ns string) string {
 	return ns + "/" + namespaceConfigFile
 }
 
-// builtinWidgets is the default composition used when a namespace has no
-// widgets: key — roughly today's phosphor composition, so a fresh wiki does
-// not look broken.
 var builtinWidgets = []string{"pages", "namespaces", "tags", "log", "page-meta", "backlinks"}
 
-// defaultNamespaceConfig is what a namespace with no .namespace.yaml gets:
-// built-in widgets, private.
 func defaultNamespaceConfig() NamespaceConfig {
 	return NamespaceConfig{Widgets: builtinWidgets}
 }
 
-// parseNamespaceConfig parses .namespace.yaml strictly: an unknown key is an
-// error. Used at the write path (settings validation, any UI producing these
-// files) — never at render time.
 func parseNamespaceConfig(data []byte) (NamespaceConfig, error) {
 	var cfg NamespaceConfig
 	if err := yaml.UnmarshalWithOptions(data, &cfg, yaml.Strict()); err != nil {
@@ -180,11 +132,6 @@ func parseNamespaceConfig(data []byte) (NamespaceConfig, error) {
 	return cfg, nil
 }
 
-// loadNamespaceConfig reads and parses <dir>/.namespace.yaml softly: a
-// missing file is the built-in defaults, and malformed YAML or invalid static
-// namespace settings log a warning and fall back to defaults rather than failing.
-// It never errors — a broken namespace config must never 500 a page or
-// block the wiki.
 func loadNamespaceConfig(dir, name string) NamespaceConfig {
 	return loadNamespaceConfigWith(dir, name, os.ReadFile)
 }
@@ -195,9 +142,7 @@ func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, er
 	if err != nil {
 		return defaultNamespaceConfig()
 	}
-	// The file exists from here on, so every fallback below still reports
-	// itself as configured — a malformed file is a namespace the settings UI
-	// must be able to show and overwrite, not one that looks untouched.
+	// Preserve the configured flag so malformed files remain visible and replaceable in settings.
 	broken := func(reason string) NamespaceConfig {
 		cfg := defaultNamespaceConfig()
 		cfg.Configured, cfg.LoadError = true, reason
@@ -218,31 +163,17 @@ func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, er
 	return cfg
 }
 
-// validNamespaceName reports whether name can be a namespace: a single
-// non-empty path segment, not a reserved top-level directory, not
-// dot-prefixed (ignored, like hidden files) and not "_"-prefixed (the app's
-// own route segment, reserved the same way page segments reserve it).
 func validNamespaceName(name string) bool {
 	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !reservedTopLevel[name] &&
 		!strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 
-// validMCPPageSegment accepts one non-hidden page-name segment. It is kept
-// separate from validMCPPageSlug because namespace templates and generated
-// names must remain single-segment even though MCP pages may be namespaced.
 func validMCPPageSegment(name string) bool {
 	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !strings.ContainsAny(name, `/\`) &&
 		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
 }
 
-// validPagePath accepts a page's path within its namespace: one or more
-// slash-separated segments, each independently a valid page segment.
-// Namespaces stay exactly one level deep (see BuildNamespaceRegistry), but
-// the pages inside one can nest arbitrarily via slash-separated slugs —
-// "guides/setup" is namespace "guides"'s own folder, not a namespace of its
-// own — so every segment gets the same non-hidden, non-reserved check
-// validMCPPageSegment already applies to a single one.
 func validPagePath(rest string) bool {
 	if rest == "" {
 		return false
@@ -255,16 +186,11 @@ func validPagePath(rest string) bool {
 	return true
 }
 
-// validMCPPageSlug accepts a namespace plus a (possibly nested) page path
-// within it. MCP is a trust boundary, so unlike regular URL routing it
-// rejects traversal-shaped, hidden and reserved path components explicitly.
 func validMCPPageSlug(slug string) bool {
 	ns, rest := namespaceFor(slug)
 	return validNamespaceName(ns) && validPagePath(rest)
 }
 
-// normaliseNamespaceConfigBase validates the namespace fields independent of
-// new-page template data, so the loader and web form share the same rules.
 func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceConfig, error) {
 	if name != "" && !validNamespaceName(name) {
 		return NamespaceConfig{}, fmt.Errorf("invalid namespace name %q", name)
@@ -317,8 +243,6 @@ func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 	return cfg, nil
 }
 
-// normaliseNamespaceConfig validates the web form's namespace settings before
-// it writes them to disk.
 func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemplateData) (NamespaceConfig, error) {
 	var err error
 	cfg, err = normaliseNamespaceConfigBase(name, cfg)
@@ -349,8 +273,6 @@ func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemp
 	return cfg, nil
 }
 
-// namespaceDisplayTitle is the published-site title shared by anonymous
-// pages and static exports. A namespace name is always a usable fallback.
 func namespaceDisplayTitle(name string, cfg NamespaceConfig) string {
 	if title := strings.TrimSpace(cfg.Title); title != "" {
 		return title
@@ -358,25 +280,14 @@ func namespaceDisplayTitle(name string, cfg NamespaceConfig) string {
 	return name
 }
 
-// navNode is one entry in a namespace's page tree — used both by the live
-// namespace index (handleNamespaceIndex) and the static export
-// (ExportNamespace). Namespaces are exactly one level deep, but the pages
-// inside one can still nest via slash-separated slugs — e.g.
-// "docs/guides/setup" — and that's what the tree reflects: a folder per
-// intermediate segment, a leaf per page, and a segment can be both (a page
-// that also has children, like "guides" itself).
 type navNode struct {
 	Name     string // path segment
 	Title    string
-	Path     string // this node's slug remainder within the namespace, whether or not it's IsPage — a folder needs it too, to link "new page in this folder"
+	Path     string // slug remainder within the namespace
 	IsPage   bool
 	Children []*navNode
 }
 
-// buildPageTree builds the page hierarchy for namespace ns from entries
-// already filtered to it (BacklinkEntry.Slug is a full slug, namespace
-// prefix included). index is the configured namespace index, which is always
-// shown first; tree lists any additional page or folder paths in order.
 func buildPageTree(entries []BacklinkEntry, ns, index string, tree []string) *navNode {
 	root := &navNode{}
 	for _, e := range entries {
@@ -438,19 +349,12 @@ func sortNavTree(node *navNode, index string, order map[string]int) {
 	}
 }
 
-// renderLiveTree renders root's Children as a namespace's folder tree — used
-// by both the namespace index page and the sidebar TREE widget — with plain
-// absolute hrefs (/ns/path) since the live app always serves from its own
-// root, not a relative-path static bundle.
-// currentPath (a page's slug remainder within ns, "" if not applicable)
-// marks that page's link .current.
 func renderLiveTree(root *navNode, ns string, currentPath string) template.HTML {
 	return renderTree(root, currentPath, func(pagePath string) string {
 		return fmt.Sprintf("/%s/%s", ns, pagePath)
 	})
 }
 
-// renderStaticTree uses the same public tree markup with relative links.
 func renderStaticTree(root *navNode, currentPath string, hrefFor func(string) string) template.HTML {
 	return renderTree(root, currentPath, hrefFor)
 }
@@ -496,9 +400,7 @@ func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hr
 	b.WriteString("</ul>")
 }
 
-// NamespaceRegistry maps a namespace name to its
-// resolved config. Rebuilt wholesale by BuildNamespaceRegistry — see
-// search.go's pollFS, which already rescans the repo on a timer.
+// NamespaceRegistry maps a namespace name to its resolved config.
 type NamespaceRegistry map[string]NamespaceConfig
 
 // NamespaceSummary is the shared catalogue entry for one namespace.
@@ -509,9 +411,6 @@ type NamespaceSummary struct {
 	Pages  []BacklinkEntry
 }
 
-// namespaceSummaries combines configured namespaces with namespace prefixes
-// found in the page index — a namespace exists once it has either a config
-// file or a page, whichever came first.
 func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []NamespaceSummary {
 	entries := make(map[string]*NamespaceSummary)
 	include := func(name string, cfg NamespaceConfig) *NamespaceSummary {
@@ -552,8 +451,6 @@ func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []Names
 	return result
 }
 
-// namespaceSummaryFor returns name's catalogue entry, or nil if it has
-// neither a config nor any pages.
 func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name string) *NamespaceSummary {
 	for _, entry := range namespaceSummaries(reg, titles) {
 		if entry.Name == name {
@@ -563,15 +460,14 @@ func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name s
 	return nil
 }
 
-// BuildNamespaceRegistry scans repoDir for namespaces: one directory per
-// non-dot-prefixed, non-reserved top-level subdirectory. Namespaces are
-// exactly one level deep — nothing here walks further.
+// BuildNamespaceRegistry scans repoDir for namespaces: one directory per non-dot-prefixed, non-reserved
+// top-level subdirectory.
 func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
 	return buildNamespaceRegistry(repoDir, os.ReadFile)
 }
 
-// BuildNamespaceRegistryFromStore reads namespace configuration through the
-// Store boundary so a synchronised repository cannot smuggle in a symlink.
+// BuildNamespaceRegistryFromStore reads namespace configuration through the Store boundary so a synchronised
+// repository cannot smuggle in a symlink.
 func BuildNamespaceRegistryFromStore(store *Store) (NamespaceRegistry, error) {
 	return buildNamespaceRegistry(store.Dir(), func(path string) ([]byte, error) {
 		rel, err := filepath.Rel(store.Dir(), path)
@@ -601,13 +497,6 @@ func buildNamespaceRegistry(repoDir string, readFile func(string) ([]byte, error
 	return reg, nil
 }
 
-// namespaceFor splits a slug into its namespace name and the remainder of
-// the slug within that namespace. Every page lives in a namespace, so a
-// well-formed slug always has both halves. Namespaces are exactly one level
-// deep: "blog/drafts/post" is in namespace "blog" with rest "drafts/post";
-// subdirectories beyond the first segment are filing, not namespace
-// structure. A slug with no "/" names a namespace, not a page, and yields an
-// empty rest — callers treating "" as "not a page" is the check.
 func namespaceFor(slug string) (ns, rest string) {
 	before, after, ok := strings.Cut(slug, "/")
 	if !ok {
@@ -616,15 +505,12 @@ func namespaceFor(slug string) (ns, rest string) {
 	return before, after
 }
 
-// namespaceSlug builds a full page slug from a namespace name and the
-// remainder of the slug within it — the inverse of namespaceFor.
 func namespaceSlug(ns, rest string) string {
 	return ns + "/" + rest
 }
 
-// Resolve returns the config for the namespace slug belongs to, or the
-// built-in defaults if that namespace isn't in the registry (e.g. it has no
-// .namespace.yaml and hasn't been scanned yet).
+// Resolve returns the config for the namespace slug belongs to, or the built-in defaults if that namespace
+// isn't in the registry (e.g. it has no .namespace.yaml and hasn't been scanned yet).
 func (r NamespaceRegistry) Resolve(slug string) NamespaceConfig {
 	ns, _ := namespaceFor(slug)
 	if cfg, ok := r[ns]; ok {
@@ -638,8 +524,7 @@ func (r NamespaceRegistry) IsPublic(slug string) bool {
 	return r.Resolve(slug).Public
 }
 
-// Names returns every namespace name in the registry, sorted. Used by the
-// read-only namespace list in settings.
+// Names returns every namespace name in the registry, sorted.
 func (r NamespaceRegistry) Names() []string {
 	names := make([]string, 0, len(r))
 	for name := range r {
@@ -649,10 +534,7 @@ func (r NamespaceRegistry) Names() []string {
 	return names
 }
 
-// IndexSlug returns the full slug of ns's configured index page, or "" if it
-// has none. The index page stands in for the namespace's page listing, so
-// it's the page a TOC in that namespace omits and the one orphan detection
-// treats as a root rather than an unreferenced page.
+// IndexSlug returns the full slug of ns's configured index page, or "" if it has none.
 func (r NamespaceRegistry) IndexSlug(ns string) string {
 	if cfg, ok := r[ns]; ok && cfg.Index != "" {
 		return namespaceSlug(ns, cfg.Index)
@@ -672,9 +554,8 @@ func (r NamespaceRegistry) IndexSlugs() []string {
 	return slugs
 }
 
-// NamespaceListEntry is one row of the namespace editor in system
-// configuration: the resolved config of one namespace, as the form fields
-// that POST back to /_/settings/namespaces.
+// NamespaceListEntry is one row of the namespace editor in system configuration: the resolved config of one
+// namespace, as the form fields that POST back to /_/settings/namespaces.
 type NamespaceListEntry struct {
 	Name        string
 	Widgets     []string
@@ -688,9 +569,7 @@ type NamespaceListEntry struct {
 	Index       string   // page name that replaces the page-list view at /{namespace}/, if any
 	Tree        []string // explicit page or folder order in the rendered tree
 
-	// New-page (ctrl-j) state. Template is carried through the form as a
-	// hidden field rather than asked for: it's a convention, and a
-	// hand-written config naming something else must survive a save here.
+	// New-page (ctrl-j) state.
 	NewEnabled   bool
 	Template     string
 	TemplateHref string // editor URL for the template page, as a hidden page
@@ -699,14 +578,11 @@ type NamespaceListEntry struct {
 	SlugExample  string // what SlugPattern renders to right now
 }
 
-// WidgetsCSV renders Widgets as the comma-separated value of the row's
-// widgets input.
+// WidgetsCSV renders Widgets as the comma-separated value of the row's widgets input.
 func (e NamespaceListEntry) WidgetsCSV() string {
 	return strings.Join(e.Widgets, ", ")
 }
 
-// namespaceListEntries builds the settings-page namespace list from r,
-// sorted the same way as Names (root first).
 func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry {
 	names := r.Names()
 	entries := make([]NamespaceListEntry, 0, len(names))

@@ -12,9 +12,7 @@ import (
 	"testing"
 )
 
-// TestSkinsNoRawHex is the colour-orthogonality guarantee: skins.css must
-// never carry a literal colour, only var() references onto style.css's
-// palette tokens.
+// TestSkinsNoRawHex ensures skins use palette variables instead of literal colours.
 func TestSkinsNoRawHex(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/skins.css")
 	if err != nil {
@@ -56,19 +54,14 @@ func TestSkinsKeepOutlineRail(t *testing.T) {
 	}
 }
 
-// TestNoSkinTogglesSettingsWidget guards against "keys" (the settings/help
-// link) re-entering the namespace widget-list system: it must always
-// render, regardless of skin or a namespace's widget picks, so settings can
-// never be toggled out of reach.
+// TestNoSkinTogglesSettingsWidget ensures the settings link is always rendered.
 func TestNoSkinTogglesSettingsWidget(t *testing.T) {
 	if _, ok := widgets["keys"]; ok {
 		t.Error("\"keys\" must not be a toggleable widget; settings must always be visible")
 	}
 }
 
-// TestSettingsLinkAlwaysRendered checks the end-to-end guarantee behind the
-// above: even with every sidebar widget unchecked, the rendered page still
-// links to /settings.
+// TestSettingsLinkAlwaysRendered ensures the settings link survives widget configuration.
 func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -218,12 +211,7 @@ func TestSkinPickerInputsAreContained(t *testing.T) {
 	}
 }
 
-// TestNoRawHexInWidgetCSS extends TestSkinsNoRawHex's discipline to the new
-// widget rules in style.css (calendar/writing-stats/inbox/sources/
-// source-card/prev-entries) added for specs/2026-07-25-profiles-widgets.md
-// widget implementation — they must derive colour from the existing palette tokens so they
-// look correct under any palette and skin, same as the rest of style.css's
-// widget-facing rules.
+// TestNoRawHexInWidgetCSS ensures widget styles use palette variables.
 func TestNoRawHexInWidgetCSS(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/style.css")
 	if err != nil {
@@ -241,9 +229,7 @@ func TestNoRawHexInWidgetCSS(t *testing.T) {
 	}
 }
 
-// TestSkinsDefined catches typos in either direction: every name in
-// skinNames must have a skins entry and appear in skins.css, and every
-// [data-skin="x"] selector in skins.css must be a known name.
+// TestSkinsDefined ensures Go and CSS define the same skin names.
 func TestSkinsDefined(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/skins.css")
 	if err != nil {
@@ -334,10 +320,7 @@ func TestSkinPersists(t *testing.T) {
 	}
 }
 
-// TestUnknownStoredSkinFallsBack: a hand-edited users.json naming a skin
-// that doesn't exist renders the default one. The skin now decides widget
-// composition as well as looks, so there is no "render no attribute" state
-// to fall back to — it resolves to phosphor like any other unknown name.
+// TestUnknownStoredSkinFallsBack ensures unknown stored skins use the default.
 func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -357,10 +340,7 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	}
 }
 
-// TestSkinSwitchResetsPalette: a skin ships with the colours it was designed
-// for. Switching skin therefore also moves the palette, even if the user had
-// picked one — a broadsheet that opened in terminal green isn't a broadsheet.
-// Picking a palette afterwards (same skin) still sticks.
+// TestSkinSwitchResetsPalette ensures changing skin selects its default palette.
 func TestSkinSwitchResetsPalette(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -376,7 +356,6 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("palette = %q, want dracula", got)
 	}
 
-	// Switching skin overrides the stale palette from the form.
 	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"newsprint"}, "palette": {"dracula"},
 	})
@@ -405,7 +384,6 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Errorf("newsprint response did not render its skin and Solarized primary")
 	}
 
-	// Staying on the same skin leaves the choice alone.
 	resp3, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
 		"skin": {"newsprint"}, "palette": {"gruvbox"},
 	})
@@ -436,8 +414,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	}
 }
 
-// TestSkinDefaultPalettesExist guards the pairing: every skin names a real
-// preset, so no skin can ship pointing at a palette that was renamed away.
+// TestSkinDefaultPalettesExist ensures every skin names an existing palette.
 func TestSkinDefaultPalettesExist(t *testing.T) {
 	for name, s := range skins {
 		if s.Palette == "" {

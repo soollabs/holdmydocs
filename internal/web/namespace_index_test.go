@@ -9,9 +9,7 @@ import (
 	"testing"
 )
 
-// TestNamespaceIndex covers browsing a namespace: /blog/ lists its pages, a
-// bare /blog remains an independent root-page URL, and an anonymous visitor
-// sees a namespace index only when the namespace is published.
+// TestNamespaceIndex ensures namespace indexes list pages and respect publication settings.
 func TestNamespaceIndex(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -43,7 +41,7 @@ func TestNamespaceIndex(t *testing.T) {
 	}
 
 	mustStatus(client, "/blog/", http.StatusOK)
-	mustStatus(client, "/blog", http.StatusOK) // the bare name is the same index
+	mustStatus(client, "/blog", http.StatusOK)
 	_, page := body(client, "/blog/")
 	for _, want := range []string{"/blog/first", "/blog/second", "2 pages", `href="/_/namespaces/blog/edit"`} {
 		if !strings.Contains(page, want) {
@@ -57,13 +55,10 @@ func TestNamespaceIndex(t *testing.T) {
 		t.Errorf("namespace index still links to the removed admin panel")
 	}
 
-	// The sidebar has to link to the trailing-slash index or it is unreachable
-	// by navigation.
 	if _, home := body(client, "/"+testHome); !strings.Contains(home, `href="/blog/"`) {
 		t.Errorf("sidebar has no link to /blog/, body: %s", home)
 	}
 
-	// Anonymous: unknown and private namespace indexes have byte-identical 404s.
 	anon := &http.Client{}
 	if err := writeNamespaceConfig(t, app, "private", "public: false\n"); err != nil {
 		t.Fatalf("configuring private namespace: %v", err)
@@ -77,7 +72,6 @@ func TestNamespaceIndex(t *testing.T) {
 		t.Errorf("anonymous unknown/private 404 bodies differ:\nunknown: %q\nprivate: %q", unknown, private)
 	}
 
-	// Anonymous visitors can browse a published namespace index.
 	if err := writeNamespaceConfig(t, app, "blog", "public: true\n"); err != nil {
 		t.Fatalf("publishing blog: %v", err)
 	}
@@ -134,10 +128,7 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 	}
 }
 
-// TestNamespaceIndexCustomPage covers the "index" config field: once set to
-// an existing page in the namespace, /{ns}/ serves that page instead of the
-// built-in listing; an index naming a page that doesn't exist falls back to
-// the listing rather than 404ing.
+// TestNamespaceIndexCustomPage ensures a configured index page replaces the listing when it exists.
 func TestNamespaceIndexCustomPage(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -155,7 +146,6 @@ func TestNamespaceIndexCustomPage(t *testing.T) {
 		return resp.StatusCode, string(b)
 	}
 
-	// No index configured yet: the listing wins.
 	if code, body := get("/docs/"); code != http.StatusOK || strings.Contains(body, "Welcome to the docs") {
 		t.Fatalf("expected page list before index is configured, got %d: %s", code, body)
 	}
@@ -167,7 +157,6 @@ func TestNamespaceIndexCustomPage(t *testing.T) {
 		t.Fatalf("expected index page content, got %d: %s", code, body)
 	}
 
-	// An index naming a page that doesn't exist falls back to the listing.
 	if err := writeNamespaceConfig(t, app, "docs", "index: missing\n"); err != nil {
 		t.Fatalf("configuring missing index: %v", err)
 	}
@@ -176,11 +165,7 @@ func TestNamespaceIndexCustomPage(t *testing.T) {
 	}
 }
 
-// TestNamespaceWikiLinkResolvesWithinNamespace is the end-to-end regression
-// for the bug where a [[Title]] wiki-link on a namespaced page (e.g. one
-// produced by <!-- hmd:toc --> listing sibling pages) resolved to
-// Slugify(title) at the wiki root instead of the page's real namespaced
-// slug, so following it 404'd.
+// TestNamespaceWikiLinkResolvesWithinNamespace ensures title links resolve to namespaced pages.
 func TestNamespaceWikiLinkResolvesWithinNamespace(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -213,9 +198,7 @@ func TestNamespaceWikiLinkResolvesWithinNamespace(t *testing.T) {
 	}
 }
 
-// TestRenameWithinNamespace covers the rename half of the same bug: a
-// namespaced page keeps its namespace when retitled (rather than slugifying
-// out to the root), and the [[Title]] links pointing at it get rewritten.
+// TestRenameWithinNamespace ensures renaming a page preserves its namespace and rewrites links.
 func TestRenameWithinNamespace(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

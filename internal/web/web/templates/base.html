@@ -90,7 +90,6 @@
 		{{if eq .ID "calendar"}}{{template "widget-calendar" $}}{{end}}
 		{{if eq .ID "writing-stats"}}{{template "widget-writing-stats" $}}{{end}}
 		{{end}}
-		{{/* Shortcut hints remain fixed chrome, not a configurable widget. Authed-only: documents app.js shortcuts, which isn't loaded for anonymous public viewers. */}}
 		{{if .Authed}}{{template "widget-keys" $}}{{end}}
 	</nav>
 	{{end}}
@@ -98,11 +97,6 @@
 		{{template "content" .}}
 	</main>
 	{{if .Authed}}
-	{{/* Segment set comes from the skin's Status variant (skins.go):
-	     full — mode, title, context, words, sync, user
-	     write — mode "write", title, words today, sync dot
-	     quiet — mode, title, sync dot
-	     Actions live in the app bar; the statusline is information only. */}}
 	{{$quiet := or (eq .StatusVariant "write") (eq .StatusVariant "quiet")}}
 	<div class="statusline" id="statusline" data-mode="{{.StatusMode}}" data-skin="{{.Skin}}">
 		<div class="seg-progress-fill" id="seg-progress-fill"></div>

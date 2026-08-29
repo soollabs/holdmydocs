@@ -1,24 +1,15 @@
 package web
 
-// themePreset supplies values for all 17 theme variables in each mode.
-// Presets are fill data for the settings colour inputs, not a stored mode:
-// applying one just submits its values through the existing theme form.
 type themePreset struct {
 	Dark  map[string]string `json:"dark"`
 	Light map[string]string `json:"light"`
 }
 
-// themePresetNames fixes the display order of the preset selector.
-// phosphor (empty value) is the built-in default; it's included here for the
-// UI but not stored when selected — an absent palette key renders phosphor.
 var themePresetNames = []string{
 	"phosphor", "catppuccin", "dracula", "everforest", "gruvbox", "monokai",
 	"nord", "one dark", "rosé pine", "solarized", "tokyo night",
 }
 
-// Colour values come from the public palette specs (Catppuccin Mocha/Latte,
-// Gruvbox, Nord, Solarized); muted and background variants are derived to
-// match their semantic roles. phosphor is the built-in default.
 var themePresets = map[string]themePreset{
 	"phosphor": {
 		Dark: map[string]string{

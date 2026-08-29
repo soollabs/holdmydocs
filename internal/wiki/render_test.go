@@ -69,10 +69,10 @@ func TestRender(t *testing.T) {
 			wantNotContains: []string{"onerror"},
 		},
 		{
-			name:            "image alt survives the sanitizer",
-			resolve:         func(title, ns string) (string, bool) { return "", false },
-			input:           `![alt with + ? & and an em dash —](/_/attachments/x.png)`,
-			wantContains:    []string{`alt="alt with + ? &amp; and an em dash —"`, `src="/_/attachments/x.png"`},
+			name:         "image alt survives the sanitizer",
+			resolve:      func(title, ns string) (string, bool) { return "", false },
+			input:        `![alt with + ? & and an em dash —](/_/attachments/x.png)`,
+			wantContains: []string{`alt="alt with + ? &amp; and an em dash —"`, `src="/_/attachments/x.png"`},
 		},
 		{
 			name:            "raw img alt with special characters is kept",

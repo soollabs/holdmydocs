@@ -22,15 +22,10 @@ func pageDisplayTitle(p Page) string {
 	return rest
 }
 
-// staticPagePath gives every page its own directory. This leaves the export
-// root's index.html available as the configured namespace index, even when a
-// namespace also contains a page named "index".
 func staticPagePath(rest string) string {
 	return staticexport.PagePath(rest)
 }
 
-// staticRelativePath links from one exported file to another. Export paths
-// always use slashes, even when HMD is built on Windows.
 func staticRelativePath(from, to string) string {
 	return staticexport.RelativePath(from, to)
 }
@@ -47,17 +42,9 @@ func staticAssetPrefix(rest string) string {
 	return strings.TrimSuffix(staticAssetHref(rest, "style.css"), "style.css")
 }
 
-// ExportNamespace renders every page in namespace ns to static HTML under
-// outDir: one file per page (mirroring its slug path under the namespace),
-// a file-tree sidebar built from that same page set, and the namespace's
-// index page (per NamespaceConfig.Index, if set) duplicated to index.html.
-// It uses the same template, skin, palette and public-only widgets as the
-// live anonymous view. Every link and asset is relative to its HTML file.
-//
-// It's reachable both from main.go's -export-namespace CLI flag and from
-// the namespaces settings page (handleExportNamespace), run by whoever owns
-// the repo, so it doesn't re-check the namespace's public flag — that's a
-// website-serving concern, not an export one.
+// ExportNamespace renders every page in namespace ns to static HTML under outDir: one file per page
+// (mirroring its slug path under the namespace), a file-tree sidebar built from that same page set, and the
+// namespace's index page (per NamespaceConfig.Index, if set) duplicated to index.html.
 func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, store *Store, ns, outDir, title string) error {
 	var nsPages []Page
 	for _, p := range pages {
@@ -72,7 +59,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		return fmt.Errorf("export exceeds %d files", maxExportFiles)
 	}
 
-	hrefs := make(map[string]string, len(nsPages)) // slug -> rest, for RenderStatic's cross-page link check
+	hrefs := make(map[string]string, len(nsPages))
 	entries := make([]BacklinkEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := namespaceFor(p.Slug)
@@ -93,7 +80,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 	if title = strings.TrimSpace(title); title == "" {
 		title = namespaceDisplayTitle(ns, cfg)
 	}
-	indexPage := cfg.Index // page name (single segment) that stands in for /{ns}/, if configured
+	indexPage := cfg.Index
 	skin := resolveSkin(cfg.Skin)
 	palette := cfg.Palette
 	if palette == "" {
@@ -194,23 +181,14 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 	return nil
 }
 
-// copyExportAssets writes the public view's styles, scripts and fonts once.
 func copyExportAssets(outDir string) error {
 	return staticexport.CopyAssets(webFS, "web/static", outDir)
 }
 
-// copyExportAttachments copies attachments/<ns>/... from the content repo
-// into outDir/attachments/, unconditionally — a page-by-page reference scan
-// would need to track renames and inline-HTML uploads, so this just mirrors
-// the whole namespace's attachment tree, same as how the app stores it.
 func copyExportAttachments(store *Store, outDir, ns string, files *int, bytes *int64) error {
 	return staticexport.CopyAttachments(store, outDir, ns, files, bytes)
 }
 
-// handleExportNamespace is the web-UI equivalent of the -export-namespace
-// CLI flag: it builds the same static export into a scratch directory and
-// streams it back as a zip download, for anyone who'd rather click a button
-// on the namespaces settings page than run the binary by hand.
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !app.requireTokenNamespace(w, r, name) {

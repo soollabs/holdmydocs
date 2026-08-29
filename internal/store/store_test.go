@@ -74,8 +74,6 @@ func TestInitNoRemote(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Nothing is written without consent — a fresh repo flags for setup,
-	// it does not auto-seed readme.md or .help.md.
 	if !store.NeedsSetup.Load() {
 		t.Errorf("NeedsSetup should be true for a fresh repo — nothing is auto-seeded")
 	}
@@ -86,15 +84,13 @@ func TestInitNoRemote(t *testing.T) {
 		t.Errorf(".help.md should not be auto-seeded")
 	}
 
-	// Check sync state
 	state, _ := store.SyncState()
 	if state != "no remote" {
 		t.Errorf("SyncState = %q, want %q", state, "no remote")
 	}
 }
 
-// TestExistingContentSkipsSetup checks a repo that already has a namespace,
-// .wiki.yaml and .help.md needs no setup, and opening it rewrites nothing.
+// TestExistingContentSkipsSetup ensures complete repositories need no setup.
 func TestExistingContentSkipsSetup(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
@@ -158,11 +154,7 @@ func TestBuiltInHelpDocumentsNamespaces(t *testing.T) {
 	}
 }
 
-// TestListRecurses checks Store.List() walks into namespace subdirectories
-// (arbitrarily deep, since filing within a namespace isn't bounded to one
-// level) while excluding attachments/, dot-prefixed directories and files,
-// top-level .md files (repo furniture, not pages) and non-.md files — this is what lets any namespace's pages reach the
-// search index and startup page list generically, not just a hardcoded one.
+// TestListRecurses ensures page listing handles nested paths and excludes non-page files.
 func TestListRecurses(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
@@ -180,13 +172,13 @@ func TestListRecurses(t *testing.T) {
 			t.Fatalf("writing %s: %v", rel, err)
 		}
 	}
-	write("readme.md") // repo furniture at the root, not a page
+	write("readme.md")
 	write("blog/post.md")
 	write("blog/drafts/deep-post.md")
-	write("attachments/blog/post/pic.png") // not .md, and under attachments/ anyway
-	write("attachments/.note.md")          // an attachment, not a hidden page
-	write(".help.md")                      // hidden page, top-level
-	write("notes/.entry.md")               // hidden page, nested
+	write("attachments/blog/post/pic.png")
+	write("attachments/.note.md")
+	write(".help.md")
+	write("notes/.entry.md")
 	if err := os.MkdirAll(filepath.Join(tmpDir, ".git-like-dir"), 0755); err != nil {
 		t.Fatalf("mkdir .git-like-dir: %v", err)
 	}
@@ -217,7 +209,6 @@ func TestListRecurses(t *testing.T) {
 		}
 	}
 
-	// ListHidden is List's complement, including hidden pages inside namespaces.
 	hidden, err := store.ListHidden()
 	if err != nil {
 		t.Fatalf("ListHidden failed: %v", err)
@@ -368,7 +359,6 @@ func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
 }
 
 func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
-	// Pre-create a git repo with a commit (root content but no namespace).
 	tmpDir := t.TempDir()
 	repo, err := git.PlainInit(tmpDir, false)
 	if err != nil {
@@ -378,7 +368,7 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("worktree failed: %v", err)
 	}
-	// Write and commit an existing page so the repo has content.
+
 	existingPage := filepath.Join(tmpDir, "existing-page.md")
 	if err := os.WriteFile(existingPage, []byte("# Existing\n"), 0644); err != nil {
 		t.Fatalf("writing existing page: %v", err)
@@ -403,12 +393,10 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Existing root-only content should flag for setup.
 	if !store.NeedsSetup.Load() {
 		t.Errorf("NeedsSetup should be true for existing root-only content")
 	}
 
-	// readme.md and .help.md must NOT have been auto-seeded.
 	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
 		t.Errorf("readme.md should not be auto-seeded on existing repo with content")
 	}
@@ -418,7 +406,6 @@ func TestExistingRepoWithContentNeedsSetup(t *testing.T) {
 }
 
 func TestEmptyRepoNeedsSetup(t *testing.T) {
-	// Pre-create an empty git repo (git init, no commits, no files).
 	tmpDir := t.TempDir()
 	if _, err := git.PlainInit(tmpDir, false); err != nil {
 		t.Fatalf("git init failed: %v", err)
@@ -435,7 +422,6 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Empty repo (no commits) still requires consent — no auto-seeding.
 	if !store.NeedsSetup.Load() {
 		t.Errorf("NeedsSetup should be true for empty repo — nothing is auto-seeded")
 	}
@@ -457,7 +443,6 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Save twice
 	hash1, err := store.Save("test.md", []byte("v1"), "first", "alice", "alice@hmd.local")
 	if err != nil {
 		t.Fatalf("Save v1 failed: %v", err)
@@ -472,7 +457,6 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Errorf("Hashes should be different for different content")
 	}
 
-	// Read returns v2 with hash2
 	content, hash, err := store.Read("test.md")
 	if err != nil {
 		t.Fatalf("Read failed: %v", err)
@@ -484,7 +468,6 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Errorf("Hash = %q, want %q", hash, hash2)
 	}
 
-	// History has 2 entries, newest first
 	history, err := store.History("test.md")
 	if err != nil {
 		t.Fatalf("History failed: %v", err)
@@ -499,7 +482,6 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Errorf("Second history entry message: %q, want %q", history[1].Message, "first")
 	}
 
-	// FileAt with older hash returns v1
 	oldContent, err := store.FileAt("test.md", history[1].Hash)
 	if err != nil {
 		t.Fatalf("FileAt failed: %v", err)
@@ -508,13 +490,11 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Errorf("Old content = %q, want %q", string(oldContent), "v1")
 	}
 
-	// Revert: save v1 again
 	_, err = store.Save("test.md", []byte("v1"), "revert", "alice", "alice@hmd.local")
 	if err != nil {
 		t.Fatalf("Revert save failed: %v", err)
 	}
 
-	// History now has 3 entries
 	history, err = store.History("test.md")
 	if err != nil {
 		t.Fatalf("History after revert failed: %v", err)
@@ -523,7 +503,6 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 		t.Errorf("History length after revert = %d, want 3", len(history))
 	}
 
-	// Read returns v1
 	content, _, err = store.Read("test.md")
 	if err != nil {
 		t.Fatalf("Read after revert failed: %v", err)
@@ -533,10 +512,7 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	}
 }
 
-// TestSaveCheckedConcurrentSameBasehash reproduces the race the old
-// handleSave had: two writers both read the same starting hash, then both
-// try to save against it. Only one may win; the other must see ErrConflict,
-// never a silent overwrite.
+// TestSaveCheckedConcurrentSameBasehash ensures concurrent saves with the same base hash conflict.
 func TestSaveCheckedConcurrentSameBasehash(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{
@@ -593,14 +569,14 @@ func TestSaveCheckedMoveDoesNotOverwriteDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	hash, err := store.Save("old.md", []byte("old"), "seed old", "alice", "alice@hmd.local")
+	hash, err := store.Save("source.md", []byte("source"), "seed source", "alice", "alice@hmd.local")
 	if err != nil {
-		t.Fatalf("seeding old path: %v", err)
+		t.Fatalf("seeding source path: %v", err)
 	}
 	if _, err := store.Save("new.md", []byte("new"), "seed new", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("seeding destination: %v", err)
 	}
-	if _, err := store.SaveChecked("old.md", "new.md", hash, []byte("replacement"), "move", "alice", "alice@hmd.local"); !errors.Is(err, ErrConflict) {
+	if _, err := store.SaveChecked("source.md", "new.md", hash, []byte("replacement"), "move", "alice", "alice@hmd.local"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("move to existing destination = %v, want ErrConflict", err)
 	}
 	content, _, err := store.Read("new.md")
@@ -610,7 +586,6 @@ func TestSaveCheckedMoveDoesNotOverwriteDestination(t *testing.T) {
 }
 
 func TestPushToLocalBareRemote(t *testing.T) {
-	// Create a bare remote repo
 	bareDir := t.TempDir()
 	_, err := initBareRepo(bareDir)
 	if err != nil {
@@ -629,7 +604,6 @@ func TestPushToLocalBareRemote(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Save a page
 	_, err = store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local")
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -644,7 +618,6 @@ func TestPushToLocalBareRemote(t *testing.T) {
 		t.Errorf("SyncState = %q, want %q", state, "ok")
 	}
 
-	// Open the bare repo and check HEAD contains the file
 	bareRepo, err := git.PlainOpen(bareDir)
 	if err != nil {
 		t.Fatalf("Failed to open bare repo: %v", err)
@@ -667,7 +640,6 @@ func TestPushToLocalBareRemote(t *testing.T) {
 }
 
 func TestPushFailureDoesNotBlockSave(t *testing.T) {
-	// Create a bare remote repo
 	bareDir := t.TempDir()
 	_, err := initBareRepo(bareDir)
 	if err != nil {
@@ -686,18 +658,15 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Delete the bare repo to cause push to fail
 	if err := os.RemoveAll(bareDir); err != nil {
 		t.Fatalf("removing bare repo: %v", err)
 	}
 
-	// Save should still succeed
 	_, err = store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local")
 	if err != nil {
 		t.Errorf("Save should succeed even if push fails: %v", err)
 	}
 
-	// History should grow
 	history, err := store.History("page.md")
 	if err != nil {
 		t.Fatalf("History failed: %v", err)
@@ -718,29 +687,19 @@ func TestPushFailureDoesNotBlockSave(t *testing.T) {
 	}
 }
 
-// TestPushTimeoutReleasesLock reproduces the "app freezes" scenario: a
-// remote that accepts the connection but never responds. push() runs the
-// network call under pushMu, never s.mu, so this now passes for a better
-// reason than before: SyncState() (mu-guarded) was never blocked by the
-// stalled push in the first place. Without gitNetworkTimeout bounding the
-// push itself, though, syncState would never flip to "failed" and the loop
-// below would just hit its own deadline instead.
+// TestPushTimeoutReleasesLock ensures a stalled push does not block the store lock.
 func TestPushTimeoutReleasesLock(t *testing.T) {
 	block := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-block
 	}))
 	defer srv.Close()
-	// Unblock the handler before srv.Close() (deferred above, so it runs
-	// first) waits for it to return — defers execute in LIFO order.
+
 	defer close(block)
 
 	timeout := 200 * time.Millisecond
 	defer setGitNetworkTimeout(timeout)()
 
-	// Open without a remote so OpenStore itself doesn't try to clone from
-	// the (hung) server; attach the remote afterwards via UpdateRemote,
-	// which is purely local (no network call).
 	repoDir := t.TempDir()
 	cfg := Config{
 		RepoDir: repoDir,
@@ -763,8 +722,6 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 		t.Fatalf("Save should succeed even though the async push will stall: %v", err)
 	}
 
-	// SyncState() blocks on s.mu, so this loop only returns once push()
-	// (which is holding the lock during its network call) releases it.
 	if err := waitForPushes(store, 3*time.Second); err != nil {
 		t.Fatal(err)
 	}
@@ -779,9 +736,7 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 	}
 }
 
-// TestOpenStoreCloneTimeout covers the same "accepts connection, never
-// responds" scenario during initial clone. Without a bounded context this
-// would hang app startup indefinitely, before any Store even exists.
+// TestOpenStoreCloneTimeout ensures initial cloning honours the network timeout.
 func TestOpenStoreCloneTimeout(t *testing.T) {
 	block := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -829,7 +784,6 @@ func TestUpdateRemoteNoRemoteToSet(t *testing.T) {
 		t.Fatalf("initial SyncState = %q, want %q", state, "no remote")
 	}
 
-	// Add a remote
 	cfg2 := cfg
 	cfg2.Git.RemoteURL = "https://example.com/repo.git"
 	cfg2.Git.Token = "tok123"
@@ -856,7 +810,6 @@ func TestUpdateRemoteChangeURL(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Add the initial remote via UpdateRemote (no network — config only)
 	cfgAdd := cfg
 	cfgAdd.Git.RemoteURL = "https://example.com/old.git"
 	cfgAdd.Git.Token = "old-token"
@@ -864,7 +817,6 @@ func TestUpdateRemoteChangeURL(t *testing.T) {
 		t.Fatalf("initial UpdateRemote failed: %v", err)
 	}
 
-	// Change the remote URL and token
 	cfg2 := cfg
 	cfg2.Git.RemoteURL = "https://example.com/new.git"
 	cfg2.Git.Token = "new-token"
@@ -872,7 +824,6 @@ func TestUpdateRemoteChangeURL(t *testing.T) {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
 
-	// Verify the remote URL changed in the repo
 	urls, err := store.RemoteURLs("origin")
 	if err != nil {
 		t.Fatalf("getting origin remote: %v", err)
@@ -895,7 +846,6 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Add a remote first via UpdateRemote
 	cfgAdd := cfg
 	cfgAdd.Git.RemoteURL = "https://example.com/repo.git"
 	cfgAdd.Git.Token = "tok"
@@ -903,7 +853,6 @@ func TestUpdateRemoteRemoveRemote(t *testing.T) {
 		t.Fatalf("initial UpdateRemote failed: %v", err)
 	}
 
-	// Remove the remote
 	cfg2 := cfg
 	cfg2.Git.RemoteURL = ""
 	if err := store.UpdateRemote(storeOptions(cfg2)); err != nil {
@@ -1065,10 +1014,7 @@ func TestFetchAndFFDivergent(t *testing.T) {
 	}
 }
 
-// TestStalledPushDoesNotBlockReadOrSave is the regression guard for holding
-// pushMu (not s.mu) across the push network call: with a push stalled
-// against a dead remote, a concurrent Read and a second Save must both
-// return well inside gitNetworkTimeout instead of queuing behind it.
+// TestStalledPushDoesNotBlockReadOrSave ensures a stalled push does not block reads or saves.
 func TestStalledPushDoesNotBlockReadOrSave(t *testing.T) {
 	block := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1097,8 +1043,6 @@ func TestStalledPushDoesNotBlockReadOrSave(t *testing.T) {
 		t.Fatalf("UpdateRemote failed: %v", err)
 	}
 
-	// This save's async push will stall against the hung server for the
-	// full gitNetworkTimeout.
 	if _, err := store.Save("page.md", []byte("content"), "add page", "bob", "bob@hmd.local"); err != nil {
 		t.Fatalf("Save should succeed: %v", err)
 	}
@@ -1168,9 +1112,7 @@ func TestWaitForPushesHonoursContext(t *testing.T) {
 	}
 }
 
-// TestFetchThrottle covers the fetch coalescing added to remove FetchAndFF
-// from the per-tab sync-poll storm: a second call within fetchThrottle of a
-// successful fetch must return immediately without a network round trip.
+// TestFetchThrottle ensures fetches within the throttle interval are coalesced.
 func TestFetchThrottle(t *testing.T) {
 	defer setFetchThrottle(200 * time.Millisecond)()
 
@@ -1225,8 +1167,7 @@ func waitForPushes(store *Store, timeout time.Duration) error {
 	return store.WaitForPushes(ctx)
 }
 
-// History results are cached; the cache must stay correct across UI saves
-// (incremental update) and be dropped when a commit lands outside the UI.
+// TestHistoryCacheExternalCommit ensures cached history reflects internal and external commits.
 func TestHistoryCacheExternalCommit(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := OpenStore(Config{RepoDir: tmpDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
@@ -1241,7 +1182,6 @@ func TestHistoryCacheExternalCommit(t *testing.T) {
 		t.Fatalf("History failed: %v", err)
 	}
 
-	// A UI save after the cache is warm must appear without a re-walk.
 	if _, err := store.Save("page.md", []byte("v2"), "second", "alice", "alice@hmd.local"); err != nil {
 		t.Fatalf("Save v2 failed: %v", err)
 	}
@@ -1253,7 +1193,6 @@ func TestHistoryCacheExternalCommit(t *testing.T) {
 		t.Fatalf("cached history after save = %+v, want 2 entries, newest 'second'", history)
 	}
 
-	// Commit outside the store (simulating git CLI on the server).
 	if err := os.WriteFile(filepath.Join(tmpDir, "page.md"), []byte("v3"), 0644); err != nil {
 		t.Fatalf("writing page.md: %v", err)
 	}
@@ -1273,7 +1212,6 @@ func TestHistoryCacheExternalCommit(t *testing.T) {
 		t.Fatalf("external commit failed: %v", err)
 	}
 
-	// Poll tick notices the foreign HEAD and drops the cache.
 	store.DropHistoryOnExternalCommit()
 	history, err = store.History("page.md")
 	if err != nil {

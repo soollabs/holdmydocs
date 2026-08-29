@@ -21,9 +21,7 @@ const (
 
 var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
 
-// GitConfig groups the git-remote settings. Used as-is for both the file
-// shape and the runtime shape — no field here needs to distinguish "unset"
-// from its zero value, so one type covers both.
+// GitConfig groups the git-remote settings.
 type GitConfig struct {
 	RemoteURL string `yaml:"remote_url"`
 	User      string `yaml:"user"`
@@ -38,15 +36,12 @@ type MCPConfig struct {
 }
 
 // DocumentSearchConfig is restart-required local model/index configuration.
-// The Tika endpoint is intentionally not part of this portable YAML shape.
 type DocumentSearchConfig struct {
 	Model    string `yaml:"model"`
 	ModelDir string `yaml:"model_dir"`
 	IndexDir string `yaml:"index_dir"`
 }
 
-// oidcFileConfig is the YAML/env shape of the OIDC settings. LocalLogin
-// needs a pointer because its default is true, not the bool zero value.
 type oidcFileConfig struct {
 	Issuer                string   `yaml:"issuer"`
 	ClientID              string   `yaml:"client_id"`
@@ -62,9 +57,7 @@ type oidcFileConfig struct {
 	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback"`
 }
 
-// OIDCConfig is the resolved runtime shape of the OIDC settings (LocalLogin
-// defaulted to a concrete bool). Empty Issuer means OIDC is disabled. All
-// restart-required, not editable from the settings UI.
+// OIDCConfig is the resolved runtime shape of the OIDC settings (LocalLogin defaulted to a concrete bool).
 type OIDCConfig struct {
 	Issuer                string
 	ClientID              string
@@ -80,20 +73,10 @@ type OIDCConfig struct {
 	AllowInsecureLoopback bool     // development only: permits http URLs on loopback
 }
 
-// Config is the install-wide runtime configuration. Portable wiki identity
-// and landing settings live in the repository's .wiki.yaml; everything here
-// comes from the local YAML config file except a handful of env vars: HMD_APP_DIR and
-// HMD_CONFIG_FILE (bootstrap — they say where the file lives),
-// HMD_ADMIN_USER / HMD_ADMIN_PASSWORD (first-run bootstrap credentials)
-// and HMD_GIT_TOKEN / HMD_GIT_TOKEN_FILE / HMD_OIDC_CLIENT_SECRET
-// (secrets, so they can come from a secret store instead of the file).
-// Per-user preferences (theme, fonts, sidebar) live in users.json.
+// Config is the install-wide runtime configuration.
 type Config struct {
 	ConfigFile string // resolved path of the YAML config file
-	// EnvOverrides maps a dotted config field path (e.g. "Git.RemoteURL")
-	// to the env var name, for every field sourced from the environment
-	// this run (see applyEnvOverrides). Used by the settings UI to mark
-	// fields read-only with a "set via X" badge.
+	// EnvOverrides maps a dotted config field path (e.g.
 	EnvOverrides map[string]string
 	AppDir       string
 	AdminUser    string
@@ -117,7 +100,6 @@ type Config struct {
 	TikaURL        string
 }
 
-// fileConfig mirrors Config with the YAML keys accepted in the config file.
 type fileConfig struct {
 	Bind           string   `yaml:"bind"`
 	RepoDir        string   `yaml:"repo_dir"`
@@ -143,16 +125,6 @@ func EnvOr(key, def string) string {
 	return def
 }
 
-// applyEnvOverrides walks v's fields, overwriting each scalar from an env var
-// named <envPrefix>_<yaml tag, upper-cased> wherever that var is set and
-// non-empty — e.g. under prefix "HMD", yaml:"repo_dir" is overridden by
-// HMD_REPO_DIR. Struct fields (GitConfig, OIDC, ...) recurse with the
-// field's own tag folded into the prefix, so GitConfig.RemoteURL becomes
-// HMD_GIT_REMOTE_URL. YAML lists remain file-only. This gives every scalar
-// config-file field, nested or not, an env var equivalent without hand-writing
-// a pick call per field.
-// applied collects path -> env var name for every override actually made,
-// keyed by dotted Go field path (e.g. "Git.RemoteURL"), for the settings UI.
 func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied map[string]string) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
@@ -212,8 +184,8 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 	return nil
 }
 
-// ConfigFilePath resolves where the config file lives: HMD_CONFIG_FILE if
-// set, otherwise config.yaml next to users.json in the app dir.
+// ConfigFilePath resolves where the config file lives: HMD_CONFIG_FILE if set, otherwise config.yaml next to
+// users.json in the app dir.
 func ConfigFilePath() string {
 	if f := os.Getenv("HMD_CONFIG_FILE"); f != "" {
 		return f
@@ -221,11 +193,8 @@ func ConfigFilePath() string {
 	return filepath.Join(EnvOr("HMD_APP_DIR", "/data/app"), "config.yaml")
 }
 
-// LoadConfig builds the configuration from the YAML config file (missing
-// file = all defaults), then applies env var overrides (see
-// applyEnvOverrides) on top. HMD_APP_DIR / HMD_CONFIG_FILE (bootstrap, say
-// where the file lives) and HMD_ADMIN_USER / HMD_ADMIN_PASSWORD (first-run
-// credentials) aren't config-file fields, so they're read directly.
+// LoadConfig builds the configuration from the YAML config file (missing file = all defaults), then applies
+// env var overrides (see applyEnvOverrides) on top.
 func LoadConfig() (Config, error) {
 	path := ConfigFilePath()
 	file, err := LoadFileConfig(path)
@@ -233,7 +202,7 @@ func LoadConfig() (Config, error) {
 		if !os.IsNotExist(err) {
 			return Config{}, err
 		}
-		file = fileConfig{} // no file yet: defaults
+		file = fileConfig{}
 	}
 	envOverrides := make(map[string]string)
 	if err := applyEnvOverrides(reflect.ValueOf(&file).Elem(), "HMD", "", envOverrides); err != nil {
@@ -402,12 +371,6 @@ func LoadConfig() (Config, error) {
 	return cfg, nil
 }
 
-// toFileConfig snapshots the currently effective config (file values plus
-// any env var overrides) into the shape written to config.yaml. Used by
-// the "export" settings action to bake env-sourced values into the file.
-//
-// Secret values are deliberately omitted from exports. TokenFile and
-// ClientSecretFile remain references to their external sources of truth.
 func (c Config) toFileConfig() fileConfig {
 	git := c.Git
 	git.Token = ""
@@ -470,9 +433,7 @@ func isLoopbackHost(host string) bool {
 	return strings.EqualFold(host, "localhost") || (net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback())
 }
 
-// parseAuthor splits a git author string in the standard "Name <email>" form
-// into name and email. If no <email> is present, email falls back to
-// "<fallbackName>@hmd.local". An empty string yields the fallback identity.
+// parseAuthor splits a git author string in the standard "Name <email>" form into name and email.
 func ParseAuthor(s, fallbackName string) (name, email string) {
 	s = strings.TrimSpace(s)
 	if lt := strings.LastIndex(s, "<"); lt != -1 && strings.HasSuffix(s, ">") {
@@ -491,8 +452,6 @@ func ParseAuthor(s, fallbackName string) (name, email string) {
 }
 
 // LoadFileConfig reads and parses a YAML config file into a fileConfig.
-// A missing file is returned as an os.IsNotExist error for callers that
-// treat it as "defaults".
 func LoadFileConfig(path string) (fileConfig, error) {
 	var fc fileConfig
 	if err := tightenRegularFile(path); err != nil && !os.IsNotExist(err) {
@@ -502,15 +461,15 @@ func LoadFileConfig(path string) (fileConfig, error) {
 	if err != nil {
 		return fileConfig{}, err
 	}
-	// Strict so a typoed key fails loudly instead of being ignored.
+
 	if err := yaml.UnmarshalWithOptions(b, &fc, yaml.Strict()); err != nil {
 		return fileConfig{}, fmt.Errorf("parsing config file %s: %w", path, err)
 	}
 	return fc, nil
 }
 
-// SaveFileConfig marshals fc to YAML and writes it to path atomically
-// (tmp file + rename), matching the pattern used in auth.go.
+// SaveFileConfig marshals fc to YAML and writes it to path atomically (tmp file + rename), matching the
+// pattern used in auth.go.
 func SaveFileConfig(path string, fc fileConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("creating config dir: %w", err)
@@ -639,9 +598,7 @@ func validateConfig(cfg Config) error {
 	return nil
 }
 
-// validateWritableDataDir rejects pre-existing data directories which the
-// runtime user cannot safely own. Container volumes are initialised from the
-// image; a root-owned volume must be recreated rather than silently repaired.
+// validateWritableDataDir rejects pre-existing data directories which the runtime user cannot safely own.
 func ValidateWritableDataDir(path string) error {
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {

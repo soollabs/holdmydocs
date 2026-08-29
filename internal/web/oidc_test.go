@@ -58,7 +58,7 @@ func TestEnsureOIDCUser(t *testing.T) {
 	}
 
 	identity := oidcIdentity{Issuer: "https://idp.example.com", Subject: "alice-id"}
-	// First login provisions with the claims author and requested scopes.
+
 	username, err := auth.EnsureOIDCUser(identity, "alice", "Alice <alice@example.com>", []string{"read"})
 	if err != nil {
 		t.Fatalf("first EnsureOIDCUser failed: %v", err)
@@ -70,7 +70,6 @@ func TestEnsureOIDCUser(t *testing.T) {
 		t.Errorf("AuthorFor = %q, want claims author", got)
 	}
 
-	// A returning identity resolves to the original user despite changed display claims.
 	if err := auth.SetAuthor("alice", "Custom <me@example.com>"); err != nil {
 		t.Fatalf("SetAuthor failed: %v", err)
 	}
@@ -88,7 +87,6 @@ func TestEnsureOIDCUser(t *testing.T) {
 		t.Error("returning OIDC login changed the provisioned scopes")
 	}
 
-	// Record persists across restart.
 	auth2, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("second OpenAuth failed: %v", err)
@@ -150,11 +148,8 @@ func TestOIDCAdmissionDelegatedToIdentityProvider(t *testing.T) {
 }
 
 func TestOIDCCallbackRejectsBadState(t *testing.T) {
-	// State is checked before the OAuth config is touched, so an empty
-	// OIDCAuth is enough here.
 	app := &App{OIDC: &OIDCAuth{}}
 
-	// Missing state cookie.
 	r := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=x", nil)
 	w := httptest.NewRecorder()
 	app.handleOIDCCallback(w, r)
@@ -162,7 +157,6 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 		t.Errorf("missing state cookie: got %d, want 400", w.Code)
 	}
 
-	// Mismatched state.
 	r = httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=x", nil)
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "different"})
 	w = httptest.NewRecorder()
@@ -371,7 +365,6 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 		t.Errorf("Content-Type = %q", ct)
 	}
 
-	// No icon configured: 404.
 	app = &App{OIDC: &OIDCAuth{}}
 	w = httptest.NewRecorder()
 	app.handleOIDCIcon(w, httptest.NewRequest("GET", "/auth/oidc/icon", nil))
@@ -379,7 +372,6 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 		t.Errorf("unset icon: got %d, want 404", w.Code)
 	}
 
-	// Non-square local file fails to load.
 	badPath := filepath.Join(t.TempDir(), "bad.svg")
 	if err := os.WriteFile(badPath, []byte(`<svg viewBox="0 0 24 16"></svg>`), 0644); err != nil {
 		t.Fatalf("writing non-square icon: %v", err)
@@ -403,7 +395,6 @@ func TestLoginTemplateOIDC(t *testing.T) {
 		return buf.String()
 	}
 
-	// SSO enabled, local login hidden.
 	out := render(TemplateData{OIDCEnabled: true, OIDCButtonText: "Login with Authelia"})
 	if !strings.Contains(out, "Login with Authelia") || !strings.Contains(out, "/_/auth/oidc/login") {
 		t.Errorf("SSO button with configured text should be rendered")
@@ -412,7 +403,6 @@ func TestLoginTemplateOIDC(t *testing.T) {
 		t.Errorf("password form should be hidden when local login is disabled")
 	}
 
-	// SSO disabled, plain password form.
 	out = render(TemplateData{OIDCLocalLogin: true})
 	if strings.Contains(out, "/_/auth/oidc/login") {
 		t.Errorf("SSO button should not render when OIDC is disabled")

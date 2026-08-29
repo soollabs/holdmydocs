@@ -103,7 +103,6 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 		}
 	})
 
-	// Test fallback to slug when no title in frontmatter
 	t.Run("no frontmatter title falls back to slug", func(t *testing.T) {
 		parsed := ParsePage("my-page", []byte("Just body"))
 		if parsed.Title != "my-page" {
@@ -111,7 +110,6 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 		}
 	})
 
-	// CRLF line endings must not break frontmatter parsing
 	t.Run("CRLF frontmatter parses", func(t *testing.T) {
 		parsed := ParsePage("crlf", []byte("---\r\ntitle: CRLF Page\r\ntags: a, b\r\n---\r\n\r\nBody text"))
 		if parsed.Title != "CRLF Page" {
@@ -125,7 +123,6 @@ func TestParseEncodeRoundTrip(t *testing.T) {
 		}
 	})
 
-	// Encode must store LF even when the body arrives with CRLF (browser form submission)
 	t.Run("Encode normalises CRLF body", func(t *testing.T) {
 		encoded := Page{Slug: "p", Title: "p", Body: "line one\r\nline two"}.Encode()
 		if strings.Contains(string(encoded), "\r") {

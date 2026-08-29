@@ -105,8 +105,6 @@ type textChunk struct {
 	Text     string
 }
 
-// normaliseExtractedText makes Tika output deterministic before it reaches the
-// tokenizer. strings.Fields below then gives all platforms the same chunks.
 func normaliseExtractedText(text string) string {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
@@ -205,8 +203,7 @@ func directTextAttachment(filename string) bool {
 	}
 }
 
-// TikaClient bounds HMD's requests and output. Parser isolation and parser-level
-// limits remain the responsibility of the operator-owned Tika deployment.
+// TikaClient bounds HMD's requests and output.
 type TikaClient struct {
 	baseURL string
 	client  *http.Client
@@ -335,7 +332,6 @@ type HugotEmbedder struct {
 }
 
 func ensureEmbeddingModel(ctx context.Context, modelDir, baseURL string, files []embeddingModelFile) error {
-	// An existing ONNX file makes model_dir an escape hatch for operator-managed models.
 	if _, err := os.Stat(filepath.Join(modelDir, "onnx", "model.onnx")); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
@@ -603,8 +599,8 @@ func removeDerivedSearchState(indexDir string) error {
 	return nil
 }
 
-// OpenIndex opens the one persistent Bleve index and reconciles its disposable
-// state against Git-backed page and attachment hashes.
+// OpenIndex opens the one persistent Bleve index and reconciles its disposable state against Git-backed page
+// and attachment hashes.
 func OpenIndex(appDir string, pages []wiki.Page, pageHashes map[string]string, attachments map[string]string, documents *DocumentSearch) (*Index, error) {
 	return OpenIndexAt(filepath.Join(appDir, "search.bleve"), pages, pageHashes, attachments, documents)
 }

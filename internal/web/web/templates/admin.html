@@ -15,7 +15,7 @@
 	{{if .Settings.HelpDrifted}}
 	<div class="settings-banner">
 		<code>.help.md</code> differs from hmd's built-in help text for this version.
-		It may have been edited, or written by an older version of hmd.
+		It may have been edited locally.
 		<form method="POST" action="/_/settings/help/reset" style="display:contents">{{template "csrf" .}}
 			<button type="submit" class="ghost-btn">Reset to built-in</button>
 		</form>
@@ -166,8 +166,6 @@
 
 	</form>
 
-	{{/* Lives outside the form above: a <form> cannot nest inside another
-	     <form>, and this panel needs its own per-user and create-user forms. */}}
 	<fieldset class="settings-section settings-panel" data-panel="users">
 		<legend>users</legend>
 		<div class="settings-row">

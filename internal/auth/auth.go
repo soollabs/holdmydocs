@@ -26,9 +26,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// tokenRecord is a stored personal access token. The token value is shown
-// once at creation; only its SHA-256 digest is kept. A zero Expires means the
-// token never expires.
 type tokenRecord struct {
 	Name       string    `json:"name"`
 	Digest     string    `json:"digest"`
@@ -38,15 +35,12 @@ type tokenRecord struct {
 	Namespaces []string  `json:"namespaces,omitempty"`
 }
 
-// expired reports whether the token is past its expiry (never, if unset).
 func (t tokenRecord) expired() bool {
 	return !t.Expires.IsZero() && time.Now().After(t.Expires)
 }
 
 func (t tokenRecord) Expired() bool { return t.expired() }
 
-// cachedToken is a verified PAT in the in-memory cache; expiry still has to
-// be checked on every use, so it rides along with the username.
 type cachedToken struct {
 	user       string
 	scopes     []string
@@ -83,10 +77,6 @@ func (p tokenPrincipal) AllowsSlug(slug string) bool {
 	return p.AllowsNamespace(namespace)
 }
 
-// A scope gates one slice of the app: scopeRead covers viewing pages and
-// search, scopeWrite covers anything that writes to the store (saving,
-// renaming, tagging, uploading), scopeSettings covers /settings itself
-// (appearance, tokens, author, exports).
 type scope string
 
 const (
@@ -95,14 +85,8 @@ const (
 	scopeSettings scope = "settings"
 )
 
-// allScopes is both the valid-scope allowlist (for CLI/validation) and the
-// full-access set new users get by default.
 var allScopes = []scope{scopeRead, scopeWrite, scopeSettings}
 
-// userRecord is a stored user. GitAuthor, when set, is that user's commit
-// identity in "Name <email>" form and overrides the global default.
-// Palette/FontUI/FontMono/Skin are that user's cosmetic preferences,
-// editable from /settings; zero values fall back to the built-in defaults.
 type userRecord struct {
 	Hash      string        `json:"hash"`
 	OIDC      *oidcIdentity `json:"oidc,omitempty"`
@@ -134,7 +118,6 @@ const (
 
 var AllScopes = allScopes
 
-// hasScope reports whether the user may perform an action requiring s.
 func (u userRecord) hasScope(s scope) bool {
 	if slices.Contains(u.Scopes, string(scopeSettings)) {
 		return true
@@ -144,7 +127,6 @@ func (u userRecord) hasScope(s scope) bool {
 
 func (u userRecord) HasScope(s Scope) bool { return u.hasScope(s) }
 
-// prefs is name's display preferences.
 func (a *Auth) prefs(name string) userRecord {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -180,8 +162,7 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string) error {
 	return a.save()
 }
 
-// SetScopes restricts name to exactly the given scopes ("read", "write",
-// "settings").
+// SetScopes restricts name to exactly the given scopes ("read", "write", "settings").
 func (a *Auth) SetScopes(name string, scopes []string) error {
 	if len(scopes) == 0 {
 		return fmt.Errorf("user scopes cannot be empty")
@@ -214,8 +195,6 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 	return a.saveSessions()
 }
 
-// ctxUserKey carries the Bearer-authenticated username through the request
-// context; currentUser checks it before falling back to the session cookie.
 type ctxUserKey struct{}
 
 type ctxTokenPrincipalKey struct{}
@@ -235,13 +214,8 @@ func tokenAllowsSlug(ctx context.Context, slug string) bool {
 	return !ok || principal.AllowsSlug(slug)
 }
 
-// sessionTTL is the absolute lifetime of a session token, regardless of the
-// cookie's own MaxAge (browser-session cookies are still bounded server-side,
-// so a leaked/persisted token can't be replayed forever).
 const sessionTTL = 30 * 24 * time.Hour
 
-// sessionRecord is a stored login session: the username it belongs to and
-// when it stops being valid.
 type sessionRecord struct {
 	User    string    `json:"user"`
 	Expires time.Time `json:"expires"`
@@ -284,9 +258,6 @@ const (
 
 var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
 
-// normaliseUserRecord validates persisted access policy. Appearance preferences
-// remain permissive so removing a theme option never blocks startup. Session
-// data is deliberately excluded: it is disposable and handled best-effort below.
 func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 	if len(rec.Scopes) == 0 {
 		return userRecord{}, fmt.Errorf("user %q scopes cannot be empty", name)
@@ -355,7 +326,6 @@ func Open(cfg Options) (*Auth, error) {
 		bcryptSem:     make(chan struct{}, 4),
 	}
 
-	// Try to load existing users file
 	if err := tightenRegularFile(usersFile); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("checking users file: %w", err)
 	}
@@ -381,12 +351,11 @@ func Open(cfg Options) (*Auth, error) {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		// File doesn't exist
 		if cfg.AdminUser != "" && cfg.AdminPass != "" {
 			if !validBootstrapCredentials(cfg.AdminUser, cfg.AdminPass) {
 				return nil, fmt.Errorf("bootstrap credentials must use a valid username, a strong non-placeholder password, and different username and password")
 			}
-			// Bootstrap admin user
+
 			err = auth.AddUser(cfg.AdminUser, cfg.AdminPass)
 			if err != nil {
 				return nil, fmt.Errorf("bootstrapping admin: %w", err)
@@ -432,10 +401,7 @@ func (a *Auth) AddUser(name, password string) error {
 	return a.addUser(name, password, scopeNames(allScopes))
 }
 
-// AddUserWithScopes creates a user with its final policy in one persisted
-// update. Keeping creation and scope assignment atomic prevents a failed or
-// malformed second operation from leaving behind an unintended full-access
-// account.
+// AddUserWithScopes creates a user with its final policy in one persisted update.
 func (a *Auth) AddUserWithScopes(name, password string, scopes []string) error {
 	normalised, err := normaliseTokenScopes(scopes)
 	if err != nil {
@@ -460,7 +426,7 @@ func (a *Auth) addUser(name, password string, scopes []string) error {
 	}
 
 	a.mu.Lock()
-	rec := a.users[name] // preserve any existing git author
+	rec := a.users[name]
 	rec.Hash = string(hash)
 	rec.Scopes = append([]string(nil), scopes...)
 	a.users[name] = rec
@@ -530,9 +496,7 @@ func (a *Auth) HasUsers() bool {
 	return len(a.users) != 0
 }
 
-// UserSummary is one row in the settings-page user list. Has is keyed by
-// scope name ("read", "write", "settings") so the template can tick the
-// right checkboxes without needing custom template funcs.
+// UserSummary is one row in the settings-page user list.
 type UserSummary struct {
 	Name string
 	Has  map[string]bool
@@ -557,7 +521,6 @@ func (a *Auth) Users() []UserSummary {
 func normaliseTokenNamespaces(namespaces []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(namespaces))
 	for _, raw := range namespaces {
-		// A nil list permits every namespace; an entry names one it's limited to.
 		namespace := strings.TrimSpace(raw)
 		if !validNamespaceName(namespace) {
 			return nil, fmt.Errorf("invalid namespace %q", namespace)
@@ -630,10 +593,7 @@ func EffectiveTokenScopes(userScopes, tokenScopes []string) []string {
 	return effectiveTokenScopes(userScopes, tokenScopes)
 }
 
-// AddToken mints a personal access token for name, labelled label, expiring
-// at expires (zero = never). The token value is returned exactly once; only
-// its digest is stored. Labels are unique per user — they are the
-// revocation key.
+// AddToken mints a personal access token for name, labelled label, expiring at expires (zero = never).
 func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespaces []string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -692,8 +652,7 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	return token, nil
 }
 
-// TokensFor returns name's stored tokens (metadata only — digests stay out of
-// templates).
+// TokensFor returns name's stored tokens (metadata only — digests stay out of templates).
 func (a *Auth) TokensFor(name string) []tokenRecord {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -710,8 +669,7 @@ func (a *Auth) TokensFor(name string) []tokenRecord {
 	return tokens
 }
 
-// RemoveToken revokes name's token labelled label and drops the user's digest
-// index entries. Remaining tokens are rebuilt from the persisted user record.
+// RemoveToken revokes name's token labelled label and drops the user's digest index entries.
 func (a *Auth) RemoveToken(name, label string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -766,8 +724,8 @@ func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
 	return tokenPrincipal{}, false
 }
 
-// UserForBearerLimited throttles malformed and unknown Bearer values by
-// source address before their digest is looked up.
+// UserForBearerLimited throttles malformed and unknown Bearer values by source address before their digest is
+// looked up.
 func (a *Auth) UserForBearerLimited(remote, token string) (tokenPrincipal, bool) {
 	key := "bearer\x00" + loginKey(remote, "")
 	a.mu.Lock()
@@ -842,7 +800,6 @@ func validateGitAuthor(author string) error {
 	return nil
 }
 
-// save writes the users map atomically. Caller must hold a.mu.
 func (a *Auth) save() error {
 	data, err := json.MarshalIndent(a.users, "", "  ")
 	if err != nil {
@@ -859,7 +816,6 @@ func (a *Auth) save() error {
 	return nil
 }
 
-// saveSessions writes the sessions map atomically. Caller must hold a.mu.
 func (a *Auth) saveSessions() error {
 	data, err := json.Marshal(a.sessions)
 	if err != nil {
@@ -952,7 +908,6 @@ func (a *Auth) login(name, password string) (token string, ok bool) {
 	return a.newSession(name)
 }
 
-// newSession mints a session token for name and persists it.
 func (a *Auth) newSession(name string) (token string, ok bool) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -993,9 +948,9 @@ func (a *Auth) CSRFToken(session string) string {
 	return ""
 }
 
-// EnsureOIDCUser provisions name on first SSO login: a record with an empty
-// hash (password login impossible). gitAuthor ("Name <email>") is stored only
-// when the record has none, so a user's own override is never clobbered.
+// EnsureOIDCUser provisions name on first SSO login: a record with an empty hash (password login impossible).
+// gitAuthor ("Name <email>") is stored only when the record has none, so a user's own override is never
+// clobbered.
 func (a *Auth) EnsureOIDCUser(identity oidcIdentity, name, gitAuthor string, scopes []string) (string, error) {
 	if identity.Issuer == "" || identity.Subject == "" || !validUsername(name) || len(scopes) == 0 {
 		return "", fmt.Errorf("invalid OIDC user")
@@ -1048,9 +1003,7 @@ func (a *Auth) purgeExpiredSessionsLocked() bool {
 	return purged
 }
 
-// UserFor resolves a session token to its username. An expired session is
-// treated as absent; it is lazily dropped on the next Logout or load rather
-// than requiring a background sweep.
+// UserFor resolves a session token to its username.
 func (a *Auth) UserFor(token string) (username string, ok bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1068,13 +1021,6 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 	return rec.User, true
 }
 
-// requiredScope reports which scope r needs. /settings and /admin (any
-// method) need "settings". Everything else follows HTTP method: a
-// body-carrying method needs "write", a safe one needs "read". MCP scopes
-// are checked by each tool because its JSON-RPC endpoint carries all actions.
-//
-// HTTP methods determine content access because all write routes use unsafe
-// methods. Route changes must preserve that invariant.
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
 		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
@@ -1087,19 +1033,6 @@ func requiredScope(r *http.Request) scope {
 	return scopeWrite
 }
 
-// anonymousEligible reports whether an unauthenticated GET to path (with
-// query q) may reach its handler at all, deferring the public-or-404
-// decision to the handler itself rather than redirecting to login. That
-// keeps the decision in one place (namespace lookup + existence check) so a
-// private page and a nonexistent page come out byte-identical — a redirect
-// here for one case and a 404 there for the other would itself be an
-// existence oracle.
-//
-// Eligible: a plain page view (no ?do=, not under the reserved /_/ subtree)
-// and page attachments (/_/attachments/{slug}/{file}), which live under
-// /_/ but belong to a page like any other. Everything else — POSTs, ?do=
-// actions, the rest of the /_/ subtree, and the site root ("/", so a login
-// wall stays reachable even on an all-private wiki) — stays behind auth.
 func anonymousEligible(path string, q url.Values) bool {
 	if rest, ok := strings.CutPrefix(path, "/_/attachments/"); ok && strings.Contains(rest, "/") {
 		return true
@@ -1129,7 +1062,6 @@ func restrictedTokenPathAllowed(path string) bool {
 
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow /_/login, the OIDC flow and /_/static/ without authentication
 		if r.URL.Path == "/_/live" || r.URL.Path == "/_/ready" || r.URL.Path == "/_/login" || strings.HasPrefix(r.URL.Path, "/_/auth/oidc/") || strings.HasPrefix(r.URL.Path, "/_/static/") || strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") {
 			next.ServeHTTP(w, r)
 			return

@@ -182,7 +182,7 @@ func TestNamespaceFor(t *testing.T) {
 		wantR  string
 	}{
 		{"blog/drafts/post", "blog", "drafts/post"},
-		{"notes", "notes", ""}, // a single segment names a namespace, not a page
+		{"notes", "notes", ""},
 		{"notes/2026-07-27", "notes", "2026-07-27"},
 	}
 	for _, tt := range tests {
@@ -216,7 +216,7 @@ func TestBuildNamespaceRegistry(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "blog", namespaceConfigFile), []byte("public: true\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	// Reserved and dot-prefixed directories must not become namespaces.
+
 	if err := os.Mkdir(filepath.Join(dir, "_"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -289,10 +289,7 @@ func TestNamespaceCatalogue(t *testing.T) {
 	}
 }
 
-// TestCreateNamespaceFromAdmin covers the namespaces panel's write path:
-// posting a name that doesn't exist yet creates the namespace, its new-page
-// template page is seeded so ctrl-j works immediately, and the registry
-// reflects all of it without waiting for pollFS.
+// TestCreateNamespaceFromAdmin ensures the namespace form creates and registers a namespace.
 func TestCreateNamespaceFromAdmin(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -332,7 +329,6 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 		t.Error("a namespace with a saved .namespace.yaml should report itself configured")
 	}
 
-	// The config and the seeded template page are both in the repo.
 	if _, _, err := app.Store.Read(namespaceConfigPath("blog")); err != nil {
 		t.Errorf("reading blog/.namespace.yaml: %v", err)
 	}
@@ -340,9 +336,6 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 		t.Errorf("reading seeded template %s: %v", hiddenFile("blog/"+defaultNewPageTemplate), err)
 	}
 
-	// ctrl-j in the namespace now works end to end: POST /_/new renders
-	// today's page from that template directly, as a draft that isn't
-	// persisted until Save.
 	newResp, err := client.Post(server.URL+"/_/new?ns=blog", "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		t.Fatalf("POST /_/new?ns=blog: %v", err)
@@ -355,8 +348,7 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	}
 }
 
-// TestNamespaceManagement covers the settings-scoped namespace directory and
-// the focused editor routes.
+// TestNamespaceManagement covers the settings-scoped namespace directory and the focused editor routes.
 func TestNamespaceManagement(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -645,8 +637,7 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 	}
 }
 
-// TestSaveNamespaceRejectsBadInput checks the form's validation: a rejected
-// save must not create the namespace or write anything.
+// TestSaveNamespaceRejectsBadInput ensures invalid namespace settings are not persisted.
 func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -663,8 +654,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 		{"nested name", url.Values{"name": {"a/b"}}},
 		{"custom pattern left empty", url.Values{"name": {"nope"}, "new_enabled": {"on"}, "slug_preset": {"custom"}}},
 		{"unparseable pattern", url.Values{"name": {"nope"}, "new_enabled": {"on"}, "slug_preset": {"custom"}, "slug_custom": {"{{.Now"}}},
-		// Renders to "2026/07-28": a namespace is one level deep, so a
-		// pattern that produces a subdirectory could never be created.
+
 		{"pattern rendering a slash", url.Values{"name": {"nope"}, "new_enabled": {"on"}, "slug_preset": {"custom"}, "slug_custom": {`{{.Now.Format "2006/01-02"}}`}}},
 		{"invalid template page name", url.Values{"name": {"nope"}, "new_enabled": {"on"}, "slug_preset": {"daily"}, "template": {".hidden"}}},
 	}
@@ -683,9 +673,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 	}
 }
 
-// TestDeleteNamespaceKeepsPages checks that removing a namespace's config
-// reverts it to the defaults without touching the pages filed under it, and
-// that a namespace holding nothing else disappears entirely.
+// TestDeleteNamespaceKeepsPages ensures resetting configuration preserves pages.
 func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -705,8 +693,6 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 		t.Fatalf("seeding blog/hello: %v", err)
 	}
 
-	// Reset is explicitly non-destructive and leaves the indexed page and
-	// hidden template in place.
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces/reset", url.Values{"name": {"blog"}})
 	if err != nil {
 		t.Fatalf("resetting blog: %v", err)
@@ -726,16 +712,13 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	} else if cfg.Configured {
 		t.Fatalf("reset must refresh blog as unconfigured, got %+v", cfg)
 	}
-	// Reconfigure it so the separate deletion guard can prove rejection leaves
-	// the configuration intact as well.
+
 	resp, err = client.PostForm(server.URL+"/_/settings/namespaces", url.Values{"name": {"blog"}, "widgets": {"pages"}})
 	if err != nil {
 		t.Fatalf("reconfigure blog: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
-	// True deletion rejects a namespace with either indexed content or a
-	// hidden namespace file, and must leave its config intact.
 	for _, ns := range []string{"blog", "empty"} {
 		resp, err := client.PostForm(server.URL+"/_/settings/namespaces/delete", url.Values{"name": {ns}})
 		if err != nil {
@@ -747,7 +730,6 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 		}
 	}
 
-	// blog still holds a page, so its configuration remains intact.
 	cfg, ok := app.Namespaces()["blog"]
 	if !ok {
 		t.Fatal("blog should still be a namespace: it still contains a page")
@@ -759,24 +741,18 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 		t.Errorf("removing a namespace config must not touch its pages: %v", err)
 	}
 
-	// empty has the seeded hidden template, so it is not deletable either.
 	if _, ok := app.Namespaces()["empty"]; !ok {
 		t.Error("hidden namespace files must block deletion")
 	}
 }
 
-// TestNamespaceNewPageFormRoundTrip covers what the form does and doesn't
-// decide for you: the template page name is a convention carried through as a
-// hidden field (a hand-written one survives a save), the slug comes from a
-// preset unless it matches none, and unticking the toggle drops the `new:`
-// block without touching anything else.
+// TestNamespaceNewPageFormRoundTrip ensures namespace form values round-trip without loss.
 func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	adminLogin(t, server, client)
 
-	// A hand-written config: non-default template name, pattern no preset produces.
 	custom := `{{.User}}-x`
 	if err := writeNamespaceConfig(t, app, "blog", "widgets: [pages]\nnew:\n  template: entry\n  slug: '"+custom+"'\n"); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
@@ -802,7 +778,6 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("template link = %q, want the hidden-page editor for blog/entry", blog.TemplateHref)
 	}
 
-	// Saving the form as rendered keeps the hand-written template name.
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"pages"}, "template": {blog.Template},
 		"new_enabled": {"on"}, "slug_preset": {"monthly"},
@@ -820,7 +795,6 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("slug = %q, want the monthly preset", cfg.New.Slug)
 	}
 
-	// Unticking the toggle drops new: and leaves the rest alone.
 	off, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"pages"}, "public": {"on"}, "template": {blog.Template},
 		"slug_preset": {"monthly"},
@@ -839,18 +813,13 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSeededTemplateExplainsItself covers the default template page: every
-// namespace created from the form gets one even with ctrl-j off, it documents
-// exactly the fields newPageTemplateData carries, and it renders cleanly —
-// the field names in its table are inert text, so it reads the same in its own
-// editor as in a page created from it.
+// TestSeededTemplateExplainsItself ensures the seeded template documents and renders its fields.
 func TestSeededTemplateExplainsItself(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	adminLogin(t, server, client)
 
-	// No new_enabled: a namespace with ctrl-j off still gets a template.
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"pages"},
 	})
@@ -874,7 +843,6 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 		}
 	}
 
-	// It renders as a real template: no leftover actions, values substituted.
 	data := newPageTemplateData{Now: time.Now(), User: "admin", Namespace: "blog"}
 	rendered, err := renderNewPageText(tpl.Body, data)
 	if err != nil {
@@ -895,10 +863,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 	}
 }
 
-// TestRenderLiveTreeOnlyOpensCurrentPageAncestors covers the fix for a bug
-// where every <details> in the sidebar tree rendered open regardless of
-// which page you're on — expanding the entire namespace on every visit.
-// Only the branches leading to the current page should start open.
+// TestRenderLiveTreeOnlyOpensCurrentPageAncestors ensures only the current page's branches are open.
 func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
 	entries := []BacklinkEntry{
 		{Slug: "docs/a/one", Title: "One"},

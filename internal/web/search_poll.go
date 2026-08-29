@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// pollFS picks up repository changes made outside the HTTP application.
 func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()

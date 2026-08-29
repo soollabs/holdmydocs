@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-// TestSecurityHeadersPresent checks the clickjacking/MIME-sniffing headers
-// land on every response, including ones auth denies before reaching a route.
+// TestSecurityHeadersPresent checks the clickjacking/MIME-sniffing headers land on every response, including
+// ones auth denies before reaching a route.
 func TestStaticDirectoriesAreNotListed(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -66,8 +66,7 @@ func TestSecurityHeadersPresent(t *testing.T) {
 	}
 }
 
-// TestDoDispatchPerAction exercises every ?do= action against a real page's
-// own URL, replacing the old path-suffix routes.
+// TestDoDispatchPerAction exercises each page action on the page's own URL.
 func TestDoDispatchPerAction(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -89,7 +88,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 		return resp
 	}
 
-	// view (no do=)
 	resp := get("/" + testNS + "/routing-target")
 	body, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
@@ -97,7 +95,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("view: status = %d, body = %s", resp.StatusCode, body)
 	}
 
-	// ?do=edit
 	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
@@ -108,14 +105,12 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 	basehash := ""
 
-	// ?do=history
 	resp = get("/" + testNS + "/routing-target?do=history")
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=history: status = %d", resp.StatusCode)
 	}
 
-	// POST ?do=tags
 	tagResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=tags", url.Values{"tags": {"a, b"}})
 	if err != nil {
 		t.Fatalf("POST ?do=tags: %v", err)
@@ -125,7 +120,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=tags: status = %d", tagResp.StatusCode)
 	}
 
-	// ?do=tags just saved a new revision, so basehash is stale — re-fetch it.
 	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
@@ -135,7 +129,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 	basehash = m[1]
 
-	// ?do=diff needs two real hashes: save once more, then diff head against itself's prior hash.
 	saveResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=save", url.Values{
 		"title": {"Routing Target"}, "body": {"hello v2"}, "basehash": {basehash},
 	})
@@ -165,14 +158,12 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=diff: status = %d", resp.StatusCode)
 	}
 
-	// ?do=rev&hash=
 	resp = get("/" + testNS + "/routing-target?do=rev&hash=" + hashA)
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=rev: status = %d", resp.StatusCode)
 	}
 
-	// POST ?do=revert
 	revertResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=revert", url.Values{"hash": {hashA}})
 	if err != nil {
 		t.Fatalf("POST ?do=revert: %v", err)
@@ -182,7 +173,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=revert: status = %d, want 303", revertResp.StatusCode)
 	}
 
-	// POST ?do=rename
 	renameResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=rename", url.Values{"title": {"Routing Target Renamed"}})
 	if err != nil {
 		t.Fatalf("POST ?do=rename: %v", err)
@@ -192,7 +182,6 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=rename: status = %d, want 200", renameResp.StatusCode)
 	}
 
-	// POST ?do=delete, on the renamed slug.
 	deleteResp, err := client.Post(server.URL+"/"+testNS+"/routing-target-renamed?do=delete", "", nil)
 	if err != nil {
 		t.Fatalf("POST ?do=delete: %v", err)
@@ -235,14 +224,11 @@ func TestNewPageCanChooseFilename(t *testing.T) {
 	}
 }
 
-// TestEditMovesPageBetweenNamespaces covers the path field on an existing
-// page: a save with a new_slug in another namespace moves the file, drops the
-// old slug from the index, and refuses namespaces that don't exist.
+// TestEditMovesPageBetweenNamespaces ensures edits can move pages between namespaces.
 func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	// A second namespace to move into.
 	nsCfg, err := NamespaceConfig{Index: defaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
@@ -291,18 +277,17 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 		t.Fatalf("reading moved page: %v", err)
 	}
 	if _, _, err := app.Store.Read(pageFile(testNS + "/mover")); err == nil {
-		t.Fatal("page should not remain at its old path")
+		t.Fatal("page should not remain at its source path")
 	}
 	if app.Index.Exists(testNS + "/mover") {
-		t.Error("old slug still in search index")
+		t.Error("source slug still in search index")
 	}
 	if !app.Index.Exists("archive/mover") {
 		t.Error("new slug missing from search index")
 	}
 }
 
-// TestUnrecognisedDoValue404s asserts a typoed ?do= value doesn't silently
-// fall back to view.
+// TestUnrecognisedDoValue404s asserts a typoed ?do= value doesn't silently fall back to view.
 func TestUnrecognisedDoValue404s(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -317,15 +302,13 @@ func TestUnrecognisedDoValue404s(t *testing.T) {
 	}
 }
 
-// TestNotFoundRendersInAppChrome covers the two halves of app.notFound: a
-// logged-in navigation gets a real page instead of Go's text/plain line, and
-// a logged-out 404 says exactly the same thing whether the page is missing or
-// merely private — the wording is what stops it being an existence oracle.
+// TestNotFoundRendersInAppChrome covers the two halves of app.notFound: a logged-in navigation gets a real
+// page instead of Go's text/plain line, and a logged-out 404 says exactly the same thing whether the page is
+// missing or merely private — the wording is what stops it being an existence oracle.
 func TestNotFoundRendersInAppChrome(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	// A namespace listing is not a page, so ?do=edit on it 404s.
 	resp, err := client.Get(server.URL + "/" + testNS + "/?do=edit")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
@@ -342,7 +325,6 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 		t.Error("404 body has no app chrome")
 	}
 
-	// Private page vs missing page, both anonymous: identical responses.
 	seedPage(t, app, Page{Slug: testNS + "/secret", Title: "Secret", Body: "shh"})
 	anon := noAuthClient()
 	get := func(path string) string {
@@ -363,8 +345,8 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 	}
 }
 
-// TestPageNamedEditIsReachable checks a page literally titled "edit" is
-// viewable at its own URL, since "do" can never be part of the path.
+// TestPageNamedEditIsReachable checks a page literally titled "edit" is viewable at its own URL, since "do"
+// can never be part of the path.
 func TestPageNamedEditIsReachable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -389,9 +371,8 @@ func TestPageNamedEditIsReachable(t *testing.T) {
 	}
 }
 
-// TestUnderscoreRouteNeverResolvesToContent checks a nonexistent /_/ route
-// 404s via the mux, rather than being treated as a page slug "_/whatever"
-// and rendered as the "create this page" prompt.
+// TestUnderscoreRouteNeverResolvesToContent checks a nonexistent /_/ route 404s via the mux, rather than
+// being treated as a page slug "_/whatever" and rendered as the "create this page" prompt.
 func TestUnderscoreRouteNeverResolvesToContent(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -410,17 +391,9 @@ func TestUnderscoreRouteNeverResolvesToContent(t *testing.T) {
 	}
 }
 
-// hrefRe extracts href="..." attribute values from rendered HTML. Form
-// actions are deliberately excluded — this is a GET-only check, and every
-// action="..." in the app is a POST target.
 var hrefRe = regexp.MustCompile(`href="([^"]*)"`)
 
-// TestNoBrokenLinksSmoke walks a handful of authenticated pages, extracts
-// every internal link, and asserts none of them 404 — a regression net for
-// the URL rewrite in this step, not an exhaustive crawler. Pages are chosen
-// to be pure content plus one static index (tags): settings/admin are
-// excluded because they legitimately link to speculative targets (calendar
-// preview days with no page yet) that 404 by design, not by breakage.
+// TestNoBrokenLinksSmoke ensures representative authenticated pages contain no broken links.
 func TestNoBrokenLinksSmoke(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

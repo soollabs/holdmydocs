@@ -30,9 +30,6 @@ import (
 	"time"
 )
 
-// buildVersion is baked in at compile time via -ldflags "-X main.buildVersion=..."
-// (see Dockerfile's VERSION build arg). HMD_VERSION overrides it at runtime
-// if set. Shown on the login screen and sidebar footer.
 var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
 
@@ -50,7 +47,6 @@ type App struct {
 	OIDC       *OIDCAuth // nil when OIDC is disabled
 }
 
-// config returns the current configuration value.
 func (app *App) config() Config {
 	return *app.cfg.Load()
 }
@@ -60,8 +56,6 @@ func (app *App) SetConfig(cfg Config) {
 	app.cfg.Store(&cfg)
 }
 
-// wikiConfig returns the portable content settings. The fallback keeps small
-// test apps and startup error paths usable before the first value is stored.
 func (app *App) wikiConfig() WikiConfig {
 	if cfg := app.wiki.Load(); cfg != nil {
 		return *cfg
@@ -80,9 +74,8 @@ func (app *App) Namespaces() NamespaceRegistry {
 	return *app.namespaces.Load()
 }
 
-// SetNamespaces stores a newly rebuilt namespace registry atomically —
-// called at startup and on every pollFS tick (search.go), since the repo
-// mutates underneath the app via sync and external edits.
+// SetNamespaces stores a newly rebuilt namespace registry atomically — called at startup and on every
+// pollFS tick (search.go), since the repo mutates underneath the app via sync and external edits.
 func (app *App) SetNamespaces(reg NamespaceRegistry) {
 	app.namespaces.Store(&reg)
 }
@@ -199,22 +192,22 @@ type TemplateData struct {
 	PageFootWidgets         []*widget
 	StatusVariant           string // skin.Status: full | write | quiet
 
-	// Widget data — populated in app.render only when something on the page
-	// actually reads it (see populateWidgetData).
+	// Widget data — populated in app.render only when something on the page actually reads it (see
+	// populateWidgetData).
 	Calendar           CalendarMonth
 	WritingStats       WritingStats
 	PinnedPages        []BacklinkEntry
 	PrevEntries        []PrevEntry
 	NamespaceNav       []NamespaceNavEntry
-	SidebarTreeNS      string          // namespace populateWidgetData staged SidebarTreeEntries for; "" means the tree widget has nothing to show
-	SidebarTreeEntries []BacklinkEntry // unfiltered — render() applies filterBacklinkEntries before building SidebarTree, same as PinnedPages/NamespaceNav
+	SidebarTreeNS      string          // namespace used to stage SidebarTreeEntries
+	SidebarTreeEntries []BacklinkEntry // unfiltered entries; filtered during render
 	SidebarTree        template.HTML
-	NewPageEnabled     bool   // a namespace with a `new:` template is in reach — gates the ctrl-j shortcut and >new verb client-side
+	NewPageEnabled     bool   // whether ctrl-j is available
 	NewNamespace       string // which namespace ctrl-j targets
 }
 
-// NamespaceManagementData is deliberately smaller than SettingsData: the
-// namespace directory and editor do not need the system configuration model.
+// NamespaceManagementData is deliberately smaller than SettingsData: the namespace directory and editor do
+// not need the system configuration model.
 type NamespaceTreeItem struct {
 	Path    string
 	Title   string
@@ -286,7 +279,7 @@ type SettingsData struct {
 	NewToken         string        // freshly minted token value, shown exactly once
 	TokenError       string        // token create/revoke validation error
 	HasEnvOverrides  bool          // any field currently sourced from an env var — shows the "export to file" action
-	ExportSecretVars []string      // env vars naming secrets export would write into the file in plaintext, e.g. "HMD_GIT_TOKEN"
+	ExportSecretVars []string      // secret environment variables excluded from export
 	Users            []UserSummary // every user, for the users tab
 	AllScopes        []string      // "read", "write", "settings" — the scope checkbox options
 	CurrentUser      string        // name of the logged-in user, so the users tab can block self-lockout
@@ -304,8 +297,6 @@ type TokenView struct {
 	NamespaceLabel string
 }
 
-// relativeTime renders t as a short "N units ago" string, falling back to
-// the date once it's more than a week old.
 func relativeTime(t time.Time) string {
 	d := time.Since(t)
 	switch {
@@ -332,8 +323,6 @@ func plural(n int) string {
 	return "s"
 }
 
-// remoteHost extracts the host portion of a remote URL (HTTPS or SSH).
-// Returns the empty string when raw is empty so the login intro can omit the line.
 func remoteHost(raw string) string {
 	if raw == "" {
 		return ""
@@ -342,7 +331,6 @@ func remoteHost(raw string) string {
 	if i := strings.Index(s, "://"); i >= 0 {
 		s = s[i+3:]
 	} else if i := strings.Index(s, "@"); i >= 0 {
-		// git@host:path form
 		s = s[i+1:]
 	}
 	if i := strings.Index(s, "/"); i >= 0 {
@@ -354,16 +342,9 @@ func remoteHost(raw string) string {
 	return s
 }
 
-// buildSettingsData constructs the display state for every config field.
-// hasConfigFile is false when HMD_CONFIG_FILE is unset (whole page read-only).
-// buildSettingsData constructs the display state for every config field.
-// The config file itself is always writable (created on first save if
-// missing) — a field is read-only only when an env var overrides it
-// (cfg.EnvOverrides, keyed by fileConfig field name) or it's bootstrap-only.
 func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields := make(map[string]FieldState)
 
-	// mkField: editable = no env var and not bootstrap-only.
 	mkField := func(value, fieldName string, restartRequired, bootstrapOnly bool) FieldState {
 		envVar := ""
 		if !bootstrapOnly {
@@ -392,7 +373,6 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	fields["GitUser"] = mkField(cfg.Git.User, "Git.User", false, false)
 	fields["GitAuthor"] = mkField(cfg.Git.Author, "Git.Author", false, false)
 
-	// Token is special: masked, and locked if a token file is configured.
 	tokenValue := "not set"
 	if cfg.Git.Token != "" {
 		tokenValue = "set"
@@ -482,14 +462,10 @@ func buildSettingsData(cfg Config, prefs userRecord) SettingsData {
 	}
 }
 
-// exportSecretVars is retained for the settings template. Secret values are
-// never included in config exports.
 func exportSecretVars(cfg Config) []string {
 	return nil
 }
 
-// render executes the named page template inside the shared layout.
-// Every template set was parsed from base.html plus one content template.
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
 	if data.SiteName == "" {
 		data.SiteName = app.wikiConfig().SiteName
@@ -515,9 +491,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		ns, _ := namespaceFor(data.Slug)
 		data.AllTags = app.Index.TagsInNamespace(ns)
 	}
-	// The namespace index sets this itself; everywhere else it's whichever
-	// namespace the current page sits in, which is where the palette's
-	// "create page" row files a new one.
+	// Use the current page's namespace as the default destination.
 	if data.Namespace == "" {
 		data.Namespace, _ = namespaceFor(data.Slug)
 	}
@@ -622,11 +596,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 		data.PinnedPages = filterBacklinkEntries(r.Context(), data.PinnedPages)
 	}
-	// Built for both authed and anonymous-public views: the tree is
-	// server-rendered HTML with no auth-only API calls behind it, so a
-	// public namespace can show it too (handlePublicPage/handleNamespaceIndex
-	// stage SidebarTreeNS/SidebarTreeEntries directly since populateWidgetData
-	// only runs when authed).
+	// Public pages stage the tree before rendering because widget data is authenticated-only.
 	if data.SidebarTreeNS != "" {
 		entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
 		_, currentPath := namespaceFor(data.Slug)
@@ -634,8 +604,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS, cfg.Index, cfg.Tree), data.SidebarTreeNS, currentPath)
 	}
 
-	// Load mermaid only when the page content or editor body contains
-	// mermaid code blocks. This avoids a ~1MB script on every page.
+	// Load Mermaid only for pages that contain Mermaid content.
 	if strings.Contains(string(data.Content), "class=\"mermaid\"") ||
 		strings.Contains(data.Body, "mermaid") {
 		data.MermaidNeeded = true
@@ -647,8 +616,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		return
 	}
 
-	// Render to a buffer first so a template error becomes a clean 500
-	// rather than a half-written page.
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
 		slog.Error("rendering template", "name", name, "err", err)
@@ -663,7 +630,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 }
 
 func (app *App) currentUser(r *http.Request) string {
-	// Bearer-authenticated requests carry the username in the context.
 	if user := userFromContext(r.Context()); user != "" {
 		return user
 	}
@@ -675,20 +641,10 @@ func (app *App) currentUser(r *http.Request) string {
 	return user
 }
 
-// notFound renders a 404 inside the app chrome, so a bad URL leaves you with
-// the sidebar and a way back instead of Go's bare text/plain line.
-//
-// The wording is deliberately identical for "no such page" and "you may not
-// see this page": several call sites 404 precisely so a logged-out visitor
-// can't tell a private page from a missing one, and a more helpful message
-// would turn this into an existence oracle.
 func (app *App) notFound(w http.ResponseWriter, r *http.Request) {
 	app.errorPage(w, r, http.StatusNotFound, "Not found", "That page doesn't exist.")
 }
 
-// errorPage renders status inside the app chrome. app.render buffers and
-// falls back to http.Error if the template itself fails, so a broken
-// error.html can't loop.
 func (app *App) errorPage(w http.ResponseWriter, r *http.Request, status int, title, detail string) {
 	app.render(w, r, status, "error", TemplateData{
 		Authed:        app.currentUser(r) != "",
@@ -797,11 +753,6 @@ func filterHealth(ctx context.Context, missing map[string][]string, orphans []st
 	return filteredMissing, filteredOrphans
 }
 
-// filterHealthNamespace scopes a health report to one namespace: a missing
-// target or orphan belongs to the report if its own slug is in namespace.
-// Callers only invoke this when a namespace filter was actually requested —
-// namespaceFor("") == "" would otherwise make this a no-op filter to root
-// pages rather than "show everything".
 func filterHealthNamespace(missing map[string][]string, orphans []string, namespace string) (map[string][]string, []string) {
 	filteredMissing := make(map[string][]string, len(missing))
 	for slug, sources := range missing {
@@ -818,8 +769,6 @@ func filterHealthNamespace(missing map[string][]string, orphans []string, namesp
 	return filteredMissing, filteredOrphans
 }
 
-// gitAuthor resolves the commit identity for username: the user's own override,
-// else the global HMD_GIT_AUTHOR default, else "<username> <username@hmd.local>".
 func (app *App) gitAuthor(username string) (name, email string) {
 	raw := app.Auth.AuthorFor(username)
 	if raw == "" {
@@ -828,18 +777,8 @@ func (app *App) gitAuthor(username string) (name, email string) {
 	return parseAuthor(raw, username)
 }
 
-// tocToken matches a <!-- hmd:toc --> or <!-- hmd:toc:tag1,tag2 --> token.
 var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 
-// injectTOC replaces hmd:toc tokens in body with markdown bullet lists of
-// pages in ns, the namespace of the page the token appears on — namespace
-// content stays self-contained, so a token never reaches across into another
-// namespace's pages. With no tag list, every page in ns is listed (excluding
-// the home page). With a comma-separated tag list, only pages in ns matching
-// ANY tag are included (OR). Results are sorted alphabetically by title;
-// indexSlug (the namespace's own index page) is always excluded. The list is
-// built as [[wiki-links]] so the existing wiki-link preprocessor renders the
-// anchors.
 func injectTOC(body string, ix *Index, indexSlug string, ns string) string {
 	if !strings.Contains(body, "hmd:toc") {
 		return body
@@ -889,9 +828,6 @@ func injectTOC(body string, ix *Index, indexSlug string, ns string) string {
 	})
 }
 
-// landingPath is where "/" and a fresh login go: the portable landing
-// slug, else the first namespace's index, else the namespace catalogue —
-// which is the only useful destination on a wiki with nothing in it yet.
 func (app *App) landingPath() string {
 	if slug := app.wikiConfig().Landing; slug != "" {
 		return "/" + slug
@@ -902,8 +838,6 @@ func (app *App) landingPath() string {
 	return "/_/namespaces"
 }
 
-// handleRoot redirects "/" to the landing path. An unauthenticated request
-// never reaches here (Auth.Middleware always requires auth for "/").
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }
@@ -913,21 +847,12 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /_/ready", app.handleReady)
 
-	// Root: redirect to the configured landing slug.
 	mux.HandleFunc("GET /{$}", app.handleRoot)
 
-	// Everything under /_/ is the app itself — the one reserved top-level
-	// segment a namespace may never take. Content owns everything else.
-
-	// Setup endpoint: seeds the first namespace + .help.md, clears the setup flag
 	mux.HandleFunc("POST /_/setup", app.handleSetup)
 
-	// New-page-from-template: ctrl-j and the palette's >new verb target a
-	// namespace with a `new:` block.
 	mux.HandleFunc("POST /_/new", app.handleNewPage)
 
-	// Static files. Most asset URLs carry a version query; the short lifetime
-	// also bounds staleness for unversioned fonts and service-worker assets.
 	fsys, _ := fs.Sub(webFS, "web/static")
 	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(fsys))
 	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -942,7 +867,6 @@ func (app *App) Routes() http.Handler {
 		staticHandler.ServeHTTP(w, r)
 	}))
 
-	// Login handlers
 	mux.HandleFunc("GET /_/login", app.handleLoginGet)
 	mux.HandleFunc("POST /_/login", app.handleLoginPost)
 	mux.HandleFunc("POST /_/logout", app.handleLogout)
@@ -950,11 +874,9 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/auth/oidc/callback", app.handleOIDCCallback)
 	mux.HandleFunc("GET /_/auth/oidc/icon", app.handleOIDCIcon)
 
-	// Tags: page index, not real content.
 	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)
 	mux.HandleFunc("GET /_/tags/{tag}", app.handleTagPages)
 
-	// Settings
 	mux.HandleFunc("GET /_/settings", app.handleSettingsGet)
 	mux.HandleFunc("GET /_/admin", app.handleAdminGet)
 	mux.HandleFunc("GET /_/namespaces", app.handleNamespacesGet)
@@ -977,22 +899,16 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/settings/wiki", app.handleSaveWikiConfig)
 	mux.HandleFunc("POST /_/settings/help/reset", app.handleResetHelp)
 
-	// Search
 	mux.HandleFunc("GET /_/search", app.handleSearch)
 	if app.Index.DocumentsEnabled() {
 		mux.HandleFunc("GET /_/search/attachments", app.handleAttachmentSearch)
 	}
 	mux.HandleFunc("GET /_/health-report", app.handleHealthReport)
 
-	// Hidden page handlers (dot-prefixed files, an app-internal drafting
-	// namespace — never addressable content, so it lives under /_/ too).
-	// Actions are ?do= query params, same as ordinary pages.
 	mux.HandleFunc("GET /_/hidden", app.handleHiddenIndex)
 	mux.HandleFunc("GET /_/hidden/{path...}", app.handleHiddenGet)
 	mux.HandleFunc("POST /_/hidden/{path...}", app.handleHiddenPost)
 
-	// MCP server (opt-in, restart-required): agents read and write the wiki
-	// over streamable HTTP. Same middleware as /_/api/ — Bearer PAT, 401 JSON.
 	if app.config().MCP.Enabled {
 		mcpHandler := app.mcpHandler()
 		// Explicit methods, not a bare "/_/mcp" pattern: a method-less
@@ -1004,7 +920,6 @@ func (app *App) Routes() http.Handler {
 		mux.Handle("DELETE /_/mcp", mcpHandler)
 	}
 
-	// API endpoints
 	mux.HandleFunc("GET /_/api/search", app.handleSearchAPI)
 	if app.Index.DocumentsEnabled() {
 		mux.HandleFunc("GET /_/api/search/attachments", app.handleAttachmentSearchAPI)
@@ -1018,10 +933,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("POST /_/api/attachment-uploads/{token}", app.handleCapabilityUpload)
 	mux.HandleFunc("GET /_/attachments/{path...}", app.handleServeAttachment)
 
-	// Content owns the root: one dispatcher for every page, GET and POST,
-	// actions selected by ?do= rather than a path suffix. Go's ServeMux
-	// prefers the more specific /_/... patterns above over this wildcard,
-	// so /_/... never resolves here.
+	// The wildcard handlers serve content after the reserved routes above.
 	mux.HandleFunc("GET /{path...}", app.handlePageGet)
 	mux.HandleFunc("POST /{path...}", app.handlePagePost)
 
@@ -1037,10 +949,6 @@ func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// securityHeaders sets response headers that apply to every request
-// regardless of route or auth state: clickjacking and MIME-sniffing
-// protection always, HSTS whenever the request arrived over HTTPS (directly
-// or via a terminating proxy).
 type cspNonceKey struct{}
 
 func cspNonce(ctx context.Context) string {
@@ -1059,7 +967,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("X-Content-Type-Options", "nosniff")
-		// no-referrer makes browsers serialize same-origin form POST origins as null.
+
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()")
@@ -1135,8 +1043,6 @@ func compression(next http.Handler) http.Handler {
 	})
 }
 
-// isSecureRequest reports whether the request arrived over TLS, directly or
-// via X-Forwarded-Proto from a configured trusted proxy.
 func (app *App) isSecureRequest(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
@@ -1147,10 +1053,6 @@ func (app *App) isSecureRequest(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]), "https")
 }
 
-// secureCookie reports the externally visible transport policy. base_url is
-// authoritative when TLS terminates before an untrusted network hop; relying
-// only on the immediate request would silently omit Secure from cookies even
-// though the browser always uses HTTPS.
 func (app *App) secureCookie(r *http.Request) bool {
 	if app.isSecureRequest(r) {
 		return true
@@ -1273,7 +1175,6 @@ func parseRequestForm(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// loginData builds the login page TemplateData, including OIDC display state.
 func (app *App) loginData(errMsg string) TemplateData {
 	cfg := app.config()
 	return TemplateData{
@@ -1314,7 +1215,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	}
 	if r.FormValue("remember") != "" {
-		cookie.MaxAge = 30 * 24 * 60 * 60 // 30 days
+		cookie.MaxAge = 30 * 24 * 60 * 60
 	}
 	http.SetCookie(w, cookie)
 
@@ -1339,17 +1240,10 @@ func (app *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/login", http.StatusSeeOther)
 }
 
-// defaultSetupNamespace is the first-namespace name the setup form suggests.
-// The field is editable — this is only the value someone who doesn't care
-// gets by pressing the button.
 const defaultSetupNamespace = "notes"
 
 const newSetupNamespaceOption = "_new"
 
-// handleSetup processes the setup form. Nothing is seeded without explicit
-// consent: action=="add" writes the portable wiki config, any requested new
-// namespace and .help.md; action=="skip" writes nothing. Either way
-// NeedsSetup/ForceSetup are cleared.
 func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	cfg := app.config()
@@ -1438,10 +1332,6 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, refererPath(r, app.landingPath()), http.StatusSeeOther)
 }
 
-// seedFirstNamespace creates name with an index page and leaves a plain
-// readme.md at the repo root for whoever browses the content repo on its git
-// host. The caller decides the portable landing setting. Existing files are
-// never overwritten: a repo that already has any of these keeps what it has.
 func (app *App) seedFirstNamespace(name, authorName, authorEmail string) error {
 	nsCfg := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}
 	data, err := nsCfg.Encode()
@@ -1474,10 +1364,6 @@ func (app *App) seedFirstNamespace(name, authorName, authorEmail string) error {
 	return nil
 }
 
-// refererPath returns the path+query of the request's Referer header, so
-// dismissing a modal returns the user to the page they were on rather than
-// always redirecting to a fixed page. Falls back to fallback if the header
-// is missing or unparseable.
 func refererPath(r *http.Request, fallback string) string {
 	ref := r.Referer()
 	if ref == "" {
@@ -1493,15 +1379,11 @@ func refererPath(r *http.Request, fallback string) string {
 	return u.Path
 }
 
-// handleRerunSetup reopens the setup modal with both items. Nothing is written
-// until submission; selecting an existing file overwrites it.
 func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
 	app.Store.ForceSetup.Store(true)
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
-// handleSetAuthor stores the current user's git author override ("Name <email>",
-// or empty to clear and fall back to the global default).
 func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 	author := strings.TrimSpace(r.FormValue("git_author"))
 	if err := validateGitAuthor(author); err != nil {
@@ -1515,8 +1397,6 @@ func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
 }
 
-// handleResetHelp overwrites .help.md with the built-in default, clearing
-// the drift warning on the settings page. Destructive to any local edits.
 func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
 	content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
@@ -1527,20 +1407,12 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
-// newPageTemplateData is what a namespace's `new.slug`/entry-template
-// text/template gets to work with: .Now as a plain time.Time (so
-// `{{.Now.Format "2006-01-02"}}` works natively, no FuncMap needed), the
-// acting user, and the target namespace name.
 type newPageTemplateData struct {
 	Now       time.Time
 	User      string
 	Namespace string
 }
 
-// renderNewPageText renders src (a slug pattern, or a template page's title
-// or body) as text/template — not html/template: the output is markdown
-// source, and page bodies are already trusted (the same WithUnsafe()
-// discipline as everywhere else).
 func renderNewPageText(src string, data newPageTemplateData) (string, error) {
 	t, err := texttemplate.New("new").Parse(src)
 	if err != nil {
@@ -1553,11 +1425,6 @@ func renderNewPageText(src string, data newPageTemplateData) (string, error) {
 	return buf.String(), nil
 }
 
-// handleNewPage implements POST /_/new?ns=<namespace>: renders that
-// namespace's `new.slug` template against today's date, creating the page
-// from the namespace's `new.template` hidden page on first use and never
-// overwriting an existing one. ctrl-j and the palette's >new verb use the
-// current namespace when it declares a `new:` block.
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("ns")
 	if !app.requireTokenNamespace(w, r, ns) {
@@ -1620,9 +1487,6 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body template", http.StatusInternalServerError)
 		return
 	}
-	// Tags go through the same substitution as the title and body: a template
-	// where `{{.Now.Format "2006-01"}}` works in two of the three fields and
-	// silently doesn't in the last one is just a trap.
 	tags := make([]string, 0, len(tplPage.Tags))
 	for _, tag := range tplPage.Tags {
 		rendered, err := renderNewPageText(tag, tmplData)
@@ -1652,12 +1516,6 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleViewPage serves a page's own URL with no ?do=. An unauthenticated
-// request is only ever routed here for a page whose slug isn't under /_/
-// (see Auth.Middleware); this handler makes the actual public-or-404 call by
-// checking both existence and the owning namespace's public flag together,
-// so a private page and a nonexistent page come out byte-identical — no
-// existence oracle in a redirect-vs-404 split across two code paths.
 func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	authed := app.currentUser(r) != ""
@@ -1740,13 +1598,6 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handlePublicPage renders page for an anonymous viewer: content only, no
-// widgets, no chrome that would call an authenticated endpoint. 404s
-// (identically to a nonexistent slug — see handleViewPage) unless the
-// page's namespace is public. hmd:toc is deliberately left unexpanded — a
-// TOC would leak private page titles by construction — and wiki-links are
-// rendered through Renderer.RenderPublic so a link to a private or
-// nonexistent page unwraps to plain text instead of advertising it.
 func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug string, page Page) {
 	ns := app.Namespaces()
 	if !ns.IsPublic(slug) {
@@ -1795,27 +1646,14 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	})
 }
 
-// reservedPath reports whether path (as captured by {path...}) falls under
-// the reserved "_" segment. Only an *exact* app route ever matches it as a
-// literal http.ServeMux pattern; anything else under "_/" would otherwise
-// fall through to this wildcard dispatcher and be treated as a page slug —
-// "/_/…" must never resolve to content, registered route or not.
 func reservedPath(path string) bool {
 	return path == "_" || strings.HasPrefix(path, "_/")
 }
 
-// isPageSlug reports whether slug can address a page at all: a namespace
-// plus at least one segment inside it. A single segment names a namespace,
-// so it is served by the namespace index or not at all.
 func isPageSlug(slug string) bool {
 	return validMCPPageSlug(slug)
 }
 
-// handlePageGet dispatches every read of a page's own URL. The action is
-// selected by ?do= (edit/history/diff/rev), never by a path suffix — a page
-// literally named "edit" is unambiguous, since "do" can never be part of
-// the path. No do= at all means view. Any other value 404s rather than
-// silently falling back to view, so a typoed ?do= doesn't look like success.
 func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("path")
 	if reservedPath(slug) {
@@ -1852,10 +1690,6 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// namespaceIndexName reports whether path addresses a namespace's index: a
-// single segment, trailing slash optional, that is present in the catalogue.
-// A single segment can only ever be a namespace, since every page slug
-// carries its namespace prefix.
 func (app *App) namespaceIndexName(path string) (string, bool) {
 	name := strings.TrimSuffix(path, "/")
 	if name == "" || strings.Contains(name, "/") {
@@ -1869,9 +1703,6 @@ func (app *App) namespaceIndexName(path string) (string, bool) {
 	return "", false
 }
 
-// handleNamespaceIndex lists the pages in one namespace — the browsable
-// counterpart to the sidebar's namespace list. Anonymous visitors see it only
-// for a public namespace, and get the same 404 as a private page otherwise.
 func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, name string) {
 	if !app.requireTokenNamespace(w, r, name) {
 		return
@@ -1926,8 +1757,6 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	})
 }
 
-// handlePagePost dispatches every write to a page's own URL, selected by
-// ?do=.
 func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("path")
 	if reservedPath(slug) {
@@ -1958,8 +1787,6 @@ func (app *App) handlePagePost(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleDeletePage implements POST /{slug}?do=delete. Git history keeps the
-// content recoverable, mirroring the MCP delete_page tool.
 func (app *App) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
@@ -1975,9 +1802,6 @@ func (app *App) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleHiddenGet/Post mirror handlePageGet/Post for the /_/hidden/{path...}
-// subtree: only view/edit/save make sense for a hidden page (no history,
-// diff, revert or rename UI exists for it today).
 func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("path")
 	if !app.requireTokenSlug(w, r, slug) {
@@ -2036,10 +1860,6 @@ func (app *App) handleSavePage(w http.ResponseWriter, r *http.Request) {
 	app.handleSave(w, r, pageFile(r.PathValue("slug")))
 }
 
-// handleSave is shared by /page/{slug}/save and /hidden/{slug}/save. The
-// "hidden" checkbox in the edit form decides the destination file; if it
-// differs from oldFile, the page moves between the two namespaces (and the
-// search index is updated or cleared to match).
 func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile string) {
 	if !parseRequestForm(w, r) {
 		return
@@ -2064,7 +1884,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 		}
 		// Crossing into another namespace files the page somewhere that
 		// already exists; a typo in the path shouldn't conjure a namespace
-		// directory. Staying put needs no such check — that's just a rename.
+		// directory. Staying within the namespace is a rename.
 		if oldNamespace, _ := namespaceFor(slug); oldNamespace != newNamespace {
 			if _, ok := app.Namespaces()[newNamespace]; !ok {
 				http.Error(w, "unknown namespace", http.StatusBadRequest)
@@ -2171,7 +1991,7 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	slog.Info("saved", "slug", slug, "file", newFile, "author", authorName, "message", message)
 
 	if targetSlug != slug {
-		app.Index.Remove(slug) // the page moved — drop the slug it left behind
+		app.Index.Remove(slug)
 	}
 	if hidden {
 		app.Index.Remove(slug)
@@ -2185,8 +2005,6 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 }
 
 func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
-	// The editor posts the raw markdown as the request body; the tests
-	// post it form-encoded. Support both.
 	var body string
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
 		if !parseRequestForm(w, r) {
@@ -2282,7 +2100,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	// Leave room for multipart framing; the copied file itself is capped below.
 	maxBytes := app.config().MaxUploadBytes
 	if maxBytes <= 0 {
 		maxBytes = 10 * 1024 * 1024
@@ -2356,7 +2173,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		}
 	}()
 
-	// Sanitise filename: base name only, slugify name part, keep extension
 	filename := filepath.Base(filenameInput)
 	ext := filepath.Ext(filename)
 	name := filename[:len(filename)-len(ext)]
@@ -2387,7 +2203,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	// Read file content
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		http.Error(w, "error reading file", http.StatusInternalServerError)
 		return
@@ -2403,7 +2218,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		files[extractedAttachmentPath(path)] = extracted
 	}
 
-	// Save source and a successful extraction together.
 	authorName, authorEmail := app.gitAuthor(username)
 	_, err = app.Store.SaveAll(files, "Add attachment "+filename, authorName, authorEmail)
 	if err != nil {
@@ -2449,11 +2263,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 	}
 }
 
-// handleServeAttachment serves a page's attachment. Auth.Middleware lets an
-// anonymous request through unconditionally (it can't know which namespace
-// owns the attachment without a lookup of its own), so the public-or-404
-// call is made here — identically whether the attachment is missing or the
-// owning page's namespace just isn't public.
 func (app *App) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	// {path...} is "{slug}/{file}"; slug itself may contain "/" for a
 	// namespaced page, so only the last segment is ever the filename.
@@ -2770,7 +2579,6 @@ func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 		"age":     "just now",
 	}
 
-	// Try to get the age from history
 	if history, err := app.Store.History(pageFile(slug)); err == nil && len(history) > 0 {
 		resp["age"] = relativeTime(history[0].When)
 	}
@@ -2839,8 +2647,6 @@ func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
 
 var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
 
-// handleRenamePage changes a page's title and slug (the ">rename" palette
-// verb), moving the file and rewriting wiki-links in every referencing page.
 func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
@@ -2873,7 +2679,6 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Capture backlinks before touching the index — Index.Remove drops them.
 	sources := app.Index.Backlinks(slug)
 	for _, source := range sources {
 		if !app.requireTokenSlug(w, r, source) {
@@ -2899,7 +2704,6 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 		slog.Error("updating search index", "slug", page.Slug, "err", err)
 	}
 
-	// Rewrite [[wiki-links]] that resolved to the old slug.
 	for _, src := range sources {
 		srcContent, srcHash, err := app.Store.Read(pageFile(src))
 		if err != nil {
@@ -2935,7 +2739,6 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleSetTags replaces a page's tags (the ">tag" palette verb).
 func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
@@ -3029,10 +2832,6 @@ type HealthReport struct {
 	Orphans []string             `json:"orphans"`
 }
 
-// handleHealthAPI is the read-only JSON form of handleHealthReport, scopable
-// to one namespace with ?namespace=. Access-token namespace restrictions
-// apply the same as the HTML report (filterHealth), on top of the requested
-// scope.
 func (app *App) handleHealthAPI(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 	if namespace != "" {
@@ -3097,7 +2896,6 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get page to get title
 	content, _, err := app.Store.Read(pageFile(slug))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -3147,7 +2945,6 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := r.URL.Query().Get("hash")
 
-	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -3163,7 +2960,6 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get commit info for the date
 	history, _ := app.Store.History(pageFile(slug))
 	commitTime := ""
 	for _, commit := range history {
@@ -3191,14 +2987,12 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	hash := r.FormValue("hash")
 	username := app.currentUser(r)
 
-	// Get old version
 	content, err := app.Store.FileAt(pageFile(slug), hash)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	// Save as new commit
 	authorName, authorEmail := app.gitAuthor(username)
 	_, err = app.Store.Save(pageFile(slug), content, "Revert "+slug+" to "+hash[:8], authorName, authorEmail)
 	if err != nil {
@@ -3207,13 +3001,11 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("reverted", "slug", slug, "to", hash[:8], "author", authorName)
 
-	// Update index
 	page := ParsePage(slug, content)
 	if err := app.Index.Update(page); err != nil {
 		slog.Error("updating search index", "slug", page.Slug, "err", err)
 	}
 
-	// Redirect to page
 	http.Redirect(w, r, "/"+slug, http.StatusSeeOther)
 }
 
@@ -3317,9 +3109,6 @@ func (app *App) handleSaveHidden(w http.ResponseWriter, r *http.Request) {
 	app.handleSave(w, r, hiddenFile(r.PathValue("slug")))
 }
 
-// settingsData assembles the SettingsData for the current user, shared by
-// the GET handler and the token handlers (which re-render rather than
-// redirect, so a freshly minted token can be shown exactly once).
 func (app *App) settingsData(r *http.Request) SettingsData {
 	cfg := app.config()
 	user := app.currentUser(r)
@@ -3368,8 +3157,6 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	return sd
 }
 
-// tokenTTLs maps the expiry select options to durations; zero means never.
-// 30 days is the form's default.
 var tokenTTLs = map[string]time.Duration{
 	"1d":    24 * time.Hour,
 	"7d":    7 * 24 * time.Hour,
@@ -3397,10 +3184,6 @@ func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	app.renderSettings(w, r, sd, "settings")
 }
 
-// handleAdminGet renders the system-configuration page (server, git
-// remote, users, advanced overrides, wiki setup) — split out from the
-// personal /settings page since only accounts with the "settings" scope ever
-// reach either one, but the two cover very different ground.
 func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	sd := app.settingsData(r)
 	if q := r.URL.Query().Get("saved"); q == "1" {
@@ -3415,8 +3198,6 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	app.renderSettings(w, r, sd, "admin")
 }
 
-// handleCreateToken mints a PAT for the current user and re-renders the
-// settings page with the value — the only time it is ever displayed.
 func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		sd := app.settingsData(r)
@@ -3485,7 +3266,6 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	app.renderSettings(w, r, sd, "settings")
 }
 
-// handleRevokeToken revokes the current user's token named by the form.
 func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 	user := app.currentUser(r)
 	label := r.FormValue("label")
@@ -3525,10 +3305,6 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	return data
 }
 
-// namespaceTreeItems returns every visible page and implied folder in the same
-// order as the namespace tree. The editor serialises this complete list, so a
-// drag operation makes the displayed order explicit rather than losing pages
-// which were previously relying on alphabetical fallback.
 func namespaceTreeItems(titles map[string]string, namespace, index string, tree []string) []NamespaceTreeItem {
 	entries := make([]BacklinkEntry, 0)
 	for slug, title := range titles {
@@ -3553,9 +3329,6 @@ func namespaceTreeItems(titles map[string]string, namespace, index string, tree 
 	return items
 }
 
-// namespaceTreeEditor renders a collapsed, draggable hierarchy. Reordering is
-// deliberately confined to siblings: tree order changes presentation, never a
-// page's path or folder.
 func namespaceTreeEditor(titles map[string]string, namespace, index string, tree []string) template.HTML {
 	entries := make([]BacklinkEntry, 0)
 	for slug, title := range titles {
@@ -3669,11 +3442,6 @@ func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data})
 }
 
-// handleSaveNamespace implements POST /_/settings/namespaces: writes one
-// namespace's .namespace.yaml from the system-configuration form, creating
-// the namespace (i.e. its directory) on first save. Both the "new namespace"
-// row and the per-namespace rows post here — an existing namespace is just a
-// save whose name already exists.
 func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
 	if !app.requireTokenNamespace(w, r, name) {
@@ -3795,8 +3563,6 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
-// handleResetNamespace removes only the namespace configuration. Pages and
-// hidden files remain available, so reset can never be mistaken for deletion.
 func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 	name := strings.Trim(strings.TrimSpace(r.FormValue("name")), "/")
 	if !app.requireTokenNamespace(w, r, name) {
@@ -3816,9 +3582,6 @@ func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
-// handleDeleteNamespace implements POST /_/settings/namespaces/delete. True
-// deletion is only allowed for a configured namespace whose directory contains
-// no pages or hidden files.
 func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	if !app.requireTokenNamespace(w, r, name) {
@@ -3865,9 +3628,6 @@ func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
-// refreshNamespaces rebuilds the registry from disk immediately. pollFS does
-// this on its own timer anyway; the settings handlers call it so the redirect
-// they issue already reflects the save.
 func (app *App) refreshNamespaces() {
 	reg, err := BuildNamespaceRegistryFromStore(app.Store)
 	if err != nil {
@@ -3877,10 +3637,6 @@ func (app *App) refreshNamespaces() {
 	app.SetNamespaces(reg)
 }
 
-// ensureNewPageTemplate creates a namespace's new-page template as a hidden
-// page if it doesn't exist yet, with a body that documents the template data
-// available to it. A no-op when the page is already there — an existing
-// template is never overwritten.
 func (app *App) ensureNewPageTemplate(ns, template, authorName, authorEmail string) error {
 	slug := namespaceSlug(ns, template)
 	if _, _, err := app.Store.Read(hiddenFile(slug)); err == nil {
@@ -3898,10 +3654,6 @@ func (app *App) ensureNewPageTemplate(ns, template, authorName, authorEmail stri
 	return err
 }
 
-// newPageTemplateFields is every field a template page can use — the whole of
-// newPageTemplateData, which is deliberately small. Named without braces so
-// the seeded body can list them as inert text and still show them working in
-// the column beside.
 var newPageTemplateFields = []string{
 	`.Now.Format "2006-01-02"`,
 	`.Now.Format "Monday, 2 January 2006"`,
@@ -3910,12 +3662,6 @@ var newPageTemplateFields = []string{
 	`.Namespace`,
 }
 
-// newPageTemplateBody is the body every seeded template page starts with: it
-// explains what a template page is and lists the available fields beside what
-// each one produces. The left column names fields without braces, so it reads
-// the same in the template's own editor as in a page created from it; the right
-// column is live, so opening the template shows the syntax and opening a
-// created page shows the values.
 func newPageTemplateBody(ns string) string {
 	where := "the root of the wiki"
 	if ns != "" {
@@ -3943,8 +3689,6 @@ func newPageTemplateBody(ns string) string {
 		"or backlinks. Delete all of this and make it yours.\n"
 }
 
-// handleCreateUser adds a new user from the settings page with the scopes
-// selected in the form. At least one scope is required.
 func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	password := r.FormValue("password")
@@ -3972,13 +3716,6 @@ func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
-// handleSetUserScopes updates an existing user's scopes from the settings
-// page. The bootstrap admin (HMD_ADMIN_USER) always keeps full access —
-// it's not listed with editable checkboxes, but this also rejects a
-// hand-crafted request against it, since it's the one account that can't be
-// recreated from the UI if it were ever locked out. Beyond that, a user may
-// not strip their own settings scope — with hmd scopes gone, that would lock
-// them out of /settings with no way back short of hand-editing users.json.
 func (app *App) handleSetUserScopes(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	scopes := r.Form["scopes"]
@@ -4149,8 +3886,6 @@ func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
-// handleSaveWikiConfig writes the portable settings to the content repository
-// rather than the instance's local config.yaml.
 func (app *App) handleSaveWikiConfig(w http.ResponseWriter, r *http.Request) {
 	wiki := WikiConfig{
 		Landing:  strings.TrimSpace(r.FormValue("landing")),
@@ -4180,10 +3915,6 @@ func (app *App) handleSaveWikiConfig(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin?wiki-saved=1", http.StatusSeeOther)
 }
 
-// handleSettingsAppearance saves the current user's personal preferences —
-// fonts, theme colours, sidebar tags — separately from the system-wide
-// config handled by handleSettingsPost. These live per-user (app.Auth.prefs),
-// never touch config.yaml, and take effect only for the saving user.
 func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form data", http.StatusBadRequest)
@@ -4216,10 +3947,7 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	prevName, _ := effectiveSkin(app.config(), app.Auth.Prefs(user))
 	switchingSkin := skinName(chosenSkin) != prevName
 
-	// Everything the settings form submits alongside the skin was rendered
-	// against the skin the user was *on*. On a skin change the palette
-	// describes the old look, so it's discarded in favour of the new skin's
-	// own default unless the browser marks a later palette choice.
+	// A skin change discards the submitted palette unless the browser supplied a later palette choice.
 	if switchingSkin && r.FormValue("palette_explicit") != "1" {
 		palette = resolveSkin(chosenSkin).Palette
 	}
@@ -4233,12 +3961,6 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/_/settings?saved=1", http.StatusSeeOther)
 }
 
-// handleSettingsExport snapshots the currently effective config (file
-// values plus any env var overrides) into config.yaml. Lets someone who
-// bootstrapped hmd via HMD_* env vars bake those values into the file in
-// one action, instead of hand-copying each one. The settings page shows a
-// confirmation dialog first — this bakes in the *current* values, which
-// overwrites whatever is already in the file for those keys.
 func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 	cfg := app.config()
 	if err := SaveFileConfig(cfg.ConfigFile, cfg.ToFileConfig()); err != nil {

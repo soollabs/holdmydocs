@@ -9,8 +9,7 @@ import (
 	"time"
 )
 
-// TestWidgetRegistry checks every widgetIDs entry has a registry
-// definition, and vice versa.
+// TestWidgetRegistry checks every widgetIDs entry has a registry definition, and vice versa.
 func TestWidgetRegistry(t *testing.T) {
 	for _, id := range widgetIDs {
 		w, ok := widgets[id]
@@ -30,11 +29,7 @@ func TestWidgetRegistry(t *testing.T) {
 	}
 }
 
-// TestWidgetsForSlotSlotAssignment checks that widgetsForSlot resolves a
-// flat id list to the correct slot, preserving within-slot order, and that
-// an id belonging to a different slot (per the registry) never leaks in —
-// a page-foot id listed alongside sidebar ids must not appear in the
-// sidebar.
+// TestWidgetsForSlotSlotAssignment ensures widgets are filtered and ordered by slot.
 func TestWidgetsForSlotSlotAssignment(t *testing.T) {
 	ids := []string{"tags", "backlinks", "pages", "log"}
 
@@ -64,8 +59,7 @@ func TestWidgetsForSlotSlotAssignment(t *testing.T) {
 	}
 }
 
-// TestWidgetsForSlotUnknownIDIgnored checks an id with no registry
-// definition is silently dropped rather than erroring.
+// TestWidgetsForSlotUnknownIDIgnored ensures unknown widget IDs are ignored.
 func TestWidgetsForSlotUnknownIDIgnored(t *testing.T) {
 	got := widgetsForSlot(slotSidebar, []string{"pages", "not-a-real-widget"})
 	if len(got) != 1 || got[0].ID != "pages" {
@@ -104,9 +98,7 @@ func TestTreeIsRequiredBelowAppBar(t *testing.T) {
 	}
 }
 
-// TestStatuslineDataSurvivesWidgetRemoval: the write statusline reads
-// WritingStats directly, so a namespace whose widget list doesn't mount
-// writing-stats must not silently zero the statusline.
+// TestStatuslineDataSurvivesWidgetRemoval ensures statusline data is independent of mounted widgets.
 func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -124,9 +116,6 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// journal's Status is "write"; the root namespace's widget list (no
-	// .namespace.yaml) is the built-in default, which doesn't include
-	// writing-stats — confirming the statusline still reads it regardless.
 	resp2, err := client.Get(server.URL + "/daily/" + today)
 	if err != nil {
 		t.Fatalf("GET daily page: %v", err)

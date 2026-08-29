@@ -18,7 +18,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// bearerTransport adds a PAT to every request the MCP client makes.
 type bearerTransport struct{ token string }
 
 func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -26,8 +25,6 @@ func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
-// newMCPTestApp starts an app (repo seeded with readme.md) and mints a PAT
-// for the admin user.
 func newMCPTestApp(t *testing.T, mcpEnabled bool) (*httptest.Server, string) {
 	t.Helper()
 	_, server, token := newMCPTestAppWithApp(t, mcpEnabled)
@@ -129,7 +126,6 @@ func newMCPRestrictedTestApp(t *testing.T) (*App, *httptest.Server, string, stri
 	return app, server, restricted, settings
 }
 
-// connectMCP opens an MCP session against server using token.
 func connectMCP(t *testing.T, server *httptest.Server, token string) *mcp.ClientSession {
 	t.Helper()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
@@ -157,7 +153,6 @@ func callTool(t *testing.T, session *mcp.ClientSession, name string, args map[st
 	return res
 }
 
-// toolText returns the first text content of a tool result.
 func toolText(t *testing.T, res *mcp.CallToolResult) string {
 	t.Helper()
 	for _, c := range res.Content {
@@ -169,7 +164,6 @@ func toolText(t *testing.T, res *mcp.CallToolResult) string {
 	return ""
 }
 
-// toolJSON unmarshals the first text content of a tool result into out.
 func toolJSON(t *testing.T, res *mcp.CallToolResult, out any) {
 	t.Helper()
 	if err := json.Unmarshal([]byte(toolText(t, res)), out); err != nil {
@@ -757,7 +751,6 @@ func TestMCPToolFlow(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	session := connectMCP(t, server, token)
 
-	// Create (empty basehash).
 	res := callTool(t, session, "save_page", map[string]any{
 		"slug":  testNS + "/agent-note",
 		"title": "Agent note",
@@ -773,7 +766,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Fatal("create returned no hash")
 	}
 
-	// Create on an existing page must fail.
 	res = callTool(t, session, "save_page", map[string]any{
 		"slug": testNS + "/agent-note", "title": "Agent note", "body": "clobber",
 	})
@@ -781,7 +773,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Fatal("create over existing page succeeded, want conflict")
 	}
 
-	// Read round-trips body, tags and hash.
 	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
 	if res.IsError {
 		t.Fatalf("read failed: %s", toolText(t, res))
@@ -792,7 +783,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Errorf("read_page mismatch: %+v (want hash %s)", page, created.Hash)
 	}
 
-	// Stale basehash conflicts, carrying the current hash and body.
 	res = callTool(t, session, "save_page", map[string]any{
 		"slug": testNS + "/agent-note", "title": "Agent note", "body": "stale write", "basehash": "0000000000000000000000000000000000000000",
 	})
@@ -805,7 +795,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Errorf("conflict payload mismatch: %+v", conflict)
 	}
 
-	// Fresh basehash saves.
 	res = callTool(t, session, "save_page", map[string]any{
 		"slug": testNS + "/agent-note", "title": "Agent note", "body": "Updated. See [[" + testNS + "]].", "basehash": created.Hash,
 	})
@@ -813,7 +802,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Fatalf("update failed: %s", toolText(t, res))
 	}
 
-	// list_pages and backlinks see the new page.
 	res = callTool(t, session, "list_pages", nil)
 	if !strings.Contains(toolText(t, res), "agent-note") {
 		t.Error("list_pages missing agent-note")
@@ -823,14 +811,11 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Errorf("backlinks(%s) missing agent-note", testHome)
 	}
 
-	// search finds it.
 	res = callTool(t, session, "search", map[string]any{"query": "Updated"})
 	if !strings.Contains(toolText(t, res), "agent-note") {
 		t.Error("search missing agent-note")
 	}
 
-	// recent_changes: newest commit is the update, attributed to the PAT's
-	// owner, touching the page file.
 	res = callTool(t, session, "recent_changes", map[string]any{"limit": 5})
 	var recent mcpRecentOut
 	toolJSON(t, res, &recent)
@@ -845,7 +830,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Errorf("head commit files mismatch: %v", head.Files)
 	}
 
-	// Delete, then read 404s.
 	res = callTool(t, session, "delete_page", map[string]any{"slug": testNS + "/agent-note"})
 	if res.IsError {
 		t.Fatalf("delete failed: %s", toolText(t, res))
@@ -855,7 +839,6 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Error("read after delete succeeded, want error")
 	}
 
-	// Traversal-shaped slugs are rejected.
 	res = callTool(t, session, "read_page", map[string]any{"slug": "../users"})
 	if !res.IsError {
 		t.Error("traversal slug accepted, want error")
@@ -866,8 +849,6 @@ func TestMCPHealth(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	session := connectMCP(t, server, token)
 
-	// A dangling link in one namespace, the same in another, and an unlinked
-	// (orphan) page alongside.
 	res := callTool(t, session, "save_page", map[string]any{
 		"slug": "blog/agent-note", "title": "Agent note", "body": "see [[nowhere]]",
 	})
@@ -887,7 +868,6 @@ func TestMCPHealth(t *testing.T) {
 		t.Fatalf("save_page notes/orphan: %s", toolText(t, res))
 	}
 
-	// Unscoped: sees problems from both namespaces.
 	res = callTool(t, session, "health", nil)
 	if res.IsError {
 		t.Fatalf("health: %s", toolText(t, res))
@@ -901,7 +881,6 @@ func TestMCPHealth(t *testing.T) {
 		t.Errorf("unscoped orphans = %v, want notes/orphan", out.Orphans)
 	}
 
-	// Scoped to "notes": only the namespaced dangling link and orphan.
 	res = callTool(t, session, "health", map[string]any{"namespace": "notes"})
 	if res.IsError {
 		t.Fatalf("health(notes): %s", toolText(t, res))
@@ -1127,8 +1106,6 @@ func TestMCPScopes(t *testing.T) {
 
 var tokenRe = regexp.MustCompile(`hmd_[0-9a-f]{64}`)
 
-// createTokenViaUI posts the settings token form and extracts the minted
-// token from the rendered page.
 func createTokenViaUI(t *testing.T, server *httptest.Server, client *http.Client, label, expiry string, scopes, namespaces []string) string {
 	t.Helper()
 	values := url.Values{"label": {label}, "expiry": {expiry}, "scopes": scopes, "namespaces": namespaces}
@@ -1168,7 +1145,6 @@ func TestTokenSettingsUI(t *testing.T) {
 	token := createTokenViaUI(t, server, client, "laptop", "30d", []string{"read"}, []string{"notes"})
 	privateToken := createTokenViaUI(t, server, client, "private-pages", "30d", []string{"read"}, []string{"private"})
 
-	// The token authenticates API requests.
 	req, _ := http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
@@ -1315,7 +1291,7 @@ func TestTokenSettingsUI(t *testing.T) {
 			t.Errorf("administrator request %s = %d, want 200", path, adminResp.StatusCode)
 		}
 	}
-	// Duplicate label is rejected.
+
 	dupResp, err := client.PostForm(server.URL+"/_/settings/tokens", url.Values{"label": {"laptop"}, "expiry": {"30d"}, "scopes": {"read"}, "namespaces": {"notes"}})
 	if err != nil {
 		t.Fatalf("POST duplicate: %v", err)
@@ -1328,7 +1304,6 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Error("duplicate label accepted, want error")
 	}
 
-	// The settings page lists it with its expiry date.
 	settingsResp, _ := client.Get(server.URL + "/_/settings")
 	pageBody, _ := io.ReadAll(settingsResp.Body)
 	if err := settingsResp.Body.Close(); err != nil {
@@ -1344,7 +1319,6 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Error("settings page missing 30-day expiry date")
 	}
 
-	// Revocation prevents further authentication.
 	revokeResp, err := client.PostForm(server.URL+"/_/settings/tokens/revoke", url.Values{"label": {"laptop"}})
 	if err != nil {
 		t.Fatalf("POST revoke: %v", err)

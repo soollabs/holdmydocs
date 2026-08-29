@@ -8,9 +8,7 @@ import (
 	"testing"
 )
 
-// TestLandingRoute checks "/" redirects to the landing path: the configured
-// Landing slug, which setup points at the first namespace — independent of
-// skin, since landing is a portable wiki setting rather than a per-skin enum.
+// TestLandingRoute ensures the root redirects to the configured landing page.
 func TestLandingRoute(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -45,8 +43,7 @@ func TestLandingRoute(t *testing.T) {
 	}
 }
 
-// TestNewPageJSGlobals checks window.hmdNewEnabled reflects whether a
-// namespace with a `new:` template is in reach, independent of skin.
+// TestNewPageJSGlobals ensures the new-page shortcut reflects namespace configuration.
 func TestNewPageJSGlobals(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -84,8 +81,7 @@ func TestNewPageJSGlobals(t *testing.T) {
 	}
 }
 
-// TestNewNamespaceFollowsPage checks ctrl-j targets the namespace of the page
-// being viewed when it has its own `new:` block.
+// TestNewNamespaceFollowsPage ensures the shortcut targets the current namespace.
 func TestNewNamespaceFollowsPage(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

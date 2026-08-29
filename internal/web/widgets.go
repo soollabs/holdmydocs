@@ -12,8 +12,6 @@ const (
 	slotRail     widgetSlot = "rail"      // right rail (≥1200px only)
 	slotPageHead widgetSlot = "page-head" // between title and article
 	slotPageFoot widgetSlot = "page-foot" // after article
-	// The statusline is not a slot: its segments are fixed per skin.Status
-	// rather than composable, so there is nothing for a registry to hold.
 )
 
 type widget struct {
@@ -46,18 +44,11 @@ var widgets = map[string]widget{
 	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot, Description: "the daily entries just before this one."},
 }
 
-// widgetSlotGroup is every widget that can land in one slot, for the
-// namespace widget picker in system configuration — which slot a widget
-// renders in is fixed by the registry, so grouping by it is the only
-// arrangement of the picker that tells the truth about the layout.
 type widgetSlotGroup struct {
 	Slot    widgetSlot
 	Widgets []widget
 }
 
-// widgetSlotGroups lists every configurable widget grouped by slot, slots in
-// layout order and widgets in widgetIDs order. The outline is fixed chrome,
-// alongside the tree, so it is deliberately omitted.
 func widgetSlotGroups() []widgetSlotGroup {
 	groups := make([]widgetSlotGroup, 0, 4)
 	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
@@ -75,9 +66,6 @@ func widgetSlotGroups() []widgetSlotGroup {
 	return groups
 }
 
-// widgetsForSlot resolves a flat namespace widget-id list to the ordered
-// *widgets that render in slot. The outline is fixed chrome, so the rail is
-// always present independently of a namespace's configurable widgets.
 func widgetsForSlot(slot widgetSlot, ids []string) []*widget {
 	result := make([]*widget, 0, len(ids))
 	if slot == slotRail {
@@ -98,7 +86,6 @@ func widgetsForSlot(slot widgetSlot, ids []string) []*widget {
 	return result
 }
 
-// hasWidget reports whether id appears in list.
 func hasWidget(list []*widget, id string) bool {
 	for _, w := range list {
 		if w.ID == id {
@@ -115,8 +102,6 @@ type NamespaceNavEntry struct {
 	Active bool
 }
 
-// namespaceNav renders catalogue entries in alphabetical order, marking the
-// namespace the current page lives in.
 func namespaceNav(summaries []NamespaceSummary, current string) []NamespaceNavEntry {
 	entries := make([]NamespaceNavEntry, 0, len(summaries))
 	for _, summary := range summaries {
@@ -126,8 +111,6 @@ func namespaceNav(summaries []NamespaceSummary, current string) []NamespaceNavEn
 	return entries
 }
 
-// populateWidgetData fills only the data needed by mounted widgets and the
-// statusline.
 func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	all := append(append(append(append([]*widget{}, data.SidebarWidgets...), data.RailWidgets...), data.PageHeadWidgets...), data.PageFootWidgets...)
 

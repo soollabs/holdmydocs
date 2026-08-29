@@ -8,10 +8,7 @@ import (
 
 type Page = wiki.Page
 
-// TestResolveLink covers the wiki-link/TOC bug where a namespaced page's
-// slug ("health/overview") never equals Slugify(its title) ("health-overview"),
-// so a naive lookup 404s at root. ResolveLink must find the real slug by
-// title, preferring a match in the caller's own namespace.
+// TestResolveLink ensures title links resolve within the current namespace first.
 func TestResolveLink(t *testing.T) {
 	pages := []wiki.Page{
 		{Slug: "health/overview", Title: "Overview"},
@@ -26,12 +23,11 @@ func TestResolveLink(t *testing.T) {
 	if slug, ok := ix.ResolveLink("Overview", "work"); !ok || slug != "work/overview" {
 		t.Errorf("ResolveLink(Overview, work) = (%q, %v), want (work/overview, true)", slug, ok)
 	}
-	// No page named "Overview" lives at root, so the namespace-scoped lookup
-	// falls back to whichever namespace has one, rather than 404ing.
+
 	if slug, ok := ix.ResolveLink("Overview", ""); !ok || (slug != "health/overview" && slug != "work/overview") {
 		t.Errorf("ResolveLink(Overview, \"\") = (%q, %v), want a fallback match", slug, ok)
 	}
-	// Casing and punctuation differences resolve through the namespace slug.
+
 	if slug, ok := ix.ResolveLink("overview", "health"); !ok || slug != "health/overview" {
 		t.Errorf("ResolveLink(overview, health) = (%q, %v), want (health/overview, true)", slug, ok)
 	}
@@ -45,9 +41,6 @@ func TestResolveLink(t *testing.T) {
 		t.Errorf("ResolveLink(Solo, health) = (%q, %v), want (solo, true)", slug, ok)
 	}
 
-	// Ambiguous fallback (no match in the caller's own namespace, two
-	// candidates elsewhere) must be deterministic across repeated calls,
-	// not whatever order Go's map iteration happens to produce.
 	for range 20 {
 		slug, ok := ix.ResolveLink("Overview", "other")
 		if !ok || slug != "health/overview" {
@@ -56,8 +49,7 @@ func TestResolveLink(t *testing.T) {
 	}
 }
 
-// TestResolveLinkLiteralSlug covers a namespace-qualified link, which must be
-// tried literally before Slugify turns its slash into a hyphen.
+// TestResolveLinkLiteralSlug ensures namespace-qualified links are resolved literally.
 func TestResolveLinkLiteralSlug(t *testing.T) {
 	pages := []Page{
 		{Slug: "health/overview", Title: "Overview"},
@@ -82,7 +74,7 @@ func TestTags(t *testing.T) {
 	if len(tags) != 2 {
 		t.Fatalf("Tags() length = %d, want 2", len(tags))
 	}
-	// Sort tags by tag name for deterministic comparison
+
 	sort.Slice(tags, func(i, j int) bool { return tags[i].Tag < tags[j].Tag })
 	if tags[0].Tag != "go" || tags[0].Count != 2 || tags[0].Slug != "go" {
 		t.Errorf("Tags()[0] = %+v, want {go go 2}", tags[0])
@@ -100,7 +92,6 @@ func TestTags(t *testing.T) {
 		t.Errorf("TagName(wiki) = %q, want %q", name, "wiki")
 	}
 
-	// Update alpha to drop the "wiki" tag.
 	if err := ix.Update(Page{Slug: "alpha", Title: "Alpha", Tags: []string{"go"}, Body: "alpha body"}); err != nil {
 		t.Fatalf("updating alpha: %v", err)
 	}
@@ -141,11 +132,7 @@ func TestTagsInNamespace(t *testing.T) {
 	}
 }
 
-// TestBacklinksAndHealthNamespaced pins backlinks and Health to the same
-// resolution the renderer uses: [[Overview]] on health/plan points at
-// health/overview, so that's where the backlink lands — not at "overview",
-// which would leave health/overview a false orphan and "overview" a false
-// missing link.
+// TestBacklinksAndHealthNamespaced ensures backlinks and health use namespace-aware link resolution.
 func TestBacklinksAndHealthNamespaced(t *testing.T) {
 	pages := []Page{
 		{Slug: "home", Title: "Home", Body: "start"},
@@ -168,7 +155,7 @@ func TestBacklinksAndHealthNamespaced(t *testing.T) {
 	if _, ok := missing["health/overview"]; ok {
 		t.Error("health/overview exists, must not be reported missing")
 	}
-	// health/plan is genuinely unlinked; health/overview and home are not.
+
 	if len(orphans) != 1 || orphans[0] != "health/plan" {
 		t.Errorf("orphans = %v, want [health/plan]", orphans)
 	}
@@ -183,7 +170,6 @@ func TestSearchAndBacklinks(t *testing.T) {
 
 	ix, _ := BuildIndex(pages)
 
-	// Test search for "fox"
 	results, _ := ix.Search("fox")
 	if len(results) != 1 || results[0].Slug != "alpha" {
 		t.Errorf("Search for 'fox' should find alpha")
@@ -192,7 +178,6 @@ func TestSearchAndBacklinks(t *testing.T) {
 		t.Errorf("Search result should have snippet")
 	}
 
-	// Test backlinks for beta
 	backlinks := ix.Backlinks("beta")
 	if len(backlinks) != 2 {
 		t.Errorf("Beta should have 2 backlinks, got %d", len(backlinks))
@@ -201,7 +186,6 @@ func TestSearchAndBacklinks(t *testing.T) {
 		t.Errorf("Backlinks should be [alpha, gamma], got %v", backlinks)
 	}
 
-	// Test exists
 	if !ix.Exists("alpha") {
 		t.Errorf("Exists should return true for alpha")
 	}
@@ -209,24 +193,20 @@ func TestSearchAndBacklinks(t *testing.T) {
 		t.Errorf("Exists should return false for nope")
 	}
 
-	// Test update: remove links from alpha
 	if err := ix.Update(Page{Slug: "alpha", Title: "Alpha", Body: "no links now"}); err != nil {
 		t.Fatalf("updating alpha: %v", err)
 	}
 
-	// Search for "fox" should return no results
 	results, _ = ix.Search("fox")
 	if len(results) != 0 {
 		t.Errorf("After update, search for 'fox' should find nothing")
 	}
 
-	// Beta should now have only gamma as backlink
 	backlinks = ix.Backlinks("beta")
 	if len(backlinks) != 1 || backlinks[0] != "gamma" {
 		t.Errorf("After update, beta backlinks should be [gamma], got %v", backlinks)
 	}
 
-	// Search for "links" should find alpha (from updated body)
 	results, _ = ix.Search("links")
 	if len(results) != 1 || results[0].Slug != "alpha" {
 		t.Errorf("After update, search for 'links' should find alpha")
@@ -243,7 +223,6 @@ func TestPagesForTags(t *testing.T) {
 
 	ix, _ := BuildIndex(pages)
 
-	// OR: "go,wiki" should match alpha (go+wiki), beta (go), gamma (wiki).
 	matched := ix.PagesForTags([]string{"go", "wiki"})
 	if len(matched) != 3 {
 		t.Fatalf("PagesForTags([go,wiki]) = %v, want 3 slugs", matched)
@@ -252,19 +231,16 @@ func TestPagesForTags(t *testing.T) {
 		t.Errorf("PagesForTags([go,wiki]) = %v, want [alpha beta gamma]", matched)
 	}
 
-	// Single tag works the same as PagesForTag.
 	single := ix.PagesForTags([]string{"rust"})
 	if len(single) != 1 || single[0] != "delta" {
 		t.Errorf("PagesForTags([rust]) = %v, want [delta]", single)
 	}
 
-	// Unknown tag returns nothing.
 	none := ix.PagesForTags([]string{"nope"})
 	if len(none) != 0 {
 		t.Errorf("PagesForTags([nope]) = %v, want []", none)
 	}
 
-	// Empty slice returns nothing.
 	if got := ix.PagesForTags(nil); len(got) != 0 {
 		t.Errorf("PagesForTags(nil) = %v, want []", got)
 	}

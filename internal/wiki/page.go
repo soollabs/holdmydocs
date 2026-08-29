@@ -38,33 +38,26 @@ func HiddenSlug(path string) string {
 }
 
 func Slugify(title string) string {
-	// Convert to lowercase
 	slug := strings.ToLower(title)
 
-	// Replace non-alphanumeric with dashes
 	var result []rune
 	for _, r := range slug {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			result = append(result, r)
 		} else if unicode.IsSpace(r) || !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-			// Replace any non-alphanumeric with a dash
 			if len(result) > 0 && result[len(result)-1] != '-' {
 				result = append(result, '-')
 			}
 		}
 	}
 
-	// Trim leading and trailing dashes
 	s := strings.Trim(string(result), "-")
-	// Collapse multiple dashes into single dash
+
 	s = regexp.MustCompile(`-+`).ReplaceAllString(s, "-")
 	return s
 }
 
-// ParseTags reads the value half of a frontmatter "tags:" line. Both the
-// plain form (tags: a, b) and YAML's flow sequence (tags: [a, b]) are
-// accepted — the brackets are conventional enough that leaving them in
-// produced tags literally named "[a" and "b]".
+// ParseTags reads the value half of a frontmatter "tags:" line.
 func ParseTags(s string) []string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "[")
@@ -82,16 +75,14 @@ func ParseTags(s string) []string {
 
 func ParsePage(slug string, raw []byte) Page {
 	page := Page{Slug: slug, Title: slug}
-	// Normalise CRLF so frontmatter parsing works regardless of line endings
+
 	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
 
-	// Check if starts with frontmatter
 	if !strings.HasPrefix(content, "---\n") {
 		page.Body = strings.TrimRight(content, "\n")
 		return page
 	}
 
-	// Find closing ---
 	lines := strings.Split(content, "\n")
 	closingIdx := -1
 	for i := 1; i < len(lines); i++ {
@@ -102,12 +93,10 @@ func ParsePage(slug string, raw []byte) Page {
 	}
 
 	if closingIdx == -1 {
-		// No closing delimiter, treat as body
 		page.Body = strings.TrimRight(content, "\n")
 		return page
 	}
 
-	// Extract title and tags from frontmatter
 	for i := 1; i < closingIdx; i++ {
 		line := lines[i]
 		if after, ok := strings.CutPrefix(line, "title:"); ok {
@@ -122,7 +111,6 @@ func ParsePage(slug string, raw []byte) Page {
 		}
 	}
 
-	// Extract body (everything after closing --- and optional blank line)
 	bodyStart := closingIdx + 1
 	if bodyStart < len(lines) && lines[bodyStart] == "" {
 		bodyStart++
@@ -133,7 +121,6 @@ func ParsePage(slug string, raw []byte) Page {
 }
 
 func (p Page) Encode() []byte {
-	// Browsers submit textarea content with CRLF; normalise so files are stored with LF
 	body := strings.ReplaceAll(p.Body, "\r\n", "\n")
 	result := "---\n"
 	result += "title: " + p.Title + "\n"
@@ -151,11 +138,7 @@ func (p Page) Encode() []byte {
 	return []byte(result)
 }
 
-// wikiLinkOrCodeRe matches a fenced code block, an inline code span, or a
-// [[wiki-link]] title. Code alternatives have no capturing group, so a
-// [[...]] used as a markdown syntax example inside code is matched but not
-// captured — WikiLinks and processWikiLinks (render.go) both treat an empty
-// capture group as "this was code, not a real link".
+// wikiLinkOrCodeRe matches a fenced code block, an inline code span, or a [[wiki-link]] title.
 var WikiLinkOrCodeRE = regexp.MustCompile("(?s)```.*?```|`[^`\n]*`|\\[\\[([^\\[\\]]+)\\]\\]")
 
 func WikiLinks(body string) []string {

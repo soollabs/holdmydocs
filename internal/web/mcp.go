@@ -19,11 +19,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// The MCP server exposes the wiki to agents (Claude Code, Claude Desktop,
-// anything MCP) over streamable HTTP at /mcp. Tools are thin wrappers over
-// the existing store and index operations; the optimistic-lock discipline
-// (basehash from read_page, conflict on stale save) is carried in the tool
-// descriptions, since agents follow those.
+// The MCP server exposes the wiki to agents (Claude Code, Claude Desktop, anything MCP) over streamable HTTP
+// at /mcp.
 
 type mcpPageMeta struct {
 	Slug  string   `json:"slug"`
@@ -293,14 +290,10 @@ func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *mcp
 	return http.NewCrossOriginProtection().Handler(handler)
 }
 
-// mcpUser returns the authenticated request user, which Auth.Middleware has
-// already verified from the Bearer token or session cookie.
 func (app *App) mcpUser(ctx context.Context) string {
 	return userFromContext(ctx)
 }
 
-// mcpRequireScope keeps MCP permissions at the tool boundary: one HTTP
-// endpoint hosts read, write and settings actions with different permissions.
 func (app *App) mcpRequireScope(ctx context.Context, need scope) error {
 	if principal, ok := tokenPrincipalFromContext(ctx); ok {
 		if principal.User == "" || !principal.HasScope(need) {
@@ -373,8 +366,6 @@ func (app *App) readMCPNamespace(name string) (mcpNamespaceOut, error) {
 	return mcpNamespaceOutput(name, cfg, hash), nil
 }
 
-// mcpHandler builds the MCP server and returns its streamable HTTP handler
-// for mounting at /mcp. Auth happens in Auth.Middleware before this handler.
 func (app *App) mcpHandler() http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: "hmd", Version: version}, nil)
 

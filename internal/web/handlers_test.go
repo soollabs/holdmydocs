@@ -21,9 +21,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// testNS is the namespace every fixture page lives in, and testHome its index
-// page — the shape a wiki has after setup, since every page belongs to a
-// namespace.
 const testNS = "notes"
 const testHome = testNS + "/" + defaultIndexPage
 
@@ -62,8 +59,6 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 	return server, client
 }
 
-// adminLogin logs client in as the bootstrap admin, for tests exercising
-// handlers behind the settings scope.
 func adminLogin(t *testing.T, server *httptest.Server, client *http.Client) {
 	t.Helper()
 	resp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
@@ -200,8 +195,6 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		AdminPass:  "password12345",
 	}
 
-	// When a config file is configured, overlay its values so the settings
-	// handlers see the same cfg a real deployment (LoadConfig) would.
 	if path := os.Getenv("HMD_CONFIG_FILE"); path != "" {
 		cfg.ConfigFile = path
 		if loaded, err := LoadConfig(); err == nil {
@@ -218,9 +211,6 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	// Tests exercise pages/handlers, not the setup flow itself — simulate a
-	// completed setup so the first namespace, its index page and .help.md
-	// exist, since OpenStore seeds nothing without consent.
 	nsCfg, err := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
@@ -277,7 +267,6 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 
 	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
 
-	// Create client with cookie jar
 	jar, _ := cookiejar.New(&cookiejar.Options{})
 	client := &http.Client{
 		Jar: jar,
@@ -291,7 +280,6 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		},
 	}
 
-	// Login
 	loginForm := url.Values{
 		"username": {"admin"},
 		"password": {"password12345"},
@@ -384,7 +372,6 @@ func TestEditSaveRoundTrip(t *testing.T) {
 
 	slug := testNS + "/test-page"
 
-	// GET edit page for new slug
 	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
@@ -399,7 +386,6 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		t.Errorf("Edit page status = %d, want 200", resp.StatusCode)
 	}
 
-	// POST save
 	saveForm := url.Values{
 		"title":    {"Test Page"},
 		"body":     {"This is a test page."},
@@ -419,7 +405,6 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		t.Errorf("Save status = %d, want 303", resp.StatusCode)
 	}
 
-	// GET page, verify content
 	resp, err = client.Get(server.URL + "/" + slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
@@ -435,9 +420,6 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		t.Errorf("Saved page should contain body text")
 	}
 
-	// Verify commit was made (checking store history)
-	// This would require access to the app's store, which we don't have in the test
-	// So we just verify the page was saved by checking we can view it
 }
 
 func TestOptimisticLockConflict(t *testing.T) {
@@ -446,7 +428,6 @@ func TestOptimisticLockConflict(t *testing.T) {
 
 	slug := testNS + "/lock-test"
 
-	// Get the hash for a new page
 	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
@@ -456,9 +437,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 			t.Errorf("closing edit response body: %v", err)
 		}
 	}()
-	// BaseHash will be empty for new page
 
-	// Save directly via client to change the page
 	saveForm := url.Values{
 		"title":    {"Version 1"},
 		"body":     {"First version"},
@@ -472,11 +451,10 @@ func TestOptimisticLockConflict(t *testing.T) {
 		t.Fatalf("closing save response body: %v", err)
 	}
 
-	// Now try to save with stale basehash
 	saveForm2 := url.Values{
 		"title":    {"Version 2"},
 		"body":     {"Second version"},
-		"basehash": {""}, // stale hash
+		"basehash": {""},
 	}
 	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm2)
 	if err != nil {
@@ -549,16 +527,11 @@ func TestAPIsRejectRootPageSlugs(t *testing.T) {
 	}
 }
 
-// TestUnauthenticatedAccess covers the two anonymous outcomes on a wiki with
-// no public namespaces: the site root still redirects to login (so a login
-// wall stays reachable), while a specific content page — private, like
-// every namespace here — 404s rather than redirecting. See
-// TestAnonymousPublicNamespace for the public-namespace case.
+// TestUnauthenticatedAccess ensures anonymous requests distinguish the site root from private content safely.
 func TestUnauthenticatedAccess(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
 
-	// Fresh client without auth
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -599,7 +572,6 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 
 	slug := testNS + "/test-page"
 
-	// Create a simple PNG file (minimal valid PNG)
 	pngData := []byte{
 		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
@@ -612,7 +584,6 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		0xae, 0x42, 0x60, 0x82,
 	}
 
-	// Upload via multipart
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "test-image.png")
@@ -644,7 +615,6 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Errorf("Response should contain attachment URL")
 	}
 
-	// GET the attachment
 	resp, err = client.Get(server.URL + "/_/attachments/" + slug + "/test-image.png")
 	if err != nil {
 		t.Fatalf("GET attachment failed: %v", err)
@@ -671,7 +641,6 @@ func TestAttachmentAcceptsTikaFormats(t *testing.T) {
 
 	slug := testNS + "/test-page"
 
-	// Tika decides whether this format can be extracted; HMD stores it either way.
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("file", "virus.exe")
@@ -854,7 +823,6 @@ func TestSearchPage(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Save a page with unique text
 	slug := testNS + "/search-test"
 	saveForm := url.Values{
 		"title":    {"Search Test"},
@@ -867,7 +835,6 @@ func TestSearchPage(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Search for the unique word
 	resp, err = client.Get(server.URL + "/_/search?q=uniquewordxyz")
 	if err != nil {
 		t.Fatalf("GET search failed: %v", err)
@@ -888,7 +855,6 @@ func TestBacklinksShown(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Save page "page-one" with link to "Page Two" (which slugifies to "page-two")
 	saveForm := url.Values{
 		"title":    {"Page One"},
 		"body":     {"This links to [[Page Two]]"},
@@ -900,7 +866,6 @@ func TestBacklinksShown(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Save page "page-two"
 	saveForm = url.Values{
 		"title":    {"Page Two"},
 		"body":     {"This is page two."},
@@ -912,7 +877,6 @@ func TestBacklinksShown(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// View page page-two, should show backlinks
 	resp, err = client.Get(server.URL + "/" + testNS + "/page-two")
 	if err != nil {
 		t.Fatalf("GET page two failed: %v", err)
@@ -935,7 +899,6 @@ func TestHistoryListAndRevert(t *testing.T) {
 
 	slug := testNS + "/history-test"
 
-	// Save page twice with different bodies
 	saveForm := url.Values{
 		"title":    {"History Test"},
 		"body":     {"Version one"},
@@ -958,7 +921,6 @@ func TestHistoryListAndRevert(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// GET history
 	resp, err = client.Get(server.URL + "/" + slug + "?do=history")
 	if err != nil {
 		t.Fatalf("GET history failed: %v", err)
@@ -982,7 +944,6 @@ func TestRevertToOldVersion(t *testing.T) {
 
 	slug := testNS + "/revert-test"
 
-	// Save v1
 	saveForm := url.Values{
 		"title":    {"Revert Test"},
 		"body":     {"Original content"},
@@ -994,7 +955,6 @@ func TestRevertToOldVersion(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Verify page shows v1
 	resp, err = client.Get(server.URL + "/" + slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
@@ -1007,8 +967,7 @@ func TestRevertToOldVersion(t *testing.T) {
 	}
 }
 
-// TestPageChrome guards against pages bypassing the shared layout: every
-// rendered page must carry the editor/preview scripts and header controls.
+// TestPageChrome ensures rendered pages use the shared layout.
 func TestPageChrome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -1032,13 +991,10 @@ func TestPageChrome(t *testing.T) {
 		}
 	}
 
-	// Mermaid should NOT be loaded on pages without mermaid content
 	if bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
 		t.Error("Mermaid script loaded on page without mermaid content")
 	}
 
-	// The <!-- hmd:toc --> token in the seeded readme.md must be replaced
-	// server-side, never reach the rendered HTML.
 	if bytes.Contains(body, []byte("hmd:toc")) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
@@ -1067,7 +1023,6 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Create a page with a mermaid diagram
 	resp, err := client.PostForm(server.URL+"/"+testNS+"/mermaid-test?do=save", url.Values{
 		"title":    {"Mermaid Test"},
 		"body":     {"```mermaid\ngraph TD;\n  A-->B\n```\n"},
@@ -1079,7 +1034,6 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// View the page — mermaid script should be present
 	resp, err = client.Get(server.URL + "/" + testNS + "/mermaid-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
@@ -1091,7 +1045,6 @@ func TestMermaidConditionalLoad(t *testing.T) {
 		t.Error("Mermaid script missing on page with mermaid content")
 	}
 
-	// View the edit page — mermaid script should be present (body contains "mermaid")
 	resp, err = client.Get(server.URL + "/" + testNS + "/mermaid-test?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
@@ -1183,7 +1136,6 @@ func TestTagsOnEditAndView(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Edit form should show the tags back.
 	resp, err = client.Get(server.URL + "/" + testNS + "/tagged?do=edit")
 	if err != nil {
 		t.Fatalf("edit request failed: %v", err)
@@ -1194,7 +1146,6 @@ func TestTagsOnEditAndView(t *testing.T) {
 		t.Errorf("edit page should show tags input, got:\n%s", body)
 	}
 
-	// Page view should show tag chips.
 	resp, err = client.Get(server.URL + "/" + testNS + "/tagged")
 	if err != nil {
 		t.Fatalf("view request failed: %v", err)
@@ -1238,7 +1189,6 @@ func TestSearchAPI(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Save a page with unique text
 	slug := testNS + "/api-search-test"
 	saveForm := url.Values{
 		"title":    {"API Search Test"},
@@ -1251,7 +1201,6 @@ func TestSearchAPI(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Search via API
 	resp, err = client.Get(server.URL + "/_/api/search?q=uniquetestword")
 	if err != nil {
 		t.Fatalf("GET api/search failed: %v", err)
@@ -1293,7 +1242,6 @@ func TestHealthAPI(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// Unscoped: both dangling links show up.
 	resp, err = client.Get(server.URL + "/_/api/health")
 	if err != nil {
 		t.Fatalf("GET api/health failed: %v", err)
@@ -1310,7 +1258,6 @@ func TestHealthAPI(t *testing.T) {
 		t.Errorf("unscoped missing = %+v, want 2 entries", report.Missing)
 	}
 
-	// Scoped to "notes": only the namespaced dangling link.
 	resp, err = client.Get(server.URL + "/_/api/health?namespace=notes")
 	if err != nil {
 		t.Fatalf("GET api/health?namespace=notes failed: %v", err)
@@ -1386,7 +1333,6 @@ func TestAppConfigPointer(t *testing.T) {
 		t.Errorf("wikiConfig().SiteName = %q, want %q", got.SiteName, "TestWiki")
 	}
 
-	// Swap and verify readers see the new value
 	app.SetWikiConfig(WikiConfig{SiteName: "Changed"})
 	got2 := app.wikiConfig()
 	if got2.SiteName != "Changed" {
@@ -1681,9 +1627,6 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// newTestApp already seeds readme.md and .help.md, so under normal
-	// (non-forced) NeedsSetup logic, neither would be missing and the
-	// modal would have nothing to show.
 	resp, err := client.Get(server.URL + "/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
@@ -1724,7 +1667,6 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("re-run modal should offer both the namespace and help items, body: %s", body3)
 	}
 
-	// Skipping should clear ForceSetup so the modal doesn't keep reappearing.
 	resp4, err := client.PostForm(server.URL+"/_/setup", url.Values{"action": {"skip"}})
 	if err != nil {
 		t.Fatalf("POST /setup skip failed: %v", err)
@@ -1893,7 +1835,7 @@ func TestInjectTOC(t *testing.T) {
 
 	t.Run("tag filter OR semantics", func(t *testing.T) {
 		out := injectTOC("<!-- hmd:toc:meta,guide -->", ix, index, "notes")
-		// meta: gamma, delta; guide: epsilon. Sorted by slug: delta, epsilon, gamma.
+
 		want := "- [[Delta]]\n- [[Epsilon]]\n- [[Gamma]]\n"
 		if out != want {
 			t.Errorf("injectTOC tag = %q, want %q", out, want)
@@ -1956,7 +1898,6 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Create a page so the index TOC has something to list.
 	resp, err := client.PostForm(server.URL+"/"+testNS+"/alpha?do=save", url.Values{
 		"title":    {"Alpha"},
 		"body":     {"Alpha body"},
@@ -1968,8 +1909,6 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	// View the index page: the seeded <!-- hmd:toc --> token must be
-	// replaced with a rendered wiki-link to the new page.
 	resp, err = client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
@@ -1984,8 +1923,6 @@ func TestTOCRenderedOnHome(t *testing.T) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
 
-	// A tag-filtered TOC on a non-index page should also render. Create a
-	// second page that embeds <!-- hmd:toc:meta --> and view it.
 	resp, err = client.PostForm(server.URL+"/"+testNS+"/toc-test?do=save", url.Values{
 		"title":    {"TOC Test"},
 		"body":     {"Pages:\n\n<!-- hmd:toc:meta -->\n"},
@@ -2013,7 +1950,6 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// .help.md is NOT in the bleve search index.
 	resp, err := client.Get(server.URL + "/_/search?q=frontmatter")
 	if err != nil {
 		t.Fatalf("GET /search failed: %v", err)
@@ -2024,7 +1960,6 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 		t.Errorf("help should not appear in search results, body: %s", body)
 	}
 
-	// The palette (app.js) should have a built-in :hidden: row linking to /_/hidden.
 	resp2, err := client.Get(server.URL + "/_/static/app.js")
 	if err != nil {
 		t.Fatalf("GET /_/static/app.js failed: %v", err)
@@ -2044,8 +1979,6 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	// Help is served at /_/hidden/help, not /page/help, and covers both UI
-	// usage and formatting conventions in one file.
 	resp, err := client.Get(server.URL + "/_/hidden/help")
 	if err != nil {
 		t.Fatalf("GET /_/hidden/help failed: %v", err)
@@ -2059,7 +1992,6 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 		t.Errorf("hidden help page should contain formatting conventions, body: %s", body)
 	}
 
-	// /page/help should NOT serve the help page.
 	resp2, err := client.Get(server.URL + "/help")
 	if err != nil {
 		t.Fatalf("GET /page/help failed: %v", err)
@@ -2073,7 +2005,6 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 		t.Errorf("GET /page/help should be 404, got %d", resp2.StatusCode)
 	}
 
-	// /hidden index should list help.
 	resp3, err := client.Get(server.URL + "/_/hidden")
 	if err != nil {
 		t.Fatalf("GET /hidden failed: %v", err)
@@ -2093,7 +2024,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
 
-	// Create a git repo with content but no readme.md.
 	repo, err := git.PlainInit(repoDir, false)
 	if err != nil {
 		t.Fatalf("git init failed: %v", err)
@@ -2172,7 +2102,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Fatalf("login request failed: %v", err)
 	}
 
-	// Root should redirect to /page/readme (not a standalone setup page).
 	resp, err := client.Get(server.URL + "/")
 	if err != nil {
 		t.Fatalf("GET / failed: %v", err)
@@ -2182,7 +2111,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("root should redirect, got status %d", resp.StatusCode)
 	}
 
-	// Setup modal should appear on any authed page when NeedsSetup.
 	resp2, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
@@ -2197,7 +2125,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup modal should appear when NeedsSetup, body: %s", body2)
 	}
 
-	// POST setup with action=add, add_namespace=on to seed the first namespace.
 	resp3, err := client.PostForm(server.URL+"/_/setup", url.Values{
 		"action":            {"add"},
 		"setup_wiki":        {"on"},
@@ -2217,7 +2144,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup status = %d, want 303", resp3.StatusCode)
 	}
 
-	// The namespace's index page should now exist and be viewable.
 	resp4, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
@@ -2235,7 +2161,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("home page should contain 'Welcome', body: %s", body4)
 	}
 
-	// Setup completion suppresses the modal.
 	resp5, err := client.Get(server.URL + "/" + testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme after setup failed: %v", err)
@@ -2250,8 +2175,6 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup modal should not appear after setup, body: %s", body5)
 	}
 
-	// Creating the namespace is what makes it the default destination, and
-	// what leaves a front page behind for whoever browses the content repo.
 	if landing := app.wikiConfig().Landing; landing != testNS+"/" {
 		t.Errorf("landing = %q, want %s/", landing, testNS)
 	}
@@ -2302,9 +2225,7 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 	}
 }
 
-// TestNamespaceIndexExcludedFromItsOwnTOC pins the one thing a namespace's
-// index page gets that ordinary pages don't: a <!-- hmd:toc --> on it lists
-// its siblings but never itself, since it stands in for the listing.
+// TestNamespaceIndexExcludedFromItsOwnTOC ensures an index page is excluded from its own TOC.
 func TestNamespaceIndexExcludedFromItsOwnTOC(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -2318,8 +2239,6 @@ func TestNamespaceIndexExcludedFromItsOwnTOC(t *testing.T) {
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
-	// Scoped to wiki-links, since the sidebar and tree widgets link the index
-	// page by design — only the TOC listing is under test here.
 	if !bytes.Contains(body, []byte(`<a class="wiki" href="/`+testNS+`/alpha"`)) {
 		t.Errorf("index TOC should link the sibling page, body: %s", body)
 	}

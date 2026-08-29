@@ -57,9 +57,7 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 	}
 }
 
-// TestScopeEnforcementIntegration is the end-to-end guarantee behind the
-// scope model: a read-only user can view pages but is denied at the
-// middleware for anything write- or settings-shaped.
+// TestScopeEnforcementIntegration ensures scopes control read and write access.
 func TestScopeEnforcementIntegration(t *testing.T) {
 	app, server, settingsClient := newTestAppFull(t)
 	defer server.Close()
@@ -322,9 +320,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	}
 }
 
-// TestCreateUserViaSettings covers the UI replacement for `hmd adduser`: an
-// admin creates a user from the settings page, with scopes picked in the
-// form, and the user can immediately log in with them in effect.
+// TestCreateUserViaSettings ensures the settings form creates users with the selected scopes.
 func TestCreateUserViaSettings(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -353,8 +349,6 @@ func TestCreateUserViaSettings(t *testing.T) {
 		t.Error("newbie should be able to log in with the password set at creation")
 	}
 
-	// A missing policy is rejected before persistence; it must not leave the
-	// full-access intermediate record AddUser historically created.
 	emptyResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
 		"name": {"no-policy"}, "password": {"password12345"},
 	})
@@ -366,7 +360,6 @@ func TestCreateUserViaSettings(t *testing.T) {
 		t.Error("user with no submitted scopes should not have been persisted")
 	}
 
-	// Duplicate name is rejected rather than silently resetting the password.
 	dupResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
 		"name": {"newbie"}, "password": {"otherpassword"},
 	})
@@ -379,11 +372,7 @@ func TestCreateUserViaSettings(t *testing.T) {
 	}
 }
 
-// TestSetUserScopesBootstrapAdminImmutable ensures the bootstrap admin
-// (HMD_ADMIN_USER) always keeps full access. It isn't listed with editable
-// checkboxes on the settings page; this covers a hand-crafted request
-// against it too, since that's the one account that can't be recreated from
-// the UI if it were ever locked out.
+// TestSetUserScopesBootstrapAdminImmutable ensures the bootstrap admin always retains full access.
 func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -416,10 +405,7 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	}
 }
 
-// TestSetUserScopesBlocksSelfLockout ensures a non-bootstrap user with
-// settings scope can't strip that scope from their own account — with hmd
-// scopes removed, that would lock them out with no way back short of
-// hand-editing users.json.
+// TestSetUserScopesBlocksSelfLockout ensures users cannot remove their own settings access.
 func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

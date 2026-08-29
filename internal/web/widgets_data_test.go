@@ -56,9 +56,9 @@ func TestBuildCalendarMonthEmpty(t *testing.T) {
 func TestBuildWritingStats(t *testing.T) {
 	ref := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
 	dates := []string{
-		"2026-07-22", "2026-07-23", "2026-07-24", // 3-day streak ending today
-		"2026-07-01", // earlier this month, breaks streak count but not DaysWritten
-		"2026-06-30", // last month, shouldn't count toward DaysWritten
+		"2026-07-22", "2026-07-23", "2026-07-24",
+		"2026-07-01",
+		"2026-06-30",
 	}
 	words := func(slug string) int {
 		if slug == "notes/2026-07-24" {
@@ -87,7 +87,7 @@ func TestBuildWritingStats(t *testing.T) {
 
 func TestBuildWritingStatsNoStreak(t *testing.T) {
 	ref := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	// Yesterday has no entry, so streak must be 0 even though today does.
+
 	stats := buildWritingStats(ref, "notes", []string{"2026-07-24"}, func(string) int { return 5 })
 	if stats.Streak != 1 {
 		t.Errorf("Streak = %d, want 1 (today only)", stats.Streak)
@@ -156,8 +156,8 @@ func TestCountWords(t *testing.T) {
 func TestDatesInNamespace(t *testing.T) {
 	slugs := []string{
 		"notes/2026-07-01", "notes/2026-07-24", "notes/not-a-date",
-		"blog/2026-07-24", // different namespace, excluded
-		"readme",          // root, no namespace match
+		"blog/2026-07-24",
+		"readme",
 	}
 	got := datesInNamespace("notes", slugs)
 	want := []string{"2026-07-01", "2026-07-24"}

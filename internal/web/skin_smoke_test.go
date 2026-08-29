@@ -5,11 +5,7 @@ import (
 	"testing"
 )
 
-// TestAllSkinsRenderWithoutError smoke-tests every skin against the
-// core routes (view, edit, settings, inbox) — a substitute for the visual
-// screenshot review the spec calls for, which needs a browser this
-// environment doesn't have. It only proves nothing 500s; it does not
-// verify layout, spacing, or overflow at any width.
+// TestAllSkinsRenderWithoutError ensures core routes render for every skin.
 func TestAllSkinsRenderWithoutError(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

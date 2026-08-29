@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// TestStatuslineSegmentsPerSkin checks actions stay in the shared top bar
-// while each skin keeps its informational statusline variant.
+// TestStatuslineSegmentsPerSkin ensures skins control statusline variants, not actions.
 func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

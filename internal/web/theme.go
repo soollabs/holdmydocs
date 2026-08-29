@@ -8,9 +8,6 @@ import (
 	"strings"
 )
 
-// themeVarNames is the ordered list of the 17 semantic colour roles supplied
-// directly by every palette. CSS consumes these names without a hue-based
-// variable or alias layer.
 var themeVarNames = []string{
 	"bg", "surface", "surface-raised", "border", "border-strong",
 	"fg", "fg-strong", "fg-muted", "fg-faint",
@@ -28,9 +25,7 @@ var themeVarSet = func() map[string]bool {
 	return m
 }()
 
-// defaultDark/defaultLight hold the base hex values parsed from the
-// embedded style.css at startup. Empty maps mean no defaults could be
-// parsed; the settings UI then shows empty colour inputs.
+// defaultDark/defaultLight hold the base hex values parsed from the embedded style.css at startup.
 var (
 	defaultDark  = map[string]string{}
 	defaultLight = map[string]string{}
@@ -38,12 +33,8 @@ var (
 
 var themeHexRe = regexp.MustCompile(`--([\w-]+):\s*(#[0-9a-fA-F]{3,8})\s*;`)
 
-// validThemeColour matches the hex colour syntax the <input type="color">
-// widgets submit. Anything else is rejected rather than written into CSS.
 var validThemeColour = regexp.MustCompile(`^#[0-9a-fA-F]{3,8}$`)
 
-// loadThemeDefaults reads the embedded style.css and populates
-// defaultDark/defaultLight. Safe to call more than once.
 func loadThemeDefaults() {
 	css, err := webFS.ReadFile("web/static/style.css")
 	if err != nil {
@@ -53,9 +44,6 @@ func loadThemeDefaults() {
 	defaultDark, defaultLight = parseThemeDefaults(css)
 }
 
-// parseThemeDefaults extracts the 17 base hex values per theme from css.
-// The dark block is everything before the light selector, the light block
-// is everything from the light selector onward.
 func parseThemeDefaults(css []byte) (dark, light map[string]string) {
 	s := string(css)
 	idx := strings.Index(s, `:root[data-theme="light"]`)
@@ -76,20 +64,14 @@ func parseThemeVars(part string) map[string]string {
 	return m
 }
 
-// mergeTheme returns a copy of defaults with overrides applied. Used to
-// build the display values for the settings colour inputs.
-// Font options for the settings UI. Values are fixed CSS stacks looked up
-// by name — only these strings ever reach the inline <style> block, so no
-// user-supplied CSS is emitted. Empty config = the style.css default
-// (bundled JetBrains Mono for both roles).
+// mergeTheme returns a copy of defaults with overrides applied.
 var (
 	fontsMono  = []string{"jetbrains mono", "system mono", "courier"}
 	fontsSans  = []string{"system sans", "helvetica", "verdana"}
 	fontsSerif = []string{"georgia", "palatino", "charter"}
 )
 
-// skins (the structural themes, and now the widget composition too) live in
-// skins.go.
+// skins (the structural themes, and now the widget composition too) live in skins.go.
 
 var fontStacks = map[string]string{
 	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,
@@ -103,10 +85,6 @@ var fontStacks = map[string]string{
 	"charter":        `Charter, "Bitstream Charter", Cambria, serif`,
 }
 
-// buildThemeStyle renders an inline CSS override block from a user's
-// preferences (theme colours, fonts). The block is injected after
-// style.css so it overrides the defaults. Returns "" when the user has no
-// overrides configured.
 func buildThemeStyle(prefs userRecord) template.CSS {
 	var b strings.Builder
 	preset, ok := themePresets[prefs.Palette]
