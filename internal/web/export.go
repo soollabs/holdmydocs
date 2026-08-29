@@ -45,9 +45,7 @@ func staticAssetPrefix(rest string) string {
 	return strings.TrimSuffix(staticAssetHref(rest, "style.css"), "style.css")
 }
 
-// ExportNamespace renders every page in namespace ns to static HTML under outDir: one file per page
-// (mirroring its slug path under the namespace), a file-tree sidebar built from that same page set, and the
-// namespace's index page (per NamespaceConfig.Index, if set) duplicated to index.html.
+// ExportNamespace renders a namespace to static HTML under outDir.
 func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, store *Store, ns, outDir, title string) error {
 	var nsPages []Page
 	for _, p := range pages {

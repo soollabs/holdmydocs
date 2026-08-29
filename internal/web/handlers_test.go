@@ -527,7 +527,7 @@ func TestAPIsRejectRootPageSlugs(t *testing.T) {
 	}
 }
 
-// TestUnauthenticatedAccess ensures anonymous requests distinguish the site root from private content safely.
+// TestUnauthenticatedAccess covers anonymous access behavior.
 func TestUnauthenticatedAccess(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
@@ -797,11 +797,7 @@ func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	// Percent-encoded ".." as the {slug} path segment: net/http's ServeMux
-	// redirects literal ".." segments before routing, but %2e%2e reaches
-	// PathValue("slug") as ".." unmolested, so this is the exploitable form.
-	// It would otherwise resolve to a path outside attachments/ once joined
-	// with the repo dir.
+	// Use an encoded dot-segment to bypass ServeMux normalization and test slug validation.
 	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/%2e%2e", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
@@ -967,7 +963,7 @@ func TestRevertToOldVersion(t *testing.T) {
 	}
 }
 
-// TestPageChrome ensures rendered pages use the shared layout.
+// TestPageChrome tests the shared page layout.
 func TestPageChrome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -1157,7 +1153,7 @@ func TestTagsOnEditAndView(t *testing.T) {
 	}
 }
 
-// TestTitleEscaped guards against stored XSS via page titles.
+// TestTitleEscaped verifies that page titles are escaped.
 func TestTitleEscaped(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -2225,7 +2221,7 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 	}
 }
 
-// TestNamespaceIndexExcludedFromItsOwnTOC ensures an index page is excluded from its own TOC.
+// TestNamespaceIndexExcludedFromItsOwnTOC verifies index exclusion from its TOC.
 func TestNamespaceIndexExcludedFromItsOwnTOC(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

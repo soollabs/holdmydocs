@@ -54,8 +54,7 @@ type NamespaceConfig struct {
 	LoadError  string `yaml:"-"`
 }
 
-// Encode marshals cfg back to .namespace.yaml bytes — the write half of parseNamespaceConfig, used by the
-// admin namespaces form.
+// Encode marshals c as namespace YAML.
 func (c NamespaceConfig) Encode() ([]byte, error) {
 	return yaml.Marshal(c)
 }

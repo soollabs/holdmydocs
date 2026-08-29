@@ -23,7 +23,7 @@ func datesInNamespace(ns string, slugs []string) []string {
 	return dates
 }
 
-// CalendarDay is one cell in the calendar widget's month grid.
+// CalendarDay represents one calendar cell.
 type CalendarDay struct {
 	Day   int    // 1-31, 0 for a leading/trailing blank cell
 	Date  string // "YYYY-MM-DD", "" for a blank cell
@@ -32,8 +32,7 @@ type CalendarDay struct {
 	Today bool
 }
 
-// CalendarMonth is the calendar widget's data: a month name and a 7-wide grid of days (Monday-first), padded
-// with blank cells fore and aft.
+// CalendarMonth represents a month in the calendar.
 type CalendarMonth struct {
 	MonthName string
 	Days      []CalendarDay
@@ -67,7 +66,7 @@ func buildCalendarMonth(ref time.Time, ns string, dates []string) CalendarMonth 
 	return CalendarMonth{MonthName: first.Format("January 2006"), Days: days}
 }
 
-// WritingStats is the writing-stats widget's data.
+// WritingStats contains writing statistics.
 type WritingStats struct {
 	DaysWritten int // distinct dated entries this month
 	Streak      int // consecutive days up to and including today with an entry
@@ -112,7 +111,7 @@ func countWords(body string) int {
 	return len(strings.Fields(body))
 }
 
-// PrevEntry is one row in the prev-entries widget.
+// PrevEntry represents a previous dated entry.
 type PrevEntry struct {
 	Slug      string
 	Date      string

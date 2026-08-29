@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// TestLandingRoute ensures the root redirects to the configured landing page.
+// TestLandingRoute tests the root redirect.
 func TestLandingRoute(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -43,7 +43,7 @@ func TestLandingRoute(t *testing.T) {
 	}
 }
 
-// TestNewPageJSGlobals ensures the new-page shortcut reflects namespace configuration.
+// TestNewPageJSGlobals tests new-page JavaScript globals.
 func TestNewPageJSGlobals(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -81,7 +81,7 @@ func TestNewPageJSGlobals(t *testing.T) {
 	}
 }
 
-// TestNewNamespaceFollowsPage ensures the shortcut targets the current namespace.
+// TestNewNamespaceFollowsPage tests namespace targeting for the new-page shortcut.
 func TestNewNamespaceFollowsPage(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

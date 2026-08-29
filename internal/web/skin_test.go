@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// TestSkinsNoRawHex ensures skins use palette variables instead of literal colours.
+// TestSkinsNoRawHex checks that skins use palette variables.
 func TestSkinsNoRawHex(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/skins.css")
 	if err != nil {
@@ -23,6 +23,7 @@ func TestSkinsNoRawHex(t *testing.T) {
 	}
 }
 
+// TestNonPhosphorSkinsHideWikiLinkBrackets checks bracket hiding.
 func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/skins.css")
 	if err != nil {
@@ -35,6 +36,7 @@ func TestNonPhosphorSkinsHideWikiLinkBrackets(t *testing.T) {
 	}
 }
 
+// TestSkinsKeepOutlineRail checks outline rail visibility.
 func TestSkinsKeepOutlineRail(t *testing.T) {
 	css, err := webFS.ReadFile("web/static/skins.css")
 	if err != nil {
@@ -54,14 +56,14 @@ func TestSkinsKeepOutlineRail(t *testing.T) {
 	}
 }
 
-// TestNoSkinTogglesSettingsWidget ensures the settings link is always rendered.
+// TestNoSkinTogglesSettingsWidget checks that settings is not toggleable.
 func TestNoSkinTogglesSettingsWidget(t *testing.T) {
 	if _, ok := widgets["keys"]; ok {
 		t.Error("\"keys\" must not be a toggleable widget; settings must always be visible")
 	}
 }
 
-// TestSettingsLinkAlwaysRendered ensures the settings link survives widget configuration.
+// TestSettingsLinkAlwaysRendered checks that settings remains visible.
 func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -320,7 +322,7 @@ func TestSkinPersists(t *testing.T) {
 	}
 }
 
-// TestUnknownStoredSkinFallsBack ensures unknown stored skins use the default.
+// TestUnknownStoredSkinFallsBack checks default fallback behavior.
 func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -340,7 +342,7 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 	}
 }
 
-// TestSkinSwitchResetsPalette ensures changing skin selects its default palette.
+// TestSkinSwitchResetsPalette checks default palette selection.
 func TestSkinSwitchResetsPalette(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -414,7 +416,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	}
 }
 
-// TestSkinDefaultPalettesExist ensures every skin names an existing palette.
+// TestSkinDefaultPalettesExist checks that each skin has a valid palette.
 func TestSkinDefaultPalettesExist(t *testing.T) {
 	for name, s := range skins {
 		if s.Palette == "" {

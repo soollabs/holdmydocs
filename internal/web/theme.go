@@ -25,7 +25,7 @@ var themeVarSet = func() map[string]bool {
 	return m
 }()
 
-// defaultDark/defaultLight hold the base hex values parsed from the embedded style.css at startup.
+// defaultDark and defaultLight hold parsed theme defaults.
 var (
 	defaultDark  = map[string]string{}
 	defaultLight = map[string]string{}
@@ -64,14 +64,11 @@ func parseThemeVars(part string) map[string]string {
 	return m
 }
 
-// mergeTheme returns a copy of defaults with overrides applied.
 var (
 	fontsMono  = []string{"jetbrains mono", "system mono", "courier"}
 	fontsSans  = []string{"system sans", "helvetica", "verdana"}
 	fontsSerif = []string{"georgia", "palatino", "charter"}
 )
-
-// skins (the structural themes, and now the widget composition too) live in skins.go.
 
 var fontStacks = map[string]string{
 	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,

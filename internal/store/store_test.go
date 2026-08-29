@@ -512,7 +512,7 @@ func TestSaveCommitHistoryRevertFlow(t *testing.T) {
 	}
 }
 
-// TestSaveCheckedConcurrentSameBasehash ensures concurrent saves with the same base hash conflict.
+// TestSaveCheckedConcurrentSameBasehash verifies concurrent saves from one base hash conflict.
 func TestSaveCheckedConcurrentSameBasehash(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{

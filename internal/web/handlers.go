@@ -74,8 +74,7 @@ func (app *App) Namespaces() NamespaceRegistry {
 	return *app.namespaces.Load()
 }
 
-// SetNamespaces stores a newly rebuilt namespace registry atomically — called at startup and on every
-// pollFS tick (search.go), since the repo mutates underneath the app via sync and external edits.
+// SetNamespaces stores the current namespace registry.
 func (app *App) SetNamespaces(reg NamespaceRegistry) {
 	app.namespaces.Store(&reg)
 }
@@ -1473,10 +1472,6 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A missing template page is not an error: the namespace's declared
-	// template may have been deleted, or written into .namespace.yaml by
-	// hand without creating it. Fall back to a bare page titled after the
-	// slug rather than failing the one keystroke that creates pages here.
 	templateSlug := namespaceSlug(ns, nsCfg.New.Template)
 	tplPage := Page{Slug: templateSlug, Title: slugRel}
 	if tplContent, _, err := app.Store.Read(hiddenFile(templateSlug)); err == nil {
@@ -1505,13 +1500,6 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		tags = append(tags, rendered)
 	}
 
-	// Nothing is written to the store here: the rendered template is handed
-	// straight to the edit template in this same response, same shape as
-	// handleEditPage would build for a page that doesn't exist yet (like
-	// following a missing wikilink). The page is only ever created by an
-	// actual Save, so Cancel on this draft leaves no trace. The client
-	// swaps this HTML in via history.pushState instead of navigating, so
-	// there's no second request and nothing rides in the URL.
 	app.render(w, r, http.StatusOK, "edit", TemplateData{
 		Authed:     true,
 		Title:      title,
@@ -3555,11 +3543,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Every namespace born here gets a template page, and so does one that has
-	// new pages switched on — the first so there's something to edit and read
-	// before ctrl-j is ever involved, the second so the first ctrl-j doesn't
-	// land in a namespace whose declared template doesn't exist. Never
-	// overwrites, so this can't resurrect a template someone deleted.
+	// Seed the template when creating or enabling new pages, without overwriting it.
 	if creating || cfg.New != nil {
 		if err := app.ensureNewPageTemplate(name, template, authorName, authorEmail); err != nil {
 			slog.Warn("seeding namespace template page", "namespace", name, "err", err)

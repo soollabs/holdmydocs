@@ -19,8 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// The MCP server exposes the wiki to agents (Claude Code, Claude Desktop, anything MCP) over streamable HTTP
-// at /mcp.
+// The MCP server exposes the wiki over streamable HTTP at /mcp.
 
 type mcpPageMeta struct {
 	Slug  string   `json:"slug"`

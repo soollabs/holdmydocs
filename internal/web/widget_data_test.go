@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// TestWidgetFrontmatterPreservedAcrossSave asserts that pin — which has no dedicated editor UI — survives
-// a normal web-editor save untouched.
+// TestWidgetFrontmatterPreservedAcrossSave verifies that pin survives an editor save.
 func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

@@ -66,26 +66,22 @@ type Store struct {
 	mu        sync.RWMutex
 	syncState string
 	syncErr   string
-	// historyCache holds History() results keyed by path, protected by mu.
+	// historyCache caches history results by path.
 	historyCache map[string][]CommitInfo
 	// knownHead is the HEAD hash after the last commit or reset made by this process, protected by mu.
 	knownHead  plumbing.Hash
 	NeedsSetup atomic.Bool
-	// ForceSetup is set by the "re-run setup" button in settings — it shows the modal even when a namespace,
-	// .wiki.yaml and .help.md already exist, unlike NeedsSetup which only reflects what is actually missing.
+	// ForceSetup requests displaying the setup modal.
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
 
-	// pushMu serializes pushes against each other; it is held for the network round trip instead of mu, so reads
-	// and saves never queue behind a push. pushDirty is set when a save arrives while a push is already running,
-	// so that push loops once more instead of a second goroutine piling onto pushMu.
 	pushMu    sync.Mutex
+	// pushDirty requests another push after the current push completes.
 	pushDirty atomic.Bool
 	pushWG    sync.WaitGroup
 
-	// fetchMu serializes fetches against each other. lastFetchNano throttles FetchAndFF so a burst of sync polls
-	// across open tabs collapses to one network call every fetchThrottle.
 	fetchMu       sync.Mutex
+	// lastFetchNano supports fetch throttling.
 	lastFetchNano atomic.Int64
 }
 
@@ -664,8 +660,7 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 }
 
 func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
-	// Skip the write and commit entirely if the content is unchanged, so an
-	// untouched file (including its on-disk mode) never produces a no-op commit.
+	// Avoid no-op commits when content is unchanged.
 	if existing, readErr := s.readRepositoryFile(path); readErr == nil && string(existing) == string(content) {
 		slog.Debug("save skipped, content unchanged", "path", path)
 		hash := plumbing.ComputeHash(plumbing.BlobObject, content)
@@ -831,11 +826,7 @@ func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string
 	if err != nil {
 		return fmt.Errorf("getting worktree: %w", err)
 	}
-	// wt.Status() only lists paths that differ from HEAD, so computed before
-	// any of these files are removed it would omit every unmodified tracked
-	// file. The index itself lists every tracked path regardless of
-	// modification state, and reading it once is cheap (no per-file
-	// hashing), unlike calling Status() again on each loop iteration.
+	// Read the index so unmodified tracked files are also removed.
 	idx, err := s.repo.Storer.Index()
 	if err != nil {
 		return fmt.Errorf("reading index: %w", err)
@@ -1004,9 +995,7 @@ func (s *Store) pushOnce() {
 	}
 }
 
-// List returns every ordinary page path in the store (repo-relative, "/"-separated), sorted: top-level .md
-// files plus, recursively, .md files inside any non-dot-prefixed subdirectory other than attachments/
-// (assets, not pages).
+// List returns sorted ordinary page paths, excluding attachments and hidden files.
 func (s *Store) List() ([]string, error) {
 	lockWaitDone := traceSlowLockWait("list repository")
 	s.mu.RLock()

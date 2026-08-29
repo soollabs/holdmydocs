@@ -366,8 +366,7 @@ func Open(cfg Options) (*Auth, error) {
 		return nil, fmt.Errorf("reading users file: %w", err)
 	}
 
-	// Session persistence is best-effort. A missing or corrupt file means users
-	// log in again, so startup continues.
+	// Session persistence is best-effort; missing or corrupt data forces users to log in again.
 	if err := tightenRegularFile(auth.sessionsFile); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("checking sessions file: %w", err)
 	}
@@ -709,8 +708,7 @@ func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
 	a.mu.RLock()
 	if cached, ok := a.tokenCache[digest]; ok {
 		a.mu.RUnlock()
-		// Expiry is wall-clock, so the cache can't answer it once and for
-		// all — check on every use.
+		// Cached token expiry must be checked on every use.
 		if !cached.expires.IsZero() && time.Now().After(cached.expires) {
 			return tokenPrincipal{}, false
 		}
@@ -724,8 +722,7 @@ func (a *Auth) UserForBearer(token string) (tokenPrincipal, bool) {
 	return tokenPrincipal{}, false
 }
 
-// UserForBearerLimited throttles malformed and unknown Bearer values by source address before their digest is
-// looked up.
+// UserForBearerLimited throttles invalid credentials by source address.
 func (a *Auth) UserForBearerLimited(remote, token string) (tokenPrincipal, bool) {
 	key := "bearer\x00" + loginKey(remote, "")
 	a.mu.Lock()
@@ -888,9 +885,7 @@ func (a *Auth) login(name, password string) (token string, ok bool) {
 	rec, exists := a.users[name]
 	a.mu.RUnlock()
 
-	// Empty hash marks an SSO-provisioned user: password login must always
-	// fail for those records, so guard before bcrypt (which would error on
-	// an empty hash anyway, but that is too subtle to rely on).
+	// SSO-provisioned users have no password login; use the dummy hash for timing consistency.
 	if !validPassword(password) {
 		return "", false
 	}
@@ -948,9 +943,7 @@ func (a *Auth) CSRFToken(session string) string {
 	return ""
 }
 
-// EnsureOIDCUser provisions name on first SSO login: a record with an empty hash (password login impossible).
-// gitAuthor ("Name <email>") is stored only when the record has none, so a user's own override is never
-// clobbered.
+// EnsureOIDCUser provisions an SSO user and preserves an existing Git author.
 func (a *Auth) EnsureOIDCUser(identity oidcIdentity, name, gitAuthor string, scopes []string) (string, error) {
 	if identity.Issuer == "" || identity.Subject == "" || !validUsername(name) || len(scopes) == 0 {
 		return "", fmt.Errorf("invalid OIDC user")
@@ -1069,8 +1062,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 
 		isAPI := strings.HasPrefix(r.URL.Path, "/_/api/") || r.URL.Path == "/_/mcp"
 
-		// API namespaces never redirect to the login page: auth failure is
-		// a JSON body so agents and apps get a parseable answer.
+		// API auth failures return JSON instead of redirecting to the login page.
 		deny := func(status int, msg string) {
 			if isAPI {
 				w.Header().Set("Content-Type", "application/json")
@@ -1092,8 +1084,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		var bearer bool
 		var rawPrincipal tokenPrincipal
 
-		// Bearer PAT: an explicit credential, so a bad one is denied rather
-		// than falling through to the cookie check.
+		// An invalid Bearer credential must not fall through to cookie authentication.
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 			rawPrincipal, authed = a.UserForBearerLimited(r.RemoteAddr, strings.TrimPrefix(h, "Bearer "))
 			if authed {
@@ -1137,8 +1128,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), ctxUserKey{}, user)
 		if bearer {
 			if authorized {
-				// Resolve the effective policy even for the MCP authentication path;
-				// its tool-level checks can consume the request principal later.
+				// Resolve effective token policy for MCP tool-level authorization.
 				principal.Scopes = effectiveTokenScopes(prefs.Scopes, rawPrincipal.Scopes)
 			}
 			ctx = context.WithValue(ctx, ctxTokenPrincipalKey{}, principal)

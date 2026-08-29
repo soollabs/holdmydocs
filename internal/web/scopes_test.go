@@ -57,7 +57,7 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 	}
 }
 
-// TestScopeEnforcementIntegration ensures scopes control read and write access.
+// TestScopeEnforcementIntegration tests HTTP scope enforcement.
 func TestScopeEnforcementIntegration(t *testing.T) {
 	app, server, settingsClient := newTestAppFull(t)
 	defer server.Close()
@@ -320,7 +320,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	}
 }
 
-// TestCreateUserViaSettings ensures the settings form creates users with the selected scopes.
+// TestCreateUserViaSettings tests user creation and scope selection.
 func TestCreateUserViaSettings(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -372,7 +372,7 @@ func TestCreateUserViaSettings(t *testing.T) {
 	}
 }
 
-// TestSetUserScopesBootstrapAdminImmutable ensures the bootstrap admin always retains full access.
+// TestSetUserScopesBootstrapAdminImmutable preserves bootstrap admin access.
 func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -405,7 +405,7 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	}
 }
 
-// TestSetUserScopesBlocksSelfLockout ensures users cannot remove their own settings access.
+// TestSetUserScopesBlocksSelfLockout prevents settings self-lockout.
 func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

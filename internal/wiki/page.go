@@ -11,15 +11,15 @@ type Page struct {
 	Title string
 	Tags  []string
 	Body  string
-	Pin   bool // frontmatter `pin: true` — surfaced by the pinned widget
+	Pin   bool // Pin marks the page for the pinned widget.
 }
 
-// pageFile maps a slug to its on-disk filename for regular pages.
+// PageFile returns the on-disk filename for a page slug.
 func PageFile(slug string) string {
 	return slug + ".md"
 }
 
-// hiddenFile maps a slug to a filename whose basename is dot-prefixed.
+// HiddenFile returns the dot-prefixed on-disk filename for a page slug.
 func HiddenFile(slug string) string {
 	i := strings.LastIndexByte(slug, '/')
 	if i == -1 {

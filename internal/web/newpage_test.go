@@ -63,8 +63,6 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 		t.Errorf("draft edit form missing template content: %s", body)
 	}
 
-	// Nothing is persisted until Save: the draft is rendered directly in
-	// this response, never written to the store.
 	if _, _, err := app.Store.Read(pageFile(testNS + "/" + today)); err == nil {
 		t.Error("page should not be created until Save, but it was persisted by /_/new")
 	}
@@ -211,7 +209,7 @@ func TestNewPageUnknownNamespace404s(t *testing.T) {
 	}
 }
 
-// TestNewPageMissingTemplateFallsBack ensures page creation works without its template page.
+// TestNewPageMissingTemplateFallsBack tests creation without a template page.
 func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -239,7 +237,7 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 	}
 }
 
-// TestNewPageSubstitutesTitleTagsAndBody ensures templates substitute all page fields.
+// TestNewPageSubstitutesTitleTagsAndBody tests template substitution for page fields.
 func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

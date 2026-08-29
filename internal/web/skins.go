@@ -2,8 +2,8 @@ package web
 
 type skin struct {
 	Label   string
-	Note    string // one-line hint in the settings picker
-	Palette string // default colour preset; choosing this skin resets to it
+	Note    string
+	Palette string // Palette is applied when the skin is selected.
 
 	Status string // statusline variant: full | write | quiet
 }

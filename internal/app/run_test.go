@@ -18,8 +18,7 @@ func TestHTTPServerIsBounded(t *testing.T) {
 }
 
 func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
-	// Each case gets its own server: mutating timeouts on a server that is
-	// already serving is a data race with the connection's read loop.
+	// Each case uses a separate server to avoid racing with active connection reads.
 	t.Run("slow headers", func(t *testing.T) {
 		server := newHTTPServer("127.0.0.1:0", http.NotFoundHandler())
 		server.ReadHeaderTimeout = 25 * time.Millisecond

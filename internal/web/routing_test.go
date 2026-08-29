@@ -11,8 +11,7 @@ import (
 	"testing"
 )
 
-// TestSecurityHeadersPresent checks the clickjacking/MIME-sniffing headers land on every response, including
-// ones auth denies before reaching a route.
+// TestStaticDirectoriesAreNotListed ensures static directories return 404.
 func TestStaticDirectoriesAreNotListed(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -302,9 +301,7 @@ func TestUnrecognisedDoValue404s(t *testing.T) {
 	}
 }
 
-// TestNotFoundRendersInAppChrome covers the two halves of app.notFound: a logged-in navigation gets a real
-// page instead of Go's text/plain line, and a logged-out 404 says exactly the same thing whether the page is
-// missing or merely private — the wording is what stops it being an existence oracle.
+// TestNotFoundRendersInAppChrome verifies 404 responses use app chrome and do not reveal private-page existence.
 func TestNotFoundRendersInAppChrome(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

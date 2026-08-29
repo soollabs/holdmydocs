@@ -21,7 +21,7 @@ const (
 
 var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
 
-// GitConfig groups the git-remote settings.
+// GitConfig contains Git remote settings.
 type GitConfig struct {
 	RemoteURL string `yaml:"remote_url"`
 	User      string `yaml:"user"`
@@ -30,12 +30,12 @@ type GitConfig struct {
 	Author    string `yaml:"author"`
 }
 
-// MCPConfig groups the MCP-server settings. Restart-required.
+// MCPConfig contains MCP server settings.
 type MCPConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-// DocumentSearchConfig is restart-required local model/index configuration.
+// DocumentSearchConfig contains local model and index settings.
 type DocumentSearchConfig struct {
 	Model    string `yaml:"model"`
 	ModelDir string `yaml:"model_dir"`
@@ -57,7 +57,7 @@ type oidcFileConfig struct {
 	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback"`
 }
 
-// OIDCConfig is the resolved runtime shape of the OIDC settings (LocalLogin defaulted to a concrete bool).
+// OIDCConfig contains resolved OIDC settings.
 type OIDCConfig struct {
 	Issuer                string
 	ClientID              string
@@ -76,7 +76,7 @@ type OIDCConfig struct {
 // Config is the install-wide runtime configuration.
 type Config struct {
 	ConfigFile string // resolved path of the YAML config file
-	// EnvOverrides maps a dotted config field path (e.g.
+	// EnvOverrides maps dotted config paths to their environment variable names.
 	EnvOverrides map[string]string
 	AppDir       string
 	AdminUser    string
@@ -184,8 +184,7 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 	return nil
 }
 
-// ConfigFilePath resolves where the config file lives: HMD_CONFIG_FILE if set, otherwise config.yaml next to
-// users.json in the app dir.
+// ConfigFilePath returns the configured path to the YAML config file.
 func ConfigFilePath() string {
 	if f := os.Getenv("HMD_CONFIG_FILE"); f != "" {
 		return f
@@ -193,8 +192,7 @@ func ConfigFilePath() string {
 	return filepath.Join(EnvOr("HMD_APP_DIR", "/data/app"), "config.yaml")
 }
 
-// LoadConfig builds the configuration from the YAML config file (missing file = all defaults), then applies
-// env var overrides (see applyEnvOverrides) on top.
+// LoadConfig loads configuration from the YAML file and environment variables.
 func LoadConfig() (Config, error) {
 	path := ConfigFilePath()
 	file, err := LoadFileConfig(path)
@@ -468,8 +466,7 @@ func LoadFileConfig(path string) (fileConfig, error) {
 	return fc, nil
 }
 
-// SaveFileConfig marshals fc to YAML and writes it to path atomically (tmp file + rename), matching the
-// pattern used in auth.go.
+// SaveFileConfig atomically writes a YAML configuration file.
 func SaveFileConfig(path string, fc fileConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("creating config dir: %w", err)
@@ -598,7 +595,7 @@ func validateConfig(cfg Config) error {
 	return nil
 }
 
-// validateWritableDataDir rejects pre-existing data directories which the runtime user cannot safely own.
+// ValidateWritableDataDir ensures the directory is private and owned by the runtime user.
 func ValidateWritableDataDir(path string) error {
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {

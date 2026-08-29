@@ -76,7 +76,7 @@ func runLoadConfigCase(t *testing.T, wantBind, wantRepo, wantApp, wantGitUser, w
 func TestLoadConfigYAMLFile(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yaml := "# hmd configuration\nbind: \":7000\"\nrepo_dir: /yaml/repo\ngit:\n  user: yaml-user\n"
+	yaml := "bind: \":7000\"\nrepo_dir: /yaml/repo\ngit:\n  user: yaml-user\n"
 	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}

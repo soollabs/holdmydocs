@@ -10,8 +10,7 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// wikiConfigFile lives beside the content, so these settings travel with the repository rather than belonging
-// to one hmd installation.
+// ConfigFile is the repository configuration filename.
 const ConfigFile = ".wiki.yaml"
 
 const DefaultSiteName = "hold my docs (hmd)"
@@ -21,7 +20,7 @@ const (
 	defaultSiteName = DefaultSiteName
 )
 
-// WikiConfig is the portable, repository-level configuration.
+// WikiConfig is repository-level configuration.
 type WikiConfig struct {
 	Landing  string `yaml:"landing,omitempty"`
 	SiteName string `yaml:"site_name,omitempty"`
@@ -38,10 +37,10 @@ func (c WikiConfig) Normalised() WikiConfig {
 	return c
 }
 
-// Encode marshals the portable settings for saving in the content repository.
+// Encode marshals the configuration as YAML.
 func (c WikiConfig) Encode() ([]byte, error) { return yaml.Marshal(c.Normalised()) }
 
-// LoadWikiConfig reads .wiki.yaml strictly.
+// LoadWikiConfig loads the repository configuration.
 func LoadWikiConfig(repoDir string) (WikiConfig, bool, error) {
 	data, err := os.ReadFile(filepath.Join(repoDir, ConfigFile))
 	if errors.Is(err, os.ErrNotExist) {

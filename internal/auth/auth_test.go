@@ -105,8 +105,7 @@ func TestSessionExpires(t *testing.T) {
 		t.Fatalf("Login should succeed")
 	}
 
-	// Backdate the session past its TTL, simulating a token replayed long
-	// after issue; UserFor must reject it without needing a background sweep.
+	// Expired sessions must be rejected without a background sweep.
 	auth.mu.Lock()
 	rec := auth.sessions[token]
 	rec.Expires = time.Now().Add(-time.Second)
@@ -311,8 +310,7 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 		t.Fatalf("archive-only principal = %#v, %v", p, ok)
 	}
 
-	// A cache hit keeps the policy that was verified with the token, rather
-	// than reading a changed stored record.
+	// Cached principals retain the token's verified policy.
 	auth.mu.Lock()
 	stored := auth.users["alice"]
 	stored.Tokens[1].Namespaces = []string{"private"}

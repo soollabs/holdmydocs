@@ -176,11 +176,7 @@
 	var fontStacks = {{.Settings.FontStacks}};
 	var root = document.documentElement;
 
-	// ---- Settings tabs: one independent tab strip per zone. Panels default
-	// to visible (so the page still works with JS disabled); this only
-	// hides the inactive ones once it runs. A panel id can appear more than
-	// once (e.g. "site" spans a fieldset inside the form and one outside
-	// it) — all instances toggle together.
+	// Hide inactive panels once JavaScript is available.
 	document.querySelectorAll('.settings-zone').forEach(function (zone) {
 		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
 		if (!tabs.length) return;
@@ -213,7 +209,6 @@
 		});
 	});
 
-	// Fill each card's swatches with the preset values for the current mode.
 	var palettes = {{.Settings.Palettes}};
 	var swatchVars = ['bg', 'surface', 'fg', 'primary', 'accent', 'warning', 'danger'];
 	function paintSwatches() {
@@ -248,7 +243,7 @@
 		});
 	});
 
-	// Keep the .selected outline in sync and preview the skin.
+	// Preview skin and palette selections.
 	var skinPalettes = {{.Settings.SkinPalettes}};
 	var paletteExplicit = document.getElementById('palette-explicit');
 	function syncCards(name) {
@@ -263,9 +258,7 @@
 			previewPalette(input.value);
 		});
 	});
-	// Choosing a skin resets the palette to its own default — mirror
-	// server-side behaviour here so the form shows what will actually be
-	// saved.
+	// Match the server-side palette reset when changing skins.
 	document.querySelectorAll('input[name="skin"]').forEach(function (input) {
 		input.addEventListener('change', function () {
 			paletteExplicit.value = '';

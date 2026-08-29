@@ -22,12 +22,7 @@ func newSanitizePolicy() *bluemonday.Policy {
 	p.AllowAttrs("role").OnElements("a", "div", "sup")
 	p.AllowElements("input")
 	p.AllowAttrs("type", "checked", "disabled").OnElements("input")
-	// UGC's img alt policy is Matching(Paragraph): a value containing any
-	// character outside letters/numbers/space/-_',[]!.\() silently drops the
-	// whole attribute, so author-written alt text like "+ / ? / —" is lost.
-	// Allow alt outright — the HTML tokenizer and bluemonday's output
-	// escaping already prevent attribute breakout, so there is no injection
-	// surface beyond what a plain-text alt policy would allow.
+	// Allow plain-text alt text without UGC's restrictive character matching.
 	p.AllowAttrs("alt").OnElements("img")
 	return p
 }
@@ -82,10 +77,7 @@ func (r *Renderer) processWikiLinks(body, ns string) string {
 		if slug, ok := r.resolve(title, ns); ok {
 			return fmt.Sprintf(`<a class="wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
 		}
-		// No page has this title yet: guess a slug inside the current
-		// namespace so following the link to create the page starts it in the
-		// right place. Without a namespace there is nowhere to file it, so the
-		// link stays unresolved rather than pointing at a slug that can't exist.
+		// Guess a namespace-local slug so the link can create the page in the correct namespace.
 		if ns == "" {
 			return fmt.Sprintf(`<span class="missing wiki"><span class="br">[[</span>%s<span class="br">]]</span></span>`, escaped)
 		}
@@ -151,9 +143,7 @@ func (r *Renderer) processMermaidBlocks(htmlStr string) string {
 	return re.ReplaceAllStringFunc(htmlStr, func(match string) string {
 		matches := re.FindStringSubmatch(match)
 		if len(matches) > 1 {
-			// Keep goldmark's HTML-escaping intact: mermaid.js reads
-			// textContent, which the browser decodes for us, so
-			// re-embedding raw here would only reopen it to injection.
+			// Preserve escaped content; mermaid.js reads the browser-decoded textContent.
 			content := matches[1]
 			return fmt.Sprintf(`<pre class="mermaid">%s</pre>`, content)
 		}

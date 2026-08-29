@@ -33,7 +33,7 @@ type Index struct {
 	tags     map[string]map[string]bool
 	tagNames map[string]string
 	pageTags map[string][]string
-	pinned   map[string]bool // slug -> pin: true, for the pinned widget
+	pinned   map[string]bool // slug -> pin: true, for the pinned pages
 	searches chan struct{}
 }
 
@@ -156,8 +156,7 @@ func (ix *Index) UpdatePage(p wiki.Page, hash string) error {
 	return nil
 }
 
-// Remove deletes a page from the index — used when a page is toggled to hidden (or deleted), since hidden
-// pages are excluded from search/tags/backlinks.
+// Remove removes a page from the index.
 func (ix *Index) Remove(slug string) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
@@ -203,9 +202,7 @@ func (ix *Index) Exists(slug string) bool {
 	return ok
 }
 
-// ResolveLink finds the slug a [[title]] wiki-link should point to: an exact title match within ns wins, so a
-// link on a namespace page resolves inside that namespace first — matching injectTOC's self-containment —
-// falling back to any other namespace if ns has no match.
+// ResolveLink resolves a wiki-link title within a namespace.
 func (ix *Index) ResolveLink(title, ns string) (slug string, ok bool) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
@@ -295,8 +292,7 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 	return hits, nil
 }
 
-// Backlinks lists the pages whose wiki-links resolve to slug, resolved the same way the renderer resolves
-// them.
+// Backlinks lists pages whose wiki-links resolve to slug.
 func (ix *Index) Backlinks(slug string) []string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
@@ -334,8 +330,7 @@ func (ix *Index) Tags() []TagCount {
 	return result
 }
 
-// TagsInNamespace is Tags scoped to pages belonging to namespace ns, so a tag with no pages in ns is omitted
-// and counts only reflect that namespace.
+// TagsInNamespace returns tags used within a namespace.
 func (ix *Index) TagsInNamespace(ns string) []TagCount {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
@@ -392,9 +387,7 @@ func (ix *Index) PagesForTags(tagSlugs []string) []string {
 	return slugs
 }
 
-// Health reports wiki-link problems: missing maps each wiki-linked slug that has no page to the sorted list
-// of pages linking to it; orphans lists pages with no backlinks. roots are the namespace index pages, which
-// stand in for their namespace's listing and so are never orphans (hidden pages are never indexed).
+// Health reports missing links and orphaned pages.
 func (ix *Index) Health(roots []string) (missing map[string][]string, orphans []string) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()

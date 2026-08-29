@@ -8,7 +8,7 @@ import (
 type widgetSlot string
 
 const (
-	slotSidebar  widgetSlot = "sidebar"   // left rail, ordered
+	slotSidebar  widgetSlot = "sidebar"
 	slotRail     widgetSlot = "rail"      // right rail (≥1200px only)
 	slotPageHead widgetSlot = "page-head" // between title and article
 	slotPageFoot widgetSlot = "page-foot" // after article
@@ -164,11 +164,7 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 	if needs("namespaces") {
 		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), titles), ns)
 	}
-	// Token/PAT filtering happens back in render(), after this call, the
-	// same way PinnedPages and NamespaceNav do — this only stages the raw
-	// entries, since the tree can't be filtered after it's already flattened
-	// to HTML. The tree is fixed sidebar chrome; a page outside any namespace
-	// has no tree to show.
+	// Filter these entries in render(), before flattening the tree to HTML.
 	if ns != "" {
 		summary := namespaceSummaryFor(app.Namespaces(), titles, ns)
 		if summary != nil {

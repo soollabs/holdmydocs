@@ -289,7 +289,7 @@ func TestNamespaceCatalogue(t *testing.T) {
 	}
 }
 
-// TestCreateNamespaceFromAdmin ensures the namespace form creates and registers a namespace.
+// TestCreateNamespaceFromAdmin tests namespace creation through the admin form.
 func TestCreateNamespaceFromAdmin(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -348,7 +348,7 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	}
 }
 
-// TestNamespaceManagement covers the settings-scoped namespace directory and the focused editor routes.
+// TestNamespaceManagement tests namespace directory and editor routes.
 func TestNamespaceManagement(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -637,7 +637,7 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 	}
 }
 
-// TestSaveNamespaceRejectsBadInput ensures invalid namespace settings are not persisted.
+// TestSaveNamespaceRejectsBadInput tests validation of namespace settings.
 func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -673,7 +673,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 	}
 }
 
-// TestDeleteNamespaceKeepsPages ensures resetting configuration preserves pages.
+// TestDeleteNamespaceKeepsPages tests that resetting configuration preserves pages.
 func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -746,7 +746,7 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	}
 }
 
-// TestNamespaceNewPageFormRoundTrip ensures namespace form values round-trip without loss.
+// TestNamespaceNewPageFormRoundTrip tests namespace form value preservation.
 func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -813,7 +813,7 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSeededTemplateExplainsItself ensures the seeded template documents and renders its fields.
+// TestSeededTemplateExplainsItself tests the seeded template's documented fields.
 func TestSeededTemplateExplainsItself(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
@@ -863,7 +863,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 	}
 }
 
-// TestRenderLiveTreeOnlyOpensCurrentPageAncestors ensures only the current page's branches are open.
+// TestRenderLiveTreeOnlyOpensCurrentPageAncestors tests ancestor branch expansion.
 func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
 	entries := []BacklinkEntry{
 		{Slug: "docs/a/one", Title: "One"},

@@ -53,8 +53,7 @@ func accessLog(next http.Handler) http.Handler {
 		}
 		route := r.Pattern
 		if route == "" {
-			// accessLog wraps the mux, so a route pattern is not guaranteed to
-			// be populated here.
+			// Because this middleware wraps the mux, r.Pattern may be empty here.
 			route = r.URL.Path
 		}
 		slog.Debug("request", "request_id", id, "method", r.Method, "route", route, "status", logged.status, "bytes", logged.bytes, "duration", time.Since(started))

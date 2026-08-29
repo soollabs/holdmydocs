@@ -599,8 +599,7 @@ func removeDerivedSearchState(indexDir string) error {
 	return nil
 }
 
-// OpenIndex opens the one persistent Bleve index and reconciles its disposable state against Git-backed page
-// and attachment hashes.
+// OpenIndex opens and reconciles the search index.
 func OpenIndex(appDir string, pages []wiki.Page, pageHashes map[string]string, attachments map[string]string, documents *DocumentSearch) (*Index, error) {
 	return OpenIndexAt(filepath.Join(appDir, "search.bleve"), pages, pageHashes, attachments, documents)
 }
