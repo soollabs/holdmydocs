@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	staticexport "hmd/internal/export"
 	"html/template"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
 var exportSemaphore = make(chan struct{}, 1)
@@ -68,6 +71,13 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: title})
 	}
 
+	cfg := reg[ns]
+	if cfg.Index != "" {
+		if _, ok := hrefs[ns+"/"+cfg.Index]; !ok {
+			return fmt.Errorf("namespace index %q does not exist", cfg.Index)
+		}
+	}
+
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
@@ -75,8 +85,8 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		return err
 	}
 
-	cfg := reg[ns]
 	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)
+	orderedPages := orderedTreePages(tree)
 	if title = strings.TrimSpace(title); title == "" {
 		title = namespaceDisplayTitle(ns, cfg)
 	}
@@ -91,6 +101,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		return err
 	}
 
+	searchEntries := make([]exportSearchEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := namespaceFor(p.Slug)
 		hrefFor := func(slug string) (string, bool) {
@@ -105,11 +116,15 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 			return fmt.Errorf("rendering %s: %w", p.Slug, err)
 		}
 		content = template.HTML(strings.ReplaceAll(string(content), "/_/attachments/"+ns+"/", staticAssetPrefix(rest)+"attachments/"))
+		searchEntries = append(searchEntries, exportSearchEntry{
+			Title: pageDisplayTitle(p), Href: staticPagePath(rest), Text: exportPlainText(content),
+		})
 		data := TemplateData{
 			SiteName:       title,
 			AssetPath:      staticAssetPrefix(rest),
 			NamespaceHome:  staticAssetHref(rest, "index.html"),
 			Static:         true,
+			MermaidNeeded:  strings.Contains(string(content), `class="mermaid"`),
 			Title:          pageDisplayTitle(p),
 			Slug:           p.Slug,
 			Content:        content,
@@ -121,13 +136,15 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 			RailWidgets:    widgetsForSlot(slotRail, cfg.Widgets),
 		}
 
+		data.PreviousPage, data.NextPage = pageNeighbours(orderedPages, rest, func(to string) string { return staticPageHref(rest, to) })
 		outPath := filepath.Join(outDir, filepath.FromSlash(staticPagePath(rest)))
 		if err := writeExportPage(outPath, tmpl["page"], data); err != nil {
 			return err
 		}
 		if rest == indexPage {
 			indexData := data
-			indexData.AssetPath, indexData.NamespaceHome, indexData.SidebarTree = "", "index.html", renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) })
+			indexData.AssetPath, indexData.NamespaceHome, indexData.SidebarTree = "", "index.html", renderStaticTree(tree, indexPage, func(to string) string { return staticPageHref("", to) })
+			indexData.PreviousPage, indexData.NextPage = pageNeighbours(orderedPages, rest, func(to string) string { return staticPageHref("", to) })
 			indexContent, err := renderer.RenderStatic(p.Body, ns, func(slug string) (string, bool) {
 				toRest, ok := hrefs[slug]
 				if !ok {
@@ -151,6 +168,15 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 		}
 	}
 
+	searchJSON, err := json.Marshal(searchEntries)
+	if err != nil {
+		return fmt.Errorf("encoding search index: %w", err)
+	}
+	// A script, rather than fetched JSON, also works when opened via file://.
+	if err := os.WriteFile(filepath.Join(outDir, "search-index.js"), append([]byte("window.HMDSearchIndex = "), append(searchJSON, ';')...), 0o644); err != nil {
+		return fmt.Errorf("writing search index: %w", err)
+	}
+
 	files, bytes := len(nsPages), int64(0)
 	for _, p := range nsPages {
 		bytes += int64(len(p.Body))
@@ -161,6 +187,26 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 
 	slog.Info("exported namespace", "namespace", ns, "pages", len(nsPages), "dir", outDir)
 	return nil
+}
+
+type exportSearchEntry struct {
+	Title string `json:"title"`
+	Href  string `json:"href"`
+	Text  string `json:"text"`
+}
+
+func exportPlainText(content template.HTML) string {
+	tokenizer := html.NewTokenizer(strings.NewReader(string(content)))
+	var text strings.Builder
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			return strings.Join(strings.Fields(text.String()), " ")
+		case html.TextToken:
+			text.Write(tokenizer.Text())
+			text.WriteByte(' ')
+		}
+	}
 }
 
 func writeExportPage(outPath string, tmpl *template.Template, data TemplateData) error {

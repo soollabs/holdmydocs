@@ -18,7 +18,7 @@
   if (!(tocList && tocRail && pageContent)) return;
 
   const headings = $$('h2, h3', pageContent);
-  if (headings.length <= 1) return;
+  if (headings.length === 0) return;
 
   tocRail.classList.add('has-headings');
   if (tocInline) tocInline.classList.add('has-headings');
@@ -52,8 +52,20 @@
       const target = document.getElementById(id);
       if (target) {
         e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        history.replaceState(null, '', '#' + id);
       }
     });
   });
+
+  // IDs are added above, after the browser's initial fragment lookup.
+  // Honour links copied from the outline when opening a page directly.
+  function followFragment() {
+    try {
+      const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (target && pageContent.contains(target)) target.scrollIntoView({ block: 'start' });
+    } catch (_) { /* Ignore malformed URL fragments. */ }
+  }
+  followFragment();
+  window.addEventListener('hashchange', followFragment);
 })();

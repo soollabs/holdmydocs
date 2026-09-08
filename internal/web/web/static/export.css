@@ -1,0 +1,54 @@
+/* Read-only publishing enhancements. The namespace still chooses its skin
+   and palette; these rules add documentation controls, not a new theme. */
+.app-topbar-public .topbar-site { margin-right: auto; min-width: 0; }
+.app-topbar-public { gap: 12px; }
+.shell-public main { min-width: 0; }
+.shell-public .content-col { min-width: 0; }
+.shell-public #page-content { overflow-wrap: anywhere; }
+.shell-public #page-content pre code { overflow-wrap: normal; }
+.shell-public #page-content img { border-radius: var(--radius); }
+.shell-public :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.shell-public #page-content h2, .shell-public #page-content h3 { scroll-margin-top: 24px; }
+
+#export-search {
+  width: min(680px, calc(100% - 32px));
+  max-height: calc(100dvh - 64px);
+  margin: 32px auto;
+  padding: 24px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px #0005;
+}
+#export-search::backdrop { background: #0008; }
+.export-search-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+#export-search-title { margin: 0; font-size: 20px; }
+#export-search label { display: block; margin-bottom: 8px; }
+#export-search-input { width: 100%; font-size: 16px; padding: 12px; }
+#export-search-status { font-size: 13px; color: var(--fg-muted); margin: 12px 0; }
+#export-search-results { list-style: none; padding: 0; margin: 0; }
+#export-search-results li { padding: 16px 0; border-top: 1px solid var(--border); }
+#export-search-results a { font-size: 17px; font-weight: 600; }
+#export-search-results p { font-size: 14px; line-height: 1.6; color: var(--fg-muted); margin: 6px 0 0; }
+
+@media (max-width: 899px) {
+  .app-topbar-public { gap: 8px; }
+  #export-search-toggle { font-size: 12px; padding: 6px 8px; }
+  .shell-public .page-wrap { padding-block: 0; }
+  .shell-public .content-col { padding: 24px 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-public *, .shell-public *::before, .shell-public *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+
+@media print {
+  body.shell.shell-public { display: block; height: auto; }
+  .shell-public .app-topbar, .shell-public .sidebar, .shell-public .toc-rail,
+  .shell-public .toc-inline, .skip-link { display: none !important; }
+  .shell-public main { overflow: visible; height: auto; }
+  .shell-public .page-wrap { display: block; max-width: none; }
+  .shell-public .content-col { padding: 0; }
+  .shell-public #page-content pre { padding-top: 16px; white-space: pre-wrap; }
+}

@@ -107,6 +107,8 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
+	PreviousPage            *pageLink
+	NextPage                *pageLink
 	SiteName                string
 	AssetPath               string // static asset prefix; /_/static/ in the live app
 	NamespaceHome           string // static namespace index link; empty uses the live route
@@ -601,7 +603,13 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
 		_, currentPath := namespaceFor(data.Slug)
 		cfg := app.Namespaces().Resolve(data.SidebarTreeNS)
-		data.SidebarTree = renderLiveTree(buildPageTree(entries, data.SidebarTreeNS, cfg.Index, cfg.Tree), data.SidebarTreeNS, currentPath)
+		tree := buildPageTree(entries, data.SidebarTreeNS, cfg.Index, cfg.Tree)
+		data.SidebarTree = renderLiveTree(tree, data.SidebarTreeNS, currentPath)
+		if name == "page" && data.RevHash == "" && data.RoutePrefix == "" {
+			data.PreviousPage, data.NextPage = pageNeighbours(orderedTreePages(tree), currentPath, func(to string) string {
+				return "/" + data.SidebarTreeNS + "/" + to
+			})
+		}
 	}
 
 	// Load Mermaid only for pages that contain Mermaid content.

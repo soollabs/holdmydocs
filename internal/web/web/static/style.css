@@ -241,6 +241,29 @@ body.shell.shell-public {
 	padding: 0 20px;
 }
 
+.skip-link {
+	position: fixed;
+	top: 8px;
+	left: 8px;
+	z-index: 2000;
+	padding: 10px 16px;
+	background: var(--bg);
+	color: var(--fg);
+	transform: translateY(-200%);
+}
+
+.skip-link:focus {
+	transform: none;
+}
+
+#public-sidebar-toggle {
+	display: none;
+}
+
+[hidden] {
+	display: none !important;
+}
+
 .sidebar {
 	grid-area: sidebar;
 	background: var(--surface);
@@ -415,6 +438,24 @@ main {
 	display: flex;
 	width: 100%;
 	max-width: calc(var(--prose-measure) + var(--rail-w));
+}
+
+/* Reading controls shared by live and exported pages. */
+.page-pagination {
+	display: flex;
+	gap: 24px;
+	margin-top: 48px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+}
+.page-pagination a { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.page-pagination a[rel="next"] { text-align: right; margin-left: auto; }
+.page-pagination span { display: block; color: var(--fg-muted); font-size: 12px; font-weight: 400; margin-bottom: 6px; }
+#page-content pre.code-copy-block { position: relative; padding-top: 44px; }
+.code-copy { position: absolute; top: 8px; right: 8px; padding: 4px 10px; font-size: 12px; }
+@media print {
+	.page-pagination, .code-copy { display: none !important; }
+	#page-content pre.code-copy-block { padding-top: 16px; }
 }
 
 /* Statusline */
@@ -1934,6 +1975,26 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
    --------------------------------------------------------------- */
 
 @media (max-width: 899px) {
+	body.shell.shell-public {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: calc(56px + env(safe-area-inset-top)) 1fr;
+		grid-template-areas: "topbar" "main";
+	}
+
+	.shell-public .sidebar {
+		top: calc(56px + env(safe-area-inset-top));
+		background: var(--surface);
+		box-shadow: 8px 0 24px #0003;
+	}
+
+	#public-sidebar-toggle {
+		display: inline-flex;
+	}
+
+	.shell-public .toc-inline.has-headings {
+		display: block;
+	}
+
 	body.shell {
 		grid-template-columns: 1fr;
 		grid-template-rows: calc(44px + env(safe-area-inset-top)) 1fr calc(36px + env(safe-area-inset-bottom));

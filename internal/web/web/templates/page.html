@@ -33,6 +33,12 @@
 	<article id="page-content" data-blob-hash="{{.BlobHash}}">
 		{{.Content}}
 	</article>
+	{{if or .PreviousPage .NextPage}}
+	<nav class="page-pagination" aria-label="Previous and next pages">
+		{{with .PreviousPage}}<a href="{{.Href}}" rel="prev"><span>Previous</span>{{.Title}}</a>{{end}}
+		{{with .NextPage}}<a href="{{.Href}}" rel="next"><span>Next</span>{{.Title}}</a>{{end}}
+	</nav>
+	{{end}}
 
 	{{range .PageFootWidgets}}
 	{{if eq .ID "backlinks"}}{{template "widget-backlinks" $}}{{end}}

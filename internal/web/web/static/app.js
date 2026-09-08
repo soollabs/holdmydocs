@@ -45,11 +45,8 @@
   window.addEventListener('online', flushOfflineQueue);
   if (navigator.onLine) flushOfflineQueue();
 
-  // ---- Page view: render mermaid diagrams if present ----
-  const pageContent = $('#page-content');
-  if (pageContent && window.mermaid) {
-    mermaid.run({querySelector: '#page-content pre.mermaid'});
-  }
+  // Shared page.js owns reading enhancements, including Mermaid rendering.
+  let pageContent = $('#page-content');
 
   // ---- Pages sidebar: merged pinned + recent (client-side, localStorage) ----
   // Content owns the root, and every app route lives under /_/ — so any
@@ -198,11 +195,10 @@
           if (newHash && newHash === lastRenderedHash) return;
           lastRenderedHash = newHash;
           const parent = pageContent.parentNode;
-          if (parent) parent.replaceChild(newContent, pageContent);
-          if (window.mermaid) {
-            const mermaids = newContent.querySelectorAll('pre code.language-mermaid');
-            if (mermaids.length > 0) window.mermaid.run({ nodes: mermaids });
-          }
+          if (!parent) return;
+          parent.replaceChild(newContent, pageContent);
+          pageContent = newContent;
+          if (window.HMDEnhancePage) window.HMDEnhancePage(newContent);
         })
         .catch(() => {});
     }

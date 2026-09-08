@@ -45,6 +45,15 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		`src="../../attachments/logo.svg"`,
 		`<title>Guide — Documentation</title>`,
 		`class="topbar-site">Documentation</a>`,
+		`href="../../export.css"`,
+		`src="../../search-index.js"`,
+		`src="../../export.js"`,
+		`src="../../page.js"`,
+		`id="public-sidebar-toggle"`,
+		`aria-controls="sidebar"`,
+		`aria-label="Page navigation"`,
+		`Skip to content`,
+		`aria-label="Previous and next pages"`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("export missing %q", want)
@@ -54,7 +63,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		t.Error("export refers to live static assets")
 	}
 
-	for _, name := range []string{"style.css", "skins.css", "toc.js", "sidebar.js"} {
+	for _, name := range []string{"style.css", "skins.css", "toc.js", "sidebar.js", "export.css", "export.js", "page.js", "search-index.js"} {
 		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
 			t.Errorf("export missing %s: %v", name, err)
 		}
@@ -65,6 +74,12 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 	}
 	if !strings.Contains(string(root), "Welcome") || strings.Contains(string(root), "This must not") {
 		t.Error("configured namespace index was not exported to index.html")
+	}
+	if !strings.Contains(string(root), `href="reference/api/index.html" rel="next"`) {
+		t.Error("root index pager must follow configured tree order with root-relative paths")
+	}
+	if !strings.Contains(string(root), `class="nav-link current" href="home/index.html"`) {
+		t.Error("root index must mark its configured page current in navigation")
 	}
 	if !strings.Contains(string(root), `href="guides/setup/index.html"`) {
 		t.Error("root index wiki-links must be relative to index.html")

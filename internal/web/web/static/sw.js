@@ -1,5 +1,5 @@
-const CACHE = 'hmd-static-v3';
-const ASSETS = ['/_/static/style.css?v=3', '/_/static/skins.css?v=2', '/_/static/app.js?v=2', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
+const CACHE = 'hmd-static-v4';
+const ASSETS = ['/_/static/style.css?v=5', '/_/static/skins.css?v=2', '/_/static/app.js?v=4', '/_/static/page.js?v=1', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
