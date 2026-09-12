@@ -18,7 +18,11 @@ func TestExportDocumentationContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer index.Close()
+	t.Cleanup(func() {
+		if err := index.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	store, err := OpenStore(Config{RepoDir: t.TempDir(), Git: GitConfig{User: "test"}})
 	if err != nil {
 		t.Fatal(err)
