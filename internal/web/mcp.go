@@ -677,6 +677,8 @@ func (app *App) mcpHandler() http.Handler {
 		return nil, mcpSaveOut{Slug: in.Slug, Hash: hash}, nil
 	})
 
+	app.registerMCPEditTool(server)
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_page",
 		Description: "Delete one accessible namespace/page. Requires write access. The page remains recoverable from Git history.",

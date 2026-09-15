@@ -179,7 +179,7 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 		t.Fatalf("ListTools: %v", err)
 	}
 	allowed := map[string]bool{
-		"list_pages": true, "read_page": true, "save_page": true, "delete_page": true,
+		"list_pages": true, "read_page": true, "save_page": true, "edit_page": true, "delete_page": true,
 		"search": true, "backlinks": true, "recent_changes": true, "health": true,
 		"list_namespaces": true, "read_namespace": true, "save_namespace": true,
 		"upload_attachment": true, "read_attachment": true,
@@ -1031,6 +1031,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		{"read_page", map[string]any{"slug": "readme"}},
 		{"read_page", map[string]any{"slug": "private/denied"}},
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
+		{"edit_page", map[string]any{"slug": "private/denied", "basehash": "stale", "script": "s/a/b/"}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
 		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf"}},
 		{"read_attachment", map[string]any{"slug": "private/denied", "filename": "file.txt"}},
@@ -1073,7 +1074,14 @@ func TestMCPScopes(t *testing.T) {
 		t.Fatalf("manager token: %v", err)
 	}
 
+	_, homeHash, err := app.Store.Read(pageFile(testHome))
+	if err != nil {
+		t.Fatal(err)
+	}
 	reader := connectMCP(t, server, readerToken)
+	if res := callTool(t, reader, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "script": "s/^/denied/"}); !res.IsError {
+		t.Error("read scope edited a page")
+	}
 	if res := callTool(t, reader, "list_pages", nil); res.IsError {
 		t.Fatalf("read scope list_pages: %s", toolText(t, res))
 	}
@@ -1085,6 +1093,9 @@ func TestMCPScopes(t *testing.T) {
 	}
 
 	writer := connectMCP(t, server, writerToken)
+	if res := callTool(t, writer, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "script": "s/^/edited/"}); res.IsError {
+		t.Fatalf("write scope edit_page: %s", toolText(t, res))
+	}
 	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
 		t.Fatalf("write scope save_page: %s", toolText(t, res))
 	}
