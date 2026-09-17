@@ -9,11 +9,11 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/knights-analytics/hugot v0.7.8
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/yuin/goldmark v1.8.6
-	github.com/yuin/goldmark/v2 v2.0.2
+	github.com/yuin/goldmark/v2 v2.1.1
 	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.58.0
+	golang.org/x/net v0.59.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0
 )
