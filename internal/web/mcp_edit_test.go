@@ -58,7 +58,7 @@ func TestMCPEditPage(t *testing.T) {
 		t.Fatal("failed edits created commits")
 	}
 
-	res = callTool(t, session, "edit_page", map[string]any{"slug": slug, "basehash": created.Hash, "script": "s/old/new/g; s/foo/new/g"})
+	res = callTool(t, session, "edit_page", map[string]any{"path": slug, "basehash": created.Hash, "script": "s/old/new/g; s/foo/new/g"})
 	if res.IsError {
 		t.Fatal(toolText(t, res))
 	}

@@ -195,11 +195,82 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 	}
 }
 
+func TestMCPToolContracts(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	result, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+
+	wantArgs := map[string][]string{
+		"list_pages": {}, "list_namespaces": {},
+		"read_page": {"slug", "path"}, "save_page": {"slug", "path", "title", "tags", "body", "pin", "basehash"},
+		"edit_page": {"slug", "path", "basehash", "script"}, "delete_page": {"slug", "path"},
+		"search": {"query"}, "backlinks": {"slug", "path"}, "recent_changes": {"limit"}, "health": {"namespace"},
+		"read_namespace":    {"name"},
+		"save_namespace":    {"name", "widgets", "public", "title", "description", "skin", "palette", "index", "tree", "new", "basehash"},
+		"upload_attachment": {"slug", "path", "filename"}, "read_attachment": {"slug", "path", "filename"},
+	}
+	for _, tool := range result.Tools {
+		args, ok := wantArgs[tool.Name]
+		if !ok {
+			continue
+		}
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Errorf("%s input schema has type %T, want map", tool.Name, tool.InputSchema)
+			continue
+		}
+		properties, _ := schema["properties"].(map[string]any)
+		for _, arg := range args {
+			if _, ok := properties[arg]; !ok {
+				t.Errorf("%s schema missing %q: %#v", tool.Name, arg, schema)
+			}
+			if !strings.Contains(tool.Description, arg) {
+				t.Errorf("%s description does not name argument %q", tool.Name, arg)
+			}
+		}
+		if len(args) == 0 && !strings.Contains(tool.Description, "Arguments: none") {
+			t.Errorf("%s description does not explicitly say it takes no arguments", tool.Name)
+		}
+		for _, arg := range map[string][]string{
+			"save_page": {"tags"}, "save_namespace": {"widgets", "tree"},
+		}[tool.Name] {
+			property, _ := properties[arg].(map[string]any)
+			items, _ := property["items"].(map[string]any)
+			if items["type"] != "string" {
+				t.Errorf("%s.%s items type = %v, want string", tool.Name, arg, items["type"])
+			}
+		}
+	}
+}
+
+func TestMCPPageIdentifier(t *testing.T) {
+	for _, tt := range []struct {
+		name, slug, path, want string
+		wantErr                bool
+	}{
+		{name: "slug", slug: "notes/page", want: "notes/page"},
+		{name: "path alias", path: "notes/page", want: "notes/page"},
+		{name: "neither", wantErr: true},
+		{name: "both", slug: "notes/page", path: "notes/page", wantErr: true},
+		{name: "invalid", path: "../page", wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := mcpPageIdentifier(tt.slug, tt.path)
+			if (err != nil) != tt.wantErr || got != tt.want {
+				t.Fatalf("mcpPageIdentifier(%q, %q) = %q, %v; want %q, error=%v", tt.slug, tt.path, got, err, tt.want, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestMCPUploadAttachment(t *testing.T) {
 	app, server, token := newMCPTestAppWithApp(t, true)
 	session := connectMCP(t, server, token)
 	result := callTool(t, session, "upload_attachment", map[string]any{
-		"slug": testHome, "filename": "source.txt",
+		"path": testHome, "filename": "source.txt",
 	})
 	if result.IsError {
 		t.Fatalf("upload_attachment: %s", toolText(t, result))
@@ -246,7 +317,7 @@ func TestMCPReadAttachment(t *testing.T) {
 		t.Fatalf("saving attachment: %v", err)
 	}
 	session := connectMCP(t, server, token)
-	result := callTool(t, session, "read_attachment", map[string]any{"slug": testHome, "filename": "source.txt"})
+	result := callTool(t, session, "read_attachment", map[string]any{"path": testHome, "filename": "source.txt"})
 	if result.IsError {
 		t.Fatalf("read_attachment: %s", toolText(t, result))
 	}
@@ -752,7 +823,7 @@ func TestMCPToolFlow(t *testing.T) {
 	session := connectMCP(t, server, token)
 
 	res := callTool(t, session, "save_page", map[string]any{
-		"slug":  testNS + "/agent-note",
+		"path":  testNS + "/agent-note",
 		"title": "Agent note",
 		"tags":  []string{"ai"},
 		"body":  "Hello from an agent. See [[readme]].",
@@ -773,9 +844,13 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Fatal("create over existing page succeeded, want conflict")
 	}
 
-	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
+	res = callTool(t, session, "read_page", map[string]any{"path": testNS + "/agent-note"})
 	if res.IsError {
-		t.Fatalf("read failed: %s", toolText(t, res))
+		t.Fatalf("read by path alias failed: %s", toolText(t, res))
+	}
+	both := callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note", "path": testNS + "/agent-note"})
+	if !both.IsError {
+		t.Fatal("read with both slug and path succeeded")
 	}
 	var page mcpPageOut
 	toolJSON(t, res, &page)

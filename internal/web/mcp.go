@@ -32,7 +32,7 @@ type mcpListOut struct {
 }
 
 type mcpNamespaceIn struct {
-	Name string `json:"name" jsonschema:"namespace name, e.g. notes"`
+	Name string `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
 }
 
 type mcpNamespaceMeta struct {
@@ -61,21 +61,22 @@ type mcpNamespaceOut struct {
 }
 
 type mcpSaveNamespaceIn struct {
-	Name        string         `json:"name" jsonschema:"namespace name, e.g. notes"`
-	Widgets     []string       `json:"widgets,omitempty"`
-	Public      bool           `json:"public"`
-	Title       string         `json:"title,omitempty"`
-	Description string         `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters"`
-	Skin        string         `json:"skin,omitempty"`
-	Palette     string         `json:"palette,omitempty"`
-	Index       string         `json:"index,omitempty"`
-	Tree        []string       `json:"tree,omitempty" jsonschema:"ordered page or folder paths for the tree"`
-	New         *NewPageConfig `json:"new,omitempty"`
-	BaseHash    string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit to create a namespace configuration"`
+	Name        string         `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
+	Widgets     []string       `json:"widgets,omitempty" jsonschema:"complete ordered string array of configured widget IDs; preserve from read_namespace when updating"`
+	Public      bool           `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`
+	Title       string         `json:"title,omitempty" jsonschema:"human-readable namespace title; preserve from read_namespace when updating"`
+	Description string         `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters; preserve from read_namespace when updating"`
+	Skin        string         `json:"skin,omitempty" jsonschema:"presentation skin name; preserve from read_namespace when updating"`
+	Palette     string         `json:"palette,omitempty" jsonschema:"colour palette name; preserve from read_namespace when updating"`
+	Index       string         `json:"index,omitempty" jsonschema:"one-segment page name used as the namespace index; preserve from read_namespace when updating"`
+	Tree        []string       `json:"tree,omitempty" jsonschema:"complete ordered string array of page or folder paths for the tree; preserve from read_namespace when updating"`
+	New         *NewPageConfig `json:"new,omitempty" jsonschema:"new-page template configuration; preserve from read_namespace when updating"`
+	BaseHash    string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit only when creating a namespace configuration"`
 }
 
 type mcpSlugIn struct {
-	Slug string `json:"slug" jsonschema:"page slug, always namespace/page, e.g. notes/my-page"`
+	Slug string `json:"slug,omitempty" jsonschema:"canonical page identifier in namespace/page form, e.g. notes/my-page; provide slug or path, not both"`
+	Path string `json:"path,omitempty" jsonschema:"alias for slug, in namespace/page form; provide slug or path, not both"`
 }
 
 type mcpPageOut struct {
@@ -88,12 +89,13 @@ type mcpPageOut struct {
 }
 
 type mcpSaveIn struct {
-	Slug     string   `json:"slug" jsonschema:"page slug, always namespace/page, e.g. notes/my-page"`
-	Title    string   `json:"title,omitempty" jsonschema:"page title; defaults to the slug"`
-	Tags     []string `json:"tags,omitempty"`
-	Body     string   `json:"body" jsonschema:"raw markdown body (frontmatter is managed by hmd)"`
+	Slug     string   `json:"slug,omitempty" jsonschema:"canonical page identifier in namespace/page form, e.g. notes/my-page; provide slug or path, not both"`
+	Path     string   `json:"path,omitempty" jsonschema:"alias for slug, in namespace/page form; provide slug or path, not both"`
+	Title    string   `json:"title,omitempty" jsonschema:"page title; defaults to the slug on create; preserve the value from read_page when updating"`
+	Tags     []string `json:"tags,omitempty" jsonschema:"page tags; preserve the complete string array from read_page when updating"`
+	Body     string   `json:"body" jsonschema:"complete raw Markdown body; frontmatter is managed by HMD"`
 	Pin      bool     `json:"pin,omitempty" jsonschema:"surfaced by the pinned sidebar widget; preserve the value from read_page when updating"`
-	BaseHash string   `json:"basehash,omitempty" jsonschema:"hash from read_page; omit to create a new page"`
+	BaseHash string   `json:"basehash,omitempty" jsonschema:"hash from read_page; omit only when creating a page"`
 }
 
 type mcpSaveOut struct {
@@ -102,7 +104,7 @@ type mcpSaveOut struct {
 }
 
 type mcpSearchIn struct {
-	Query string `json:"query"`
+	Query string `json:"query" jsonschema:"full-text query for page titles, bodies, and tags"`
 }
 
 type mcpSearchHit struct {
@@ -117,7 +119,7 @@ type mcpSearchOut struct {
 }
 
 type mcpAttachmentSearchIn struct {
-	Query string `json:"query"`
+	Query string `json:"query" jsonschema:"keyword or semantic query for extracted attachment text"`
 	Limit int    `json:"limit,omitempty" jsonschema:"maximum 50 results, default 20"`
 }
 
@@ -134,8 +136,9 @@ type mcpAttachmentSearchOut struct {
 }
 
 type mcpAttachmentUploadIn struct {
-	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
-	Filename string `json:"filename" jsonschema:"original filename; document formats supported by Apache Tika are indexed when document search is enabled"`
+	Slug     string `json:"slug,omitempty" jsonschema:"canonical identifier of the page that owns the attachment, in namespace/page form; provide slug or path, not both"`
+	Path     string `json:"path,omitempty" jsonschema:"alias for slug, identifying the owning page in namespace/page form; provide slug or path, not both"`
+	Filename string `json:"filename" jsonschema:"original filename; HMD returns its canonical attachment URL; document formats supported by Apache Tika are indexed when document search is enabled"`
 }
 
 type mcpAttachmentUploadOut struct {
@@ -145,8 +148,9 @@ type mcpAttachmentUploadOut struct {
 }
 
 type mcpAttachmentReadIn struct {
-	Slug     string `json:"slug" jsonschema:"page slug that owns the attachment, always namespace/page"`
-	Filename string `json:"filename" jsonschema:"attachment filename, without a path"`
+	Slug     string `json:"slug,omitempty" jsonschema:"canonical identifier of the page that owns the attachment, in namespace/page form; provide slug or path, not both"`
+	Path     string `json:"path,omitempty" jsonschema:"alias for slug, identifying the owning page in namespace/page form; provide slug or path, not both"`
+	Filename string `json:"filename" jsonschema:"canonical attachment filename, without a path"`
 }
 
 type mcpAttachmentReadOut struct {
@@ -321,6 +325,23 @@ func (app *App) mcpRequireSlug(ctx context.Context, slug string) error {
 	return fmt.Errorf("forbidden: namespace access denied")
 }
 
+func mcpPageIdentifier(slug, path string) (string, error) {
+	if slug != "" && path != "" {
+		return "", errors.New("provide slug or path, not both")
+	}
+	identifier := slug
+	if identifier == "" {
+		identifier = path
+	}
+	if identifier == "" {
+		return "", errors.New("slug or path is required")
+	}
+	if !validMCPPageSlug(identifier) {
+		return "", fmt.Errorf("invalid page identifier %q: expected namespace/page", identifier)
+	}
+	return identifier, nil
+}
+
 func mcpPathNamespace(path string) (string, bool) {
 	if strings.HasPrefix(path, ".") || !strings.HasSuffix(path, ".md") {
 		return "", false
@@ -370,7 +391,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_pages",
-		Description: "List every page accessible to this caller, returning its namespace/page slug, title, and tags. Use a page slug with read_page before updating it.",
+		Description: "List every page accessible to this caller. Arguments: none. Returns each canonical namespace/page slug, title and tags. Pass a returned slug to read_page before updating it.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpListOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpListOut{}, err
@@ -390,7 +411,7 @@ func (app *App) mcpHandler() http.Handler {
 	if app.Index.DocumentsEnabled() {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "search_attachments",
-			Description: "Search extracted attachment text using keyword and semantic ranking. Available only when document indexing is enabled. Results are limited to accessible page-owned attachments; excerpts are escaped text with optional <mark> tags.",
+			Description: "Search extracted attachment text using keyword and semantic ranking. Arguments: query (required string) and limit (optional integer, default 20, maximum 50). Available only when document indexing is enabled. Results are limited to accessible page-owned attachments; excerpts are escaped text with optional <mark> tags.",
 		}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentSearchIn) (*mcp.CallToolResult, mcpAttachmentSearchOut, error) {
 			if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 				return nil, mcpAttachmentSearchOut{}, err
@@ -422,14 +443,16 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "upload_attachment",
-		Description: "Create a one-use native multipart upload URL for a document or image owned by a page. Requires write access to that page. POST the file as the file form field. Apache Tika extracts and indexes supported formats when document search is enabled. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
+		Description: "Create a one-use native multipart upload URL for a document or image owned by a page. Arguments: exactly one of slug or path (required page identifier in namespace/page form), plus filename (required original filename without a directory). Requires write access to that page. HMD canonicalises filename; use the returned attachment_url rather than constructing one. POST the file as the file form field. Apache Tika extracts and indexes supported formats when document search is enabled. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentUploadIn) (*mcp.CallToolResult, mcpAttachmentUploadOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpAttachmentUploadOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
@@ -459,14 +482,16 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "read_attachment",
-		Description: "Read an attachment's cached extracted text. Requires read access to the owning page. Uploads made while document indexing is enabled have a Git-tracked extraction sidecar; source text files also get one. Use search_attachments first for large documents.",
+		Description: "Read an attachment's cached extracted text. Arguments: exactly one of slug or path (required owning-page identifier in namespace/page form), plus filename (required canonical attachment filename without a directory). Requires read access to the owning page. Uploads made while document indexing is enabled have a Git-tracked extraction sidecar; source text files also get one. Use search_attachments first for large documents.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpAttachmentReadIn) (*mcp.CallToolResult, mcpAttachmentReadOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpAttachmentReadOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpAttachmentReadOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
@@ -505,7 +530,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",
-		Description: "List namespaces accessible to this caller, with their description, page count, and public/private status. Use read_namespace for full settings.",
+		Description: "List namespaces accessible to this caller. Arguments: none. Returns each namespace's name, description, page count and public/private status. Pass a returned name to read_namespace for full settings.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, mcpNamespacesOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpNamespacesOut{}, err
@@ -522,7 +547,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "read_namespace",
-		Description: "Read one namespace's full settings and current hash. Requires settings access. Pass that hash as basehash to save_namespace when updating.",
+		Description: "Read one namespace's full settings and current hash. Argument: name (required namespace name, for example notes; not a page slug or path). Requires settings access. Pass the returned hash as basehash to save_namespace when updating.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
@@ -539,9 +564,8 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "save_namespace",
-		Description: "Create or update namespace settings (each save is a git commit). " +
-			"Requires settings access. Update: pass the hash returned by read_namespace; on conflict re-read and retry. " +
-			"Create: omit basehash; this writes only namespace configuration and does not delete or change pages.",
+		Description: "Create or replace namespace settings (each save is a git commit). Arguments: name (required string), public (required boolean), widgets (optional complete string array), title, description, skin, palette and index (optional strings), tree (optional complete string array), new (optional object with template and slug naming-pattern strings), and basehash (required for updates; omit only on create). " +
+			"Requires settings access. For updates, first call read_namespace and preserve every setting you do not intend to change; omitted optional fields are reset. Allowed widgets: pages, namespaces, pinned, tags, log, health, calendar, writing-stats, page-meta, backlinks, prev-entries. Allowed skins: phosphor, newsprint, journal, soft, bare. Allowed palettes: phosphor, catppuccin, dracula, everforest, gruvbox, monokai, nord, one dark, rosé pine, solarized, tokyo night. Index must be a one-segment page name. On conflict re-read and retry. Creating or updating settings does not delete or change pages.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSaveNamespaceIn) (*mcp.CallToolResult, mcpNamespaceOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
@@ -584,14 +608,16 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "read_page",
-		Description: "Read one accessible namespace/page, including its raw Markdown body, metadata, and current hash. Pass the hash as basehash to save_page when updating.",
+		Description: "Read one accessible page. Argument: exactly one of slug or path (required page identifier in namespace/page form, for example ai/readme); slug is canonical and path is an alias. Returns the raw Markdown body, title, tags, pin state and current hash. Pass those metadata values and the hash as basehash to save_page when updating.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, mcpPageOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpPageOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpPageOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpPageOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpPageOut{}, err
 		}
@@ -611,16 +637,17 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "save_page",
-		Description: "Create or update a wiki page (each save is a git commit). " +
-			"Requires write access. Update: first read_page, then pass its hash as basehash; on conflict, re-read or merge and retry with the fresh hash. " +
-			"Create: omit basehash, which fails if the page already exists. Never overwrite without a fresh basehash.",
+		Description: "Create or replace a wiki page (each save is a git commit). Arguments: exactly one of slug or path (required page identifier in namespace/page form; slug is canonical), body (required complete raw Markdown string), title (optional string), tags (optional complete string array), pin (optional boolean), and basehash (required for updates; omit only on create). " +
+			"Requires write access. For updates, first call read_page and preserve title, tags and pin unless intentionally changing them; omitted metadata is reset. Pass its hash as basehash; on conflict, re-read or merge and retry with the fresh hash. Creating without basehash fails if the page already exists. Never overwrite without a fresh basehash.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSaveIn) (*mcp.CallToolResult, mcpSaveOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpSaveOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpSaveOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpSaveOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpSaveOut{}, err
 		}
@@ -680,14 +707,16 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_page",
-		Description: "Delete one accessible namespace/page. Requires write access. The page remains recoverable from Git history.",
+		Description: "Delete one accessible page. Argument: exactly one of slug or path (required page identifier in namespace/page form); slug is canonical and path is an alias. Requires write access. Deletion is immediate and does not use a basehash, but the page remains recoverable from Git history.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, any, error) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, nil, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, nil, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, nil, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, nil, err
 		}
@@ -704,7 +733,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search",
-		Description: "Full-text search accessible page titles, bodies, and tags. Results include escaped snippets with optional <mark> tags; use read_page for the complete page.",
+		Description: "Full-text search accessible page titles, bodies, and tags. Argument: query (required full-text query string). Results include escaped snippets with optional <mark> tags; use read_page for the complete page.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSearchIn) (*mcp.CallToolResult, mcpSearchOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpSearchOut{}, err
@@ -725,14 +754,16 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "backlinks",
-		Description: "List accessible pages whose [[wiki-links]] target a given accessible namespace/page.",
+		Description: "List accessible pages whose [[wiki-links]] target a given accessible page. Argument: exactly one of slug or path (required target-page identifier in namespace/page form); slug is canonical and path is an alias.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpSlugIn) (*mcp.CallToolResult, mcpBacklinksOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpBacklinksOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpBacklinksOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpBacklinksOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpBacklinksOut{}, err
 		}
@@ -749,7 +780,7 @@ func (app *App) mcpHandler() http.Handler {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "recent_changes",
-		Description: "List the newest accessible wiki commits first, with commit metadata and touched files. A commit is omitted if it includes files outside this caller's namespace access.",
+		Description: "List the newest accessible wiki commits first, with commit metadata and touched files. Argument: limit (optional positive integer, default 20). A commit is omitted if it includes files outside this caller's namespace access.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpRecentIn) (*mcp.CallToolResult, mcpRecentOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpRecentOut{}, err
@@ -781,7 +812,7 @@ func (app *App) mcpHandler() http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "health",
 		Description: "Read-only wiki hygiene report for accessible pages: dangling [[wiki-links]] (target page missing) and orphan pages (no incoming links). " +
-			"Optionally scope it to one accessible namespace.",
+			"Argument: namespace (optional namespace-name string; omit for the whole accessible wiki).",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpHealthIn) (*mcp.CallToolResult, mcpHealthOut, error) {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpHealthOut{}, err

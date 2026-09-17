@@ -16,7 +16,8 @@ import (
 )
 
 type mcpEditIn struct {
-	Slug     string `json:"slug" jsonschema:"page slug, always namespace/page"`
+	Slug     string `json:"slug,omitempty" jsonschema:"canonical page identifier in namespace/page form; provide slug or path, not both"`
+	Path     string `json:"path,omitempty" jsonschema:"alias for slug, in namespace/page form; provide slug or path, not both"`
 	BaseHash string `json:"basehash" jsonschema:"required hash from read_page or the last successful edit/save; stale hashes are rejected"`
 	Script   string `json:"script" jsonschema:"sed-style commands separated by semicolons or newlines, applied in order"`
 }
@@ -30,7 +31,7 @@ type mcpEditOut struct {
 func (app *App) registerMCPEditTool(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "edit_page",
-		Description: "Edit an existing page's Markdown body without resending it; preserve title, tags and pin. Requires write access and basehash. " +
+		Description: "Edit an existing page's Markdown body without resending it; preserve title, tags and pin. Arguments: exactly one of slug or path (required page identifier in namespace/page form; slug is canonical), basehash (required hash from read_page or the last successful edit/save), and script (required sed-style command string). Requires write access. " +
 			"One atomic commit for the entire script; stale hashes fail, unchanged bodies produce no commit. Returns only slug, hash and changed. " +
 			"Sed-style subset: optional positive line number, $, or /regexp/ address; inclusive address,address ranges; s/pattern/replacement/[g], d, a, i, c. " +
 			"Commands separated by semicolons or newlines run in order on each input line; d and c end that line's processing. " +
@@ -42,9 +43,11 @@ func (app *App) registerMCPEditTool(server *mcp.Server) {
 		if err := app.mcpRequireScope(ctx, scopeWrite); err != nil {
 			return nil, mcpEditOut{}, err
 		}
-		if !validMCPPageSlug(in.Slug) {
-			return nil, mcpEditOut{}, fmt.Errorf("invalid slug %q", in.Slug)
+		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+		if err != nil {
+			return nil, mcpEditOut{}, err
 		}
+		in.Slug = slug
 		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
 			return nil, mcpEditOut{}, err
 		}

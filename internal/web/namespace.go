@@ -29,8 +29,8 @@ var reservedTopLevel = map[string]bool{reservedNamespace: true, attachmentsDir: 
 
 // NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a page in this namespace.
 type NewPageConfig struct {
-	Template string `yaml:"template" json:"template"`
-	Slug     string `yaml:"slug" json:"slug"`
+	Template string `yaml:"template" json:"template" jsonschema:"one-segment page name whose body is used as the creation template"`
+	Slug     string `yaml:"slug" json:"slug" jsonschema:"Go template that renders the new page's one-segment name; this is a naming pattern, not a page identifier"`
 }
 
 // NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml.
