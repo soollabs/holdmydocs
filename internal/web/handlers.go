@@ -24,60 +24,53 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
-	texttemplate "text/template"
 	"time"
+
+	"hmd/internal/api"
+	"hmd/internal/presentation"
+	"hmd/internal/wiki"
 )
 
 var buildVersion = "dev"
 var version = envOr("HMD_VERSION", buildVersion)
 
+// App is the browser adapter: it renders HTML, owns templates and static
+// assets, and delegates shared application state to API.
+//
+// API is set by the composition root. The lazy apiClient accessor lets unit
+// tests construct a bare App without wiring the full dependency graph.
 type App struct {
-	cfg        atomic.Pointer[Config]
-	wiki       atomic.Pointer[WikiConfig]
-	namespaces atomic.Pointer[NamespaceRegistry]
-	uploadMu   sync.Mutex
-	uploads    map[string]uploadCapability
-	Store      *Store
-	Auth       *Auth
-	Index      *Index
-	Render     *Renderer
-	Tmpl       map[string]*template.Template
-	OIDC       *OIDCAuth // nil when OIDC is disabled
+	API    *api.API
+	Store  *Store
+	Auth   *Auth
+	Index  *Index
+	Render *Renderer
+	Tmpl   map[string]*template.Template
+	OIDC   *OIDCAuth // nil when OIDC is disabled
 }
 
-func (app *App) config() Config {
-	return *app.cfg.Load()
+func (app *App) apiClient() *api.API {
+	if app.API == nil {
+		app.API = api.New(app.Store, app.Index, app.Auth)
+	}
+	return app.API
 }
+
+func (app *App) config() Config { return app.apiClient().Config() }
 
 // SetConfig stores a new configuration value atomically.
-func (app *App) SetConfig(cfg Config) {
-	app.cfg.Store(&cfg)
-}
+func (app *App) SetConfig(cfg Config) { app.apiClient().SetConfig(cfg) }
 
-func (app *App) wikiConfig() WikiConfig {
-	if cfg := app.wiki.Load(); cfg != nil {
-		return *cfg
-	}
-	return defaultWikiConfig()
-}
+func (app *App) wikiConfig() WikiConfig { return app.apiClient().WikiConfig() }
 
 // SetWikiConfig stores new repository-level settings atomically.
-func (app *App) SetWikiConfig(cfg WikiConfig) {
-	cfg = cfg.Normalised()
-	app.wiki.Store(&cfg)
-}
+func (app *App) SetWikiConfig(cfg WikiConfig) { app.apiClient().SetWikiConfig(cfg) }
 
 // Namespaces returns the current namespace registry.
-func (app *App) Namespaces() NamespaceRegistry {
-	return *app.namespaces.Load()
-}
+func (app *App) Namespaces() wiki.NamespaceRegistry { return app.apiClient().Namespaces() }
 
 // SetNamespaces stores the current namespace registry.
-func (app *App) SetNamespaces(reg NamespaceRegistry) {
-	app.namespaces.Store(&reg)
-}
+func (app *App) SetNamespaces(reg wiki.NamespaceRegistry) { app.apiClient().SetNamespaces(reg) }
 
 type TagChip struct{ Tag, Slug string }
 
@@ -489,12 +482,12 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.CSPNonce = cspNonce(r.Context())
 	}
 	if data.Authed && data.AllTags == nil {
-		ns, _ := namespaceFor(data.Slug)
+		ns, _ := wiki.NamespaceFor(data.Slug)
 		data.AllTags = app.Index.TagsInNamespace(ns)
 	}
 	// Use the current page's namespace as the default destination.
 	if data.Namespace == "" {
-		data.Namespace, _ = namespaceFor(data.Slug)
+		data.Namespace, _ = wiki.NamespaceFor(data.Slug)
 	}
 	if data.Authed {
 		missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
@@ -535,7 +528,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 		if data.StatusMode == "edit" {
 			for _, name := range app.Namespaces().Names() {
-				if tokenAllowsSlug(r.Context(), namespaceSlug(name, "")) {
+				if tokenAllowsSlug(r.Context(), wiki.NamespaceSlug(name, "")) {
 					data.NamespaceNames = append(data.NamespaceNames, name)
 				}
 			}
@@ -549,7 +542,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.Skin = activeName
 		data.StatusVariant = activeSkin.Status
 		nsRegistry := app.Namespaces()
-		target, _ := namespaceFor(data.Slug)
+		target, _ := wiki.NamespaceFor(data.Slug)
 		if cfg, ok := nsRegistry[target]; ok && cfg.New != nil {
 			data.NewPageEnabled = true
 			data.NewNamespace = target
@@ -600,7 +593,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	// Public pages stage the tree before rendering because widget data is authenticated-only.
 	if data.SidebarTreeNS != "" {
 		entries := filterBacklinkEntries(r.Context(), data.SidebarTreeEntries)
-		_, currentPath := namespaceFor(data.Slug)
+		_, currentPath := wiki.NamespaceFor(data.Slug)
 		cfg := app.Namespaces().Resolve(data.SidebarTreeNS)
 		tree := buildPageTree(entries, data.SidebarTreeNS, cfg.Index, cfg.Tree)
 		data.SidebarTree = renderLiveTree(tree, data.SidebarTreeNS, currentPath)
@@ -763,13 +756,13 @@ func filterHealth(ctx context.Context, missing map[string][]string, orphans []st
 func filterHealthNamespace(missing map[string][]string, orphans []string, namespace string) (map[string][]string, []string) {
 	filteredMissing := make(map[string][]string, len(missing))
 	for slug, sources := range missing {
-		if ns, _ := namespaceFor(slug); ns == namespace {
+		if ns, _ := wiki.NamespaceFor(slug); ns == namespace {
 			filteredMissing[slug] = sources
 		}
 	}
 	filteredOrphans := make([]string, 0, len(orphans))
 	for _, slug := range orphans {
-		if ns, _ := namespaceFor(slug); ns == namespace {
+		if ns, _ := wiki.NamespaceFor(slug); ns == namespace {
 			filteredOrphans = append(filteredOrphans, slug)
 		}
 	}
@@ -792,7 +785,7 @@ func injectTOC(body string, ix *Index, indexSlug string, ns string) string {
 	}
 	titles := ix.Titles()
 	inNS := func(slug string) bool {
-		pageNS, _ := namespaceFor(slug)
+		pageNS, _ := wiki.NamespaceFor(slug)
 		return pageNS == ns
 	}
 	return tocToken.ReplaceAllStringFunc(body, func(match string) string {
@@ -1064,7 +1057,7 @@ func (app *App) secureCookie(r *http.Request) bool {
 	if app.isSecureRequest(r) {
 		return true
 	}
-	if app.cfg.Load() == nil {
+	if !app.apiClient().HasConfig() {
 		return false
 	}
 	base, err := url.Parse(app.externalBaseURL())
@@ -1072,7 +1065,7 @@ func (app *App) secureCookie(r *http.Request) bool {
 }
 
 func (app *App) trustedProxy(remote string) bool {
-	if app.cfg.Load() == nil {
+	if !app.apiClient().HasConfig() {
 		return false
 	}
 	host, _, err := net.SplitHostPort(remote)
@@ -1274,7 +1267,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 				if name == "" {
 					name = defaultSetupNamespace
 				}
-				if !validNamespaceName(name) {
+				if !wiki.ValidNamespaceName(name) {
 					http.Error(w, "invalid namespace name", http.StatusBadRequest)
 					return
 				}
@@ -1315,7 +1308,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = defaultSetupNamespace
 			}
-			if !validNamespaceName(name) {
+			if !wiki.ValidNamespaceName(name) {
 				http.Error(w, "invalid namespace name", http.StatusBadRequest)
 				return
 			}
@@ -1340,17 +1333,17 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) seedFirstNamespace(name, authorName, authorEmail string) error {
-	nsCfg := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}
+	nsCfg := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: defaultIndexPage}
 	data, err := nsCfg.Encode()
 	if err != nil {
 		return fmt.Errorf("encoding namespace config: %w", err)
 	}
-	path := namespaceConfigPath(name)
+	path := wiki.NamespaceConfigPath(name)
 	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
 		return fmt.Errorf("saving namespace config: %w", err)
 	}
 
-	indexSlug := namespaceSlug(name, defaultIndexPage)
+	indexSlug := wiki.NamespaceSlug(name, defaultIndexPage)
 	if _, _, err := app.Store.Read(pageFile(indexSlug)); err != nil {
 		content := Page{Slug: indexSlug, Title: name, Body: defaultHomeMD}.Encode()
 		if _, err := app.Store.Save(pageFile(indexSlug), content, "Add "+indexSlug, authorName, authorEmail); err != nil {
@@ -1414,24 +1407,6 @@ func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
-type newPageTemplateData struct {
-	Now       time.Time
-	User      string
-	Namespace string
-}
-
-func renderNewPageText(src string, data newPageTemplateData) (string, error) {
-	t, err := texttemplate.New("new").Parse(src)
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := t.Execute(&buf, data); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("ns")
 	if !app.requireTokenNamespace(w, r, ns) {
@@ -1444,9 +1419,9 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	username := app.currentUser(r)
-	tmplData := newPageTemplateData{Now: time.Now(), User: username, Namespace: ns}
+	tmplData := api.NewPageTemplateData{Now: time.Now(), User: username, Namespace: ns}
 
-	slugRel, err := renderNewPageText(nsCfg.New.Slug, tmplData)
+	slugRel, err := api.RenderNewPageText(nsCfg.New.Slug, tmplData)
 	if err != nil {
 		http.Error(w, "invalid slug template", http.StatusInternalServerError)
 		return
@@ -1454,15 +1429,15 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	// The rendered slug is a trust boundary, like MCP input: validated
 	// after rendering so a template can never write outside its own
 	// namespace (no separators, no dot prefix, non-empty).
-	if !validMCPPageSegment(slugRel) {
+	if !wiki.ValidPageSegment(slugRel) {
 		http.Error(w, "invalid generated slug", http.StatusBadRequest)
 		return
 	}
-	if !validMCPPageSegment(nsCfg.New.Template) {
+	if !wiki.ValidPageSegment(nsCfg.New.Template) {
 		http.Error(w, "invalid template page", http.StatusBadRequest)
 		return
 	}
-	slug := namespaceSlug(ns, slugRel)
+	slug := wiki.NamespaceSlug(ns, slugRel)
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
@@ -1472,7 +1447,7 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templateSlug := namespaceSlug(ns, nsCfg.New.Template)
+	templateSlug := wiki.NamespaceSlug(ns, nsCfg.New.Template)
 	tplPage := Page{Slug: templateSlug, Title: slugRel}
 	if tplContent, _, err := app.Store.Read(hiddenFile(templateSlug)); err == nil {
 		tplPage = ParsePage(templateSlug, tplContent)
@@ -1480,19 +1455,19 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("namespace template page missing, creating a bare page", "namespace", ns, "template", templateSlug)
 	}
 
-	title, err := renderNewPageText(tplPage.Title, tmplData)
+	title, err := api.RenderNewPageText(tplPage.Title, tmplData)
 	if err != nil {
 		http.Error(w, "invalid title template", http.StatusInternalServerError)
 		return
 	}
-	body, err := renderNewPageText(tplPage.Body, tmplData)
+	body, err := api.RenderNewPageText(tplPage.Body, tmplData)
 	if err != nil {
 		http.Error(w, "invalid body template", http.StatusInternalServerError)
 		return
 	}
 	tags := make([]string, 0, len(tplPage.Tags))
 	for _, tag := range tplPage.Tags {
-		rendered, err := renderNewPageText(tag, tmplData)
+		rendered, err := api.RenderNewPageText(tag, tmplData)
 		if err != nil {
 			http.Error(w, "invalid tag template", http.StatusInternalServerError)
 			return
@@ -1540,7 +1515,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	ns, _ := namespaceFor(slug)
+	ns, _ := wiki.NamespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
@@ -1601,7 +1576,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		return
 	}
 
-	pageNS, _ := namespaceFor(slug)
+	pageNS, _ := wiki.NamespaceFor(slug)
 	isPublicLink := func(s string) bool { return app.Index.Exists(s) && ns.IsPublic(s) }
 	renderedBody, err := app.Render.RenderPublic(page.Body, pageNS, isPublicLink)
 	if err != nil {
@@ -1621,7 +1596,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		sidebarTreeNS = pageNS
 		sidebarTreeEntries = summary.Pages
 	}
-	publishedTitle := namespaceDisplayTitle(pageNS, cfg)
+	publishedTitle := wiki.NamespaceDisplayTitle(pageNS, cfg)
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:             false,
@@ -1647,7 +1622,7 @@ func reservedPath(path string) bool {
 }
 
 func isPageSlug(slug string) bool {
-	return validMCPPageSlug(slug)
+	return wiki.ValidPageSlug(slug)
 }
 
 func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
@@ -1715,7 +1690,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	// (auth, TOC, backlinks, ...) here. Falls back to the page list below if
 	// the configured page doesn't exist.
 	if summary.Config.Index != "" {
-		indexSlug := namespaceSlug(name, summary.Config.Index)
+		indexSlug := wiki.NamespaceSlug(name, summary.Config.Index)
 		if _, ok := app.Index.Titles()[indexSlug]; ok {
 			r.SetPathValue("slug", indexSlug)
 			app.handleViewPage(w, r)
@@ -1723,7 +1698,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		}
 	}
 
-	publishedTitle := namespaceDisplayTitle(name, summary.Config)
+	publishedTitle := wiki.NamespaceDisplayTitle(name, summary.Config)
 	var siteName, namespaceSkin string
 	var themeStyle template.CSS
 	if !authed {
@@ -1873,15 +1848,15 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	targetSlug := slug
 	if want := strings.TrimSpace(r.FormValue("new_slug")); want != "" && want != slug {
 		targetSlug = want
-		newNamespace, newPage := namespaceFor(targetSlug)
-		if !validPagePath(newPage) {
+		newNamespace, newPage := wiki.NamespaceFor(targetSlug)
+		if !wiki.ValidPagePath(newPage) {
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
 		// Crossing into another namespace files the page somewhere that
 		// already exists; a typo in the path shouldn't conjure a namespace
 		// directory. Staying within the namespace is a rename.
-		if oldNamespace, _ := namespaceFor(slug); oldNamespace != newNamespace {
+		if oldNamespace, _ := wiki.NamespaceFor(slug); oldNamespace != newNamespace {
 			if _, ok := app.Namespaces()[newNamespace]; !ok {
 				http.Error(w, "unknown namespace", http.StatusBadRequest)
 				return
@@ -2020,7 +1995,7 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ns, _ := namespaceFor(r.URL.Query().Get("slug"))
+	ns, _ := wiki.NamespaceFor(r.URL.Query().Get("slug"))
 	html, err := app.Render.Render(body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -2041,44 +2016,8 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	app.handleAttachmentUpload(w, r, slug, app.currentUser(r), "")
 }
 
-type uploadCapability struct {
-	Slug     string
-	Filename string
-	User     string
-	Expires  time.Time
-}
-
-const maxPendingUploadCapabilities = 1024
-
-func (app *App) addUploadCapability(token string, capability uploadCapability) error {
-	app.uploadMu.Lock()
-	defer app.uploadMu.Unlock()
-	if app.uploads == nil {
-		app.uploads = make(map[string]uploadCapability)
-	}
-	now := time.Now()
-	for key, pending := range app.uploads {
-		if now.After(pending.Expires) {
-			delete(app.uploads, key)
-		}
-	}
-	if len(app.uploads) >= maxPendingUploadCapabilities {
-		return errors.New("too many pending attachment uploads")
-	}
-	app.uploads[token] = capability
-	return nil
-}
-
-func (app *App) takeUploadCapability(token string) (uploadCapability, bool) {
-	app.uploadMu.Lock()
-	defer app.uploadMu.Unlock()
-	capability, ok := app.uploads[token]
-	delete(app.uploads, token)
-	return capability, ok
-}
-
 func (app *App) handleCapabilityUpload(w http.ResponseWriter, r *http.Request) {
-	capability, ok := app.takeUploadCapability(r.PathValue("token"))
+	capability, ok := app.apiClient().TakeUploadCapability(r.PathValue("token"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -2655,12 +2594,12 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	}
 	// A rename retitles a page in place: keep it in its namespace instead of
 	// slugifying it out to the wiki root.
-	renameNS, _ := namespaceFor(slug)
+	renameNS, _ := wiki.NamespaceFor(slug)
 	if Slugify(newTitle) == "" {
 		http.Error(w, "invalid title", http.StatusBadRequest)
 		return
 	}
-	newSlug := namespaceSlug(renameNS, Slugify(newTitle))
+	newSlug := wiki.NamespaceSlug(renameNS, Slugify(newTitle))
 	if !app.requireTokenSlug(w, r, newSlug) {
 		return
 	}
@@ -2706,13 +2645,13 @@ func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		srcPage := ParsePage(src, srcContent)
-		srcNS, _ := namespaceFor(src)
+		srcNS, _ := wiki.NamespaceFor(src)
 		updated := wikiLinkRe.ReplaceAllStringFunc(srcPage.Body, func(m string) string {
 			// Mirror Index.ResolveLink: the link pointed at the old page by
 			// title, or — for casing that didn't match — by slug, namespace
 			// first. Title alone isn't enough now that a slug can be namespaced.
 			inner := m[2 : len(m)-2]
-			if inner == oldTitle || namespaceSlug(srcNS, Slugify(inner)) == slug || Slugify(inner) == slug {
+			if inner == oldTitle || wiki.NamespaceSlug(srcNS, Slugify(inner)) == slug || Slugify(inner) == slug {
 				return "[[" + newTitle + "]]"
 			}
 			return m
@@ -2831,7 +2770,7 @@ type HealthReport struct {
 func (app *App) handleHealthAPI(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 	if namespace != "" {
-		if !validNamespaceName(namespace) {
+		if !wiki.ValidNamespaceName(namespace) {
 			http.Error(w, `{"error":"invalid namespace"}`, http.StatusBadRequest)
 			return
 		}
@@ -2948,7 +2887,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	ns, _ := namespaceFor(slug)
+	ns, _ := wiki.NamespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
@@ -3056,7 +2995,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := ParsePage(slug, content)
-	hiddenNS, _ := namespaceFor(slug)
+	hiddenNS, _ := wiki.NamespaceFor(slug)
 	renderedBody, err := app.Render.Render(page.Body, hiddenNS)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -3304,7 +3243,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 func namespaceTreeItems(titles map[string]string, namespace, index string, tree []string) []NamespaceTreeItem {
 	entries := make([]BacklinkEntry, 0)
 	for slug, title := range titles {
-		if ns, rest := namespaceFor(slug); ns == namespace && rest != "" {
+		if ns, rest := wiki.NamespaceFor(slug); ns == namespace && rest != "" {
 			entries = append(entries, BacklinkEntry{Slug: slug, Title: title})
 		}
 	}
@@ -3328,7 +3267,7 @@ func namespaceTreeItems(titles map[string]string, namespace, index string, tree 
 func namespaceTreeEditor(titles map[string]string, namespace, index string, tree []string) template.HTML {
 	entries := make([]BacklinkEntry, 0)
 	for slug, title := range titles {
-		if ns, rest := namespaceFor(slug); ns == namespace && rest != "" {
+		if ns, rest := wiki.NamespaceFor(slug); ns == namespace && rest != "" {
 			entries = append(entries, BacklinkEntry{Slug: slug, Title: title})
 		}
 	}
@@ -3417,7 +3356,7 @@ func (app *App) handleNamespacesGet(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleNamespaceNewGet(w http.ResponseWriter, r *http.Request) {
 	data := app.namespaceManagementData(r, "", "")
-	data.Form = NamespaceListEntry{Template: defaultNewPageTemplate, SlugPreset: slugPresets[0].Key}
+	data.Form = NamespaceListEntry{Template: wiki.DefaultNewPageTemplate, SlugPreset: slugPresets[0].Key}
 	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: "New namespace", StatusMode: "settings", NamespaceManagement: &data})
 }
 
@@ -3426,7 +3365,7 @@ func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenNamespace(w, r, name) {
 		return
 	}
-	if !validNamespaceName(name) {
+	if !wiki.ValidNamespaceName(name) {
 		app.notFound(w, r)
 		return
 	}
@@ -3449,8 +3388,8 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 
 	// A namespace name is a single directory segment, and must be one a
 	// namespace may actually take.
-	if !validNamespaceName(name) {
-		fail(fmt.Sprintf("%q is not a valid namespace name: one path segment, not %q, not dot-prefixed", name, reservedNamespace))
+	if !wiki.ValidNamespaceName(name) {
+		fail(fmt.Sprintf("%q is not a valid namespace name: one path segment, not %q, not dot-prefixed", name, wiki.ReservedNamespace))
 		return
 	}
 
@@ -3460,26 +3399,26 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			continue
 		}
-		if _, ok := widgets[id]; !ok {
+		if !presentation.ValidWidget(id) {
 			fail(fmt.Sprintf("unknown widget %q", id))
 			return
 		}
 		ids = append(ids, id)
 	}
 	if len(ids) == 0 {
-		ids = builtinWidgets
+		ids = wiki.BuiltinNamespaceWidgets
 	}
 
 	// The template page name is a convention, not a question the form asks: it
 	// arrives as a hidden field so a hand-written config naming something
-	// other than defaultNewPageTemplate survives a save here.
+	// other than wiki.DefaultNewPageTemplate survives a save here.
 	template := strings.TrimSpace(r.FormValue("template"))
 	if template == "" {
-		template = defaultNewPageTemplate
+		template = wiki.DefaultNewPageTemplate
 	}
 	// It names a hidden page inside the namespace — the same one-segment shape
 	// handleNewPage's rendered slug has to satisfy.
-	if !validMCPPageSegment(template) {
+	if !wiki.ValidPageSegment(template) {
 		fail(fmt.Sprintf("%q is not a valid template page name: one segment, no slashes, no leading dot", template))
 		return
 	}
@@ -3488,8 +3427,8 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	creating := !app.Namespaces()[name].Configured
 
 	title := strings.TrimSpace(r.FormValue("title"))
-	if !validRunes(title, maxNamespaceTitleRunes) {
-		fail(fmt.Sprintf("namespace title must be at most %d characters", maxNamespaceTitleRunes))
+	if !validRunes(title, wiki.MaxNamespaceTitleRunes) {
+		fail(fmt.Sprintf("namespace title must be at most %d characters", wiki.MaxNamespaceTitleRunes))
 		return
 	}
 	var tree []string
@@ -3498,7 +3437,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 			tree = append(tree, path)
 		}
 	}
-	cfg := NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index")), Tree: tree}
+	cfg := wiki.NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index")), Tree: tree}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
 		// to the raw pattern field.
@@ -3512,19 +3451,19 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		}
 		// Reject a pattern that doesn't parse (or renders to something
 		// unusable) here, at the form, rather than at ctrl-j time.
-		rendered, err := renderNewPageText(slug, newPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
+		rendered, err := api.RenderNewPageText(slug, api.NewPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
 		if err != nil {
 			fail("slug pattern is not a valid template: " + err.Error())
 			return
 		}
-		if !validMCPPageSegment(rendered) {
+		if !wiki.ValidPageSegment(rendered) {
 			fail(fmt.Sprintf("that pattern names a page %q, which isn't usable: no slashes, no leading dot, not empty", rendered))
 			return
 		}
-		cfg.New = &NewPageConfig{Template: template, Slug: slug}
+		cfg.New = &wiki.NewPageConfig{Template: template, Slug: slug}
 	}
 	var err error
-	cfg, err = normaliseNamespaceConfig(name, cfg, newPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
+	cfg, err = api.NormaliseNamespaceConfig(name, cfg, api.NewPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
 	if err != nil {
 		fail(err.Error())
 		return
@@ -3536,7 +3475,7 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := namespaceConfigPath(name)
+	path := wiki.NamespaceConfigPath(name)
 	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
 		slog.Error("saving namespace config", "namespace", name, "err", err)
 		fail("failed to save namespace config: " + err.Error())
@@ -3560,12 +3499,12 @@ func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenNamespace(w, r, name) {
 		return
 	}
-	if !validNamespaceName(name) {
+	if !wiki.ValidNamespaceName(name) {
 		http.Error(w, "invalid namespace name", http.StatusBadRequest)
 		return
 	}
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := namespaceConfigPath(name)
+	path := wiki.NamespaceConfigPath(name)
 	if err := app.Store.Remove(path, "Reset namespace settings "+path, authorName, authorEmail); err != nil {
 		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, "failed to reset namespace settings: "+err.Error())
 		return
@@ -3580,7 +3519,7 @@ func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := namespaceConfigPath(name)
+	path := wiki.NamespaceConfigPath(name)
 	if err := app.Store.DeleteNamespace(name, "Remove namespace config "+path, authorName, authorEmail); err != nil {
 		if errors.Is(err, errInvalidNamespaceName) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -3610,7 +3549,7 @@ func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	for slug := range app.Index.Titles() {
-		ns, _ := namespaceFor(slug)
+		ns, _ := wiki.NamespaceFor(slug)
 		if ns == name {
 			app.Index.Remove(slug)
 		}
@@ -3621,16 +3560,13 @@ func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *App) refreshNamespaces() {
-	reg, err := BuildNamespaceRegistryFromStore(app.Store)
-	if err != nil {
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
 		slog.Warn("rebuilding namespace registry", "err", err)
-		return
 	}
-	app.SetNamespaces(reg)
 }
 
 func (app *App) ensureNewPageTemplate(ns, template, authorName, authorEmail string) error {
-	slug := namespaceSlug(ns, template)
+	slug := wiki.NamespaceSlug(ns, template)
 	if _, _, err := app.Store.Read(hiddenFile(slug)); err == nil {
 		return nil
 	}

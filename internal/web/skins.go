@@ -1,63 +1,20 @@
 package web
 
-type skin struct {
-	Label   string
-	Note    string
-	Palette string // Palette is applied when the skin is selected.
+import "hmd/internal/presentation"
 
-	Status string // statusline variant: full | write | quiet
-}
+// The skin catalogue and its validation live in internal/presentation; these
+// local names keep the rendering code readable.
+type skin = presentation.Skin
 
-const defaultSkin = "phosphor"
+const defaultSkin = presentation.DefaultSkin
 
-var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
+var skinNames = presentation.SkinNames
 
-var skins = map[string]skin{
-	"phosphor": {
-		Label:   "phosphor",
-		Note:    "terminal green, monospace, # markers — the default",
-		Palette: "phosphor",
-		Status:  "full",
-	},
-	"newsprint": {
-		Label:   "newsprint",
-		Note:    "broadsheet — masthead, serif, justified columns, ink on paper",
-		Palette: "solarized",
-		Status:  "full",
-	},
-	"journal": {
-		Label:   "journal",
-		Note:    "writing first — serif, wide measure, no chrome",
-		Palette: "everforest",
-		Status:  "write",
-	},
-	"soft": {
-		Label:   "soft",
-		Note:    "rounded and low-contrast — warm sans, roomy leading, filled panels",
-		Palette: "rosé pine",
-		Status:  "full",
-	},
-	"bare": {
-		Label:   "bare",
-		Note:    "subtraction only — no borders, no markers, wide margins",
-		Palette: "one dark",
-		Status:  "quiet",
-	},
-}
+var skins = presentation.Skins
 
-func resolveSkin(name string) skin {
-	if s, ok := skins[name]; ok {
-		return s
-	}
-	return skins[defaultSkin]
-}
+func resolveSkin(name string) skin { return presentation.ResolveSkin(name) }
 
-func skinName(name string) string {
-	if _, ok := skins[name]; ok {
-		return name
-	}
-	return defaultSkin
-}
+func skinName(name string) string { return presentation.SkinName(name) }
 
 func effectiveSkin(cfg Config, prefs userRecord) (string, skin) {
 	name := prefs.Skin
@@ -74,10 +31,4 @@ func effectivePalette(prefs userRecord, s skin) string {
 	return s.Palette
 }
 
-func skinPalettes() map[string]string {
-	m := make(map[string]string, len(skins))
-	for name, s := range skins {
-		m[name] = s.Palette
-	}
-	return m
-}
+func skinPalettes() map[string]string { return presentation.SkinPalettes() }

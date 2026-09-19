@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"hmd/internal/wiki"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ func TestExportDocumentationContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	reg := NamespaceRegistry{"docs": {Index: "home", Widgets: []string{"outline"}}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Widgets: []string{"outline"}}}
 	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, store, "docs", out, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestExportDocumentationContent(t *testing.T) {
 
 func TestExportRejectsMissingIndex(t *testing.T) {
 	pages := []Page{{Slug: "docs/guide", Title: "Guide", Body: "Text"}}
-	reg := NamespaceRegistry{"docs": {Index: "missing"}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "missing"}}
 	// Invalid index is rejected before rendering or copying anything.
 	out := filepath.Join(t.TempDir(), "output")
 	err := ExportNamespace(pages, nil, reg, nil, "docs", out, "")

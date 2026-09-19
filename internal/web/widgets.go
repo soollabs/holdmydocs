@@ -3,68 +3,31 @@ package web
 import (
 	"sort"
 	"time"
+
+	"hmd/internal/presentation"
+	"hmd/internal/wiki"
 )
 
-type widgetSlot string
+// The widget catalogue and its validation live in internal/presentation; these
+// local names keep the rendering code readable.
+type widgetSlot = presentation.WidgetSlot
 
 const (
-	slotSidebar  widgetSlot = "sidebar"
-	slotRail     widgetSlot = "rail"      // right rail (≥1200px only)
-	slotPageHead widgetSlot = "page-head" // between title and article
-	slotPageFoot widgetSlot = "page-foot" // after article
+	slotSidebar  = presentation.SlotSidebar
+	slotRail     = presentation.SlotRail
+	slotPageHead = presentation.SlotPageHead
+	slotPageFoot = presentation.SlotPageFoot
 )
 
-type widget struct {
-	ID          string
-	Title       string     // "" = renders no <h2>
-	Slot        widgetSlot // default slot; a skin may override
-	Description string     // one line, shown on the settings page
-}
+type widget = presentation.Widget
 
-var widgetIDs = []string{
-	"pages", "namespaces", "pinned", "tags", "log", "health",
-	"calendar", "writing-stats",
-	"outline", "page-meta", "backlinks", "prev-entries",
-}
+var widgetIDs = presentation.WidgetIDs
 
-var widgets = map[string]widget{
-	"pages":      {ID: "pages", Title: "PAGES", Slot: slotSidebar, Description: "recently edited pages in this namespace, most recent first."},
-	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: slotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
-	"pinned":     {ID: "pinned", Title: "PINNED", Slot: slotSidebar, Description: "pages you've pinned for quick access."},
-	"tags":       {ID: "tags", Title: "TAGS", Slot: slotSidebar, Description: "tags used in this namespace, with page counts."},
-	"log":        {ID: "log", Title: "LOG", Slot: slotSidebar, Description: "the last few commits to the page you're viewing."},
-	"health":     {ID: "health", Title: "HEALTH", Slot: slotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
+var widgets = presentation.Widgets
 
-	"calendar":      {ID: "calendar", Title: "", Slot: slotSidebar, Description: "a month grid of daily pages, with entries highlighted."},
-	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: slotSidebar, Description: "days written, streak, and word count for this month."},
+type widgetSlotGroup = presentation.WidgetSlotGroup
 
-	"outline":      {ID: "outline", Title: "ON THIS PAGE", Slot: slotRail, Description: "a table of contents built from the headings on the page you're viewing."},
-	"page-meta":    {ID: "page-meta", Title: "", Slot: slotPageHead, Description: "tags, last editor, and revision count for the page you're viewing."},
-	"backlinks":    {ID: "backlinks", Title: "linked from", Slot: slotPageFoot, Description: "other pages that link to this one."},
-	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: slotPageFoot, Description: "the daily entries just before this one."},
-}
-
-type widgetSlotGroup struct {
-	Slot    widgetSlot
-	Widgets []widget
-}
-
-func widgetSlotGroups() []widgetSlotGroup {
-	groups := make([]widgetSlotGroup, 0, 4)
-	for _, slot := range []widgetSlot{slotSidebar, slotRail, slotPageHead, slotPageFoot} {
-		g := widgetSlotGroup{Slot: slot}
-		for _, id := range widgetIDs {
-			if id == "outline" {
-				continue
-			}
-			if w := widgets[id]; w.Slot == slot {
-				g.Widgets = append(g.Widgets, w)
-			}
-		}
-		groups = append(groups, g)
-	}
-	return groups
-}
+func widgetSlotGroups() []widgetSlotGroup { return presentation.WidgetSlotGroups() }
 
 func widgetsForSlot(slot widgetSlot, ids []string) []*widget {
 	result := make([]*widget, 0, len(ids))
@@ -118,7 +81,7 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 		return hasWidget(all, id) || (s.Status == "write" && id == "writing-stats")
 	}
 
-	ns, _ := namespaceFor(data.Slug)
+	ns, _ := wiki.NamespaceFor(data.Slug)
 	var titles map[string]string
 	if needs("namespaces") || ns != "" {
 		titles = app.Index.Titles()

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"io"
 	"net/http"
 	"os"
@@ -18,10 +20,10 @@ func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
 			return err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte(yaml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, wiki.NamespaceConfigFile), []byte(yaml), 0644); err != nil {
 		return err
 	}
-	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
+	reg, err := api.BuildNamespaceRegistry(app.config().RepoDir)
 	if err != nil {
 		return err
 	}

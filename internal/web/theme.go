@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+
+	"hmd/internal/presentation"
 )
 
 var themeVarNames = []string{
@@ -64,23 +66,15 @@ func parseThemeVars(part string) map[string]string {
 	return m
 }
 
+// The font catalogue lives in internal/presentation; these local names keep
+// the settings and rendering code readable.
 var (
-	fontsMono  = []string{"jetbrains mono", "system mono", "courier"}
-	fontsSans  = []string{"system sans", "helvetica", "verdana"}
-	fontsSerif = []string{"georgia", "palatino", "charter"}
+	fontsMono  = presentation.FontsMono
+	fontsSans  = presentation.FontsSans
+	fontsSerif = presentation.FontsSerif
 )
 
-var fontStacks = map[string]string{
-	"jetbrains mono": `"JetBrains Mono", ui-monospace, monospace`,
-	"system mono":    `ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
-	"courier":        `"Courier New", Courier, monospace`,
-	"system sans":    `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`,
-	"helvetica":      `"Helvetica Neue", Helvetica, Arial, sans-serif`,
-	"verdana":        `Verdana, Geneva, sans-serif`,
-	"georgia":        `Georgia, "Times New Roman", serif`,
-	"palatino":       `Palatino, "Palatino Linotype", "Book Antiqua", serif`,
-	"charter":        `Charter, "Bitstream Charter", Cambria, serif`,
-}
+var fontStacks = presentation.FontStacks
 
 func buildThemeStyle(prefs userRecord) template.CSS {
 	var b strings.Builder

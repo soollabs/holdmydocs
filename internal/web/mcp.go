@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"io"
 	"log/slog"
 	"net/http"
@@ -47,31 +49,31 @@ type mcpNamespacesOut struct {
 }
 
 type mcpNamespaceOut struct {
-	Name        string         `json:"name"`
-	Widgets     []string       `json:"widgets"`
-	Public      bool           `json:"public"`
-	Title       string         `json:"title,omitempty"`
-	Description string         `json:"description,omitempty"`
-	Skin        string         `json:"skin,omitempty"`
-	Palette     string         `json:"palette,omitempty"`
-	Index       string         `json:"index,omitempty"`
-	Tree        []string       `json:"tree,omitempty"`
-	New         *NewPageConfig `json:"new,omitempty"`
-	Hash        string         `json:"hash"`
+	Name        string              `json:"name"`
+	Widgets     []string            `json:"widgets"`
+	Public      bool                `json:"public"`
+	Title       string              `json:"title,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Skin        string              `json:"skin,omitempty"`
+	Palette     string              `json:"palette,omitempty"`
+	Index       string              `json:"index,omitempty"`
+	Tree        []string            `json:"tree,omitempty"`
+	New         *wiki.NewPageConfig `json:"new,omitempty"`
+	Hash        string              `json:"hash"`
 }
 
 type mcpSaveNamespaceIn struct {
-	Name        string         `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
-	Widgets     []string       `json:"widgets,omitempty" jsonschema:"complete ordered string array of configured widget IDs; preserve from read_namespace when updating"`
-	Public      bool           `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`
-	Title       string         `json:"title,omitempty" jsonschema:"human-readable namespace title; preserve from read_namespace when updating"`
-	Description string         `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters; preserve from read_namespace when updating"`
-	Skin        string         `json:"skin,omitempty" jsonschema:"presentation skin name; preserve from read_namespace when updating"`
-	Palette     string         `json:"palette,omitempty" jsonschema:"colour palette name; preserve from read_namespace when updating"`
-	Index       string         `json:"index,omitempty" jsonschema:"one-segment page name used as the namespace index; preserve from read_namespace when updating"`
-	Tree        []string       `json:"tree,omitempty" jsonschema:"complete ordered string array of page or folder paths for the tree; preserve from read_namespace when updating"`
-	New         *NewPageConfig `json:"new,omitempty" jsonschema:"new-page template configuration; preserve from read_namespace when updating"`
-	BaseHash    string         `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit only when creating a namespace configuration"`
+	Name        string              `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
+	Widgets     []string            `json:"widgets,omitempty" jsonschema:"complete ordered string array of configured widget IDs; preserve from read_namespace when updating"`
+	Public      bool                `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`
+	Title       string              `json:"title,omitempty" jsonschema:"human-readable namespace title; preserve from read_namespace when updating"`
+	Description string              `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters; preserve from read_namespace when updating"`
+	Skin        string              `json:"skin,omitempty" jsonschema:"presentation skin name; preserve from read_namespace when updating"`
+	Palette     string              `json:"palette,omitempty" jsonschema:"colour palette name; preserve from read_namespace when updating"`
+	Index       string              `json:"index,omitempty" jsonschema:"one-segment page name used as the namespace index; preserve from read_namespace when updating"`
+	Tree        []string            `json:"tree,omitempty" jsonschema:"complete ordered string array of page or folder paths for the tree; preserve from read_namespace when updating"`
+	New         *wiki.NewPageConfig `json:"new,omitempty" jsonschema:"new-page template configuration; preserve from read_namespace when updating"`
+	BaseHash    string              `json:"basehash,omitempty" jsonschema:"hash from read_namespace; omit only when creating a namespace configuration"`
 }
 
 type mcpSlugIn struct {
@@ -336,7 +338,7 @@ func mcpPageIdentifier(slug, path string) (string, error) {
 	if identifier == "" {
 		return "", errors.New("slug or path is required")
 	}
-	if !validMCPPageSlug(identifier) {
+	if !wiki.ValidPageSlug(identifier) {
 		return "", fmt.Errorf("invalid page identifier %q: expected namespace/page", identifier)
 	}
 	return identifier, nil
@@ -347,10 +349,10 @@ func mcpPathNamespace(path string) (string, bool) {
 		return "", false
 	}
 	slug := strings.TrimSuffix(path, ".md")
-	if !validMCPPageSlug(slug) {
+	if !wiki.ValidPageSlug(slug) {
 		return "", false
 	}
-	namespace, _ := namespaceFor(slug)
+	namespace, _ := wiki.NamespaceFor(slug)
 	return namespace, true
 }
 
@@ -367,7 +369,7 @@ func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
 	return true
 }
 
-func mcpNamespaceOutput(name string, cfg NamespaceConfig, hash string) mcpNamespaceOut {
+func mcpNamespaceOutput(name string, cfg wiki.NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
 		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
 		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, Tree: cfg.Tree, New: cfg.New, Hash: hash,
@@ -379,7 +381,7 @@ func (app *App) readMCPNamespace(name string) (mcpNamespaceOut, error) {
 	if !ok {
 		return mcpNamespaceOut{}, fmt.Errorf("namespace %q not found", name)
 	}
-	_, hash, err := app.Store.Read(namespaceConfigPath(name))
+	_, hash, err := app.Store.Read(wiki.NamespaceConfigPath(name))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return mcpNamespaceOut{}, err
 	}
@@ -469,7 +471,7 @@ func (app *App) mcpHandler() http.Handler {
 		}
 		expires := time.Now().Add(10 * time.Minute)
 		tokenString := fmt.Sprintf("%x", token)
-		if err := app.addUploadCapability(tokenString, uploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires}); err != nil {
+		if err := app.apiClient().AddUploadCapability(tokenString, api.UploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires}); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
 		baseURL, _ := ctx.Value(mcpBaseURLKey{}).(string)
@@ -552,7 +554,7 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		if !validNamespaceName(in.Name) {
+		if !wiki.ValidNamespaceName(in.Name) {
 			return nil, mcpNamespaceOut{}, fmt.Errorf("invalid namespace %q", in.Name)
 		}
 		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
@@ -570,16 +572,16 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		if !validNamespaceName(in.Name) {
+		if !wiki.ValidNamespaceName(in.Name) {
 			return nil, mcpNamespaceOut{}, fmt.Errorf("invalid namespace %q", in.Name)
 		}
 		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		cfg, err := normaliseNamespaceConfig(in.Name, NamespaceConfig{
+		cfg, err := api.NormaliseNamespaceConfig(in.Name, wiki.NamespaceConfig{
 			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
 			Palette: in.Palette, Index: in.Index, Tree: in.Tree, New: in.New,
-		}, newPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
+		}, api.NewPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
 		if err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
@@ -588,7 +590,7 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpNamespaceOut{}, err
 		}
 		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
-		path := namespaceConfigPath(in.Name)
+		path := wiki.NamespaceConfigPath(in.Name)
 		hash, err := app.Store.SaveChecked(path, path, in.BaseHash, data, "Configure namespace "+path, authorName, authorEmail)
 		if errors.Is(err, ErrConflict) {
 			current, readErr := app.readMCPNamespace(in.Name)
@@ -818,7 +820,7 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpHealthOut{}, err
 		}
 		if in.Namespace != "" {
-			if !validNamespaceName(in.Namespace) {
+			if !wiki.ValidNamespaceName(in.Namespace) {
 				return nil, mcpHealthOut{}, fmt.Errorf("invalid namespace %q", in.Namespace)
 			}
 			if err := app.mcpRequireNamespace(ctx, in.Namespace); err != nil {

@@ -8,17 +8,16 @@ import (
 )
 
 const (
-	maxFormBytes           = 2 << 20
-	maxPageBodyBytes       = 1 << 20
-	maxPageTitleRunes      = 256
-	maxPageTags            = 32
-	maxPageTagRunes        = 64
-	maxSearchQueryRunes    = 512
-	maxGitAuthorRunes      = 256
-	maxNamespaceTitleRunes = 256
-	maxExportFiles         = 10_000
-	maxExportBytes         = 100 << 20
-	maxStoredPageBytes     = maxPageBodyBytes + 64<<10
+	maxFormBytes        = 2 << 20
+	maxPageBodyBytes    = 1 << 20
+	maxPageTitleRunes   = 256
+	maxPageTags         = 32
+	maxPageTagRunes     = 64
+	maxSearchQueryRunes = 512
+	maxGitAuthorRunes   = 256
+	maxExportFiles      = 10_000
+	maxExportBytes      = 100 << 20
+	maxStoredPageBytes  = maxPageBodyBytes + 64<<10
 )
 
 func validRunes(s string, max int) bool {

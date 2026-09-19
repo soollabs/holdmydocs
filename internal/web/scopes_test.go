@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"hmd/internal/wiki"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -205,11 +206,11 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	if _, err := app.Store.Save("attachments/private/denied/file.txt", []byte("private attachment"), "Seed attachment", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seed attachment: %v", err)
 	}
-	notesConfig, err := (NamespaceConfig{New: &NewPageConfig{Template: "template", Slug: "created"}}).Encode()
+	notesConfig, err := (wiki.NamespaceConfig{New: &wiki.NewPageConfig{Template: "template", Slug: "created"}}).Encode()
 	if err != nil {
 		t.Fatalf("encode notes config: %v", err)
 	}
-	if _, err := app.Store.Save(namespaceConfigPath("notes"), notesConfig, "Configure notes", "test", "test@hmd.local"); err != nil {
+	if _, err := app.Store.Save(wiki.NamespaceConfigPath("notes"), notesConfig, "Configure notes", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seed notes config: %v", err)
 	}
 	app.refreshNamespaces()

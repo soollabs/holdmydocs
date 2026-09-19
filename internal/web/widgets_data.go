@@ -1,6 +1,7 @@
 package web
 
 import (
+	"hmd/internal/wiki"
 	"sort"
 	"strings"
 	"time"
@@ -11,7 +12,7 @@ const dateFormat = "2006-01-02"
 func datesInNamespace(ns string, slugs []string) []string {
 	var dates []string
 	for _, slug := range slugs {
-		slugNS, rest := namespaceFor(slug)
+		slugNS, rest := wiki.NamespaceFor(slug)
 		if slugNS != ns {
 			continue
 		}
@@ -57,7 +58,7 @@ func buildCalendarMonth(ref time.Time, ns string, dates []string) CalendarMonth 
 	}
 	for d := 1; d <= daysInMonth; d++ {
 		date := first.AddDate(0, 0, d-1).Format(dateFormat)
-		days = append(days, CalendarDay{Day: d, Date: date, Slug: namespaceSlug(ns, date), Lit: lit[date], Today: date == todayStr})
+		days = append(days, CalendarDay{Day: d, Date: date, Slug: wiki.NamespaceSlug(ns, date), Lit: lit[date], Today: date == todayStr})
 	}
 	for len(days)%7 != 0 {
 		days = append(days, CalendarDay{})
@@ -96,12 +97,12 @@ func buildWritingStats(ref time.Time, ns string, dates []string, bodyWords func(
 		stats.Streak++
 	}
 
-	stats.WordsToday = bodyWords(namespaceSlug(ns, ref.Format(dateFormat)))
+	stats.WordsToday = bodyWords(wiki.NamespaceSlug(ns, ref.Format(dateFormat)))
 
 	stats.Sparkline = make([]int, 7)
 	for i := 6; i >= 0; i-- {
 		date := ref.AddDate(0, 0, -i)
-		stats.Sparkline[6-i] = bodyWords(namespaceSlug(ns, date.Format(dateFormat)))
+		stats.Sparkline[6-i] = bodyWords(wiki.NamespaceSlug(ns, date.Format(dateFormat)))
 	}
 
 	return stats
@@ -119,7 +120,7 @@ type PrevEntry struct {
 }
 
 func buildPrevEntries(currentSlug string, dates []string, n int, firstLine func(slug string) string) []PrevEntry {
-	ns, rest := namespaceFor(currentSlug)
+	ns, rest := wiki.NamespaceFor(currentSlug)
 	if _, err := time.Parse(dateFormat, rest); err != nil {
 		return nil
 	}
@@ -138,7 +139,7 @@ func buildPrevEntries(currentSlug string, dates []string, n int, firstLine func(
 
 	entries := make([]PrevEntry, 0, len(earlier))
 	for _, d := range earlier {
-		slug := namespaceSlug(ns, d)
+		slug := wiki.NamespaceSlug(ns, d)
 		entries = append(entries, PrevEntry{Slug: slug, Date: d, FirstLine: firstLine(slug)})
 	}
 	return entries

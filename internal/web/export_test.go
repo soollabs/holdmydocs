@@ -1,6 +1,7 @@
 package web
 
 import (
+	"hmd/internal/wiki"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		t.Fatal(err)
 	}
 	outDir := t.TempDir()
-	reg := NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
 	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, store, "docs", outDir, ""); err != nil {
 		t.Fatal(err)
 	}

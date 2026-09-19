@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,9 +24,9 @@ new:
   template: entry
   slug: '{{.Now.Format "2006-01-02"}}'
 `)
-	cfg, err := parseNamespaceConfig(yaml)
+	cfg, err := wiki.ParseNamespaceConfig(yaml)
 	if err != nil {
-		t.Fatalf("parseNamespaceConfig: %v", err)
+		t.Fatalf("wiki.ParseNamespaceConfig: %v", err)
 	}
 	if len(cfg.Widgets) != 3 || cfg.Widgets[0] != "calendar" {
 		t.Errorf("Widgets = %v", cfg.Widgets)
@@ -41,29 +43,29 @@ new:
 }
 
 func TestNormaliseNamespaceConfigDescriptionLimit(t *testing.T) {
-	_, err := normaliseNamespaceConfig("notes", NamespaceConfig{Description: strings.Repeat("x", maxNamespaceDescriptionRunes+1)}, newPageTemplateData{})
+	_, err := api.NormaliseNamespaceConfig("notes", wiki.NamespaceConfig{Description: strings.Repeat("x", wiki.MaxNamespaceDescriptionRunes+1)}, api.NewPageTemplateData{})
 	if err == nil {
-		t.Errorf("description longer than %d characters was accepted", maxNamespaceDescriptionRunes)
+		t.Errorf("description longer than %d characters was accepted", wiki.MaxNamespaceDescriptionRunes)
 	}
 }
 
 func TestParseNamespaceConfigUnknownKeyRejected(t *testing.T) {
 	yaml := []byte("widgets: [calendar]\nbogus: true\n")
-	if _, err := parseNamespaceConfig(yaml); err == nil {
+	if _, err := wiki.ParseNamespaceConfig(yaml); err == nil {
 		t.Error("expected error for unknown key, got nil")
 	}
 }
 
 func TestNormaliseNamespaceConfigRejectsFixedWidgets(t *testing.T) {
 	for _, id := range []string{"search", "tree", "outline"} {
-		if _, err := normaliseNamespaceConfig("notes", NamespaceConfig{Widgets: []string{id}}, newPageTemplateData{}); err == nil {
+		if _, err := api.NormaliseNamespaceConfig("notes", wiki.NamespaceConfig{Widgets: []string{id}}, api.NewPageTemplateData{}); err == nil {
 			t.Errorf("fixed widget %q was accepted", id)
 		}
 	}
 }
 
 func TestNormaliseNamespaceConfigAllowsRoot(t *testing.T) {
-	if _, err := normaliseNamespaceConfig("", NamespaceConfig{Widgets: []string{"pages"}}, newPageTemplateData{}); err != nil {
+	if _, err := api.NormaliseNamespaceConfig("", wiki.NamespaceConfig{Widgets: []string{"pages"}}, api.NewPageTemplateData{}); err != nil {
 		t.Fatalf("normalise root namespace config: %v", err)
 	}
 }
@@ -102,7 +104,7 @@ func TestNamespaceTreeEditorIsCollapsedAndHierarchical(t *testing.T) {
 }
 
 func TestNormaliseNamespaceConfigTreePaths(t *testing.T) {
-	cfg, err := normaliseNamespaceConfig("docs", NamespaceConfig{Tree: []string{" guides ", "guides/setup"}}, newPageTemplateData{})
+	cfg, err := api.NormaliseNamespaceConfig("docs", wiki.NamespaceConfig{Tree: []string{" guides ", "guides/setup"}}, api.NewPageTemplateData{})
 	if err != nil {
 		t.Fatalf("normalise tree paths: %v", err)
 	}
@@ -110,7 +112,7 @@ func TestNormaliseNamespaceConfigTreePaths(t *testing.T) {
 		t.Errorf("Tree = %v, want %v", cfg.Tree, want)
 	}
 	for _, tree := range [][]string{{"../private"}, {"guides", "guides"}} {
-		if _, err := normaliseNamespaceConfig("docs", NamespaceConfig{Tree: tree}, newPageTemplateData{}); err == nil {
+		if _, err := api.NormaliseNamespaceConfig("docs", wiki.NamespaceConfig{Tree: tree}, api.NewPageTemplateData{}); err == nil {
 			t.Errorf("invalid tree %v was accepted", tree)
 		}
 	}
@@ -118,36 +120,36 @@ func TestNormaliseNamespaceConfigTreePaths(t *testing.T) {
 
 func TestLoadNamespaceConfigMissingFileIsDefaults(t *testing.T) {
 	dir := t.TempDir()
-	cfg := loadNamespaceConfig(dir, "blog")
+	cfg := wiki.LoadNamespaceConfig(dir, "blog")
 	if cfg.Public {
 		t.Error("missing config should default to private")
 	}
-	if len(cfg.Widgets) != len(builtinWidgets) {
+	if len(cfg.Widgets) != len(wiki.BuiltinNamespaceWidgets) {
 		t.Errorf("Widgets = %v, want built-in defaults", cfg.Widgets)
 	}
 }
 
 func TestLoadNamespaceConfigMalformedYAMLFallsBackToDefaults(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte("widgets: [oops\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, wiki.NamespaceConfigFile), []byte("widgets: [oops\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := loadNamespaceConfig(dir, "blog")
+	cfg := wiki.LoadNamespaceConfig(dir, "blog")
 	if cfg.Public {
 		t.Error("malformed config should fall back to private default")
 	}
-	if len(cfg.Widgets) != len(builtinWidgets) {
+	if len(cfg.Widgets) != len(wiki.BuiltinNamespaceWidgets) {
 		t.Errorf("Widgets = %v, want built-in defaults", cfg.Widgets)
 	}
 }
 
 func TestLoadNamespaceConfigUnknownWidgetIgnored(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte("widgets: [not-a-real-widget]\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, wiki.NamespaceConfigFile), []byte("widgets: [not-a-real-widget]\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := loadNamespaceConfig(dir, "blog")
-	if len(cfg.Widgets) != len(builtinWidgets) {
+	cfg := wiki.LoadNamespaceConfig(dir, "blog")
+	if len(cfg.Widgets) != len(wiki.BuiltinNamespaceWidgets) {
 		t.Errorf("Widgets = %v, want built-in defaults after unknown id", cfg.Widgets)
 	}
 }
@@ -161,10 +163,10 @@ func TestLoadNamespaceConfigInvalidSettingsFallBackToDefaults(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, namespaceConfigFile), []byte(yaml), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, wiki.NamespaceConfigFile), []byte(yaml), 0644); err != nil {
 				t.Fatal(err)
 			}
-			cfg := loadNamespaceConfig(dir, "blog")
+			cfg := wiki.LoadNamespaceConfig(dir, "blog")
 			if !cfg.Configured || cfg.LoadError == "" {
 				t.Errorf("invalid config = %+v, want configured fallback with an error", cfg)
 			}
@@ -186,24 +188,24 @@ func TestNamespaceFor(t *testing.T) {
 		{"notes/2026-07-27", "notes", "2026-07-27"},
 	}
 	for _, tt := range tests {
-		ns, rest := namespaceFor(tt.slug)
+		ns, rest := wiki.NamespaceFor(tt.slug)
 		if ns != tt.wantNS || rest != tt.wantR {
-			t.Errorf("namespaceFor(%q) = (%q, %q), want (%q, %q)", tt.slug, ns, rest, tt.wantNS, tt.wantR)
+			t.Errorf("wiki.NamespaceFor(%q) = (%q, %q), want (%q, %q)", tt.slug, ns, rest, tt.wantNS, tt.wantR)
 		}
 	}
 }
 
 func TestValidNamespaceNameRejectsReserved(t *testing.T) {
-	if validNamespaceName("_") {
+	if wiki.ValidNamespaceName("_") {
 		t.Error("_ must be rejected as a namespace name")
 	}
-	if validNamespaceName(".hidden") {
+	if wiki.ValidNamespaceName(".hidden") {
 		t.Error("dot-prefixed directories must be rejected as namespaces")
 	}
-	if validNamespaceName(attachmentsDir) {
+	if wiki.ValidNamespaceName("attachments") {
 		t.Error("the attachments directory must be rejected as a namespace name")
 	}
-	if !validNamespaceName("blog") {
+	if !wiki.ValidNamespaceName("blog") {
 		t.Error("blog should be a valid namespace name")
 	}
 }
@@ -213,7 +215,7 @@ func TestBuildNamespaceRegistry(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(dir, "blog"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "blog", namespaceConfigFile), []byte("public: true\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "blog", wiki.NamespaceConfigFile), []byte("public: true\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,9 +226,9 @@ func TestBuildNamespaceRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, err := BuildNamespaceRegistry(dir)
+	reg, err := api.BuildNamespaceRegistry(dir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry: %v", err)
 	}
 	if _, ok := reg["_"]; ok {
 		t.Error("reserved namespace _ must not appear in the registry")
@@ -246,18 +248,18 @@ func TestBuildNamespaceRegistry(t *testing.T) {
 }
 
 func TestNamespaceRegistryResolveUnknownNamespaceDefaults(t *testing.T) {
-	reg := NamespaceRegistry{"": defaultNamespaceConfig()}
+	reg := wiki.NamespaceRegistry{"": wiki.DefaultNamespaceConfig()}
 	cfg := reg.Resolve("nope/page")
 	if cfg.Public {
 		t.Error("unknown namespace should default to private")
 	}
-	if len(cfg.Widgets) != len(builtinWidgets) {
+	if len(cfg.Widgets) != len(wiki.BuiltinNamespaceWidgets) {
 		t.Errorf("Widgets = %v, want built-in defaults", cfg.Widgets)
 	}
 }
 
 func TestNamespaceRegistryNamesRootFirst(t *testing.T) {
-	reg := NamespaceRegistry{"": {}, "zeta": {}, "alpha": {}}
+	reg := wiki.NamespaceRegistry{"": {}, "zeta": {}, "alpha": {}}
 	names := reg.Names()
 	if len(names) != 3 || names[0] != "" || names[1] != "alpha" || names[2] != "zeta" {
 		t.Errorf("Names() = %v", names)
@@ -265,8 +267,8 @@ func TestNamespaceRegistryNamesRootFirst(t *testing.T) {
 }
 
 func TestNamespaceCatalogue(t *testing.T) {
-	reg := NamespaceRegistry{
-		"":     defaultNamespaceConfig(),
+	reg := wiki.NamespaceRegistry{
+		"":     wiki.DefaultNamespaceConfig(),
 		"blog": {Configured: true},
 	}
 	titles := map[string]string{
@@ -319,8 +321,8 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	if cfg.Description != "Writing and research" {
 		t.Errorf("description = %q", cfg.Description)
 	}
-	if cfg.New == nil || cfg.New.Template != defaultNewPageTemplate {
-		t.Errorf("new-page config = %+v, want template %q", cfg.New, defaultNewPageTemplate)
+	if cfg.New == nil || cfg.New.Template != wiki.DefaultNewPageTemplate {
+		t.Errorf("new-page config = %+v, want template %q", cfg.New, wiki.DefaultNewPageTemplate)
 	}
 	if cfg.New != nil && cfg.New.Slug != slugPatternFor("daily") {
 		t.Errorf("slug pattern = %q, want the daily preset %q", cfg.New.Slug, slugPatternFor("daily"))
@@ -329,11 +331,11 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 		t.Error("a namespace with a saved .namespace.yaml should report itself configured")
 	}
 
-	if _, _, err := app.Store.Read(namespaceConfigPath("blog")); err != nil {
+	if _, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog")); err != nil {
 		t.Errorf("reading blog/.namespace.yaml: %v", err)
 	}
-	if _, _, err := app.Store.Read(hiddenFile("blog/" + defaultNewPageTemplate)); err != nil {
-		t.Errorf("reading seeded template %s: %v", hiddenFile("blog/"+defaultNewPageTemplate), err)
+	if _, _, err := app.Store.Read(hiddenFile("blog/" + wiki.DefaultNewPageTemplate)); err != nil {
+		t.Errorf("reading seeded template %s: %v", hiddenFile("blog/"+wiki.DefaultNewPageTemplate), err)
 	}
 
 	newResp, err := client.Post(server.URL+"/_/new?ns=blog", "application/x-www-form-urlencoded", nil)
@@ -405,7 +407,7 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Errorf("namespace editor = %d, body missing focused form: %s", resp.StatusCode, body)
 	}
 
-	if _, _, err := app.Store.Read(hiddenFile("blog/" + defaultNewPageTemplate)); err != nil {
+	if _, _, err := app.Store.Read(hiddenFile("blog/" + wiki.DefaultNewPageTemplate)); err != nil {
 		t.Fatalf("seeded template missing: %v", err)
 	}
 }
@@ -413,7 +415,7 @@ func TestNamespaceManagement(t *testing.T) {
 func saveConfiguredEmptyNamespace(t *testing.T, app *App, name string) []byte {
 	t.Helper()
 	content := []byte("public: true\n")
-	if _, err := app.Store.Save(namespaceConfigPath(name), content, "Configure namespace "+name, "test", "test@hmd.local"); err != nil {
+	if _, err := app.Store.Save(wiki.NamespaceConfigPath(name), content, "Configure namespace "+name, "test", "test@hmd.local"); err != nil {
 		t.Fatalf("saving %s config: %v", name, err)
 	}
 	app.refreshNamespaces()
@@ -458,7 +460,7 @@ func TestNamespaceManagementRejectsIndexedPageWithoutMutation(t *testing.T) {
 		t.Fatalf("deleting namespace with indexed page = %d, want 200", resp.StatusCode)
 	}
 
-	got, _, err := app.Store.Read(namespaceConfigPath("blog"))
+	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
 	if err != nil || string(got) != string(config) {
 		t.Fatalf("config after rejected indexed-page deletion = %q, %v; want %q", got, err, config)
 	}
@@ -484,7 +486,7 @@ func TestNamespaceManagementRejectsHiddenFileWithoutMutation(t *testing.T) {
 		t.Fatalf("deleting namespace with hidden file = %d, want 200", resp.StatusCode)
 	}
 
-	got, _, err := app.Store.Read(namespaceConfigPath("blog"))
+	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
 	if err != nil || string(got) != string(config) {
 		t.Fatalf("config after rejected hidden-file deletion = %q, %v; want %q", got, err, config)
 	}
@@ -510,7 +512,7 @@ func TestNamespaceManagementRejectsOtherDirectoryContentWithoutMutation(t *testi
 		t.Fatalf("deleting namespace with ordinary content = %d, want 200", resp.StatusCode)
 	}
 
-	got, _, err := app.Store.Read(namespaceConfigPath("blog"))
+	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
 	if err != nil || string(got) != string(config) {
 		t.Fatalf("config after rejected ordinary-content deletion = %q, %v; want %q", got, err, config)
 	}
@@ -532,7 +534,7 @@ func TestStoreDeleteNamespaceRejectsContentWithoutMutation(t *testing.T) {
 
 	config := []byte("public: true\n")
 	page := []byte("keep me\n")
-	if _, err := store.Save(namespaceConfigPath("blog"), config, "configure blog", "test", "test@hmd.local"); err != nil {
+	if _, err := store.Save(wiki.NamespaceConfigPath("blog"), config, "configure blog", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("saving namespace config: %v", err)
 	}
 	if _, err := store.Save(pageFile("blog/post"), page, "add blog/post", "test", "test@hmd.local"); err != nil {
@@ -542,7 +544,7 @@ func TestStoreDeleteNamespaceRejectsContentWithoutMutation(t *testing.T) {
 	if err := store.DeleteNamespace("blog", "delete blog", "test", "test@hmd.local"); err == nil {
 		t.Fatal("deleting namespace with a page should be rejected")
 	}
-	if got, _, err := store.Read(namespaceConfigPath("blog")); err != nil || string(got) != string(config) {
+	if got, _, err := store.Read(wiki.NamespaceConfigPath("blog")); err != nil || string(got) != string(config) {
 		t.Fatalf("config after rejected deletion = %q, %v; want %q", got, err, config)
 	}
 	if got, _, err := store.Read(pageFile("blog/post")); err != nil || string(got) != string(page) {
@@ -562,7 +564,7 @@ func TestNamespaceManagementDeletesGenuinelyEmptyConfiguredNamespace(t *testing.
 	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(location, "/_/namespaces") {
 		t.Fatalf("deleting empty namespace = %d %q, want 303 /_/namespaces", resp.StatusCode, location)
 	}
-	if _, _, err := app.Store.Read(namespaceConfigPath("empty")); err == nil {
+	if _, _, err := app.Store.Read(wiki.NamespaceConfigPath("empty")); err == nil {
 		t.Fatal("empty namespace config still exists after successful deletion")
 	}
 	if _, err := os.Stat(filepath.Join(app.config().RepoDir, "empty")); !os.IsNotExist(err) {
@@ -619,7 +621,7 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 			app, server, client := newTestAppFull(t)
 			defer server.Close()
 			adminLogin(t, server, client)
-			config, _, err := app.Store.Read(namespaceConfigPath(testNS))
+			config, _, err := app.Store.Read(wiki.NamespaceConfigPath(testNS))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -629,7 +631,7 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 			if resp.StatusCode != http.StatusBadRequest {
 				t.Fatalf("deleting %q = %d, want 400", name, resp.StatusCode)
 			}
-			got, _, err := app.Store.Read(namespaceConfigPath(testNS))
+			got, _, err := app.Store.Read(wiki.NamespaceConfigPath(testNS))
 			if err != nil || string(got) != string(config) {
 				t.Fatalf("notes config after rejected %q deletion = %q, %v; want %q", name, got, err, config)
 			}
@@ -649,7 +651,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 		form url.Values
 	}{
 		{"unknown widget", url.Values{"name": {"nope"}, "widgets": {"not-a-widget"}}},
-		{"reserved name", url.Values{"name": {reservedNamespace}}},
+		{"reserved name", url.Values{"name": {wiki.ReservedNamespace}}},
 		{"dot-prefixed name", url.Values{"name": {".hidden"}}},
 		{"nested name", url.Values{"name": {"a/b"}}},
 		{"custom pattern left empty", url.Values{"name": {"nope"}, "new_enabled": {"on"}, "slug_preset": {"custom"}}},
@@ -667,7 +669,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 		if _, ok := app.Namespaces()["nope"]; ok {
 			t.Errorf("%s: rejected save must not create the namespace", tc.name)
 		}
-		if _, _, err := app.Store.Read(namespaceConfigPath("nope")); err == nil {
+		if _, _, err := app.Store.Read(wiki.NamespaceConfigPath("nope")); err == nil {
 			t.Errorf("%s: rejected save must not write a config file", tc.name)
 		}
 	}
@@ -701,10 +703,10 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	if _, _, err := app.Store.Read(pageFile("blog/hello")); err != nil {
 		t.Fatalf("reset must preserve indexed pages: %v", err)
 	}
-	if _, _, err := app.Store.Read(hiddenFile("blog/" + defaultNewPageTemplate)); err != nil {
+	if _, _, err := app.Store.Read(hiddenFile("blog/" + wiki.DefaultNewPageTemplate)); err != nil {
 		t.Fatalf("reset must preserve hidden files: %v", err)
 	}
-	if _, _, err := app.Store.Read(namespaceConfigPath("blog")); err == nil {
+	if _, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog")); err == nil {
 		t.Fatal("reset must remove the namespace configuration")
 	}
 	if cfg, ok := app.Namespaces()["blog"]; !ok {
@@ -828,11 +830,11 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 	}
 	closeTestBody(t, resp.Body)
 
-	content, _, err := app.Store.Read(hiddenFile("blog/" + defaultNewPageTemplate))
+	content, _, err := app.Store.Read(hiddenFile("blog/" + wiki.DefaultNewPageTemplate))
 	if err != nil {
 		t.Fatalf("reading seeded template: %v", err)
 	}
-	tpl := ParsePage("blog/"+defaultNewPageTemplate, content)
+	tpl := ParsePage("blog/"+wiki.DefaultNewPageTemplate, content)
 
 	for _, field := range newPageTemplateFields {
 		if !strings.Contains(tpl.Body, "`"+field+"`") {
@@ -843,8 +845,8 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 		}
 	}
 
-	data := newPageTemplateData{Now: time.Now(), User: "admin", Namespace: "blog"}
-	rendered, err := renderNewPageText(tpl.Body, data)
+	data := api.NewPageTemplateData{Now: time.Now(), User: "admin", Namespace: "blog"}
+	rendered, err := api.RenderNewPageText(tpl.Body, data)
 	if err != nil {
 		t.Fatalf("seeded template body does not render: %v", err)
 	}
@@ -856,7 +858,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 			t.Errorf("rendered body missing %q:\n%s", want, rendered)
 		}
 	}
-	if title, err := renderNewPageText(tpl.Title, data); err != nil {
+	if title, err := api.RenderNewPageText(tpl.Title, data); err != nil {
 		t.Errorf("seeded template title does not render: %v", err)
 	} else if title != time.Now().Format("Monday, 2 January 2006") {
 		t.Errorf("rendered title = %q, want today's long date", title)

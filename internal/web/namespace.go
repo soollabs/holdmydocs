@@ -4,62 +4,13 @@ import (
 	"fmt"
 	"html"
 	"html/template"
-	"log/slog"
-	"os"
-	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
-	"github.com/goccy/go-yaml"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 )
-
-const namespaceConfigFile = ".namespace.yaml"
-
-const maxNamespaceDescriptionRunes = 255
-
-const attachmentsDir = "attachments"
-
-const reservedNamespace = "_"
-
-var reservedTopLevel = map[string]bool{reservedNamespace: true, attachmentsDir: true}
-
-// NewPageConfig describes how Ctrl-J / POST /_/new?ns=<namespace> creates a page in this namespace.
-type NewPageConfig struct {
-	Template string `yaml:"template" json:"template" jsonschema:"one-segment page name whose body is used as the creation template"`
-	Slug     string `yaml:"slug" json:"slug" jsonschema:"Go template that renders the new page's one-segment name; this is a naming pattern, not a page identifier"`
-}
-
-// NamespaceConfig is the parsed shape of <namespace>/.namespace.yaml.
-type NamespaceConfig struct {
-	Widgets     []string       `yaml:"widgets,omitempty"`
-	Public      bool           `yaml:"public,omitempty"`
-	Title       string         `yaml:"title,omitempty"`
-	Description string         `yaml:"description,omitempty" json:"description,omitempty"`
-	Skin        string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = defaultSkin
-	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
-	New         *NewPageConfig `yaml:"new,omitempty"`
-
-	// Index names a page in this namespace (one segment, e.g.
-	Index string `yaml:"index,omitempty" json:"index,omitempty"`
-
-	// Tree lists page or folder paths in their preferred tree order.
-	Tree []string `yaml:"tree,omitempty" json:"tree,omitempty"`
-
-	// Configured reports whether this config came from a .namespace.yaml on disk.
-	Configured bool   `yaml:"-"`
-	LoadError  string `yaml:"-"`
-}
-
-// Encode marshals c as namespace YAML.
-func (c NamespaceConfig) Encode() ([]byte, error) {
-	return yaml.Marshal(c)
-}
-
-const defaultNewPageTemplate = "template"
 
 type slugPreset struct {
 	Key     string // form value
@@ -92,10 +43,10 @@ type slugPresetView struct {
 }
 
 func slugPresetViews(user string) []slugPresetView {
-	data := newPageTemplateData{Now: time.Now(), User: user}
+	data := api.NewPageTemplateData{Now: time.Now(), User: user}
 	views := make([]slugPresetView, 0, len(slugPresets))
 	for _, p := range slugPresets {
-		example, err := renderNewPageText(p.Pattern, data)
+		example, err := api.RenderNewPageText(p.Pattern, data)
 		if err != nil {
 			example = p.Pattern
 		}
@@ -113,172 +64,6 @@ func slugPatternFor(key string) string {
 	return ""
 }
 
-func namespaceConfigPath(ns string) string {
-	return ns + "/" + namespaceConfigFile
-}
-
-var builtinWidgets = []string{"pages", "namespaces", "tags", "log", "page-meta", "backlinks"}
-
-func defaultNamespaceConfig() NamespaceConfig {
-	return NamespaceConfig{Widgets: builtinWidgets}
-}
-
-func parseNamespaceConfig(data []byte) (NamespaceConfig, error) {
-	var cfg NamespaceConfig
-	if err := yaml.UnmarshalWithOptions(data, &cfg, yaml.Strict()); err != nil {
-		return NamespaceConfig{}, fmt.Errorf("parsing namespace config: %w", err)
-	}
-	return cfg, nil
-}
-
-func loadNamespaceConfig(dir, name string) NamespaceConfig {
-	return loadNamespaceConfigWith(dir, name, os.ReadFile)
-}
-
-func loadNamespaceConfigWith(dir, name string, readFile func(string) ([]byte, error)) NamespaceConfig {
-	path := filepath.Join(dir, namespaceConfigFile)
-	data, err := readFile(path)
-	if err != nil {
-		return defaultNamespaceConfig()
-	}
-	// Preserve the configured flag so malformed files remain visible and replaceable in settings.
-	broken := func(reason string) NamespaceConfig {
-		cfg := defaultNamespaceConfig()
-		cfg.Configured, cfg.LoadError = true, reason
-		return cfg
-	}
-
-	cfg, err := parseNamespaceConfig(data)
-	if err != nil {
-		slog.Warn("malformed namespace config, using defaults", "namespace", name, "err", err)
-		return broken(err.Error())
-	}
-	cfg, err = normaliseNamespaceConfigBase(name, cfg)
-	if err != nil {
-		slog.Warn("invalid namespace config, using defaults", "namespace", name, "err", err)
-		return broken(err.Error())
-	}
-	cfg.Configured = true
-	return cfg
-}
-
-func validNamespaceName(name string) bool {
-	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !reservedTopLevel[name] &&
-		!strings.ContainsAny(name, `/\`) &&
-		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
-}
-
-func validMCPPageSegment(name string) bool {
-	return name != "" && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) && !strings.ContainsAny(name, `/\`) &&
-		!strings.HasPrefix(name, ".") && !strings.HasPrefix(name, reservedNamespace)
-}
-
-func validPagePath(rest string) bool {
-	if rest == "" {
-		return false
-	}
-	for seg := range strings.SplitSeq(rest, "/") {
-		if !validMCPPageSegment(seg) {
-			return false
-		}
-	}
-	return true
-}
-
-func validMCPPageSlug(slug string) bool {
-	ns, rest := namespaceFor(slug)
-	return validNamespaceName(ns) && validPagePath(rest)
-}
-
-func normaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceConfig, error) {
-	if name != "" && !validNamespaceName(name) {
-		return NamespaceConfig{}, fmt.Errorf("invalid namespace name %q", name)
-	}
-	if len(cfg.Widgets) == 0 {
-		cfg.Widgets = builtinWidgets
-	}
-	for _, id := range cfg.Widgets {
-		if id == "search" || id == "tree" || id == "outline" {
-			return NamespaceConfig{}, fmt.Errorf("widget %q is fixed application chrome", id)
-		}
-		if _, ok := widgets[id]; !ok {
-			return NamespaceConfig{}, fmt.Errorf("unknown widget %q", id)
-		}
-	}
-	cfg.Index = strings.TrimSpace(cfg.Index)
-	if cfg.Index != "" && !validMCPPageSegment(cfg.Index) {
-		return NamespaceConfig{}, fmt.Errorf("%q is not a valid index page name", cfg.Index)
-	}
-	seenTreePaths := make(map[string]bool, len(cfg.Tree))
-	for i, path := range cfg.Tree {
-		path = strings.TrimSpace(path)
-		if !validPagePath(path) {
-			return NamespaceConfig{}, fmt.Errorf("%q is not a valid tree path", path)
-		}
-		if seenTreePaths[path] {
-			return NamespaceConfig{}, fmt.Errorf("tree path %q is repeated", path)
-		}
-		seenTreePaths[path] = true
-		cfg.Tree[i] = path
-	}
-	cfg.Title = strings.TrimSpace(cfg.Title)
-	if !validRunes(cfg.Title, maxNamespaceTitleRunes) {
-		return NamespaceConfig{}, fmt.Errorf("namespace title must be at most %d characters", maxNamespaceTitleRunes)
-	}
-	cfg.Description = strings.TrimSpace(cfg.Description)
-	if utf8.RuneCountInString(cfg.Description) > maxNamespaceDescriptionRunes {
-		return NamespaceConfig{}, fmt.Errorf("namespace description must be at most %d characters", maxNamespaceDescriptionRunes)
-	}
-	cfg.Skin = strings.TrimSpace(cfg.Skin)
-	if cfg.Skin != "" && !slices.Contains(skinNames, cfg.Skin) {
-		return NamespaceConfig{}, fmt.Errorf("unknown skin %q", cfg.Skin)
-	}
-	cfg.Palette = strings.TrimSpace(cfg.Palette)
-	if cfg.Palette != "" {
-		if _, ok := themePresets[cfg.Palette]; !ok {
-			return NamespaceConfig{}, fmt.Errorf("unknown palette %q", cfg.Palette)
-		}
-	}
-	return cfg, nil
-}
-
-func normaliseNamespaceConfig(name string, cfg NamespaceConfig, data newPageTemplateData) (NamespaceConfig, error) {
-	var err error
-	cfg, err = normaliseNamespaceConfigBase(name, cfg)
-	if err != nil {
-		return NamespaceConfig{}, err
-	}
-	if cfg.New == nil {
-		return cfg, nil
-	}
-	cfg.New.Template = strings.TrimSpace(cfg.New.Template)
-	if cfg.New.Template == "" {
-		cfg.New.Template = defaultNewPageTemplate
-	}
-	if !validMCPPageSegment(cfg.New.Template) {
-		return NamespaceConfig{}, fmt.Errorf("%q is not a valid template page name", cfg.New.Template)
-	}
-	cfg.New.Slug = strings.TrimSpace(cfg.New.Slug)
-	if cfg.New.Slug == "" {
-		return NamespaceConfig{}, fmt.Errorf("new-page slug pattern is required")
-	}
-	rendered, err := renderNewPageText(cfg.New.Slug, data)
-	if err != nil {
-		return NamespaceConfig{}, fmt.Errorf("slug pattern is not a valid template: %w", err)
-	}
-	if !validMCPPageSegment(rendered) {
-		return NamespaceConfig{}, fmt.Errorf("slug pattern renders unusable page name %q", rendered)
-	}
-	return cfg, nil
-}
-
-func namespaceDisplayTitle(name string, cfg NamespaceConfig) string {
-	if title := strings.TrimSpace(cfg.Title); title != "" {
-		return title
-	}
-	return name
-}
-
 type navNode struct {
 	Name     string // path segment
 	Title    string
@@ -290,7 +75,7 @@ type navNode struct {
 func buildPageTree(entries []BacklinkEntry, ns, index string, tree []string) *navNode {
 	root := &navNode{}
 	for _, e := range entries {
-		_, rest := namespaceFor(e.Slug)
+		_, rest := wiki.NamespaceFor(e.Slug)
 		segments := strings.Split(rest, "/")
 		node := root
 		path := ""
@@ -399,20 +184,17 @@ func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hr
 	b.WriteString("</ul>")
 }
 
-// NamespaceRegistry maps a namespace name to its resolved config.
-type NamespaceRegistry map[string]NamespaceConfig
-
 // NamespaceSummary is the shared catalogue entry for one namespace.
 type NamespaceSummary struct {
 	Name   string
-	Config NamespaceConfig
+	Config wiki.NamespaceConfig
 	Count  int
 	Pages  []BacklinkEntry
 }
 
-func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []NamespaceSummary {
+func namespaceSummaries(reg wiki.NamespaceRegistry, titles map[string]string) []NamespaceSummary {
 	entries := make(map[string]*NamespaceSummary)
-	include := func(name string, cfg NamespaceConfig) *NamespaceSummary {
+	include := func(name string, cfg wiki.NamespaceConfig) *NamespaceSummary {
 		if entry, ok := entries[name]; ok {
 			return entry
 		}
@@ -427,7 +209,7 @@ func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []Names
 		}
 	}
 	for slug, title := range titles {
-		name, rest := namespaceFor(slug)
+		name, rest := wiki.NamespaceFor(slug)
 		if rest == "" {
 			continue
 		}
@@ -450,107 +232,13 @@ func namespaceSummaries(reg NamespaceRegistry, titles map[string]string) []Names
 	return result
 }
 
-func namespaceSummaryFor(reg NamespaceRegistry, titles map[string]string, name string) *NamespaceSummary {
+func namespaceSummaryFor(reg wiki.NamespaceRegistry, titles map[string]string, name string) *NamespaceSummary {
 	for _, entry := range namespaceSummaries(reg, titles) {
 		if entry.Name == name {
 			return &entry
 		}
 	}
 	return nil
-}
-
-// BuildNamespaceRegistry scans repoDir for namespaces: one directory per non-dot-prefixed, non-reserved
-// top-level subdirectory.
-func BuildNamespaceRegistry(repoDir string) (NamespaceRegistry, error) {
-	return buildNamespaceRegistry(repoDir, os.ReadFile)
-}
-
-// BuildNamespaceRegistryFromStore reads namespace configuration through the Store boundary so a synchronised
-// repository cannot smuggle in a symlink.
-func BuildNamespaceRegistryFromStore(store *Store) (NamespaceRegistry, error) {
-	return buildNamespaceRegistry(store.Dir(), func(path string) ([]byte, error) {
-		rel, err := filepath.Rel(store.Dir(), path)
-		if err != nil {
-			return nil, err
-		}
-		return store.ReadRepositoryFile(filepath.ToSlash(rel))
-	})
-}
-
-func buildNamespaceRegistry(repoDir string, readFile func(string) ([]byte, error)) (NamespaceRegistry, error) {
-	reg := NamespaceRegistry{}
-
-	slog.Debug("namespace registry reading repository directory", "path", repoDir)
-	entries, err := os.ReadDir(repoDir)
-	if err != nil {
-		return nil, fmt.Errorf("reading repo directory: %w", err)
-	}
-	for _, e := range entries {
-		if !e.IsDir() || !validNamespaceName(e.Name()) {
-			continue
-		}
-		slog.Debug("namespace registry loading namespace", "namespace", e.Name())
-		reg[e.Name()] = loadNamespaceConfigWith(filepath.Join(repoDir, e.Name()), e.Name(), readFile)
-	}
-	slog.Debug("namespace registry built", "namespaces", len(reg))
-	return reg, nil
-}
-
-func namespaceFor(slug string) (ns, rest string) {
-	before, after, ok := strings.Cut(slug, "/")
-	if !ok {
-		return slug, ""
-	}
-	return before, after
-}
-
-func namespaceSlug(ns, rest string) string {
-	return ns + "/" + rest
-}
-
-// Resolve returns the config for the namespace slug belongs to, or the built-in defaults if that namespace
-// isn't in the registry (e.g. it has no .namespace.yaml and hasn't been scanned yet).
-func (r NamespaceRegistry) Resolve(slug string) NamespaceConfig {
-	ns, _ := namespaceFor(slug)
-	if cfg, ok := r[ns]; ok {
-		return cfg
-	}
-	return defaultNamespaceConfig()
-}
-
-// IsPublic reports whether slug lives in a namespace with public: true.
-func (r NamespaceRegistry) IsPublic(slug string) bool {
-	return r.Resolve(slug).Public
-}
-
-// Names returns every namespace name in the registry, sorted.
-func (r NamespaceRegistry) Names() []string {
-	names := make([]string, 0, len(r))
-	for name := range r {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-// IndexSlug returns the full slug of ns's configured index page, or "" if it has none.
-func (r NamespaceRegistry) IndexSlug(ns string) string {
-	if cfg, ok := r[ns]; ok && cfg.Index != "" {
-		return namespaceSlug(ns, cfg.Index)
-	}
-	return ""
-}
-
-// IndexSlugs returns every namespace's index-page slug.
-func (r NamespaceRegistry) IndexSlugs() []string {
-	slugs := make([]string, 0, len(r))
-	for ns := range r {
-		if slug := r.IndexSlug(ns); slug != "" {
-			slugs = append(slugs, slug)
-		}
-	}
-	sort.Strings(slugs)
-	return slugs
 }
 
 // NamespaceListEntry is one row of the namespace editor in system configuration: the resolved config of one
@@ -561,7 +249,7 @@ type NamespaceListEntry struct {
 	Public      bool
 	Title       string   // published-site title; falls back to Name if empty
 	Description string   // brief namespace summary
-	Skin        string   // structural skin shown to public viewers; empty = defaultSkin
+	Skin        string   // structural skin shown to public viewers; empty = default
 	Palette     string   // colour preset shown to public viewers; empty = skin's own default
 	Configured  bool     // has a .namespace.yaml — i.e. there is something to remove
 	LoadError   string   // why an existing .namespace.yaml was ignored, if it was
@@ -582,7 +270,7 @@ func (e NamespaceListEntry) WidgetsCSV() string {
 	return strings.Join(e.Widgets, ", ")
 }
 
-func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry {
+func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceListEntry {
 	names := r.Names()
 	entries := make([]NamespaceListEntry, 0, len(names))
 	for _, name := range names {
@@ -599,7 +287,7 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 			LoadError:   cfg.LoadError,
 			Index:       cfg.Index,
 			Tree:        cfg.Tree,
-			Template:    defaultNewPageTemplate,
+			Template:    wiki.DefaultNewPageTemplate,
 			SlugPreset:  slugPresets[0].Key,
 		}
 		if cfg.New != nil {
@@ -609,11 +297,11 @@ func namespaceListEntries(r NamespaceRegistry, user string) []NamespaceListEntry
 			e.SlugPreset = slugPresetFor(cfg.New.Slug)
 			// Best effort: a pattern that doesn't render has nothing to show
 			// as an example, and the save path is what reports why.
-			if rendered, err := renderNewPageText(cfg.New.Slug, newPageTemplateData{Now: time.Now(), User: user, Namespace: name}); err == nil {
+			if rendered, err := api.RenderNewPageText(cfg.New.Slug, api.NewPageTemplateData{Now: time.Now(), User: user, Namespace: name}); err == nil {
 				e.SlugExample = rendered
 			}
 		}
-		e.TemplateHref = "/_/hidden/" + namespaceSlug(name, e.Template) + "?do=edit"
+		e.TemplateHref = "/_/hidden/" + wiki.NamespaceSlug(name, e.Template) + "?do=edit"
 		entries = append(entries, e)
 	}
 	return entries

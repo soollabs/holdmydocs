@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hmd/internal/api"
 	appconfig "hmd/internal/config"
 	"hmd/internal/search"
 	storepkg "hmd/internal/store"
@@ -27,14 +28,14 @@ import (
 type Config = appconfig.Config
 type GitConfig = appconfig.GitConfig
 type Page = wiki.Page
-type NamespaceRegistry = web.NamespaceRegistry
+type NamespaceRegistry = wiki.NamespaceRegistry
 type Store = storepkg.Store
 
 var (
 	BuildIndex                      = search.BuildIndex
 	NewRenderer                     = wiki.NewRenderer
 	ExportNamespace                 = web.ExportNamespace
-	BuildNamespaceRegistryFromStore = web.BuildNamespaceRegistryFromStore
+	BuildNamespaceRegistryFromStore = api.BuildNamespaceRegistryFromStore
 	ErrConflict                     = storepkg.ErrConflict
 	setGitNetworkTimeout            = storepkg.SetGitNetworkTimeout
 	setFetchThrottle                = storepkg.SetFetchThrottle

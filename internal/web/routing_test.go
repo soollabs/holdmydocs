@@ -2,6 +2,8 @@ package web
 
 import (
 	"bytes"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"html"
 	"io"
 	"net/http"
@@ -228,16 +230,16 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	nsCfg, err := NamespaceConfig{Index: defaultIndexPage}.Encode()
+	nsCfg, err := wiki.NamespaceConfig{Index: defaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
 	}
-	if _, err := app.Store.Save(namespaceConfigPath("archive"), nsCfg, "Add archive", "test", "test@hmd.local"); err != nil {
+	if _, err := app.Store.Save(wiki.NamespaceConfigPath("archive"), nsCfg, "Add archive", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seeding archive namespace: %v", err)
 	}
-	reg, err := BuildNamespaceRegistry(app.config().RepoDir)
+	reg, err := api.BuildNamespaceRegistry(app.config().RepoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry: %v", err)
 	}
 	app.SetNamespaces(reg)
 

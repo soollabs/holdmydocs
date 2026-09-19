@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"hmd/internal/wiki"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -239,7 +240,7 @@ func TestOIDCCallbackSuccess(t *testing.T) {
 	}}
 	app.SetConfig(Config{OIDC: OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
 	app.SetWikiConfig(defaultWikiConfig())
-	app.SetNamespaces(NamespaceRegistry{})
+	app.SetNamespaces(wiki.NamespaceRegistry{})
 
 	request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})

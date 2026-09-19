@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	staticexport "hmd/internal/export"
+	"hmd/internal/wiki"
 	"html/template"
 	"io"
 	"log/slog"
@@ -21,7 +22,7 @@ func pageDisplayTitle(p Page) string {
 	if p.Title != "" {
 		return p.Title
 	}
-	_, rest := namespaceFor(p.Slug)
+	_, rest := wiki.NamespaceFor(p.Slug)
 	return rest
 }
 
@@ -46,10 +47,10 @@ func staticAssetPrefix(rest string) string {
 }
 
 // ExportNamespace renders a namespace to static HTML under outDir.
-func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, store *Store, ns, outDir, title string) error {
+func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistry, store *Store, ns, outDir, title string) error {
 	var nsPages []Page
 	for _, p := range pages {
-		if pns, _ := namespaceFor(p.Slug); pns == ns {
+		if pns, _ := wiki.NamespaceFor(p.Slug); pns == ns {
 			nsPages = append(nsPages, p)
 		}
 	}
@@ -63,7 +64,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 	hrefs := make(map[string]string, len(nsPages))
 	entries := make([]BacklinkEntry, 0, len(nsPages))
 	for _, p := range nsPages {
-		_, rest := namespaceFor(p.Slug)
+		_, rest := wiki.NamespaceFor(p.Slug)
 		title := pageDisplayTitle(p)
 		hrefs[p.Slug] = rest
 		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: title})
@@ -86,7 +87,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)
 	orderedPages := orderedTreePages(tree)
 	if title = strings.TrimSpace(title); title == "" {
-		title = namespaceDisplayTitle(ns, cfg)
+		title = wiki.NamespaceDisplayTitle(ns, cfg)
 	}
 	indexPage := cfg.Index
 	skin := resolveSkin(cfg.Skin)
@@ -101,7 +102,7 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg NamespaceRegistry, st
 
 	searchEntries := make([]exportSearchEntry, 0, len(nsPages))
 	for _, p := range nsPages {
-		_, rest := namespaceFor(p.Slug)
+		_, rest := wiki.NamespaceFor(p.Slug)
 		hrefFor := func(slug string) (string, bool) {
 			toRest, ok := hrefs[slug]
 			if !ok {
@@ -256,7 +257,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	var pages []Page
 	for _, path := range paths {
 		slug := strings.TrimSuffix(path, ".md")
-		if ns, _ := namespaceFor(slug); ns != name {
+		if ns, _ := wiki.NamespaceFor(slug); ns != name {
 			continue
 		}
 		content, _, err := app.Store.Read(path)

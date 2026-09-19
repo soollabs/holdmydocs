@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -47,11 +49,11 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	nsCfg, err := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}.Encode()
+	nsCfg, err := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: defaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
 	}
-	if _, err := store.Save(namespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := store.Save(wiki.NamespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding namespace config: %v", err)
 	}
 	home := Page{Slug: testHome, Title: testNS, Body: defaultHomeMD}
@@ -73,9 +75,9 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*App, *httptest.Server
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
 
-	namespaces, err := BuildNamespaceRegistry(cfg.RepoDir)
+	namespaces, err := api.BuildNamespaceRegistry(cfg.RepoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
 	app := &App{Store: store, Auth: auth, Index: index, Render: NewRenderer(index.ResolveLink), Tmpl: tmpl}
@@ -109,7 +111,7 @@ func newMCPRestrictedTestApp(t *testing.T) (*App, *httptest.Server, string, stri
 	seedPage(Page{Slug: "private/denied", Title: "Denied", Body: "shared private content"})
 
 	for _, name := range []string{"notes", "empty"} {
-		if _, err := app.Store.Save(namespaceConfigPath(name), []byte("public: true\n"), "Configure namespace "+name, "admin", "admin@hmd.local"); err != nil {
+		if _, err := app.Store.Save(wiki.NamespaceConfigPath(name), []byte("public: true\n"), "Configure namespace "+name, "admin", "admin@hmd.local"); err != nil {
 			t.Fatalf("seeding %s namespace: %v", name, err)
 		}
 	}

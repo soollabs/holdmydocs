@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -77,19 +79,23 @@ func closeTestBody(t *testing.T, closer io.Closer) {
 
 func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
 	app := &App{}
+	client := app.apiClient()
+	past := time.Now().Add(-time.Second)
 	future := time.Now().Add(time.Minute)
-	for i := range maxPendingUploadCapabilities {
+	if err := client.AddUploadCapability("stale", api.UploadCapability{Expires: past}); err != nil {
+		t.Fatalf("adding stale capability: %v", err)
+	}
+	for i := range api.MaxPendingUploadCapabilities {
 		token := fmt.Sprintf("token-%d", i)
-		if err := app.addUploadCapability(token, uploadCapability{Expires: future}); err != nil {
-			t.Fatalf("adding capability %d: %v", i, err)
+		if err := client.AddUploadCapability(token, api.UploadCapability{Expires: future}); err != nil {
+			t.Fatalf("adding capability %d: %v (stale entry was not purged)", i, err)
 		}
 	}
-	if err := app.addUploadCapability("overflow", uploadCapability{Expires: future}); err == nil {
+	if err := client.AddUploadCapability("overflow", api.UploadCapability{Expires: future}); err == nil {
 		t.Fatal("pending upload capability limit was not enforced")
 	}
-	app.uploads["token-0"] = uploadCapability{Expires: time.Now().Add(-time.Second)}
-	if err := app.addUploadCapability("replacement", uploadCapability{Expires: future}); err != nil {
-		t.Fatalf("expired capability was not purged: %v", err)
+	if _, ok := client.TakeUploadCapability("token-0"); !ok {
+		t.Fatal("taking a capability failed")
 	}
 }
 
@@ -211,11 +217,11 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	nsCfg, err := NamespaceConfig{Widgets: builtinWidgets, Index: defaultIndexPage}.Encode()
+	nsCfg, err := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: defaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
 	}
-	if _, err := store.Save(namespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := store.Save(wiki.NamespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding namespace config: %v", err)
 	}
 	if _, err := store.Save(pageFile(testHome), Page{Slug: testHome, Title: testNS, Body: defaultHomeMD}.Encode(), "Add "+testHome, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
@@ -249,9 +255,9 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
 
-	namespaces, err := BuildNamespaceRegistry(repoDir)
+	namespaces, err := api.BuildNamespaceRegistry(repoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
 	app := &App{
@@ -1308,9 +1314,9 @@ func TestAppConfigPointer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
-	namespaces, err := BuildNamespaceRegistry(repoDir)
+	namespaces, err := api.BuildNamespaceRegistry(repoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
 	app := &App{
@@ -2066,9 +2072,9 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
 	}
-	namespaces, err := BuildNamespaceRegistry(repoDir)
+	namespaces, err := api.BuildNamespaceRegistry(repoDir)
 	if err != nil {
-		t.Fatalf("BuildNamespaceRegistry failed: %v", err)
+		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
 	app := &App{

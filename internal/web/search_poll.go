@@ -2,11 +2,13 @@ package web
 
 import (
 	"context"
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 	"log/slog"
 	"time"
 )
 
-func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
+func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]string, setNamespaces func(wiki.NamespaceRegistry), setWikiConfig func(WikiConfig)) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -16,7 +18,7 @@ func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]stri
 		case <-ticker.C:
 		}
 		store.DropHistoryOnExternalCommit()
-		if reg, err := BuildNamespaceRegistryFromStore(store); err != nil {
+		if reg, err := api.BuildNamespaceRegistryFromStore(store); err != nil {
 			slog.Warn("pollFS: namespace registry rebuild failed", "err", err)
 		} else {
 			setNamespaces(reg)

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"hmd/internal/api"
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/search"
@@ -147,7 +148,7 @@ func Run() {
 	}
 	finishStage()
 	finishStage = debugStartupStage("build namespace registry")
-	namespaces, err := web.BuildNamespaceRegistryFromStore(content)
+	namespaces, err := api.BuildNamespaceRegistryFromStore(content)
 	if err != nil {
 		log.Fatalf("build namespace registry failed: %v", err)
 	}
@@ -179,6 +180,7 @@ func Run() {
 	}
 	finishStage()
 	application := &web.App{Store: content, Auth: authn, Index: index, Render: renderer, Tmpl: templates}
+	application.API = api.New(content, index, authn)
 	application.SetConfig(cfg)
 	application.SetWikiConfig(wikiConfig)
 	application.SetNamespaces(namespaces)

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"hmd/internal/wiki"
 	"html/template"
 	"net/http"
 )
@@ -12,7 +13,7 @@ func SetBuildVersion(value string) {
 	buildVersion = value
 	version = envOr("HMD_VERSION", value)
 }
-func PollFS(ctx context.Context, content *Store, index *Index, hashes map[string]string, setNamespaces func(NamespaceRegistry), setWikiConfig func(WikiConfig)) {
+func PollFS(ctx context.Context, content *Store, index *Index, hashes map[string]string, setNamespaces func(wiki.NamespaceRegistry), setWikiConfig func(WikiConfig)) {
 	pollFS(ctx, content, index, hashes, setNamespaces, setWikiConfig)
 }
 func Handler(app *App) http.Handler {
