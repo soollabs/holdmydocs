@@ -266,31 +266,6 @@ func TestNamespaceRegistryNamesRootFirst(t *testing.T) {
 	}
 }
 
-func TestNamespaceCatalogue(t *testing.T) {
-	reg := wiki.NamespaceRegistry{
-		"":     wiki.DefaultNamespaceConfig(),
-		"blog": {Configured: true},
-	}
-	titles := map[string]string{
-		"readme":      "Root page",
-		"notes/entry": "Notes entry",
-	}
-
-	summaries := namespaceSummaries(reg, titles)
-	if len(summaries) != 2 {
-		t.Fatalf("namespaceSummaries() returned %d entries, want 2: %+v", len(summaries), summaries)
-	}
-	if summaries[0].Name != "blog" || summaries[1].Name != "notes" {
-		t.Fatalf("namespaceSummaries() names = [%s, %s], want [blog, notes]", summaries[0].Name, summaries[1].Name)
-	}
-	if summaries[0].Count != 0 || len(summaries[0].Pages) != 0 {
-		t.Errorf("empty blog summary = %+v, want zero pages", summaries[0])
-	}
-	if summaries[1].Count != 1 || len(summaries[1].Pages) != 1 || summaries[1].Pages[0].Slug != "notes/entry" {
-		t.Errorf("notes summary = %+v, want one notes/entry page", summaries[1])
-	}
-}
-
 // TestCreateNamespaceFromAdmin tests namespace creation through the admin form.
 func TestCreateNamespaceFromAdmin(t *testing.T) {
 	app, server, client := newTestAppFull(t)

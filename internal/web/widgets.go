@@ -1,9 +1,11 @@
 package web
 
 import (
+	"context"
 	"sort"
 	"time"
 
+	"hmd/internal/api"
 	"hmd/internal/presentation"
 	"hmd/internal/wiki"
 )
@@ -65,7 +67,7 @@ type NamespaceNavEntry struct {
 	Active bool
 }
 
-func namespaceNav(summaries []NamespaceSummary, current string) []NamespaceNavEntry {
+func namespaceNav(summaries []api.NamespaceSummary, current string) []NamespaceNavEntry {
 	entries := make([]NamespaceNavEntry, 0, len(summaries))
 	for _, summary := range summaries {
 		entries = append(entries, NamespaceNavEntry{Name: summary.Name, Count: summary.Count, Active: summary.Name == current})
@@ -74,7 +76,7 @@ func namespaceNav(summaries []NamespaceSummary, current string) []NamespaceNavEn
 	return entries
 }
 
-func (app *App) populateWidgetData(data *TemplateData, s skin) {
+func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s skin) {
 	all := append(append(append(append([]*widget{}, data.SidebarWidgets...), data.RailWidgets...), data.PageHeadWidgets...), data.PageFootWidgets...)
 
 	needs := func(id string) bool {
@@ -125,11 +127,11 @@ func (app *App) populateWidgetData(data *TemplateData, s skin) {
 		data.PinnedPages = app.Index.PinnedPages()
 	}
 	if needs("namespaces") {
-		data.NamespaceNav = namespaceNav(namespaceSummaries(app.Namespaces(), titles), ns)
+		data.NamespaceNav = namespaceNav(app.apiClient().NamespaceSummaries(), ns)
 	}
 	// Filter these entries in render(), before flattening the tree to HTML.
 	if ns != "" {
-		summary := namespaceSummaryFor(app.Namespaces(), titles, ns)
+		summary := app.apiClient().NamespaceSummary(ctx, ns)
 		if summary != nil {
 			data.SidebarTreeNS = ns
 			data.SidebarTreeEntries = summary.Pages

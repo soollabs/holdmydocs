@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"hmd/internal/search"
 )
 
 func TestPageInputLimits(t *testing.T) {
@@ -41,10 +43,10 @@ func TestRequestSecurityRejectsOversizedForm(t *testing.T) {
 }
 
 func TestSearchQueryLimitAndLiteralSyntax(t *testing.T) {
-	if err := validateSearchQuery(strings.Repeat("x", maxSearchQueryRunes)); err != nil {
+	if err := search.ValidateQuery(strings.Repeat("x", maxSearchQueryRunes)); err != nil {
 		t.Fatalf("at limit: %v", err)
 	}
-	if err := validateSearchQuery(strings.Repeat("x", maxSearchQueryRunes+1)); err == nil {
+	if err := search.ValidateQuery(strings.Repeat("x", maxSearchQueryRunes+1)); err == nil {
 		t.Error("accepted oversized query")
 	}
 	ix, err := BuildIndex([]Page{{Slug: "notes/literal", Title: "literal", Body: `alpha +beta`}})

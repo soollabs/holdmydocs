@@ -386,18 +386,6 @@ func TestMCPNamespaceTools(t *testing.T) {
 	}
 }
 
-func TestMCPRecentChangesOnlyAllowsPageFiles(t *testing.T) {
-	for path, want := range map[string]bool{
-		"notes/page.md": true, ".wiki.yaml": false, "notes/.namespace.yaml": false,
-		".notes/template.md": false, "attachments/notes/page/file.png": false,
-	} {
-		got := mcpCommitAllowed(context.Background(), CommitDetail{Files: []string{path}})
-		if got != want {
-			t.Errorf("mcpCommitAllowed(%q) = %v, want %v", path, got, want)
-		}
-	}
-}
-
 func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 	server, token := newMCPTestApp(t, false)
 

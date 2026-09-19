@@ -184,63 +184,6 @@ func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hr
 	b.WriteString("</ul>")
 }
 
-// NamespaceSummary is the shared catalogue entry for one namespace.
-type NamespaceSummary struct {
-	Name   string
-	Config wiki.NamespaceConfig
-	Count  int
-	Pages  []BacklinkEntry
-}
-
-func namespaceSummaries(reg wiki.NamespaceRegistry, titles map[string]string) []NamespaceSummary {
-	entries := make(map[string]*NamespaceSummary)
-	include := func(name string, cfg wiki.NamespaceConfig) *NamespaceSummary {
-		if entry, ok := entries[name]; ok {
-			return entry
-		}
-		entry := &NamespaceSummary{Name: name, Config: cfg}
-		entries[name] = entry
-		return entry
-	}
-
-	for name, cfg := range reg {
-		if cfg.Configured {
-			include(name, cfg)
-		}
-	}
-	for slug, title := range titles {
-		name, rest := wiki.NamespaceFor(slug)
-		if rest == "" {
-			continue
-		}
-		entry := include(name, reg.Resolve(slug))
-		if title == "" {
-			title = slug
-		}
-		entry.Pages = append(entry.Pages, BacklinkEntry{Slug: slug, Title: title})
-	}
-
-	result := make([]NamespaceSummary, 0, len(entries))
-	for _, entry := range entries {
-		sort.Slice(entry.Pages, func(i, j int) bool {
-			return entry.Pages[i].Slug < entry.Pages[j].Slug
-		})
-		entry.Count = len(entry.Pages)
-		result = append(result, *entry)
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result
-}
-
-func namespaceSummaryFor(reg wiki.NamespaceRegistry, titles map[string]string, name string) *NamespaceSummary {
-	for _, entry := range namespaceSummaries(reg, titles) {
-		if entry.Name == name {
-			return &entry
-		}
-	}
-	return nil
-}
-
 // NamespaceListEntry is one row of the namespace editor in system configuration: the resolved config of one
 // namespace, as the form fields that POST back to /_/settings/namespaces.
 type NamespaceListEntry struct {

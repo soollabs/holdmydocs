@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"hmd/internal/search"
 	"strings"
 	"unicode/utf8"
 )
@@ -49,10 +48,6 @@ func validatePageInput(title string, tags []string, body string) error {
 		}
 	}
 	return nil
-}
-
-func validateSearchQuery(query string) error {
-	return search.ValidateQuery(query)
 }
 
 func validateGitAuthor(author string) error {

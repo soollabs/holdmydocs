@@ -25,4 +25,3 @@ func validWikiLanding(slug string) bool { return wiki.ValidLanding(slug) }
 
 func pageFile(slug string) string   { return wiki.PageFile(slug) }
 func hiddenFile(slug string) string { return wiki.HiddenFile(slug) }
-func hiddenSlug(path string) string { return wiki.HiddenSlug(path) }

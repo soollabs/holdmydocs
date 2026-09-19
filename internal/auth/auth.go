@@ -139,6 +139,13 @@ func TokenPrincipalFromContext(ctx context.Context) (TokenPrincipal, bool) {
 	return tokenPrincipalFromContext(ctx)
 }
 
+// WithTokenPrincipal attaches an effective bearer-token principal to ctx. It
+// backs the auth middleware and lets access-checked operations be tested with a
+// restricted namespace scope.
+func WithTokenPrincipal(ctx context.Context, principal TokenPrincipal) context.Context {
+	return context.WithValue(ctx, ctxTokenPrincipalKey{}, principal)
+}
+
 func TokenAllowsNamespace(ctx context.Context, namespace string) bool {
 	return tokenAllowsNamespace(ctx, namespace)
 }
@@ -1131,7 +1138,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				// Resolve effective token policy for MCP tool-level authorization.
 				principal.Scopes = effectiveTokenScopes(prefs.Scopes, rawPrincipal.Scopes)
 			}
-			ctx = context.WithValue(ctx, ctxTokenPrincipalKey{}, principal)
+			ctx = WithTokenPrincipal(ctx, principal)
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r.WithContext(ctx))

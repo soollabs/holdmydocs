@@ -14,7 +14,6 @@ const attachmentMaxExtractedBytes = search.AttachmentMaxExtractedBytes
 var (
 	BuildIndex                = search.BuildIndex
 	OpenIndex                 = search.OpenIndex
-	errSearchBusy             = search.ErrBusy
 	extractedAttachmentPath   = search.ExtractedAttachmentPath
 	parseAttachmentPath       = search.ParseAttachmentPath
 	decodeExtractedAttachment = search.DecodeExtractedAttachment

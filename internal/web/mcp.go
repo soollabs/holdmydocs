@@ -7,21 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hmd/internal/api"
-	"hmd/internal/wiki"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-)
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 
-// The MCP server exposes the wiki over streamable HTTP at /mcp.
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+) // The MCP server exposes the wiki over streamable HTTP at /mcp.
 
 type mcpPageMeta struct {
 	Slug  string   `json:"slug"`
@@ -344,31 +342,6 @@ func mcpPageIdentifier(slug, path string) (string, error) {
 	return identifier, nil
 }
 
-func mcpPathNamespace(path string) (string, bool) {
-	if strings.HasPrefix(path, ".") || !strings.HasSuffix(path, ".md") {
-		return "", false
-	}
-	slug := strings.TrimSuffix(path, ".md")
-	if !wiki.ValidPageSlug(slug) {
-		return "", false
-	}
-	namespace, _ := wiki.NamespaceFor(slug)
-	return namespace, true
-}
-
-func mcpCommitAllowed(ctx context.Context, commit CommitDetail) bool {
-	if len(commit.Files) == 0 {
-		return false
-	}
-	for _, path := range commit.Files {
-		namespace, ok := mcpPathNamespace(path)
-		if !ok || !tokenAllowsNamespace(ctx, namespace) {
-			return false
-		}
-	}
-	return true
-}
-
 func mcpNamespaceOutput(name string, cfg wiki.NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
 		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
@@ -376,16 +349,8 @@ func mcpNamespaceOutput(name string, cfg wiki.NamespaceConfig, hash string) mcpN
 	}
 }
 
-func (app *App) readMCPNamespace(name string) (mcpNamespaceOut, error) {
-	cfg, ok := app.Namespaces()[name]
-	if !ok {
-		return mcpNamespaceOut{}, fmt.Errorf("namespace %q not found", name)
-	}
-	_, hash, err := app.Store.Read(wiki.NamespaceConfigPath(name))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return mcpNamespaceOut{}, err
-	}
-	return mcpNamespaceOutput(name, cfg, hash), nil
+func mcpNamespaceFromDetail(detail *api.NamespaceDetail) mcpNamespaceOut {
+	return mcpNamespaceOutput(detail.Name, detail.Config, detail.Hash)
 }
 
 func (app *App) mcpHandler() http.Handler {
@@ -398,15 +363,14 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpListOut{}, err
 		}
-		titles := app.Index.Titles()
-		out := mcpListOut{Pages: []mcpPageMeta{}}
-		for slug, title := range titles {
-			if !tokenAllowsSlug(ctx, slug) {
-				continue
-			}
-			out.Pages = append(out.Pages, mcpPageMeta{Slug: slug, Title: title, Tags: app.Index.TagsFor(slug)})
+		pages, err := app.apiClient().ListPages(ctx)
+		if err != nil {
+			return nil, mcpListOut{}, err
 		}
-		sort.Slice(out.Pages, func(i, j int) bool { return out.Pages[i].Slug < out.Pages[j].Slug })
+		out := mcpListOut{Pages: make([]mcpPageMeta, 0, len(pages))}
+		for _, page := range pages {
+			out.Pages = append(out.Pages, mcpPageMeta{Slug: page.Slug, Title: page.Title, Tags: page.Tags})
+		}
 		return nil, out, nil
 	})
 
@@ -422,22 +386,19 @@ func (app *App) mcpHandler() http.Handler {
 			if limit <= 0 {
 				limit = 20
 			}
-			if limit > 50 {
-				limit = 50
+			if limit > api.MaxAttachmentSearchResults {
+				limit = api.MaxAttachmentSearchResults
 			}
-			hits, err := app.Index.SearchAttachments(ctx, in.Query, 50)
+			hits, err := app.apiClient().SearchAttachments(ctx, in.Query, limit)
 			if err != nil {
 				return nil, mcpAttachmentSearchOut{}, err
 			}
-			out := mcpAttachmentSearchOut{Hits: []mcpAttachmentSearchHit{}}
+			out := mcpAttachmentSearchOut{Hits: make([]mcpAttachmentSearchHit, 0, len(hits))}
 			for _, hit := range hits {
-				if err := app.mcpRequireSlug(ctx, hit.OwnerSlug); err != nil || !tokenAllowsSlug(ctx, hit.OwnerSlug) {
-					continue
-				}
-				out.Hits = append(out.Hits, mcpAttachmentSearchHit(hit))
-				if len(out.Hits) == limit {
-					break
-				}
+				out.Hits = append(out.Hits, mcpAttachmentSearchHit{
+					OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
+					Excerpt: hit.Excerpt, Score: hit.Score,
+				})
 			}
 			return nil, out, nil
 		})
@@ -538,10 +499,7 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpNamespacesOut{}, err
 		}
 		out := mcpNamespacesOut{Namespaces: []mcpNamespaceMeta{}}
-		for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
-			if !tokenAllowsNamespace(ctx, summary.Name) {
-				continue
-			}
+		for _, summary := range app.apiClient().ListNamespaces(ctx) {
 			out.Namespaces = append(out.Namespaces, mcpNamespaceMeta{Name: summary.Name, Description: summary.Config.Description, Pages: summary.Count, Public: summary.Config.Public})
 		}
 		return nil, out, nil
@@ -554,14 +512,11 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeSettings); err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		if !wiki.ValidNamespaceName(in.Name) {
-			return nil, mcpNamespaceOut{}, fmt.Errorf("invalid namespace %q", in.Name)
-		}
-		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
+		detail, err := app.apiClient().ReadNamespace(ctx, in.Name)
+		if err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		out, err := app.readMCPNamespace(in.Name)
-		return nil, out, err
+		return nil, mcpNamespaceFromDetail(detail), nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -593,11 +548,11 @@ func (app *App) mcpHandler() http.Handler {
 		path := wiki.NamespaceConfigPath(in.Name)
 		hash, err := app.Store.SaveChecked(path, path, in.BaseHash, data, "Configure namespace "+path, authorName, authorEmail)
 		if errors.Is(err, ErrConflict) {
-			current, readErr := app.readMCPNamespace(in.Name)
+			current, readErr := app.apiClient().ReadNamespace(ctx, in.Name)
 			if readErr != nil {
 				return nil, mcpNamespaceOut{}, readErr
 			}
-			payload, _ := json.Marshal(map[string]any{"error": "conflict: the namespace changed since basehash (or already exists)", "namespace": current})
+			payload, _ := json.Marshal(map[string]any{"error": "conflict: the namespace changed since basehash (or already exists)", "namespace": mcpNamespaceFromDetail(current)})
 			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}}}, mcpNamespaceOut{}, nil
 		}
 		if err != nil {
@@ -620,20 +575,13 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpPageOut{}, err
 		}
 		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
-			return nil, mcpPageOut{}, err
-		}
-		content, hash, err := app.Store.Read(pageFile(in.Slug))
+		view, err := app.apiClient().ViewPage(ctx, slug)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil, mcpPageOut{}, fmt.Errorf("page %q not found", in.Slug)
-			}
 			return nil, mcpPageOut{}, err
 		}
-		p := ParsePage(in.Slug, content)
 		return nil, mcpPageOut{
-			Slug: p.Slug, Title: p.Title, Tags: p.Tags, Body: p.Body,
-			Pin: p.Pin, Hash: hash,
+			Slug: view.Slug, Title: view.Title, Tags: view.Tags, Body: view.Body,
+			Pin: view.Pin, Hash: view.Hash,
 		}, nil
 	})
 
@@ -740,16 +688,13 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpSearchOut{}, err
 		}
-		hits, err := app.Index.Search(in.Query)
+		hits, err := app.apiClient().SearchPages(ctx, in.Query)
 		if err != nil {
 			return nil, mcpSearchOut{}, err
 		}
-		out := mcpSearchOut{Hits: []mcpSearchHit{}}
+		out := mcpSearchOut{Hits: make([]mcpSearchHit, 0, len(hits))}
 		for _, h := range hits {
-			if !tokenAllowsSlug(ctx, h.Slug) {
-				continue
-			}
-			out.Hits = append(out.Hits, mcpSearchHit(h))
+			out.Hits = append(out.Hits, mcpSearchHit{Slug: h.Slug, Title: h.Title, Snippet: h.Snippet, Tags: h.Tags})
 		}
 		return nil, out, nil
 	})
@@ -766,16 +711,13 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpBacklinksOut{}, err
 		}
 		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+		backlinks, err := app.apiClient().Backlinks(ctx, slug)
+		if err != nil {
 			return nil, mcpBacklinksOut{}, err
 		}
-		titles := app.Index.Titles()
-		out := mcpBacklinksOut{Backlinks: []mcpPageMeta{}}
-		for _, slug := range app.Index.Backlinks(in.Slug) {
-			if !tokenAllowsSlug(ctx, slug) {
-				continue
-			}
-			out.Backlinks = append(out.Backlinks, mcpPageMeta{Slug: slug, Title: titles[slug], Tags: app.Index.TagsFor(slug)})
+		out := mcpBacklinksOut{Backlinks: make([]mcpPageMeta, 0, len(backlinks))}
+		for _, backlink := range backlinks {
+			out.Backlinks = append(out.Backlinks, mcpPageMeta{Slug: backlink.Slug, Title: backlink.Title, Tags: backlink.Tags})
 		}
 		return nil, out, nil
 	})
@@ -787,19 +729,12 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpRecentOut{}, err
 		}
-		limit := in.Limit
-		if limit <= 0 {
-			limit = 20
-		}
-		commits, err := app.Store.RecentCommits(limit)
+		commits, err := app.apiClient().RecentChanges(ctx, in.Limit)
 		if err != nil {
 			return nil, mcpRecentOut{}, err
 		}
-		out := mcpRecentOut{Commits: []mcpCommit{}}
+		out := mcpRecentOut{Commits: make([]mcpCommit, 0, len(commits))}
 		for _, c := range commits {
-			if !mcpCommitAllowed(ctx, c) {
-				continue
-			}
 			out.Commits = append(out.Commits, mcpCommit{
 				Hash:    c.Hash,
 				Message: c.Message,
@@ -819,27 +754,14 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireScope(ctx, scopeRead); err != nil {
 			return nil, mcpHealthOut{}, err
 		}
-		if in.Namespace != "" {
-			if !wiki.ValidNamespaceName(in.Namespace) {
-				return nil, mcpHealthOut{}, fmt.Errorf("invalid namespace %q", in.Namespace)
-			}
-			if err := app.mcpRequireNamespace(ctx, in.Namespace); err != nil {
-				return nil, mcpHealthOut{}, err
-			}
+		report, err := app.apiClient().Health(ctx, in.Namespace)
+		if err != nil {
+			return nil, mcpHealthOut{}, err
 		}
-		missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
-		missing, orphans = filterHealth(ctx, missing, orphans)
-		if in.Namespace != "" {
-			missing, orphans = filterHealthNamespace(missing, orphans, in.Namespace)
+		out := mcpHealthOut{Missing: make([]HealthMissingEntry, 0, len(report.Missing)), Orphans: report.Orphans}
+		for _, entry := range report.Missing {
+			out.Missing = append(out.Missing, HealthMissingEntry{Slug: entry.Slug, Sources: entry.Sources})
 		}
-		out := mcpHealthOut{Missing: []HealthMissingEntry{}, Orphans: orphans}
-		if out.Orphans == nil {
-			out.Orphans = []string{}
-		}
-		for slug, sources := range missing {
-			out.Missing = append(out.Missing, HealthMissingEntry{Slug: slug, Sources: sources})
-		}
-		sort.Slice(out.Missing, func(i, j int) bool { return out.Missing[i].Slug < out.Missing[j].Slug })
 		return nil, out, nil
 	})
 

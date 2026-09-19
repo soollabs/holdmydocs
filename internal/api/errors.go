@@ -80,6 +80,12 @@ func Conflict(message string) *Error {
 	return &Error{Category: CategoryConflict, Message: message}
 }
 
+// NotFoundCause reports a missing resource while retaining the underlying error
+// for server logs.
+func NotFoundCause(message string, cause error) *Error {
+	return &Error{Category: CategoryNotFound, Message: message, cause: cause}
+}
+
 // Busy reports a temporarily contended operation.
 func Busy(message string) *Error {
 	return &Error{Category: CategoryBusy, Message: message}

@@ -2,14 +2,18 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	texttemplate "text/template"
 	"time"
 
+	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
@@ -111,4 +115,117 @@ func NormaliseNamespaceConfig(name string, cfg wiki.NamespaceConfig, data NewPag
 		return wiki.NamespaceConfig{}, fmt.Errorf("slug pattern renders unusable page name %q", rendered)
 	}
 	return cfg, nil
+}
+
+// NamespaceSummary is the shared catalogue entry for one namespace: its name,
+// resolved configuration and the pages it contains. It is derived from the
+// registry and indexed page titles and is presented as the namespace listing.
+type NamespaceSummary struct {
+	Name   string
+	Config wiki.NamespaceConfig
+	Count  int
+	Pages  []search.BacklinkEntry
+}
+
+// NamespaceSummaries returns the full namespace catalogue without caller
+// filtering. It lists every configured namespace plus every namespace that
+// holds a page, each with its pages sorted by slug, in name order.
+func (a *API) NamespaceSummaries() []NamespaceSummary {
+	reg := a.Namespaces()
+	titles := a.index.Titles()
+	entries := make(map[string]*NamespaceSummary)
+	include := func(name string, cfg wiki.NamespaceConfig) *NamespaceSummary {
+		if entry, ok := entries[name]; ok {
+			return entry
+		}
+		entry := &NamespaceSummary{Name: name, Config: cfg}
+		entries[name] = entry
+		return entry
+	}
+
+	for name, cfg := range reg {
+		if cfg.Configured {
+			include(name, cfg)
+		}
+	}
+	for slug, title := range titles {
+		name, rest := wiki.NamespaceFor(slug)
+		if rest == "" {
+			continue
+		}
+		entry := include(name, reg.Resolve(slug))
+		if title == "" {
+			title = slug
+		}
+		entry.Pages = append(entry.Pages, search.BacklinkEntry{Slug: slug, Title: title})
+	}
+
+	result := make([]NamespaceSummary, 0, len(entries))
+	for _, entry := range entries {
+		sort.Slice(entry.Pages, func(i, j int) bool { return entry.Pages[i].Slug < entry.Pages[j].Slug })
+		entry.Count = len(entry.Pages)
+		result = append(result, *entry)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+// ListNamespaces returns the namespace catalogue filtered to the caller's
+// namespace access, with each entry's pages filtered by slug access and its
+// count recomputed. Adapters render their namespace listings from it.
+func (a *API) ListNamespaces(ctx context.Context) []NamespaceSummary {
+	summaries := a.NamespaceSummaries()
+	filtered := make([]NamespaceSummary, 0, len(summaries))
+	for _, summary := range summaries {
+		if !AllowNamespace(ctx, summary.Name) {
+			continue
+		}
+		pages := make([]search.BacklinkEntry, 0, len(summary.Pages))
+		for _, page := range summary.Pages {
+			if AllowSlug(ctx, page.Slug) {
+				pages = append(pages, page)
+			}
+		}
+		summary.Pages = pages
+		summary.Count = len(pages)
+		filtered = append(filtered, summary)
+	}
+	return filtered
+}
+
+// NamespaceSummary returns one caller-visible catalogue entry, or nil.
+func (a *API) NamespaceSummary(ctx context.Context, name string) *NamespaceSummary {
+	for _, summary := range a.ListNamespaces(ctx) {
+		if summary.Name == name {
+			return &summary
+		}
+	}
+	return nil
+}
+
+// NamespaceDetail is a namespace's full settings with its current config hash.
+type NamespaceDetail struct {
+	Name   string
+	Config wiki.NamespaceConfig
+	Hash   string
+}
+
+// ReadNamespace reads one namespace's settings and current config hash. The
+// caller must be allowed the namespace; an unknown namespace is not found.
+func (a *API) ReadNamespace(ctx context.Context, name string) (*NamespaceDetail, error) {
+	if !wiki.ValidNamespaceName(name) {
+		return nil, InvalidInput("invalid namespace", nil)
+	}
+	if !AllowNamespace(ctx, name) {
+		return nil, Forbidden("namespace access denied")
+	}
+	cfg, ok := a.Namespaces()[name]
+	if !ok {
+		return nil, NotFound("namespace not found")
+	}
+	_, hash, err := a.store.Read(wiki.NamespaceConfigPath(name))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, Unavailable("reading namespace", err)
+	}
+	return &NamespaceDetail{Name: name, Config: cfg, Hash: hash}, nil
 }

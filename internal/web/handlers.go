@@ -212,7 +212,7 @@ type NamespaceTreeItem struct {
 type NamespaceManagementData struct {
 	CanWrite     bool
 	CanSettings  bool
-	Rows         []NamespaceSummary
+	Rows         []api.NamespaceSummary
 	Form         NamespaceListEntry
 	WidgetGroups []widgetSlotGroup
 	SlugPresets  []slugPresetView
@@ -481,20 +481,24 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed || data.NamespacePublic {
 		data.CSPNonce = cspNonce(r.Context())
 	}
-	if data.Authed && data.AllTags == nil {
-		ns, _ := wiki.NamespaceFor(data.Slug)
-		data.AllTags = app.Index.TagsInNamespace(ns)
-	}
 	// Use the current page's namespace as the default destination.
 	if data.Namespace == "" {
 		data.Namespace, _ = wiki.NamespaceFor(data.Slug)
 	}
 	if data.Authed {
-		missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
-		missing, orphans = filterHealth(r.Context(), missing, orphans)
-		data.HealthMissing = len(missing)
-		data.HealthOrphans = len(orphans)
-		data.AllTags = filterTagCounts(r.Context(), app.Index, data.AllTags)
+		health, err := app.apiClient().Health(r.Context(), "")
+		if err != nil {
+			slog.Error("reading health summary", "err", err)
+		}
+		data.HealthMissing = len(health.Missing)
+		data.HealthOrphans = len(health.Orphans)
+		// Default the tags widget to the current page's namespace tags, but
+		// preserve an explicit whole-wiki list supplied by the handler (the
+		// tags index).
+		if data.AllTags == nil {
+			ns, _ := wiki.NamespaceFor(data.Slug)
+			data.AllTags = app.apiClient().NamespaceTags(r.Context(), ns)
+		}
 	}
 	if data.Authed && data.StatusMode == "" {
 		data.StatusMode = "view"
@@ -582,7 +586,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.PageHeadWidgets = widgetsForSlot(slotPageHead, nsCfg.Widgets)
 		data.PageFootWidgets = widgetsForSlot(slotPageFoot, nsCfg.Widgets)
 
-		app.populateWidgetData(&data, activeSkin)
+		app.populateWidgetData(r.Context(), &data, activeSkin)
 		for i := len(data.NamespaceNav) - 1; i >= 0; i-- {
 			if !tokenAllowsNamespace(r.Context(), data.NamespaceNav[i].Name) {
 				data.NamespaceNav = append(data.NamespaceNav[:i], data.NamespaceNav[i+1:]...)
@@ -696,77 +700,6 @@ func filterBacklinkEntries(ctx context.Context, entries []BacklinkEntry) []Backl
 		}
 	}
 	return filtered
-}
-
-func filterTagCounts(ctx context.Context, ix *Index, tags []TagCount) []TagCount {
-	filtered := make([]TagCount, 0, len(tags))
-	for _, tag := range tags {
-		count := 0
-		for _, slug := range ix.PagesForTag(tag.Slug) {
-			if tokenAllowsSlug(ctx, slug) {
-				count++
-			}
-		}
-		if count > 0 {
-			tag.Count = count
-			filtered = append(filtered, tag)
-		}
-	}
-	return filtered
-}
-
-func filterNamespaceSummaries(ctx context.Context, summaries []NamespaceSummary) []NamespaceSummary {
-	filtered := make([]NamespaceSummary, 0, len(summaries))
-	for _, summary := range summaries {
-		if !tokenAllowsNamespace(ctx, summary.Name) {
-			continue
-		}
-		summary.Pages = filterBacklinkEntries(ctx, summary.Pages)
-		summary.Count = len(summary.Pages)
-		filtered = append(filtered, summary)
-	}
-	return filtered
-}
-
-func filterHealth(ctx context.Context, missing map[string][]string, orphans []string) (map[string][]string, []string) {
-	filteredMissing := make(map[string][]string, len(missing))
-	for slug, sources := range missing {
-		if !tokenAllowsSlug(ctx, slug) {
-			continue
-		}
-		allowedSources := make([]string, 0, len(sources))
-		for _, source := range sources {
-			if tokenAllowsSlug(ctx, source) {
-				allowedSources = append(allowedSources, source)
-			}
-		}
-		if len(allowedSources) > 0 {
-			filteredMissing[slug] = allowedSources
-		}
-	}
-	filteredOrphans := make([]string, 0, len(orphans))
-	for _, slug := range orphans {
-		if tokenAllowsSlug(ctx, slug) {
-			filteredOrphans = append(filteredOrphans, slug)
-		}
-	}
-	return filteredMissing, filteredOrphans
-}
-
-func filterHealthNamespace(missing map[string][]string, orphans []string, namespace string) (map[string][]string, []string) {
-	filteredMissing := make(map[string][]string, len(missing))
-	for slug, sources := range missing {
-		if ns, _ := wiki.NamespaceFor(slug); ns == namespace {
-			filteredMissing[slug] = sources
-		}
-	}
-	filteredOrphans := make([]string, 0, len(orphans))
-	for _, slug := range orphans {
-		if ns, _ := wiki.NamespaceFor(slug); ns == namespace {
-			filteredOrphans = append(filteredOrphans, slug)
-		}
-	}
-	return filteredMissing, filteredOrphans
 }
 
 func (app *App) gitAuthor(username string) (name, email string) {
@@ -1491,9 +1424,10 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	authed := app.currentUser(r) != ""
 
-	content, blobHash, err := app.Store.Read(pageFile(slug))
+	view, err := app.apiClient().ViewPage(r.Context(), slug)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		switch api.CategoryOf(err) {
+		case api.CategoryNotFound:
 			if !authed {
 				app.notFound(w, r)
 				return
@@ -1503,18 +1437,21 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 				Title:  "Page not found",
 				Slug:   slug,
 			})
-			return
+		case api.CategoryForbidden:
+			app.errorPage(w, r, http.StatusForbidden, "Forbidden", "You don't have access to that namespace.")
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
 		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	page := Page{Slug: view.Slug, Title: view.Title, Tags: view.Tags, Body: view.Body, Pin: view.Pin}
 
 	if !authed {
-		app.handlePublicPage(w, r, slug, ParsePage(slug, content))
+		app.handlePublicPage(w, r, slug, page)
 		return
 	}
 
-	page := ParsePage(slug, content)
 	ns, _ := wiki.NamespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
@@ -1523,12 +1460,14 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	titles := app.Index.Titles()
-	var backlinks []BacklinkEntry
-	for _, bslug := range app.Index.Backlinks(slug) {
-		if tokenAllowsSlug(r.Context(), bslug) {
-			backlinks = append(backlinks, BacklinkEntry{Slug: bslug, Title: titles[bslug]})
-		}
+	backlinkSummaries, err := app.apiClient().Backlinks(r.Context(), slug)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	backlinks := make([]BacklinkEntry, 0, len(backlinkSummaries))
+	for _, backlink := range backlinkSummaries {
+		backlinks = append(backlinks, BacklinkEntry{Slug: backlink.Slug, Title: backlink.Title})
 	}
 
 	var pageTags []TagChip
@@ -1539,7 +1478,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	revisionCount := 0
 	headAuthor, headWhen := "", ""
 	var recentCommits []LogEntry
-	if history, err := app.Store.History(pageFile(slug)); err == nil {
+	if history, err := app.apiClient().PageHistory(r.Context(), slug); err == nil {
 		revisionCount = len(history)
 		if len(history) > 0 {
 			headAuthor = history[0].Author
@@ -1563,7 +1502,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		RevisionCount: revisionCount,
 		HeadAuthor:    headAuthor,
 		HeadWhen:      headWhen,
-		BlobHash:      blobHash,
+		BlobHash:      view.Hash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
 		RecentCommits: recentCommits,
 	})
@@ -1592,7 +1531,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	}
 	var sidebarTreeNS string
 	var sidebarTreeEntries []BacklinkEntry
-	if summary := namespaceSummaryFor(ns, app.Index.Titles(), pageNS); summary != nil {
+	if summary := app.apiClient().NamespaceSummary(r.Context(), pageNS); summary != nil {
 		sidebarTreeNS = pageNS
 		sidebarTreeEntries = summary.Pages
 	}
@@ -1666,7 +1605,7 @@ func (app *App) namespaceIndexName(path string) (string, bool) {
 	if name == "" || strings.Contains(name, "/") {
 		return "", false
 	}
-	for _, entry := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+	for _, entry := range app.apiClient().NamespaceSummaries() {
 		if entry.Name == name {
 			return entry.Name, true
 		}
@@ -1679,7 +1618,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 	authed := app.currentUser(r) != ""
-	summary := namespaceSummaryFor(app.Namespaces(), app.Index.Titles(), name)
+	summary := app.apiClient().NamespaceSummary(r.Context(), name)
 	if summary == nil || (!authed && !summary.Config.Public) {
 		app.notFound(w, r)
 		return
@@ -1809,10 +1748,15 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	page := Page{Slug: slug, Title: slug}
 	baseHash := ""
 
-	content, hash, _ := app.Store.Read(pageFile(slug))
-	if content != nil {
-		page = ParsePage(slug, content)
-		baseHash = hash
+	switch view, err := app.apiClient().ViewPage(r.Context(), slug); {
+	case err == nil:
+		page = Page{Slug: view.Slug, Title: view.Title, Tags: view.Tags, Body: view.Body}
+		baseHash = view.Hash
+	case errors.Is(err, os.ErrNotExist):
+		// Missing page: start a blank edit form.
+	default:
+		http.Error(w, "not found", http.StatusNotFound)
+		return
 	}
 
 	app.render(w, r, http.StatusOK, "edit", TemplateData{
@@ -2249,23 +2193,17 @@ func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
 		Authed:  true,
 		Title:   "Tags",
-		AllTags: filterTagCounts(r.Context(), app.Index, app.Index.Tags()),
+		AllTags: app.apiClient().Tags(r.Context()),
 	})
 }
 
 func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 	tagSlug := r.PathValue("tag")
-	name := app.Index.TagName(tagSlug)
-	if name == "" {
-		name = tagSlug
-	}
+	name, summaries := app.apiClient().TagPages(r.Context(), tagSlug)
 
-	titles := app.Index.Titles()
-	var pages []BacklinkEntry
-	for _, slug := range app.Index.PagesForTag(tagSlug) {
-		if tokenAllowsSlug(r.Context(), slug) {
-			pages = append(pages, BacklinkEntry{Slug: slug, Title: titles[slug]})
-		}
+	pages := make([]BacklinkEntry, 0, len(summaries))
+	for _, summary := range summaries {
+		pages = append(pages, BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
 	}
 
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
@@ -2278,13 +2216,13 @@ func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.FormValue("q")
-	if err := validateSearchQuery(q); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	start := time.Now()
-	hits, err := app.Index.Search(q)
+	hits, err := app.apiClient().SearchPages(r.Context(), q)
 	if err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -2292,9 +2230,6 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]SearchResult, 0, len(hits))
 	for _, hit := range hits {
-		if !tokenAllowsSlug(r.Context(), hit.Slug) {
-			continue
-		}
 		results = append(results, SearchResult{
 			Slug:    hit.Slug,
 			Title:   hit.Title,
@@ -2302,27 +2237,22 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 			Tags:    hit.Tags,
 		})
 	}
-	var attachmentResults []AttachmentResult
+	attachmentResults := make([]AttachmentResult, 0)
 	if app.Index.DocumentsEnabled() && strings.TrimSpace(q) != "" {
-		if hits, searchErr := app.Index.SearchAttachments(r.Context(), q, 50); searchErr != nil {
-			if errors.Is(searchErr, errSearchBusy) {
+		attachmentHits, searchErr := app.apiClient().SearchAttachments(r.Context(), q, 20)
+		if searchErr != nil {
+			if api.CategoryOf(searchErr) == api.CategoryBusy {
 				w.Header().Set("Retry-After", "1")
 				http.Error(w, "search is busy", http.StatusTooManyRequests)
 				return
 			}
 			slog.Warn("attachment search failed", "err", searchErr)
 		} else {
-			for _, hit := range hits {
-				if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
-					continue
-				}
+			for _, hit := range attachmentHits {
 				attachmentResults = append(attachmentResults, AttachmentResult{
 					OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
 					Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
 				})
-				if len(attachmentResults) == 20 {
-					break
-				}
 			}
 		}
 	}
@@ -2347,36 +2277,25 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.FormValue("q"))
-	if err := validateSearchQuery(q); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if q == "" {
-		http.Error(w, "query cannot be empty", http.StatusBadRequest)
-		return
-	}
-	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
+	hits, err := app.apiClient().SearchAttachments(r.Context(), q, 20)
 	if err != nil {
-		if errors.Is(err, errSearchBusy) {
+		switch api.CategoryOf(err) {
+		case api.CategoryInvalidInput:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case api.CategoryBusy:
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, "search is busy", http.StatusTooManyRequests)
-			return
+		default:
+			http.Error(w, "attachment search unavailable", http.StatusServiceUnavailable)
 		}
-		http.Error(w, "attachment search unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	results := make([]AttachmentResult, 0, 20)
+	results := make([]AttachmentResult, 0, len(hits))
 	for _, hit := range hits {
-		if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
-			continue
-		}
 		results = append(results, AttachmentResult{
 			OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
 			Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
 		})
-		if len(results) == 20 {
-			break
-		}
 	}
 	app.render(w, r, http.StatusOK, "search", TemplateData{
 		Authed: true, Title: q, Query: q, AttachmentResults: results,
@@ -2393,22 +2312,19 @@ type AutocompleteResult struct {
 
 func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 	q := r.FormValue("q")
-	if err := validateSearchQuery(q); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	hits, err := app.Index.Search(q)
+	hits, err := app.apiClient().SearchPages(r.Context(), q)
 	if err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	results := make([]AutocompleteResult, 0, len(hits))
 	for _, hit := range hits {
-		if !tokenAllowsSlug(r.Context(), hit.Slug) {
-			continue
-		}
-		results = append(results, AutocompleteResult(hit))
+		results = append(results, AutocompleteResult{Slug: hit.Slug, Title: hit.Title, Snippet: hit.Snippet, Tags: hit.Tags})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -2419,39 +2335,29 @@ func (app *App) handleSearchAPI(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleAttachmentSearchAPI(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.FormValue("q"))
-	if err := validateSearchQuery(q); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if q == "" {
-		http.Error(w, "query cannot be empty", http.StatusBadRequest)
-		return
-	}
-	hits, err := app.Index.SearchAttachments(r.Context(), q, 50)
+	hits, err := app.apiClient().SearchAttachments(r.Context(), q, 20)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		if errors.Is(err, errSearchBusy) {
+		switch api.CategoryOf(err) {
+		case api.CategoryInvalidInput:
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		case api.CategoryBusy:
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "search is busy"})
-			return
+		default:
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "attachment search unavailable"})
 		}
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "attachment search unavailable"})
 		return
 	}
-	results := make([]AttachmentResult, 0, 20)
+	results := make([]AttachmentResult, 0, len(hits))
 	for _, hit := range hits {
-		if !tokenAllowsSlug(r.Context(), hit.OwnerSlug) {
-			continue
-		}
 		results = append(results, AttachmentResult{
 			OwnerSlug: hit.OwnerSlug, Filename: hit.Filename, URL: hit.URL,
 			Excerpt: template.HTML(hit.Excerpt), Score: hit.Score,
 		})
-		if len(results) == 20 {
-			break
-		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(results); err != nil {
@@ -2498,23 +2404,22 @@ func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, _, err := app.Store.Read(pageFile(slug))
-	if err != nil || content == nil {
+	view, err := app.apiClient().ViewPage(r.Context(), slug)
+	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	page := ParsePage(slug, content)
-	snippet := extractSnippet(page.Body, 40)
+	snippet := extractSnippet(view.Body, 40)
 
 	resp := map[string]any{
-		"title":   page.Title,
+		"title":   view.Title,
 		"snippet": snippet,
-		"tags":    page.Tags,
+		"tags":    view.Tags,
 		"age":     "just now",
 	}
 
-	if history, err := app.Store.History(pageFile(slug)); err == nil && len(history) > 0 {
+	if history, err := app.apiClient().PageHistory(r.Context(), slug); err == nil && len(history) > 0 {
 		resp["age"] = relativeTime(history[0].When)
 	}
 
@@ -2703,21 +2608,18 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	titles := app.Index.Titles()
-	missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
-	missing, orphans = filterHealth(r.Context(), missing, orphans)
-
-	missingSlugs := make([]string, 0, len(missing))
-	for slug := range missing {
-		missingSlugs = append(missingSlugs, slug)
+	report, err := app.apiClient().Health(r.Context(), "")
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
-	sort.Strings(missingSlugs)
 
 	var b strings.Builder
-	if len(missingSlugs) > 0 {
-		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(missingSlugs))
-		for _, m := range missingSlugs {
-			fmt.Fprintf(&b, `<li><a href="/%s?do=edit" class="missing">%s</a> — linked from `, m, htmlEscape(m))
-			for i, src := range missing[m] {
+	if len(report.Missing) > 0 {
+		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(report.Missing))
+		for _, entry := range report.Missing {
+			fmt.Fprintf(&b, `<li><a href="/%s?do=edit" class="missing">%s</a> — linked from `, entry.Slug, htmlEscape(entry.Slug))
+			for i, src := range entry.Sources {
 				if i > 0 {
 					b.WriteString(", ")
 				}
@@ -2732,9 +2634,9 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		b.WriteString(`</ul></section>`)
 	}
 
-	if len(orphans) > 0 {
-		fmt.Fprintf(&b, `<section><h2>Orphaned pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(orphans))
-		for _, o := range orphans {
+	if len(report.Orphans) > 0 {
+		fmt.Fprintf(&b, `<section><h2>Orphaned pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(report.Orphans))
+		for _, o := range report.Orphans {
 			title := titles[o]
 			if title == "" {
 				title = o
@@ -2744,7 +2646,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		b.WriteString(`</ul></section>`)
 	}
 
-	if len(missingSlugs) == 0 && len(orphans) == 0 {
+	if len(report.Missing) == 0 && len(report.Orphans) == 0 {
 		b.WriteString(`<p>✓ Your wiki is healthy!</p>`)
 	}
 
@@ -2753,7 +2655,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		Title:         "wiki health",
 		Slug:          "health-report",
 		Content:       template.HTML(b.String()),
-		StatusContext: fmt.Sprintf("%d missing · %d orphan%s", len(missingSlugs), len(orphans), plural(len(orphans))),
+		StatusContext: fmt.Sprintf("%d missing · %d orphan%s", len(report.Missing), len(report.Orphans), plural(len(report.Orphans))),
 	})
 }
 
@@ -2769,33 +2671,26 @@ type HealthReport struct {
 
 func (app *App) handleHealthAPI(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
-	if namespace != "" {
-		if !wiki.ValidNamespaceName(namespace) {
+	report, err := app.apiClient().Health(r.Context(), namespace)
+	if err != nil {
+		switch api.CategoryOf(err) {
+		case api.CategoryInvalidInput:
 			http.Error(w, `{"error":"invalid namespace"}`, http.StatusBadRequest)
-			return
+		case api.CategoryForbidden:
+			app.tokenNamespaceDenied(w, r)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
 		}
-		if !app.requireTokenNamespace(w, r, namespace) {
-			return
-		}
+		return
 	}
 
-	missing, orphans := app.Index.Health(app.Namespaces().IndexSlugs())
-	missing, orphans = filterHealth(r.Context(), missing, orphans)
-	if namespace != "" {
-		missing, orphans = filterHealthNamespace(missing, orphans, namespace)
+	envelope := HealthReport{Missing: make([]HealthMissingEntry, 0, len(report.Missing)), Orphans: report.Orphans}
+	for _, entry := range report.Missing {
+		envelope.Missing = append(envelope.Missing, HealthMissingEntry{Slug: entry.Slug, Sources: entry.Sources})
 	}
-
-	report := HealthReport{Missing: []HealthMissingEntry{}, Orphans: orphans}
-	if report.Orphans == nil {
-		report.Orphans = []string{}
-	}
-	for slug, sources := range missing {
-		report.Missing = append(report.Missing, HealthMissingEntry{Slug: slug, Sources: sources})
-	}
-	sort.Slice(report.Missing, func(i, j int) bool { return report.Missing[i].Slug < report.Missing[j].Slug })
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(report); err != nil {
+	if err := json.NewEncoder(w).Encode(envelope); err != nil {
 		slog.Error("encoding health response", "err", err)
 	}
 }
@@ -2813,8 +2708,12 @@ func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diff, err := app.Store.Diff(pageFile(slug), hashA, hashB)
+	diff, err := app.apiClient().PageDiff(r.Context(), slug, hashA, hashB)
 	if err != nil {
+		if api.CategoryOf(err) == api.CategoryForbidden {
+			app.tokenNamespaceDenied(w, r)
+			return
+		}
 		http.Error(w, "diff failed", http.StatusInternalServerError)
 		return
 	}
@@ -2831,15 +2730,13 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, _, err := app.Store.Read(pageFile(slug))
+	view, err := app.apiClient().ViewPage(r.Context(), slug)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	page := ParsePage(slug, content)
-
-	history, err := app.Store.History(pageFile(slug))
+	history, err := app.apiClient().PageHistory(r.Context(), slug)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -2865,7 +2762,7 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	app.render(w, r, http.StatusOK, "history", TemplateData{
 		Authed:         true,
-		Title:          page.Title,
+		Title:          view.Title,
 		Slug:           slug,
 		HistoryEntries: entries,
 		TotalHistory:   totalHistory,
@@ -2880,13 +2777,13 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := r.URL.Query().Get("hash")
 
-	content, err := app.Store.FileAt(pageFile(slug), hash)
+	revision, err := app.apiClient().RevisionPage(r.Context(), slug, hash)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	page := ParsePage(slug, content)
+	page := Page{Slug: revision.Slug, Title: revision.Title, Tags: revision.Tags, Body: revision.Body}
 	ns, _ := wiki.NamespaceFor(slug)
 	page.Body = injectTOC(page.Body, app.Index, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
@@ -2895,13 +2792,9 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	history, _ := app.Store.History(pageFile(slug))
 	commitTime := ""
-	for _, commit := range history {
-		if commit.Hash == hash {
-			commitTime = commit.When.Format("2006-01-02 15:04")
-			break
-		}
+	if !revision.When.IsZero() {
+		commitTime = revision.When.Format("2006-01-02 15:04")
 	}
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
@@ -2945,23 +2838,14 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
-	paths, err := app.Store.ListHidden()
+	summaries, err := app.apiClient().HiddenPages(r.Context())
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	var pages []BacklinkEntry
-	for _, p := range paths {
-		slug := hiddenSlug(p)
-		if !tokenAllowsSlug(r.Context(), slug) {
-			continue
-		}
-		content, _, err := app.Store.Read(p)
-		if err != nil {
-			continue
-		}
-		page := ParsePage(slug, content)
-		pages = append(pages, BacklinkEntry{Slug: slug, Title: page.Title})
+	pages := make([]BacklinkEntry, 0, len(summaries))
+	for _, summary := range summaries {
+		pages = append(pages, BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
 	}
 	app.render(w, r, http.StatusOK, "hidden", TemplateData{
 		Authed:      true,
@@ -2977,9 +2861,8 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	file := hiddenFile(slug)
 
-	content, _, err := app.Store.Read(file)
+	view, err := app.apiClient().ViewHidden(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
@@ -2994,9 +2877,8 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page := ParsePage(slug, content)
 	hiddenNS, _ := wiki.NamespaceFor(slug)
-	renderedBody, err := app.Render.Render(page.Body, hiddenNS)
+	renderedBody, err := app.Render.Render(view.Body, hiddenNS)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -3004,7 +2886,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:      true,
-		Title:       page.Title,
+		Title:       view.Title,
 		Slug:        slug,
 		Content:     renderedBody,
 		RoutePrefix: "/_/hidden",
@@ -3016,15 +2898,19 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	file := hiddenFile(slug)
 
 	page := Page{Slug: slug, Title: slug}
 	baseHash := ""
 
-	content, hash, _ := app.Store.Read(file)
-	if content != nil {
-		page = ParsePage(slug, content)
-		baseHash = hash
+	switch view, err := app.apiClient().ViewHidden(r.Context(), slug); {
+	case err == nil:
+		page = Page{Slug: view.Slug, Title: view.Title, Tags: view.Tags, Body: view.Body}
+		baseHash = view.Hash
+	case errors.Is(err, os.ErrNotExist):
+		// Missing hidden page: start a blank edit form.
+	default:
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
 
 	app.render(w, r, http.StatusOK, "edit", TemplateData{
@@ -3059,7 +2945,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	sd.Users = app.Auth.Users()
 	sd.AllScopes = []string{string(scopeRead), string(scopeWrite), string(scopeSettings)}
 	sd.CurrentUser = user
-	for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+	for _, summary := range app.apiClient().NamespaceSummaries() {
 		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
 	}
 	for _, t := range app.Auth.TokensFor(user) {
@@ -3164,7 +3050,7 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	knownNamespaces := make(map[string]struct{})
-	for _, summary := range namespaceSummaries(app.Namespaces(), app.Index.Titles()) {
+	for _, summary := range app.apiClient().NamespaceSummaries() {
 		knownNamespaces[summary.Name] = struct{}{}
 	}
 	namespaces := make([]string, 0, len(r.Form["namespaces"]))
@@ -3220,7 +3106,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	data := NamespaceManagementData{
 		CanWrite:     prefs.HasScope(scopeWrite),
 		CanSettings:  prefs.HasScope(scopeSettings),
-		Rows:         filterNamespaceSummaries(r.Context(), namespaceSummaries(app.Namespaces(), app.Index.Titles())),
+		Rows:         app.apiClient().ListNamespaces(r.Context()),
 		WidgetGroups: widgetSlotGroups(),
 		SlugPresets:  slugPresetViews(user),
 		SkinNames:    skinNames,
