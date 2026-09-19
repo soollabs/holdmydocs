@@ -206,7 +206,7 @@ func TestMCPToolContracts(t *testing.T) {
 	wantArgs := map[string][]string{
 		"list_pages": {}, "list_namespaces": {},
 		"read_page": {"slug", "path"}, "save_page": {"slug", "path", "title", "tags", "body", "pin", "basehash"},
-		"edit_page": {"slug", "path", "basehash", "script"}, "delete_page": {"slug", "path"},
+		"edit_page": {"slug", "path", "basehash", "edits", "dryRun"}, "delete_page": {"slug", "path"},
 		"search": {"query"}, "backlinks": {"slug", "path"}, "recent_changes": {"limit"}, "health": {"namespace"},
 		"read_namespace":    {"name"},
 		"save_namespace":    {"name", "widgets", "public", "title", "description", "skin", "palette", "index", "tree", "new", "basehash"},
@@ -1106,7 +1106,7 @@ func TestMCPRestrictedToken(t *testing.T) {
 		{"read_page", map[string]any{"slug": "readme"}},
 		{"read_page", map[string]any{"slug": "private/denied"}},
 		{"save_page", map[string]any{"slug": "private/new", "body": "denied"}},
-		{"edit_page", map[string]any{"slug": "private/denied", "basehash": "stale", "script": "s/a/b/"}},
+		{"edit_page", map[string]any{"slug": "private/denied", "basehash": "stale", "edits": []any{map[string]any{"oldText": "a", "newText": "b"}}}},
 		{"delete_page", map[string]any{"slug": "private/denied"}},
 		{"upload_attachment", map[string]any{"slug": "private/denied", "filename": "denied.pdf"}},
 		{"read_attachment", map[string]any{"slug": "private/denied", "filename": "file.txt"}},
@@ -1154,7 +1154,7 @@ func TestMCPScopes(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader := connectMCP(t, server, readerToken)
-	if res := callTool(t, reader, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "script": "s/^/denied/"}); !res.IsError {
+	if res := callTool(t, reader, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "edits": []any{map[string]any{"oldText": "Welcome", "newText": "denied"}}}); !res.IsError {
 		t.Error("read scope edited a page")
 	}
 	if res := callTool(t, reader, "list_pages", nil); res.IsError {
@@ -1168,7 +1168,7 @@ func TestMCPScopes(t *testing.T) {
 	}
 
 	writer := connectMCP(t, server, writerToken)
-	if res := callTool(t, writer, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "script": "s/^/edited/"}); res.IsError {
+	if res := callTool(t, writer, "edit_page", map[string]any{"slug": testHome, "basehash": homeHash, "edits": []any{map[string]any{"oldText": "Welcome", "newText": "Edited"}}}); res.IsError {
 		t.Fatalf("write scope edit_page: %s", toolText(t, res))
 	}
 	if res := callTool(t, writer, "save_page", map[string]any{"slug": testNS + "/writer-note", "body": "hello"}); res.IsError {
