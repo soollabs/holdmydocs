@@ -1,8 +1,9 @@
-package web
+package api
 
 import (
 	"testing"
 
+	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
@@ -24,7 +25,7 @@ func TestReconcilePagesRetriesFailedIndexUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	broken, err := BuildIndex(nil)
+	broken, err := search.BuildIndex(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,20 +34,20 @@ func TestReconcilePagesRetriesFailedIndexUpdate(t *testing.T) {
 	}
 
 	hashes := map[string]string{}
-	retries := map[string]indexRetry{}
-	reconcilePages(st, broken, hashes, retries)
+	retries := map[string]IndexRetry{}
+	New(st, broken, nil).ReconcilePages(hashes, retries)
 	if hashes["notes/page"] != "" {
 		t.Fatal("a failed index update recorded the hash; the retry would be skipped")
 	}
-	if retries["notes/page"].attempts != 1 {
-		t.Fatalf("retry attempts = %d, want 1", retries["notes/page"].attempts)
+	if retries["notes/page"].Attempts != 1 {
+		t.Fatalf("retry attempts = %d, want 1", retries["notes/page"].Attempts)
 	}
 
-	recovered, err := BuildIndex(nil)
+	recovered, err := search.BuildIndex(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reconcilePages(st, recovered, hashes, retries)
+	New(st, recovered, nil).ReconcilePages(hashes, retries)
 	if hashes["notes/page"] != hash {
 		t.Fatalf("hash after recovery = %q, want %q", hashes["notes/page"], hash)
 	}

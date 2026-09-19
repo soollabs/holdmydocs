@@ -1,12 +1,10 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
-	staticexport "hmd/internal/export"
-	"hmd/internal/wiki"
 	"html/template"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +12,9 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+
+	staticexport "hmd/internal/export"
+	"hmd/internal/wiki"
 )
 
 var exportSemaphore = make(chan struct{}, 1)
@@ -46,42 +47,36 @@ func staticAssetPrefix(rest string) string {
 	return strings.TrimSuffix(staticAssetHref(rest, "style.css"), "style.css")
 }
 
-// ExportNamespace renders a namespace to static HTML under outDir.
-func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistry, store *Store, ns, outDir, title string) error {
-	var nsPages []Page
-	for _, p := range pages {
-		if pns, _ := wiki.NamespaceFor(p.Slug); pns == ns {
-			nsPages = append(nsPages, p)
-		}
-	}
-	if len(nsPages) == 0 {
-		return fmt.Errorf("no pages found in namespace %q", ns)
-	}
-	if len(nsPages) > maxExportFiles {
-		return fmt.Errorf("export exceeds %d files", maxExportFiles)
-	}
+// StaticAssets returns the embedded browser asset tree copied into a static
+// export. The composition root passes it to export.Namespace so the asset
+// dependency stays explicit.
+func StaticAssets() fs.FS { return webFS }
+
+// StaticExporter renders namespace exports with the web templates, theme and
+// widget machinery. It implements export.NamespaceRenderer; keeping it here
+// makes the renderer, template and theme dependencies explicit at the caller.
+type StaticExporter struct {
+	Renderer *Renderer
+}
+
+// NewStaticExporter builds the web static-export renderer.
+func NewStaticExporter(renderer *Renderer) StaticExporter {
+	return StaticExporter{Renderer: renderer}
+}
+
+// RenderNamespace renders one namespace's pages to static HTML and returns the
+// client-side search index entries. The request's Pages are already filtered to
+// the namespace by export.Namespace.
+func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) ([]staticexport.SearchEntry, error) {
+	nsPages := request.Pages
+	ns, cfg, outDir, title := request.Namespace, request.Config, request.OutDir, request.Title
 
 	hrefs := make(map[string]string, len(nsPages))
 	entries := make([]BacklinkEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := wiki.NamespaceFor(p.Slug)
-		title := pageDisplayTitle(p)
 		hrefs[p.Slug] = rest
-		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: title})
-	}
-
-	cfg := reg[ns]
-	if cfg.Index != "" {
-		if _, ok := hrefs[ns+"/"+cfg.Index]; !ok {
-			return fmt.Errorf("namespace index %q does not exist", cfg.Index)
-		}
-	}
-
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return fmt.Errorf("creating output dir: %w", err)
-	}
-	if err := copyExportAssets(outDir); err != nil {
-		return err
+		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: pageDisplayTitle(p)})
 	}
 
 	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)
@@ -97,10 +92,10 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistr
 	}
 	tmpl, err := parseTemplates()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	searchEntries := make([]exportSearchEntry, 0, len(nsPages))
+	searchEntries := make([]staticexport.SearchEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := wiki.NamespaceFor(p.Slug)
 		hrefFor := func(slug string) (string, bool) {
@@ -110,12 +105,12 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistr
 			}
 			return staticPageHref(rest, toRest), true
 		}
-		content, err := renderer.RenderStatic(p.Body, ns, hrefFor)
+		content, err := x.Renderer.RenderStatic(p.Body, ns, hrefFor)
 		if err != nil {
-			return fmt.Errorf("rendering %s: %w", p.Slug, err)
+			return nil, fmt.Errorf("rendering %s: %w", p.Slug, err)
 		}
 		content = template.HTML(strings.ReplaceAll(string(content), "/_/attachments/"+ns+"/", staticAssetPrefix(rest)+"attachments/"))
-		searchEntries = append(searchEntries, exportSearchEntry{
+		searchEntries = append(searchEntries, staticexport.SearchEntry{
 			Title: pageDisplayTitle(p), Href: staticPagePath(rest), Text: exportPlainText(content),
 		})
 		data := TemplateData{
@@ -138,13 +133,13 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistr
 		data.PreviousPage, data.NextPage = pageNeighbours(orderedPages, rest, func(to string) string { return staticPageHref(rest, to) })
 		outPath := filepath.Join(outDir, filepath.FromSlash(staticPagePath(rest)))
 		if err := writeExportPage(outPath, tmpl["page"], data); err != nil {
-			return err
+			return nil, err
 		}
 		if rest == indexPage {
 			indexData := data
 			indexData.AssetPath, indexData.NamespaceHome, indexData.SidebarTree = "", "index.html", renderStaticTree(tree, indexPage, func(to string) string { return staticPageHref("", to) })
 			indexData.PreviousPage, indexData.NextPage = pageNeighbours(orderedPages, rest, func(to string) string { return staticPageHref("", to) })
-			indexContent, err := renderer.RenderStatic(p.Body, ns, func(slug string) (string, bool) {
+			indexContent, err := x.Renderer.RenderStatic(p.Body, ns, func(slug string) (string, bool) {
 				toRest, ok := hrefs[slug]
 				if !ok {
 					return "", false
@@ -152,47 +147,41 @@ func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistr
 				return staticPageHref("", toRest), true
 			})
 			if err != nil {
-				return fmt.Errorf("rendering root index %s: %w", p.Slug, err)
+				return nil, fmt.Errorf("rendering root index %s: %w", p.Slug, err)
 			}
 			indexData.Content = template.HTML(strings.ReplaceAll(string(indexContent), "/_/attachments/"+ns+"/", "attachments/"))
 			if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], indexData); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 	if indexPage == "" {
 		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(userRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: "<p>Select a page from the sidebar.</p>", RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {
-			return err
+			return nil, err
 		}
 	}
-
-	searchJSON, err := json.Marshal(searchEntries)
-	if err != nil {
-		return fmt.Errorf("encoding search index: %w", err)
-	}
-	// A script, rather than fetched JSON, also works when opened via file://.
-	if err := os.WriteFile(filepath.Join(outDir, "search-index.js"), append([]byte("window.HMDSearchIndex = "), append(searchJSON, ';')...), 0o644); err != nil {
-		return fmt.Errorf("writing search index: %w", err)
-	}
-
-	files, bytes := len(nsPages), int64(0)
-	for _, p := range nsPages {
-		bytes += int64(len(p.Body))
-	}
-	if err := copyExportAttachments(store, outDir, ns, &files, &bytes); err != nil {
-		return err
-	}
-
-	slog.Info("exported namespace", "namespace", ns, "pages", len(nsPages), "dir", outDir)
-	return nil
+	return searchEntries, nil
 }
 
-type exportSearchEntry struct {
-	Title string `json:"title"`
-	Href  string `json:"href"`
-	Text  string `json:"text"`
+// ExportNamespace renders a namespace to static HTML under outDir using the web
+// presentation stack. It is a thin adapter over export.Namespace for the
+// browser handler and tests; the composition root wires export.Namespace with
+// NewStaticExporter directly.
+func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistry, store *Store, ns, outDir, title string) error {
+	return staticexport.Namespace(staticexport.NamespaceRequest{
+		Pages:      pages,
+		Namespace:  ns,
+		Config:     reg[ns],
+		OutDir:     outDir,
+		Title:      title,
+		Assets:     webFS,
+		AssetsRoot: "web/static",
+		Store:      store,
+	}, NewStaticExporter(renderer))
 }
+
+type exportSearchEntry = staticexport.SearchEntry
 
 func exportPlainText(content template.HTML) string {
 	tokenizer := html.NewTokenizer(strings.NewReader(string(content)))
@@ -224,14 +213,6 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 		return fmt.Errorf("closing %s: %w", outPath, err)
 	}
 	return nil
-}
-
-func copyExportAssets(outDir string) error {
-	return staticexport.CopyAssets(webFS, "web/static", outDir)
-}
-
-func copyExportAttachments(store *Store, outDir, ns string, files *int, bytes *int64) error {
-	return staticexport.CopyAttachments(store, outDir, ns, files, bytes)
 }
 
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {

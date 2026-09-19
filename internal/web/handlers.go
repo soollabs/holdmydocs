@@ -469,7 +469,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	data.Version = version
 	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
 	if data.SyncState == "" {
-		data.SyncState, _ = app.Store.SyncState()
+		data.SyncState, _, _ = app.apiClient().SyncState()
 	}
 	if data.Authed && data.Username == "" {
 		data.Username = app.currentUser(r)
@@ -505,7 +505,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.StatusMode = "view"
 	}
 	if data.Authed {
-		data.SyncLastUnix = app.Store.LastSyncUnix()
+		_, _, data.SyncLastUnix = app.apiClient().SyncState()
 		if ts := data.SyncLastUnix; ts > 0 {
 			if d := time.Since(time.Unix(ts, 0)); d < time.Minute {
 				data.SyncAge = fmt.Sprintf("%ds ago", int(d.Seconds()))
@@ -1897,7 +1897,7 @@ func (app *App) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	app.handleAttachmentUpload(w, r, slug, app.currentUser(r), "")
+	app.handleAttachmentUpload(w, r, slug, "", "")
 }
 
 func (app *App) handleCapabilityUpload(w http.ResponseWriter, r *http.Request) {
@@ -1910,10 +1910,15 @@ func (app *App) handleCapabilityUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "upload URL expired", http.StatusGone)
 		return
 	}
-	app.handleAttachmentUpload(w, r, capability.Slug, capability.User, capability.Filename)
+	app.handleAttachmentUpload(w, r, capability.Slug, capability.Filename, capability.User)
 }
 
-func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, slug, username, expectedFilename string) {
+// handleAttachmentUpload parses the multipart body and enforces the transport
+// upload bound, then streams the file to the shared application upload
+// operation. Filename canonicalisation, storage, extraction and capability
+// binding live behind api.UploadAttachment so the MCP and browser transports
+// cannot diverge.
+func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, slug, expectedFilename, actor string) {
 	if !isPageSlug(slug) {
 		http.Error(w, "invalid slug", http.StatusBadRequest)
 		return
@@ -1992,36 +1997,6 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		}
 	}()
 
-	filename := filepath.Base(filenameInput)
-	ext := filepath.Ext(filename)
-	name := filename[:len(filename)-len(ext)]
-	name = Slugify(name)
-
-	if name == "" {
-		http.Error(w, "invalid filename", http.StatusBadRequest)
-		return
-	}
-
-	ext = strings.ToLower(ext)
-
-	filename = name + ext
-	if expectedFilename != "" && filename != expectedFilename {
-		http.Error(w, "filename does not match upload URL", http.StatusBadRequest)
-		return
-	}
-	path := "attachments/" + slug + "/" + filename
-
-	// Verify the cleaned path stays under attachments/ (same check as
-	// handleServeAttachment) — slug is a raw URL path segment and could be "..".
-	repoPath := filepath.Join(app.config().RepoDir, path)
-	absRepo := filepath.Join(app.config().RepoDir, "attachments")
-	absPath, _ := filepath.Abs(repoPath)
-	absRepoAbs, _ := filepath.Abs(absRepo)
-	if !strings.HasPrefix(absPath, absRepoAbs+string(filepath.Separator)) {
-		http.Error(w, "invalid slug", http.StatusBadRequest)
-		return
-	}
-
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		http.Error(w, "error reading file", http.StatusInternalServerError)
 		return
@@ -2032,50 +2007,39 @@ func (app *App) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	files := map[string][]byte{path: content}
-	if extracted, ok := app.Index.ExtractAttachment(r.Context(), file, filename, content); ok {
-		files[extractedAttachmentPath(path)] = extracted
-	}
-
-	authorName, authorEmail := app.gitAuthor(username)
-	_, err = app.Store.SaveAll(files, "Add attachment "+filename, authorName, authorEmail)
+	upload, err := app.apiClient().UploadAttachment(r.Context(), api.AttachmentUploadInput{
+		Slug:           slug,
+		Filename:       filenameInput,
+		ExpectFilename: expectedFilename,
+		Actor:          actor,
+		Content:        content,
+	})
 	if err != nil {
-		http.Error(w, "error saving file", http.StatusInternalServerError)
-		return
-	}
-
-	indexed := false
-	var indexErr error
-	var attachmentHash string
-	if app.Index.DocumentsEnabled() {
-		file, hash, hashErr := app.Store.OpenAttachment(path)
-		if hashErr != nil {
-			indexErr = hashErr
-		} else {
-			attachmentHash = hash
-			if err := file.Close(); err != nil {
-				slog.Warn("closing indexed attachment", "path", path, "err", err)
-			}
-			indexErr = app.Index.ReconcileAttachmentPath(path, hash)
+		switch api.CategoryOf(err) {
+		case api.CategoryForbidden:
+			http.Error(w, "forbidden", http.StatusForbidden)
+		case api.CategoryInvalidInput:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "error saving file", http.StatusInternalServerError)
 		}
-		indexed = indexErr == nil && app.Index.AttachmentIndexed(path, attachmentHash)
+		return
 	}
 
 	// Return JSON response. The Git commit is already durable even when the
 	// disposable derived index cannot be rebuilt.
 	w.Header().Set("Content-Type", "application/json")
-	if indexErr != nil {
-		slog.Warn("attachment indexing failed", "path", path, "err", indexErr)
+	if upload.IndexWarning != "" {
 		w.WriteHeader(http.StatusAccepted)
 	} else if app.Index.DocumentsEnabled() {
 		w.WriteHeader(http.StatusCreated)
 	}
 	resp := map[string]any{
-		"url":     fmt.Sprintf("/_/attachments/%s/%s", slug, filename),
-		"indexed": indexed,
+		"url":     fmt.Sprintf("/_/attachments/%s/%s", upload.Slug, upload.Filename),
+		"indexed": upload.Indexed,
 	}
-	if indexErr != nil {
-		resp["index_error"] = "attachment indexing pending"
+	if upload.IndexWarning != "" {
+		resp["index_error"] = upload.IndexWarning
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("encoding attachment response", "err", err)
@@ -2370,37 +2334,26 @@ func (app *App) handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
-	state, detail := app.Store.SyncState()
+	status := app.apiClient().Sync(r.Context())
 	resp := SyncStatus{
-		State:           state,
-		Detail:          detail,
+		State:           status.State,
+		Detail:          status.Detail,
 		At:              time.Now().Format("15:04"),
-		LastSuccessUnix: app.Store.LastSyncUnix(),
+		LastSuccessUnix: status.LastSuccessUnix,
+		PagesChanged:    status.PagesChanged,
 	}
-
-	cfg := app.config()
-	if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
-		result, err := app.Store.FetchAndFF()
-		if err != nil {
-			state, detail = app.Store.SyncState()
-			resp.State = state
-			resp.Detail = detail
-		} else {
-			resp.PagesChanged = result.ChangedPaths
-			for _, c := range result.Commits {
-				shortHash := c.Hash
-				if len(shortHash) > 8 {
-					shortHash = shortHash[:8]
-				}
-				resp.Commits = append(resp.Commits, SyncCommit{
-					Hash:      c.Hash,
-					ShortHash: shortHash,
-					Message:   c.Message,
-					Author:    c.Author,
-					When:      c.When.Format("2006-01-02 15:04"),
-				})
-			}
+	for _, c := range status.Commits {
+		shortHash := c.Hash
+		if len(shortHash) > 8 {
+			shortHash = shortHash[:8]
 		}
+		resp.Commits = append(resp.Commits, SyncCommit{
+			Hash:      c.Hash,
+			ShortHash: shortHash,
+			Message:   c.Message,
+			Author:    c.Author,
+			When:      c.When.Format("2006-01-02 15:04"),
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -2410,13 +2363,13 @@ func (app *App) handleSyncAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
-	state, detail := app.Store.PushNow()
+	status := app.apiClient().PushNow(r.Context())
 
 	resp := map[string]any{
-		"ok":                state == "ok",
-		"state":             state,
-		"detail":            detail,
-		"last_success_unix": app.Store.LastSyncUnix(),
+		"ok":                status.State == "ok",
+		"state":             status.State,
+		"detail":            status.Detail,
+		"last_success_unix": status.LastSuccessUnix,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -3,7 +3,6 @@ package web
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,8 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"hmd/internal/api"
@@ -416,31 +413,18 @@ func (app *App) mcpHandler() http.Handler {
 		if err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
-		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+		if err := app.mcpRequireSlug(ctx, slug); err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
-		filename := filepath.Base(in.Filename)
-		ext := strings.ToLower(filepath.Ext(filename))
-		name := Slugify(filename[:len(filename)-len(ext)])
-		if name == "" {
-			return nil, mcpAttachmentUploadOut{}, errors.New("filename is not allowed")
-		}
-		filename = name + ext
-		var token [32]byte
-		if _, err := rand.Read(token[:]); err != nil {
-			return nil, mcpAttachmentUploadOut{}, fmt.Errorf("creating upload URL: %w", err)
-		}
-		expires := time.Now().Add(10 * time.Minute)
-		tokenString := fmt.Sprintf("%x", token)
-		if err := app.apiClient().AddUploadCapability(tokenString, api.UploadCapability{Slug: in.Slug, Filename: filename, User: app.mcpUser(ctx), Expires: expires}); err != nil {
+		grant, err := app.apiClient().IssueUploadCapability(ctx, slug, in.Filename)
+		if err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
 		baseURL, _ := ctx.Value(mcpBaseURLKey{}).(string)
 		return nil, mcpAttachmentUploadOut{
-			UploadURL:     baseURL + "/_/api/attachment-uploads/" + tokenString,
-			AttachmentURL: "/_/attachments/" + in.Slug + "/" + filename,
-			ExpiresAt:     expires.UTC().Format(time.RFC3339),
+			UploadURL:     baseURL + "/_/api/attachment-uploads/" + grant.Token,
+			AttachmentURL: "/_/attachments/" + grant.Slug + "/" + grant.Filename,
+			ExpiresAt:     grant.Expires.UTC().Format(time.RFC3339),
 		}, nil
 	})
 
@@ -455,39 +439,12 @@ func (app *App) mcpHandler() http.Handler {
 		if err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
-		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+		if err := app.mcpRequireSlug(ctx, slug); err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
-		if filepath.Base(in.Filename) != in.Filename {
-			return nil, mcpAttachmentReadOut{}, errors.New("filename must not contain a path")
-		}
-		path := "attachments/" + in.Slug + "/" + in.Filename
-		if _, _, ok := parseAttachmentPath(path); !ok {
-			return nil, mcpAttachmentReadOut{}, errors.New("invalid attachment filename")
-		}
-		source, hash, err := app.Store.OpenAttachment(path)
+		text, err := app.apiClient().ReadAttachment(ctx, slug, in.Filename)
 		if err != nil {
-			return nil, mcpAttachmentReadOut{}, fmt.Errorf("opening attachment: %w", err)
-		}
-		if err := source.Close(); err != nil {
-			return nil, mcpAttachmentReadOut{}, fmt.Errorf("closing attachment: %w", err)
-		}
-		sidecar, err := app.Store.OpenExtractedAttachment(path)
-		if err != nil {
-			return nil, mcpAttachmentReadOut{}, errors.New("attachment has no cached extraction")
-		}
-		content, err := io.ReadAll(io.LimitReader(sidecar, attachmentMaxExtractedBytes+256))
-		closeErr := sidecar.Close()
-		if err != nil {
-			return nil, mcpAttachmentReadOut{}, fmt.Errorf("reading extracted attachment: %w", err)
-		}
-		if closeErr != nil {
-			return nil, mcpAttachmentReadOut{}, fmt.Errorf("closing extracted attachment: %w", closeErr)
-		}
-		text, ok := decodeExtractedAttachment(hash, content)
-		if !ok {
-			return nil, mcpAttachmentReadOut{}, errors.New("attachment extraction is stale")
+			return nil, mcpAttachmentReadOut{}, err
 		}
 		return nil, mcpAttachmentReadOut{Text: text}, nil
 	})

@@ -15,6 +15,7 @@ import (
 	"hmd/internal/api"
 	"hmd/internal/auth"
 	"hmd/internal/config"
+	"hmd/internal/export"
 	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/web"
@@ -158,7 +159,16 @@ func Run() {
 		if *exportDir == "" {
 			log.Fatal("-export-namespace requires -export-dir")
 		}
-		if err := web.ExportNamespace(pages, renderer, namespaces, content, *exportNS, *exportDir, *exportTitle); err != nil {
+		if err := export.Namespace(export.NamespaceRequest{
+			Pages:      pages,
+			Namespace:  *exportNS,
+			Config:     namespaces[*exportNS],
+			OutDir:     *exportDir,
+			Title:      *exportTitle,
+			Assets:     web.StaticAssets(),
+			AssetsRoot: "web/static",
+			Store:      content,
+		}, web.NewStaticExporter(renderer)); err != nil {
 			log.Fatalf("export failed: %v", err)
 		}
 		return
@@ -187,7 +197,7 @@ func Run() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go web.PollFS(ctx, content, index, hashes, application.SetNamespaces, application.SetWikiConfig)
+	go web.PollFS(ctx, application.API, hashes)
 	if cfg.OIDC.Issuer != "" {
 		finishStage = debugStartupStage("initialize OIDC", "issuer", cfg.OIDC.Issuer)
 		application.OIDC, err = web.NewOIDCAuth(context.Background(), cfg)

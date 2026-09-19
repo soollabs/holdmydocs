@@ -25,6 +25,13 @@ var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
 // field.
 func (a *API) Author(ctx context.Context) (name, email string) {
 	username, _ := Username(ctx)
+	return a.authorFor(username)
+}
+
+// authorFor resolves the git author for an already-identified actor. It backs
+// Author for context-derived identities and capability uploads, whose actor is
+// taken from the server-issued capability rather than the request context.
+func (a *API) authorFor(username string) (name, email string) {
 	raw := ""
 	if a.auth != nil {
 		raw = a.auth.AuthorFor(username)
