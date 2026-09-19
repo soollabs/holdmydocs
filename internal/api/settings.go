@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"hmd/internal/auth"
 	"hmd/internal/config"
+	"hmd/internal/presentation"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
@@ -227,10 +229,33 @@ func (a *API) ResetHelp(ctx context.Context) error {
 	return nil
 }
 
-// SetAppearance stores the caller's per-user appearance preferences. The
-// adapter resolves skin-dependent palette defaults before calling.
-func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin string) error {
+// SetAppearance stores the caller's per-user appearance preferences. It
+// validates the catalogue identifiers and applies the skin-switch palette
+// reset: selecting a new skin discards the submitted palette unless the
+// browser reports an explicit later palette choice.
+func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin string, paletteExplicit bool) error {
+	if palette != "" && !presentation.ValidPalette(palette) {
+		return InvalidInput("unknown palette", nil)
+	}
+	if fontUI != "" && !presentation.ValidFont(fontUI) {
+		return InvalidInput("unknown UI font", nil)
+	}
+	if fontMono != "" && !presentation.ValidFont(fontMono) {
+		return InvalidInput("unknown monospace font", nil)
+	}
+	if skin != "" && !presentation.ValidSkin(skin) {
+		return InvalidInput("unknown skin", nil)
+	}
+
 	username, _ := Username(ctx)
+	prevSkin := a.auth.Prefs(username).Skin
+	if prevSkin == "" {
+		prevSkin = a.Config().Skin
+	}
+	if presentation.SkinName(skin) != presentation.SkinName(prevSkin) && !paletteExplicit {
+		palette = presentation.ResolveSkin(skin).Palette
+	}
+
 	if err := a.auth.SetPrefs(username, palette, fontUI, fontMono, skin); err != nil {
 		return Unavailable("saving appearance", err)
 	}
@@ -255,6 +280,103 @@ func (a *API) SetGitAuthor(ctx context.Context, author string) error {
 func (a *API) RerunSetup(ctx context.Context) error {
 	a.store.ForceSetup.Store(true)
 	return nil
+}
+
+// DefaultSetupNamespace is the namespace name the first-run wizard suggests
+// when the user does not name one.
+const DefaultSetupNamespace = "notes"
+
+// NewSetupNamespaceOption is the wizard's select value for "create a new
+// namespace" rather than picking a detected one.
+const NewSetupNamespaceOption = "_new"
+
+// FirstRunSetupInput is the submitted first-run setup wizard. Action is
+// "add" to seed the selected items or anything else to dismiss the wizard;
+// the wizard is state-gated rather than scope-gated.
+type FirstRunSetupInput struct {
+	Action           string
+	SetupWiki        bool
+	DefaultNamespace string
+	NewNamespace     string
+	SiteName         string
+	AddNamespace     bool
+	Namespace        string
+	AddHelp          bool
+}
+
+// CompleteFirstRunSetup validates and applies the wizard's selected seeds: the
+// wiki configuration, a namespace, and the help guide. It then clears the
+// first-run flags so the wizard stops appearing. Every write goes through the
+// shared operations, so the wizard cannot diverge from the settings screens.
+func (a *API) CompleteFirstRunSetup(ctx context.Context, in FirstRunSetupInput) error {
+	if in.Action == "add" {
+		_, wikiExists, wikiErr := wiki.LoadWikiConfig(a.Config().RepoDir)
+		if wikiErr != nil {
+			return Unavailable("failed to read wiki config", wikiErr)
+		}
+		if !wikiExists && !in.SetupWiki {
+			return InvalidInput("wiki setup is required", nil)
+		}
+		if in.SetupWiki {
+			selected := strings.TrimSpace(in.DefaultNamespace)
+			landing := ""
+			switch {
+			case selected == NewSetupNamespaceOption:
+				name := strings.Trim(strings.TrimSpace(in.NewNamespace), "/")
+				if name == "" {
+					name = DefaultSetupNamespace
+				}
+				if !wiki.ValidNamespaceName(name) {
+					return InvalidInput("invalid namespace name", nil)
+				}
+				if _, exists := a.Namespaces()[name]; exists {
+					return InvalidInput("namespace already exists; select it as the default instead", nil)
+				}
+				if err := a.SeedFirstNamespace(ctx, name); err != nil {
+					return err
+				}
+				landing = name + "/"
+			default:
+				if _, ok := a.Namespaces()[selected]; !ok {
+					return InvalidInput("choose a detected namespace or create a new one", nil)
+				}
+				landing = selected + "/"
+			}
+			if err := a.SaveWikiConfig(ctx, WikiConfigInput{Landing: landing, SiteName: strings.TrimSpace(in.SiteName)}); err != nil {
+				return err
+			}
+		}
+		if in.AddNamespace {
+			name := strings.Trim(strings.TrimSpace(in.Namespace), "/")
+			if name == "" {
+				name = DefaultSetupNamespace
+			}
+			if !wiki.ValidNamespaceName(name) {
+				return InvalidInput("invalid namespace name", nil)
+			}
+			if err := a.SeedFirstNamespace(ctx, name); err != nil {
+				return err
+			}
+		}
+		if in.AddHelp {
+			if err := a.ResetHelp(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	a.store.NeedsSetup.Store(false)
+	a.store.ForceSetup.Store(false)
+	return nil
+}
+
+// TokenTTLs maps the settings screen's expiry choices to their duration. A
+// "never" choice has zero duration and no expiry.
+var TokenTTLs = map[string]time.Duration{
+	"1d":    24 * time.Hour,
+	"7d":    7 * 24 * time.Hour,
+	"30d":   30 * 24 * time.Hour,
+	"1y":    365 * 24 * time.Hour,
+	"never": 0,
 }
 
 // CreateUser adds a user with the given scopes.
@@ -383,4 +505,52 @@ func (a *API) SeedFirstNamespace(ctx context.Context, name string) error {
 
 	a.refreshNamespaces()
 	return nil
+}
+
+// HelpDrifted reports whether the repository's .help.md differs from the
+// shipped default help text, so the settings screen can offer a reset.
+func (a *API) HelpDrifted() bool {
+	if a.store == nil {
+		return false
+	}
+	raw, _, err := a.store.Read(".help.md")
+	return err == nil && wiki.ParsePage("help", raw).Body != strings.TrimRight(store.DefaultHelpMD, "\n")
+}
+
+// SetupState summarises the first-run setup requirements derived from
+// repository state, so the browser can render the setup banner and wizard.
+type SetupState struct {
+	Needed         bool
+	Wiki           bool
+	Namespace      bool
+	Help           bool
+	HelpFileExists bool
+}
+
+// SetupState reads the store's setup flags and repository contents. It returns
+// the zero value once setup is complete and not forced.
+func (a *API) SetupState() SetupState {
+	if a.store == nil {
+		return SetupState{}
+	}
+	if !a.store.NeedsSetup.Load() && !a.store.ForceSetup.Load() {
+		return SetupState{}
+	}
+	forced := a.store.ForceSetup.Load()
+	repoDir := a.Config().RepoDir
+	var state SetupState
+	if _, wikiExists, wikiErr := wiki.LoadWikiConfig(repoDir); wikiErr == nil && !wikiExists {
+		state.Wiki = true
+	}
+	if (!store.HasNamespace(repoDir) || forced) && !state.Wiki {
+		state.Namespace = true
+	}
+	_, helpErr := os.Stat(filepath.Join(repoDir, ".help.md"))
+	helpMissing := helpErr != nil
+	if helpMissing || forced {
+		state.Help = true
+		state.HelpFileExists = !helpMissing
+	}
+	state.Needed = state.Wiki || state.Namespace || state.Help
+	return state
 }

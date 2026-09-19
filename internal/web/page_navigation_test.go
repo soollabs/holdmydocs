@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"hmd/internal/search"
+	"hmd/internal/wiki"
 )
 
 func TestLiveReadingEnhancements(t *testing.T) {
@@ -13,7 +16,7 @@ func TestLiveReadingEnhancements(t *testing.T) {
 	if err := writeNamespaceConfig(t, app, "docs", "public: true\nindex: home\ntree:\n- home\n- guides\n- last\n"); err != nil {
 		t.Fatal(err)
 	}
-	for _, page := range []Page{
+	for _, page := range []wiki.Page{
 		{Slug: "docs/home", Title: "Home", Body: "# Home"},
 		{Slug: "docs/guides/start", Title: "Start", Body: "# Start\n\n```sh\necho hello\n```\n\n```mermaid\ngraph LR\nA-->B\n```"},
 		{Slug: "docs/last", Title: "Last", Body: "Last page"},
@@ -76,7 +79,7 @@ func TestLiveReadingEnhancements(t *testing.T) {
 }
 
 func TestPageNeighboursSkipsDirectoriesAndMissingPages(t *testing.T) {
-	entries := []BacklinkEntry{{Slug: "docs/a", Title: "A"}, {Slug: "docs/folder/b", Title: "B"}, {Slug: "docs/c", Title: "C"}}
+	entries := []search.BacklinkEntry{{Slug: "docs/a", Title: "A"}, {Slug: "docs/folder/b", Title: "B"}, {Slug: "docs/c", Title: "C"}}
 	tree := buildPageTree(entries, "docs", "a", []string{"folder", "c"})
 	pages := orderedTreePages(tree)
 	href := func(to string) string { return "/docs/" + to }

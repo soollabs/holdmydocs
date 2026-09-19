@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"hmd/internal/wiki"
 )
 
 // TestLandingRoute tests the root redirect.
@@ -36,7 +38,7 @@ func TestLandingRoute(t *testing.T) {
 		t.Errorf("default Location = %q, want /%s/", loc, testNS)
 	}
 
-	app.SetWikiConfig(WikiConfig{Landing: "notes/2026-07-24"})
+	app.SetWikiConfig(wiki.WikiConfig{Landing: "notes/2026-07-24"})
 
 	if loc := get(); loc != "/notes/2026-07-24" {
 		t.Errorf("configured Landing Location = %q, want /notes/2026-07-24", loc)
@@ -67,7 +69,7 @@ func TestNewPageJSGlobals(t *testing.T) {
 	}
 
 	setSkin := func(name string) {
-		resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {name}})
+		resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{"skin": {name}}))
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
@@ -92,10 +94,10 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 			t.Fatalf("writing %s config: %v", ns, err)
 		}
 	}
-	if _, err := app.Store.Save("blog/post.md", Page{Slug: "blog/post", Title: "Post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
+	if _, err := app.Store.Save("blog/post.md", wiki.Page{Slug: "blog/post", Title: "Post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
 		t.Fatalf("saving blog page: %v", err)
 	}
-	if _, err := app.Store.Save("blog/folder/post.md", Page{Slug: "blog/folder/post", Title: "Nested post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
+	if _, err := app.Store.Save("blog/folder/post.md", wiki.Page{Slug: "blog/folder/post", Title: "Nested post", Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
 		t.Fatalf("saving nested blog page: %v", err)
 	}
 

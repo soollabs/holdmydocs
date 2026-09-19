@@ -9,6 +9,8 @@ import (
 
 	"golang.org/x/oauth2"
 	internalauth "hmd/internal/auth"
+	"hmd/internal/config"
+	"hmd/internal/httpmiddleware"
 )
 
 type oidcClaims = internalauth.OIDCClaims
@@ -22,14 +24,14 @@ func loadOIDCIcon(ctx context.Context, icon string) ([]byte, error) {
 
 const maxIconBytes = internalauth.MaxIconBytes
 
-func NewOIDCAuth(ctx context.Context, cfg Config) (*OIDCAuth, error) {
+func NewOIDCAuth(ctx context.Context, cfg config.Config) (*OIDCAuth, error) {
 	return internalauth.NewOIDC(ctx, internalauth.OIDCOptions{
 		Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret,
 		BaseURL: cfg.BaseURL, Icon: cfg.OIDC.Icon,
 	})
 }
 
-func oidcAdmitted(claims oidcClaims, cfg OIDCConfig) bool {
+func oidcAdmitted(claims oidcClaims, cfg config.OIDCConfig) bool {
 	return claims.Subject != "" && (cfg.AllowAnyAuthenticated || claims.Admitted(cfg.AllowedSubjects, cfg.AllowedEmailDomains))
 }
 
@@ -48,14 +50,14 @@ func (app *App) handleOIDCIcon(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: value, MaxAge: 300, HttpOnly: true, Secure: app.secureCookie(r),
+		Name: name, Value: value, MaxAge: 300, HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()),
 		SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/",
 	})
 }
 
 func (app *App) clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
 	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: app.secureCookie(r), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
 	}
 }
 
@@ -106,11 +108,11 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := claims.Username()
-	if !validUsername(username) {
+	if !internalauth.ValidUsername(username) {
 		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
-	username, err = app.Auth.EnsureOIDCUser(oidcIdentity{Issuer: issuer, Subject: claims.Subject}, username, claims.GitAuthor(), oidcConfig.DefaultScopes)
+	username, err = app.Auth.EnsureOIDCUser(internalauth.OIDCIdentity{Issuer: issuer, Subject: claims.Subject}, username, claims.GitAuthor(), oidcConfig.DefaultScopes)
 	if err != nil {
 		slog.Warn("OIDC provisioning rejected", "error", err)
 		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
@@ -122,6 +124,6 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("OIDC login", "username", username)
-	http.SetCookie(w, &http.Cookie{Name: "hmd_session", Value: sessionToken, HttpOnly: true, Secure: app.secureCookie(r), SameSite: http.SameSiteLaxMode, Path: "/", MaxAge: 30 * 24 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: "hmd_session", Value: sessionToken, HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()), SameSite: http.SameSiteLaxMode, Path: "/", MaxAge: 30 * 24 * 60 * 60})
 	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }

@@ -1,33 +1,45 @@
 package web
 
 import (
-	"hmd/internal/wiki"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"hmd/internal/config"
+	staticexport "hmd/internal/export"
+	"hmd/internal/search"
+	"hmd/internal/wiki"
 )
 
 func TestExportNamespaceUsesPublicView(t *testing.T) {
-	pages := []Page{
+	pages := []wiki.Page{
 		{Slug: "docs/home", Title: "Home", Body: "# Welcome\n\n[[Guide]]"},
 		{Slug: "docs/about", Title: "About", Body: "About"},
 		{Slug: "docs/guides/setup", Title: "Guide", Body: "## Setup\n\n![Logo](/_/attachments/docs/logo.svg)"},
 		{Slug: "docs/index", Title: "Page named index", Body: "This must not replace the namespace index."},
 		{Slug: "docs/reference/api", Title: "API", Body: "API"},
 	}
-	index, err := BuildIndex(pages)
+	index, err := search.BuildIndex(pages)
 	if err != nil {
 		t.Fatal(err)
 	}
 	repoDir := t.TempDir()
-	store, err := OpenStore(Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	store, err := OpenStore(config.Config{RepoDir: repoDir, AppDir: t.TempDir(), Git: config.GitConfig{User: "test"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	outDir := t.TempDir()
 	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
-	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, store, "docs", outDir, ""); err != nil {
+	if err := staticexport.Namespace(staticexport.NamespaceRequest{
+		Pages:      pages,
+		Namespace:  "docs",
+		Config:     reg["docs"],
+		OutDir:     outDir,
+		Assets:     webFS,
+		AssetsRoot: "web/static",
+		Store:      store,
+	}, NewStaticExporter(wiki.NewRenderer(index.ResolveLink))); err != nil {
 		t.Fatal(err)
 	}
 

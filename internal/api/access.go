@@ -9,6 +9,14 @@ import (
 // Scope identifies a permission scope required by an operation.
 type Scope = auth.Scope
 
+// Scope constants are re-exported so callers that depend only on api can name
+// the built-in scopes without importing auth.
+const (
+	ScopeRead     = auth.ScopeRead
+	ScopeWrite    = auth.ScopeWrite
+	ScopeSettings = auth.ScopeSettings
+)
+
 // Username returns the authenticated principal's username from ctx. It never
 // trusts a caller-supplied value: direct Go calls cannot assert identity by
 // passing a username. An empty result means the caller is unauthenticated.

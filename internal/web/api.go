@@ -1,23 +1,27 @@
 package web
 
 import (
-	"context"
 	"html/template"
-	"net/http"
 
-	"hmd/internal/api"
+	"hmd/internal/config"
+	"hmd/internal/httpmiddleware"
 )
 
 func ParseTemplates() (map[string]*template.Template, error) { return parseTemplates() }
 func LoadThemeDefaults()                                     { loadThemeDefaults() }
 func SetBuildVersion(value string) {
 	buildVersion = value
-	version = envOr("HMD_VERSION", value)
+	version = config.EnvOr("HMD_VERSION", value)
 }
-func PollFS(ctx context.Context, client *api.API, hashes map[string]string) {
-	pollFS(ctx, client, hashes)
+
+// Version returns the build version stamp used by the MCP server identity.
+func Version() string { return version }
+
+// Config returns the current runtime configuration snapshot.
+func (app *App) Config() config.Config { return app.apiClient().Config() }
+
+// Security builds the request-security middleware for the browser adapter. The
+// composition root applies it once around the assembled route tree.
+func (app *App) Security() httpmiddleware.Security {
+	return httpmiddleware.Security{Config: app.Config, Auth: app.Auth}
 }
-func Handler(app *App) http.Handler {
-	return accessLog(recoverPanic(compression(securityHeaders(app.Auth.Middleware(app.requestSecurity(app.Routes()))))))
-}
-func CheckReadiness() error { return checkReadiness() }

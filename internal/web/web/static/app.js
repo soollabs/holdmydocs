@@ -17,13 +17,9 @@
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
   }
 
-  function queueFormSubmit(form) {
+  function queueMutation(url, body) {
     const queue = loadQueue();
-    queue.push({
-      url: form.action,
-      entries: Array.from(new FormData(form).entries()),
-      ts: Date.now()
-    });
+    queue.push({ url, body, ts: Date.now() });
     saveQueue(queue);
   }
 
@@ -32,7 +28,11 @@
     while (queue.length) {
       const item = queue[0];
       try {
-        const res = await fetch(item.url, { method: 'POST', body: new URLSearchParams(item.entries) });
+        const res = await fetch(item.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.body)
+        });
         if (!res.ok) break;
       } catch (e) {
         break; // still offline (or server unreachable) — retry next 'online' event
@@ -44,6 +44,44 @@
 
   window.addEventListener('online', flushOfflineQueue);
   if (navigator.onLine) flushOfflineQueue();
+
+  // ---- Shared JSON mutation helpers ----
+  // Every page mutation posts JSON to the httpapi surface; server-rendered
+  // navigation still owns GET routes. A failed response carries a safe message
+  // and, on 409, the current revision so the caller can keep the draft.
+  async function mutateJSON(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch (e) { /* non-JSON error body */ }
+      const err = new Error(detail.error || ('request failed (' + res.status + ')'));
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
+    }
+    return res.json();
+  }
+
+  function currentRoutePrefix() {
+    return document.body.dataset.routePrefix || '';
+  }
+
+  function isHiddenPage() {
+    return currentRoutePrefix() === '/_/hidden';
+  }
+
+  function viewHref(slug, hidden) {
+    return (hidden ? '/_/hidden/' : '/') + slug;
+  }
+
+  // Parse a comma-separated tag field into the JSON string array the API takes.
+  function parseTagsInput(value) {
+    return value.split(',').map(t => t.trim()).filter(t => t.length > 0);
+  }
 
   // Shared page.js owns reading enhancements, including Mermaid rendering.
   let pageContent = $('#page-content');
@@ -244,7 +282,8 @@
   // follow for the pretty /<slug> URL, swap the returned page in directly
   // and set the URL via pushState instead of navigating.
   function openNewPage() {
-    fetch('/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace), { method: 'POST' }).then(r => {
+    fetch('/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace))
+      .then(r => {
       if (!r.ok) return;
       r.text().then(html => {
         const slug = new DOMParser().parseFromString(html, 'text/html').querySelector('#cm-host')?.dataset.slug;
@@ -583,9 +622,9 @@
       case 'delete':
         closePalette();
         if (!slug || !window.confirm(`Delete "${slug}"? Its history stays in git, but it disappears from the wiki.`)) return;
-        fetch(`/${slug}?do=delete`, { method: 'POST' })
-          .then(r => { if (r.ok) window.location.href = '/'; })
-          .catch(() => {});
+        mutateJSON('/_/api/pages/delete/' + encodeURIComponent(slug), { hidden: isHiddenPage() })
+          .then(() => { window.location.href = isHiddenPage() ? '/_/hidden' : '/'; })
+          .catch(err => alert(err.message || 'delete failed'));
         break;
     }
   }
@@ -619,12 +658,11 @@
     paletteVerbInput = null;
     if (action === 'rename') {
       if (!value) { closePalette(); return; }
-      fetch(`/${slug}?do=rename`, { method: 'POST', body: new URLSearchParams({ title: value }) })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => { window.location.href = '/' + d.slug; })
+      mutateJSON('/_/api/pages/rename/' + encodeURIComponent(slug), { title: value })
+        .then(d => { window.location.href = viewHref(d.slug, isHiddenPage()); })
         .catch(() => closePalette());
     } else {
-      fetch(`/${slug}?do=tags`, { method: 'POST', body: new URLSearchParams({ tags: value }) })
+      mutateJSON('/_/api/pages/tags/' + encodeURIComponent(slug), { tags: parseTagsInput(value) })
         .then(() => window.location.reload())
         .catch(() => closePalette());
     }
@@ -727,6 +765,18 @@
     if (e.key === 'Escape' && paletteOpen) {
       closePalette();
     }
+  });
+
+  // ---- Revert forms: native POST replaced by a JSON mutation ----
+  $$('form.js-revert').forEach(form => {
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const slug = form.dataset.slug || currentSlug;
+      const hashInput = form.querySelector('input[name="hash"]');
+      mutateJSON('/_/api/pages/revert/' + encodeURIComponent(slug), { hash: hashInput ? hashInput.value : '' })
+        .then(d => { window.location.href = viewHref(d.slug, false) + (d.index_warning ? '?index=pending' : ''); })
+        .catch(err => alert(err.message || 'revert failed'));
+    });
   });
 
   // ---- Edit page: mount CodeMirror editor ----
@@ -932,21 +982,94 @@
       btn.addEventListener('click', () => toggleZen(btn.dataset.zen));
     });
 
-    // Exit manuscript mode on save (so form submits correctly)
+    // Exit manuscript mode on save, and convert the native form submit into a
+    // JSON mutation so a conflict or validation error renders inline and the
+    // user's draft survives.
     const editForm = $('#edit-form');
-    if (editForm) {
-      editForm.addEventListener('submit', e => {
-        if (zenState.manuscript) toggleZen('manuscript');
-        if (!navigator.onLine) {
-          e.preventDefault();
-          queueFormSubmit(editForm);
-          dirty = false;
-          localStorage.removeItem(draftKey);
-          if (statusContext) statusContext.textContent = 'offline — save queued, will sync when back online';
-          return;
-        }
+
+    function editPayload() {
+      const hiddenInput = editForm.querySelector('input[name="hidden"]');
+      return {
+        title: $('#title').value,
+        body: textarea.value,
+        tags: parseTagsInput($('#tags').value),
+        new_slug: $('#new-slug').value,
+        base_hash: editForm.querySelector('input[name="basehash"]').value,
+        hidden: !!(hiddenInput && hiddenInput.checked),
+        from_hidden: isHiddenPage()
+      };
+    }
+
+    function showSaveError(message) {
+      const el = $('#save-error');
+      if (el) { el.textContent = message; el.hidden = false; }
+    }
+
+    function clearSaveError() {
+      const el = $('#save-error');
+      if (el) el.hidden = true;
+      const banner = $('#conflict-banner');
+      if (banner) banner.hidden = true;
+    }
+
+    function showConflict(conflict) {
+      const baseInput = editForm.querySelector('input[name="basehash"]');
+      if (baseInput && conflict.current_hash) baseInput.value = conflict.current_hash;
+      const banner = $('#conflict-banner');
+      if (!banner) return;
+      const text = $('#conflict-text');
+      if (text) text.textContent = 'This page changed while you were editing (theirs: ' + (conflict.current_hash || '').slice(0, 8) + '). Your draft is preserved.';
+      banner.hidden = false;
+    }
+
+    function submitEditForm() {
+      if (!editForm) return;
+      clearSaveError();
+      const slug = cmHost.dataset.slug || document.body.dataset.slug || '';
+      const url = '/_/api/pages/' + encodeURIComponent(slug);
+      const payload = editPayload();
+      if (!navigator.onLine) {
+        queueMutation(url, payload);
         dirty = false;
         localStorage.removeItem(draftKey);
+        if (statusContext) statusContext.textContent = 'offline — save queued, will sync when back online';
+        return;
+      }
+      mutateJSON(url, payload)
+        .then(d => {
+          dirty = false;
+          localStorage.removeItem(draftKey);
+          window.location.href = viewHref(d.slug, payload.hidden) + (d.index_warning ? '?index=pending' : '');
+        })
+        .catch(err => {
+          if (err.status === 409 && err.detail && err.detail.conflict) {
+            showConflict(err.detail.conflict);
+            return;
+          }
+          showSaveError(err.message || 'save failed');
+        });
+    }
+
+    if (editForm) {
+      editForm.addEventListener('submit', e => {
+        e.preventDefault();
+        if (zenState.manuscript) toggleZen('manuscript');
+        submitEditForm();
+      });
+      const overwriteBtn = $('#conflict-overwrite');
+      if (overwriteBtn) overwriteBtn.addEventListener('click', submitEditForm);
+    }
+
+    const deleteForm = $('#delete-form');
+    if (deleteForm) {
+      deleteForm.addEventListener('submit', e => {
+        // base.html's data-confirm handler runs first; respect its cancellation.
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        const slug = cmHost.dataset.slug || document.body.dataset.slug || '';
+        mutateJSON('/_/api/pages/delete/' + encodeURIComponent(slug), { hidden: isHiddenPage() })
+          .then(() => { window.location.href = isHiddenPage() ? '/_/hidden' : '/'; })
+          .catch(err => showSaveError(err.message || 'delete failed'));
       });
     }
 
@@ -1352,4 +1475,190 @@
       diffBody.innerHTML = `<pre>${html}</pre>`;
     }
   }
+  // ---- Settings, admin, namespace and setup mutation forms ----
+  // These server-rendered forms post JSON to the httpapi surface; the browser
+  // still owns GET navigation. Each form's action names its JSON endpoint, so
+  // success redirects or updates in place and failures render inline. A 409
+  // namespace conflict keeps the submitted settings and adopts the fresh hash.
+  function field(form, name) { return $$('[name="' + name + '"]', form); }
+
+  function fieldValue(form, name) {
+    const els = field(form, name);
+    if (!els.length) return '';
+    const el = els[0];
+    if (el.type === 'radio') { const chosen = els.find(e => e.checked); return chosen ? chosen.value : ''; }
+    if (el.type === 'checkbox') return els.some(e => e.checked);
+    return el.disabled ? '' : el.value;
+  }
+
+  function fieldOn(form, name) {
+    return field(form, name).some(e => e.type === 'hidden' ? true : e.checked);
+  }
+
+  function fieldCheckedList(form, name) {
+    return field(form, name).filter(e => e.checked).map(e => e.value);
+  }
+
+  function csvList(value) { return value.split(/[,\n]/).map(s => s.trim()).filter(Boolean); }
+
+  function formError(form) {
+    let el = form.querySelector('[data-form-error]');
+    if (!el) {
+      el = document.createElement('p');
+      el.className = 'settings-error';
+      el.setAttribute('role', 'alert');
+      el.setAttribute('data-form-error', '');
+      form.insertBefore(el, form.firstChild);
+    }
+    return el;
+  }
+  function showFormError(form, message) { const el = formError(form); el.textContent = message; el.hidden = false; }
+  function clearFormError(form) { const el = form.querySelector('[data-form-error]'); if (el) el.hidden = true; }
+
+  function jsonForm(form, build, onSuccess) {
+    if (!form) return;
+    form.addEventListener('submit', e => {
+      if (e.defaultPrevented) return; // a data-confirm handler already cancelled it
+      e.preventDefault();
+      if (e.submitter && e.submitter.dataset.confirm && !window.confirm(e.submitter.dataset.confirm)) return;
+      const url = (e.submitter && e.submitter.formAction) ? e.submitter.formAction : form.action;
+      clearFormError(form);
+      mutateJSON(url, build(form, e.submitter))
+        .then(data => { if (onSuccess) onSuccess(data, form); else window.location.reload(); })
+        .catch(err => {
+          if (err.status === 409 && err.detail && err.detail.conflict) {
+            const base = form.querySelector('[name="basehash"]');
+            if (base && err.detail.conflict.current_hash) base.value = err.detail.conflict.current_hash;
+            showFormError(form, 'This namespace changed since you opened the form, or was created by someone else. Review the settings below and save again; nothing has been overwritten.');
+            return;
+          }
+          showFormError(form, err.message || 'save failed');
+        });
+    });
+  }
+
+  function serverSettingsPayload(form) {
+    return {
+      bind: fieldValue(form, 'bind'),
+      repo_dir: fieldValue(form, 'repo_dir'),
+      max_upload_bytes: Number(fieldValue(form, 'max_upload_bytes')),
+      sync_poll_ms: Number(fieldValue(form, 'sync_poll_ms')),
+      sync_mode: fieldValue(form, 'sync_mode'),
+      default_branch: fieldValue(form, 'default_branch'),
+      skin: fieldValue(form, 'skin'),
+      debug: fieldOn(form, 'debug'),
+      base_url: fieldValue(form, 'base_url'),
+      trusted_proxies: csvList(fieldValue(form, 'trusted_proxies')),
+      remote_url: fieldValue(form, 'remote_url'),
+      git_user: fieldValue(form, 'git_user'),
+      git_author: fieldValue(form, 'git_author'),
+      git_token: fieldValue(form, 'git_token'),
+      store_git_token: fieldOn(form, 'store_git_token'),
+      git_token_file: fieldValue(form, 'git_token_file'),
+      mcp_enabled: fieldOn(form, 'mcp_enabled'),
+      document_model: fieldValue(form, 'document_model'),
+      document_model_dir: fieldValue(form, 'document_model_dir'),
+      document_index_dir: fieldValue(form, 'document_index_dir'),
+      oidc_issuer: fieldValue(form, 'oidc_issuer'),
+      oidc_client_id: fieldValue(form, 'oidc_client_id'),
+      oidc_client_secret: fieldValue(form, 'oidc_client_secret'),
+      oidc_client_secret_file: fieldValue(form, 'oidc_client_secret_file'),
+      oidc_local_login: fieldOn(form, 'oidc_local_login'),
+      oidc_button_text: fieldValue(form, 'oidc_button_text'),
+      oidc_icon: fieldValue(form, 'oidc_icon'),
+      oidc_default_scopes: csvList(fieldValue(form, 'oidc_default_scopes')),
+      oidc_allowed_subjects: csvList(fieldValue(form, 'oidc_allowed_subjects')),
+      oidc_allowed_email_domains: csvList(fieldValue(form, 'oidc_allowed_email_domains')),
+      oidc_allow_any_authenticated: fieldOn(form, 'oidc_allow_any_authenticated'),
+      oidc_allow_insecure_loopback: fieldOn(form, 'oidc_allow_insecure_loopback')
+    };
+  }
+
+  // Settings screen: appearance, git author, tokens.
+  jsonForm($('#appearance-form'), form => ({
+    palette: fieldValue(form, 'palette'),
+    font_ui: fieldValue(form, 'font_ui'),
+    font_mono: fieldValue(form, 'font_mono'),
+    skin: fieldValue(form, 'skin'),
+    palette_explicit: fieldValue(form, 'palette_explicit') === '1'
+  }), () => { window.location.href = '/_/settings?saved=1'; });
+
+  jsonForm($('form[action="/_/api/settings/author"]'), form => ({ git_author: fieldValue(form, 'git_author') }),
+    () => { window.location.href = '/_/settings?saved=1'; });
+
+  jsonForm($('form[action="/_/api/settings/tokens"]'), form => ({
+    label: fieldValue(form, 'label'),
+    expiry: fieldValue(form, 'expiry'),
+    scopes: fieldCheckedList(form, 'scopes'),
+    namespaces: fieldCheckedList(form, 'namespaces')
+  }), data => {
+    const slot = $('#new-token-slot');
+    const value = $('#new-token-value');
+    const hint = $('#new-token-hint');
+    if (slot && value) { value.value = data.token || ''; slot.hidden = false; }
+    if (hint) hint.hidden = false;
+    const label = $('#token_label');
+    if (label) label.value = '';
+  });
+
+  $$('form.js-token-revoke').forEach(form => {
+    jsonForm(form, f => ({ label: fieldValue(f, 'label') }), () => { window.location.reload(); });
+  });
+
+  // Admin screen: system configuration, users, export, wiki settings, setup.
+  jsonForm($('form[action="/_/api/settings/server"]'), serverSettingsPayload,
+    () => { window.location.href = '/_/admin?saved=1'; });
+  jsonForm($('form[action="/_/api/settings/users"]'), form => ({
+    name: fieldValue(form, 'name'),
+    password: fieldValue(form, 'password'),
+    scopes: fieldCheckedList(form, 'scopes')
+  }), () => { window.location.href = '/_/admin?saved=1'; });
+  $$('form[action="/_/api/settings/users/scopes"]').forEach(form => {
+    jsonForm(form, f => ({ name: fieldValue(f, 'name'), scopes: fieldCheckedList(f, 'scopes') }),
+      () => { window.location.href = '/_/admin?saved=1'; });
+  });
+  jsonForm($('#export-config-form'), () => ({}), () => { window.location.href = '/_/admin?exported=1'; });
+  jsonForm($('form[action="/_/api/settings/wiki"]'), form => ({
+    site_name: fieldValue(form, 'site_name'),
+    landing: fieldValue(form, 'landing')
+  }), () => { window.location.href = '/_/admin?wiki-saved=1'; });
+  jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { window.location.href = '/_/admin'; });
+  jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { window.location.href = '/_/admin'; });
+
+  // Namespace editor: save, reset, delete and delete-all share one form; the
+  // submitter's formaction names the endpoint.
+  jsonForm($('.namespace-form'), (form, submitter) => {
+    const action = submitter && submitter.formAction ? submitter.formAction : '';
+    if (/\/namespaces\/(reset|delete|delete-all)$/.test(action)) {
+      return { name: fieldValue(form, 'name') };
+    }
+    return {
+      name: fieldValue(form, 'name'),
+      template: fieldValue(form, 'template'),
+      base_hash: fieldValue(form, 'basehash'),
+      title: fieldValue(form, 'title'),
+      description: fieldValue(form, 'description'),
+      index: fieldValue(form, 'index'),
+      tree: csvList(fieldValue(form, 'tree')),
+      public: fieldOn(form, 'public'),
+      skin: fieldValue(form, 'skin'),
+      palette: fieldValue(form, 'palette'),
+      new_enabled: fieldOn(form, 'new_enabled'),
+      slug_preset: fieldValue(form, 'slug_preset'),
+      slug_custom: fieldValue(form, 'slug_custom'),
+      widgets: csvList(fieldValue(form, 'widgets'))
+    };
+  }, () => { window.location.href = '/_/namespaces?saved=1'; });
+
+  // First-run setup wizard: submit reloads the current page.
+  jsonForm($('.setup-modal form'), (form, submitter) => ({
+    action: submitter ? submitter.value : 'add',
+    setup_wiki: fieldOn(form, 'setup_wiki'),
+    default_namespace: fieldValue(form, 'default_namespace'),
+    new_namespace: fieldValue(form, 'new_namespace'),
+    site_name: fieldValue(form, 'site_name'),
+    add_namespace: fieldOn(form, 'add_namespace'),
+    namespace: fieldValue(form, 'namespace'),
+    add_help: fieldOn(form, 'add_help')
+  }), () => { window.location.reload(); });
 })();

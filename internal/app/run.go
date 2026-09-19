@@ -43,7 +43,7 @@ func Run() {
 	healthcheck := flag.Bool("healthcheck", false, "check local readiness and exit")
 	flag.Parse()
 	if *healthcheck {
-		if err := web.CheckReadiness(); err != nil {
+		if err := CheckReadiness(); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -189,15 +189,14 @@ func Run() {
 		log.Fatalf("Parsing templates: %v", err)
 	}
 	finishStage()
-	application := &web.App{Store: content, Auth: authn, Index: index, Render: renderer, Tmpl: templates}
-	application.API = api.New(content, index, authn)
+	application := &web.App{API: api.New(content, index, authn), Auth: authn, Render: renderer, Tmpl: templates}
 	application.SetConfig(cfg)
 	application.SetWikiConfig(wikiConfig)
 	application.SetNamespaces(namespaces)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go web.PollFS(ctx, application.API, hashes)
+	go pollFS(ctx, application.API, hashes)
 	if cfg.OIDC.Issuer != "" {
 		finishStage = debugStartupStage("initialize OIDC", "issuer", cfg.OIDC.Issuer)
 		application.OIDC, err = web.NewOIDCAuth(context.Background(), cfg)
@@ -207,7 +206,7 @@ func Run() {
 		finishStage()
 	}
 
-	server := newHTTPServer(cfg.Bind, web.Handler(application))
+	server := newHTTPServer(cfg.Bind, newHandler(application))
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -226,12 +225,5 @@ func Run() {
 	slog.Debug("startup completed; HTTP server listening", "bind", cfg.Bind)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
-	}
-}
-
-func newHTTPServer(address string, handler http.Handler) *http.Server {
-	return &http.Server{
-		Addr: address, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20,
 	}
 }

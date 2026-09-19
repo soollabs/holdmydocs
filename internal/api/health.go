@@ -21,6 +21,22 @@ type HealthReport struct {
 	Orphans []string
 }
 
+// DocumentsEnabled reports whether document (attachment) search is available,
+// so an adapter can register or render attachment-search affordances.
+func (a *API) DocumentsEnabled() bool { return a.index != nil && a.index.DocumentsEnabled() }
+
+// Ready reports whether the repository is readable and the search index is
+// ready, for the browser readiness endpoint.
+func (a *API) Ready() bool {
+	if a.store == nil || a.index == nil {
+		return false
+	}
+	if _, err := a.store.List(); err != nil {
+		return false
+	}
+	return a.index.Ready()
+}
+
 // Health reports dangling wiki-links and orphan pages for the caller, filtering
 // both the link target and every source by the caller's namespace access. An
 // empty namespace reports the whole accessible wiki; a non-empty namespace is

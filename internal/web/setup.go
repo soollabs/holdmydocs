@@ -3,8 +3,6 @@ package web
 import (
 	"fmt"
 	"html/template"
-	"net/http"
-	"time"
 )
 
 var webFS = FS
@@ -20,7 +18,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"web/templates/widgets/outline.html", "web/templates/widgets/page-meta.html",
 		"web/templates/widgets/backlinks.html", "web/templates/widgets/prev-entries.html",
 	}
-	for _, name := range []string{"login", "page", "edit", "conflict", "create", "error", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit"} {
+	for _, name := range []string{"login", "page", "edit", "create", "error", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
 		parsed, err := template.ParseFS(webFS, files...)
 		if err != nil {
@@ -29,19 +27,4 @@ func parseTemplates() (map[string]*template.Template, error) {
 		templates[name] = parsed
 	}
 	return templates, nil
-}
-
-func checkReadiness() error { return checkReadinessAt("http://127.0.0.1:8080/_/ready") }
-
-func checkReadinessAt(url string) error {
-	client := &http.Client{Timeout: 5 * time.Second}
-	response, err := client.Get(url)
-	if err != nil {
-		return fmt.Errorf("checking readiness: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("checking readiness: HTTP %d", response.StatusCode)
-	}
-	return nil
 }

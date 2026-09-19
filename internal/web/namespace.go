@@ -9,32 +9,10 @@ import (
 	"time"
 
 	"hmd/internal/api"
+	"hmd/internal/presentation"
+	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
-
-type slugPreset struct {
-	Key     string // form value
-	Label   string // what the option says
-	Pattern string // the Go template written to new.slug
-}
-
-const slugPresetCustom = "custom"
-
-var slugPresets = []slugPreset{
-	{"daily", "one page per day", `{{.Now.Format "2006-01-02"}}`},
-	{"monthly", "one page per month", `{{.Now.Format "2006-01"}}`},
-	{"timestamped", "one page per keystroke, date and time", `{{.Now.Format "2006-01-02-1504"}}`},
-	{"daily-per-user", "one page per day, per user", `{{.User}}-{{.Now.Format "2006-01-02"}}`},
-}
-
-func slugPresetFor(pattern string) string {
-	for _, p := range slugPresets {
-		if p.Pattern == pattern {
-			return p.Key
-		}
-	}
-	return slugPresetCustom
-}
 
 type slugPresetView struct {
 	Key     string
@@ -44,8 +22,8 @@ type slugPresetView struct {
 
 func slugPresetViews(user string) []slugPresetView {
 	data := api.NewPageTemplateData{Now: time.Now(), User: user}
-	views := make([]slugPresetView, 0, len(slugPresets))
-	for _, p := range slugPresets {
+	views := make([]slugPresetView, 0, len(presentation.SlugPresets))
+	for _, p := range presentation.SlugPresets {
 		example, err := api.RenderNewPageText(p.Pattern, data)
 		if err != nil {
 			example = p.Pattern
@@ -53,15 +31,6 @@ func slugPresetViews(user string) []slugPresetView {
 		views = append(views, slugPresetView{Key: p.Key, Label: p.Label, Example: example})
 	}
 	return views
-}
-
-func slugPatternFor(key string) string {
-	for _, p := range slugPresets {
-		if p.Key == key {
-			return p.Pattern
-		}
-	}
-	return ""
 }
 
 type navNode struct {
@@ -72,7 +41,7 @@ type navNode struct {
 	Children []*navNode
 }
 
-func buildPageTree(entries []BacklinkEntry, ns, index string, tree []string) *navNode {
+func buildPageTree(entries []search.BacklinkEntry, ns, index string, tree []string) *navNode {
 	root := &navNode{}
 	for _, e := range entries {
 		_, rest := wiki.NamespaceFor(e.Slug)
@@ -185,7 +154,7 @@ func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hr
 }
 
 // NamespaceListEntry is one row of the namespace editor in system configuration: the resolved config of one
-// namespace, as the form fields that POST back to /_/settings/namespaces.
+// namespace, as the form fields that POST back to /_/api/namespaces.
 type NamespaceListEntry struct {
 	Name        string
 	Widgets     []string
@@ -204,7 +173,7 @@ type NamespaceListEntry struct {
 	NewEnabled   bool
 	Template     string
 	TemplateHref string // editor URL for the template page, as a hidden page
-	SlugPreset   string // which slugPresets option matches, or slugPresetCustom
+	SlugPreset   string // which presentation.SlugPresets option matches, or presentation.SlugPresetCustom
 	SlugPattern  string // the raw pattern, for the custom field
 	SlugExample  string // what SlugPattern renders to right now
 }
@@ -232,13 +201,13 @@ func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceList
 			Index:       cfg.Index,
 			Tree:        cfg.Tree,
 			Template:    wiki.DefaultNewPageTemplate,
-			SlugPreset:  slugPresets[0].Key,
+			SlugPreset:  presentation.SlugPresets[0].Key,
 		}
 		if cfg.New != nil {
 			e.NewEnabled = true
 			e.Template = cfg.New.Template
 			e.SlugPattern = cfg.New.Slug
-			e.SlugPreset = slugPresetFor(cfg.New.Slug)
+			e.SlugPreset = presentation.SlugPresetFor(cfg.New.Slug)
 			// Best effort: a pattern that doesn't render has nothing to show
 			// as an example, and the save path is what reports why.
 			if rendered, err := api.RenderNewPageText(cfg.New.Slug, api.NewPageTemplateData{Now: time.Now(), User: user, Namespace: name}); err == nil {

@@ -8,6 +8,11 @@
 <div id="remote-changed-banner" class="remote-changed-banner" hidden>
 	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
 </div>
+<div id="save-error" class="remote-changed-banner" role="alert" hidden></div>
+<div id="conflict-banner" class="remote-changed-banner" hidden>
+	<span id="conflict-text">This page changed while you were editing. Your draft is preserved.</span>
+	<button type="button" id="conflict-overwrite" class="btn-danger">overwrite with mine</button>
+</div>
 <form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">{{template "csrf" .}}
 	<div class="edit-topbar">
 		<div class="edit-field">
@@ -68,7 +73,7 @@
 
 <noscript>
 	<style nonce="{{.CSPNonce}}">#cm-host, #preview, .zen-status { display: none !important; }</style>
-	<textarea name="body" rows="16" style="display:block">{{.Body}}</textarea>
+	<p class="js-required">JavaScript is required to edit pages. Enable JavaScript, or view the page source rendered without the editor.</p>
 </noscript>
 
 <script src="/_/static/editor.js?v=2"></script>

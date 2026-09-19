@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"hmd/internal/wiki"
 )
 
 // TestStatuslineSegmentsPerSkin ensures skins control statusline variants, not actions.
@@ -13,7 +15,7 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 	defer server.Close()
 
 	setSkin := func(name string) {
-		resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {name}})
+		resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{"skin": {name}}))
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
@@ -93,14 +95,14 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"journal"}})
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{"skin": {"journal"}}))
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	if _, err := app.Store.Save("daily/2026-07-25.md", (Page{Slug: "daily/2026-07-25", Title: "2026-07-25", Body: "x"}).Encode(), "seed", authorName, authorEmail); err != nil {
+	if _, err := app.Store.Save("daily/2026-07-25.md", (wiki.Page{Slug: "daily/2026-07-25", Title: "2026-07-25", Body: "x"}).Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding: %v", err)
 	}
 

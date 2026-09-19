@@ -46,6 +46,39 @@ func (a *API) ListPages(ctx context.Context) ([]PageSummary, error) {
 	return pages, nil
 }
 
+// PageExists reports whether the index holds a page with the slug. It serves
+// rendering decisions — index-page handoff and public wikilink filtering —
+// without exposing the index to adapters.
+func (a *API) PageExists(slug string) bool {
+	return a.index != nil && a.index.Exists(slug)
+}
+
+// PageTitles returns the current page-title snapshot keyed by slug, for
+// rendering navigation, tables of contents and folder trees.
+func (a *API) PageTitles() map[string]string {
+	if a.index == nil {
+		return map[string]string{}
+	}
+	return a.index.Titles()
+}
+
+// PagesForTags returns the slugs carrying any of the given tag slugs, for
+// rendering a tag-filtered table of contents.
+func (a *API) PagesForTags(tags []string) []string {
+	if a.index == nil {
+		return nil
+	}
+	return a.index.PagesForTags(tags)
+}
+
+// PinnedPages returns the pinned pages for the sidebar pin widget.
+func (a *API) PinnedPages() []search.BacklinkEntry {
+	if a.index == nil {
+		return nil
+	}
+	return a.index.PinnedPages()
+}
+
 // ViewPage reads one page the caller may read. A caller without slug access
 // gets a forbidden result and a missing page a categorised not-found carrying
 // os.ErrNotExist, so an adapter can still tell "missing" from "unreadable".

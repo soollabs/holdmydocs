@@ -2,20 +2,24 @@ package web
 
 import (
 	"encoding/json"
-	"hmd/internal/wiki"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"hmd/internal/config"
+	staticexport "hmd/internal/export"
+	"hmd/internal/search"
+	"hmd/internal/wiki"
 )
 
 func TestExportDocumentationContent(t *testing.T) {
-	pages := []Page{
+	pages := []wiki.Page{
 		{Slug: "docs/home", Title: "Welcome", Body: "# Welcome\n\nStart with [[Guide]]."},
 		{Slug: "docs/nested/guide", Title: "Guide", Body: "# Guide\n\n## Learn\n\nA searchable café & tea. [[Private]] [[Missing]]\n\n```mermaid\ngraph LR\n A --> B\n```\n\n```html\n</script><script>alert(1)</script>\n```"},
 		{Slug: "private/secret", Title: "Private", Body: "never index this secret"},
 	}
-	index, err := BuildIndex(pages)
+	index, err := search.BuildIndex(pages)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,13 +28,21 @@ func TestExportDocumentationContent(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	store, err := OpenStore(Config{RepoDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	store, err := OpenStore(config.Config{RepoDir: t.TempDir(), Git: config.GitConfig{User: "test"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
 	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Widgets: []string{"outline"}}}
-	if err := ExportNamespace(pages, NewRenderer(index.ResolveLink), reg, store, "docs", out, ""); err != nil {
+	if err := staticexport.Namespace(staticexport.NamespaceRequest{
+		Pages:      pages,
+		Namespace:  "docs",
+		Config:     reg["docs"],
+		OutDir:     out,
+		Assets:     webFS,
+		AssetsRoot: "web/static",
+		Store:      store,
+	}, NewStaticExporter(wiki.NewRenderer(index.ResolveLink))); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"index.html", "home/index.html", "nested/guide/index.html"} {
@@ -86,11 +98,16 @@ func TestExportDocumentationContent(t *testing.T) {
 }
 
 func TestExportRejectsMissingIndex(t *testing.T) {
-	pages := []Page{{Slug: "docs/guide", Title: "Guide", Body: "Text"}}
+	pages := []wiki.Page{{Slug: "docs/guide", Title: "Guide", Body: "Text"}}
 	reg := wiki.NamespaceRegistry{"docs": {Index: "missing"}}
 	// Invalid index is rejected before rendering or copying anything.
 	out := filepath.Join(t.TempDir(), "output")
-	err := ExportNamespace(pages, nil, reg, nil, "docs", out, "")
+	err := staticexport.Namespace(staticexport.NamespaceRequest{
+		Pages:     pages,
+		Namespace: "docs",
+		Config:    reg["docs"],
+		OutDir:    out,
+	}, NewStaticExporter(nil))
 	if err == nil || !strings.Contains(err.Error(), "does not exist") {
 		t.Fatalf("error = %v", err)
 	}

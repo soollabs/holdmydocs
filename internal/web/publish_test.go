@@ -1,17 +1,18 @@
 package web
 
 import (
-	"hmd/internal/api"
-	"hmd/internal/wiki"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"hmd/internal/api"
+	"hmd/internal/wiki"
 )
 
-func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
+func writeNamespaceConfig(t *testing.T, app *testApp, ns, yaml string) error {
 	t.Helper()
 	dir := app.config().RepoDir
 	if ns != "" {
@@ -31,7 +32,7 @@ func writeNamespaceConfig(t *testing.T, app *App, ns, yaml string) error {
 	return nil
 }
 
-func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
+func setNamespacePublic(t *testing.T, app *testApp, ns string, public bool) {
 	t.Helper()
 	if !public {
 		return
@@ -41,10 +42,10 @@ func setNamespacePublic(t *testing.T, app *App, ns string, public bool) {
 	}
 }
 
-func seedPage(t *testing.T, app *App, page Page) {
+func seedPage(t *testing.T, app *testApp, page wiki.Page) {
 	t.Helper()
 	authorName, authorEmail := app.gitAuthor("admin")
-	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed "+page.Slug, authorName, authorEmail); err != nil {
+	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "seed "+page.Slug, authorName, authorEmail); err != nil {
 		t.Fatalf("seeding %s: %v", page.Slug, err)
 	}
 	if err := app.Index.Update(page); err != nil {
@@ -63,7 +64,7 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	if err := writeNamespaceConfig(t, app, "blog", "public: true\ntitle: My Blog\n"); err != nil {
 		t.Fatalf("writing .namespace.yaml: %v", err)
 	}
-	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public **content**."})
+	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public **content**."})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
 	if err != nil {
@@ -103,7 +104,7 @@ func TestAnonymousHeadMatchesPublicGetAccess(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
+	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
 
 	req, err := http.NewRequest(http.MethodHead, server.URL+"/blog/hello", nil)
 	if err != nil {
@@ -126,7 +127,7 @@ func TestAnonymousPublicNamespaceSkinUsesDefaultPalette(t *testing.T) {
 	if err := writeNamespaceConfig(t, app, "blog", "public: true\nskin: newsprint\n"); err != nil {
 		t.Fatalf("writing .namespace.yaml: %v", err)
 	}
-	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
+	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
 	if err != nil {
@@ -146,7 +147,7 @@ func TestAnonymousPublicPageGetsOutlineRail(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "blog/hello", Title: "Hello", Body: "## One\ntext\n\n## Two\nmore text"})
+	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "## One\ntext\n\n## Two\nmore text"})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
 	if err != nil {
@@ -175,7 +176,7 @@ func TestAnonymousPrivateAndNonexistentPagesByteIdentical404(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()
 
-	seedPage(t, app, Page{Slug: "blog/private", Title: "Private"})
+	seedPage(t, app, wiki.Page{Slug: "blog/private", Title: "Private"})
 
 	client := noAuthClient()
 
@@ -206,8 +207,8 @@ func TestAnonymousWikiLinkToPrivatePageUnwraps(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "secret", Title: "Secret"})
-	seedPage(t, app, Page{Slug: "blog/post", Title: "Post", Body: "See [[Secret]] and [[Nowhere]]."})
+	seedPage(t, app, wiki.Page{Slug: "secret", Title: "Secret"})
+	seedPage(t, app, wiki.Page{Slug: "blog/post", Title: "Post", Body: "See [[Secret]] and [[Nowhere]]."})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/post")
 	if err != nil {
@@ -233,8 +234,8 @@ func TestAnonymousTocNotExpanded(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "secret", Title: "Secret Title"})
-	seedPage(t, app, Page{Slug: "blog/index", Title: "Index", Body: "<!-- hmd:toc -->"})
+	seedPage(t, app, wiki.Page{Slug: "secret", Title: "Secret Title"})
+	seedPage(t, app, wiki.Page{Slug: "blog/index", Title: "Index", Body: "<!-- hmd:toc -->"})
 
 	resp, err := noAuthClient().Get(server.URL + "/blog/index")
 	if err != nil {
@@ -254,8 +255,8 @@ func TestAnonymousAttachment(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "blog/post", Title: "Post"})
-	seedPage(t, app, Page{Slug: "secret", Title: "Secret"})
+	seedPage(t, app, wiki.Page{Slug: "blog/post", Title: "Post"})
+	seedPage(t, app, wiki.Page{Slug: "secret", Title: "Secret"})
 
 	authorName, authorEmail := app.gitAuthor("admin")
 	if _, err := app.Store.Save("attachments/blog/post/pic.png", []byte("fake-png"), "add attachment", authorName, authorEmail); err != nil {
@@ -291,7 +292,7 @@ func TestAnonymousDoActionsStayBehindAuth(t *testing.T) {
 	defer server.Close()
 
 	setNamespacePublic(t, app, "blog", true)
-	seedPage(t, app, Page{Slug: "blog/post", Title: "Post"})
+	seedPage(t, app, wiki.Page{Slug: "blog/post", Title: "Post"})
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

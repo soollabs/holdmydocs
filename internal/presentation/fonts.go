@@ -19,3 +19,9 @@ var (
 	FontsSans  = []string{"system sans", "helvetica", "verdana"}
 	FontsSerif = []string{"georgia", "palatino", "charter"}
 )
+
+// ValidFont reports whether name names a selectable font family.
+func ValidFont(name string) bool {
+	_, ok := FontStacks[name]
+	return ok
+}

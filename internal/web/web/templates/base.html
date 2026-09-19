@@ -1,4 +1,5 @@
 {{define "csrf"}}{{if .CSRFToken}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}{{end}}
+{{define "json-required"}}<noscript><p class="settings-note">JavaScript is required to save these changes.</p></noscript>{{end}}
 {{define "layout"}}
 <!DOCTYPE html>
 <html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
@@ -142,7 +143,7 @@
 			<h1 class="page-title"><span class="h"></span>Set up wiki</h1>
 			<p>Nothing is written until you submit &ldquo;Add selected&rdquo;.</p>
 
-			<form method="POST" action="/_/setup">{{template "csrf" .}}
+			<form method="POST" action="/_/api/setup">{{template "csrf" .}}{{template "json-required" .}}
 
 			{{if .NeedsWikiSetup}}
 			<div class="setup-item">
@@ -251,7 +252,7 @@
 	<script id="export-search-index" src="{{.AssetPath}}search-index.js"></script>
 	<script src="{{.AssetPath}}export.js"></script>
 	{{end}}
-	{{if .Authed}}<script src="/_/static/app.js?v=4"></script>{{end}}
+	{{if .Authed}}<script src="/_/static/app.js?v=6"></script>{{end}}
 	{{if .RailWidgets}}<script src="{{if .Static}}{{.AssetPath}}toc.js{{else}}/_/static/toc.js?v=1{{end}}"></script>{{end}}
 	{{if or .Authed .SidebarTree}}<script src="{{if .Static}}{{.AssetPath}}sidebar.js{{else}}/_/static/sidebar.js?v=1{{end}}"></script>{{end}}
 </body>

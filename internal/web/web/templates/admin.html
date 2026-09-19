@@ -16,7 +16,7 @@
 	<div class="settings-banner">
 		<code>.help.md</code> differs from hmd's built-in help text for this version.
 		It may have been edited locally.
-		<form method="POST" action="/_/settings/help/reset" style="display:contents">{{template "csrf" .}}
+		<form method="POST" action="/_/api/settings/help/reset" style="display:contents">{{template "csrf" .}}{{template "json-required" .}}
 			<button type="submit" class="ghost-btn">Reset to built-in</button>
 		</form>
 	</div>
@@ -35,7 +35,7 @@
 		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">environment overrides</button>{{end}}
 	</div>
 
-	<form method="POST" action="/_/admin" class="settings-form">{{template "csrf" .}}
+	<form method="POST" action="/_/api/settings/server" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 
 		<fieldset class="settings-section settings-panel" data-panel="server">
 			<legend>server</legend>
@@ -188,7 +188,7 @@
 		{{range .Settings.Users}}
 		{{$u := .}}
 		{{if ne $u.Name $.Settings.Fields.AdminUser.Value}}
-		<form method="POST" action="/_/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}
+		<form method="POST" action="/_/api/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="name" value="{{$u.Name}}">
 			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
 			<span class="scope-checks">
@@ -201,7 +201,7 @@
 		{{end}}
 		{{end}}
 
-		<form method="POST" action="/_/settings/users" class="settings-form">{{template "csrf" .}}
+		<form method="POST" action="/_/api/settings/users" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">
 				<label for="new_user_name">new user</label>
 				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
@@ -243,7 +243,7 @@
 			exporting and keep the secret in the environment.
 		</div>
 		{{end}}
-		<form method="POST" action="/_/settings/export" id="export-config-form">{{template "csrf" .}}
+		<form method="POST" action="/_/api/settings/export" id="export-config-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-actions">
 				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
 			</div>
@@ -257,7 +257,7 @@
 	<h2 class="settings-zone-title"><span class="h"></span>wiki configuration</h2>
 	<p class="settings-zone-desc">Travels with the content repository. Saved in <code>{{.Settings.WikiConfigPath}}</code>, committed to git and available to every hmd instance using this repo; it is not part of <code>{{.Settings.ConfigPath}}</code>.</p>
 
-	<form method="POST" action="/_/settings/wiki" class="settings-form">{{template "csrf" .}}
+	<form method="POST" action="/_/api/settings/wiki" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 		<fieldset class="settings-section">
 			<legend>{{.Settings.WikiConfigPath}}</legend>
 			<div class="settings-row">
@@ -279,7 +279,7 @@
 		<legend>wiki setup</legend>
 		<div class="settings-row">
 			<label>re-seed setup</label>
-			<form method="POST" action="/_/settings/setup" style="display:contents">{{template "csrf" .}}
+			<form method="POST" action="/_/api/settings/setup" style="display:contents">{{template "csrf" .}}{{template "json-required" .}}
 				<button type="submit" class="ghost-btn">Re-run setup</button>
 			</form>
 		</div>

@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"hmd/internal/wiki"
 )
 
 // TestNamespaceIndex ensures namespace indexes list pages and respect publication settings.
@@ -15,10 +17,10 @@ func TestNamespaceIndex(t *testing.T) {
 	defer server.Close()
 
 	for _, slug := range []string{"blog/first", "blog/second"} {
-		if _, err := app.Store.Save(pageFile(slug), Page{Slug: slug, Title: strings.ToUpper(slug), Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
+		if _, err := app.Store.Save(wiki.PageFile(slug), wiki.Page{Slug: slug, Title: strings.ToUpper(slug), Body: "hi"}.Encode(), "add", "t", "t@e"); err != nil {
 			t.Fatalf("saving %s: %v", slug, err)
 		}
-		if err := app.Index.Update(Page{Slug: slug, Title: strings.ToUpper(slug), Body: "hi"}); err != nil {
+		if err := app.Index.Update(wiki.Page{Slug: slug, Title: strings.ToUpper(slug), Body: "hi"}); err != nil {
 			t.Fatalf("indexing %s: %v", slug, err)
 		}
 	}
@@ -170,11 +172,11 @@ func TestNamespaceWikiLinkResolvesWithinNamespace(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	for _, p := range []Page{
+	for _, p := range []wiki.Page{
 		{Slug: "health/overview", Title: "Overview", Body: "hi"},
 		{Slug: "health/plan", Title: "Plan", Body: "See [[Overview]] for context."},
 	} {
-		if _, err := app.Store.Save(pageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
+		if _, err := app.Store.Save(wiki.PageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
 			t.Fatalf("saving %s: %v", p.Slug, err)
 		}
 		if err := app.Index.Update(p); err != nil {
@@ -203,11 +205,11 @@ func TestRenameWithinNamespace(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	for _, p := range []Page{
+	for _, p := range []wiki.Page{
 		{Slug: "health/overview", Title: "Overview", Body: "hi"},
 		{Slug: "health/plan", Title: "Plan", Body: "See [[Overview]] for context."},
 	} {
-		if _, err := app.Store.Save(pageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
+		if _, err := app.Store.Save(wiki.PageFile(p.Slug), p.Encode(), "add", "t", "t@e"); err != nil {
 			t.Fatalf("saving %s: %v", p.Slug, err)
 		}
 		if err := app.Index.Update(p); err != nil {
@@ -215,32 +217,32 @@ func TestRenameWithinNamespace(t *testing.T) {
 		}
 	}
 
-	resp, err := client.PostForm(server.URL+"/health/overview?do=rename", url.Values{"title": {"Summary"}})
+	resp, err := postPageRename(t, client, server, "health/overview", "Summary")
 	if err != nil {
-		t.Fatalf("POST ?do=rename: %v", err)
+		t.Fatalf("POST rename: %v", err)
 	}
 	b, _ := io.ReadAll(resp.Body)
 	closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("?do=rename: status = %d, body = %s", resp.StatusCode, b)
+		t.Fatalf("rename: status = %d, body = %s", resp.StatusCode, b)
 	}
 	if !strings.Contains(string(b), `"health/summary"`) {
 		t.Errorf("rename should stay in the namespace, got: %s", b)
 	}
 
-	content, _, err := app.Store.Read(pageFile("health/plan"))
+	content, _, err := app.Store.Read(wiki.PageFile("health/plan"))
 	if err != nil {
 		t.Fatalf("reading health/plan: %v", err)
 	}
-	if body := ParsePage("health/plan", content).Body; !strings.Contains(body, "[[Summary]]") {
+	if body := wiki.ParsePage("health/plan", content).Body; !strings.Contains(body, "[[Summary]]") {
 		t.Errorf("link in health/plan should have been rewritten, got: %s", body)
 	}
 }
 
-func savePage(t *testing.T, app *App, slug, body string) {
+func savePage(t *testing.T, app *testApp, slug, body string) {
 	t.Helper()
-	page := Page{Slug: slug, Title: slug, Body: body}
-	if _, err := app.Store.Save(pageFile(slug), page.Encode(), "add", "t", "t@e"); err != nil {
+	page := wiki.Page{Slug: slug, Title: slug, Body: body}
+	if _, err := app.Store.Save(wiki.PageFile(slug), page.Encode(), "add", "t", "t@e"); err != nil {
 		t.Fatalf("saving %s: %v", slug, err)
 	}
 	if err := app.Index.Update(page); err != nil {

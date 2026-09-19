@@ -75,12 +75,12 @@ type Store struct {
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
 
-	pushMu    sync.Mutex
+	pushMu sync.Mutex
 	// pushDirty requests another push after the current push completes.
 	pushDirty atomic.Bool
 	pushWG    sync.WaitGroup
 
-	fetchMu       sync.Mutex
+	fetchMu sync.Mutex
 	// lastFetchNano supports fetch throttling.
 	lastFetchNano atomic.Int64
 }

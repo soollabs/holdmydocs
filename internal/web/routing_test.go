@@ -2,8 +2,6 @@ package web
 
 import (
 	"bytes"
-	"hmd/internal/api"
-	"hmd/internal/wiki"
 	"html"
 	"io"
 	"net/http"
@@ -11,6 +9,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"hmd/internal/api"
+	"hmd/internal/store"
+	"hmd/internal/wiki"
 )
 
 // TestStaticDirectoriesAreNotListed ensures static directories return 404.
@@ -73,8 +75,8 @@ func TestDoDispatchPerAction(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: testNS + "/routing-target", Title: "Routing Target", Body: "hello"}
-	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
+	page := wiki.Page{Slug: testNS + "/routing-target", Title: "Routing Target", Body: "hello"}
+	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
 	if err := app.Index.Update(page); err != nil {
@@ -112,13 +114,13 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=history: status = %d", resp.StatusCode)
 	}
 
-	tagResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=tags", url.Values{"tags": {"a, b"}})
+	tagResp, err := postPageTags(t, client, server, testNS+"/routing-target", "a, b")
 	if err != nil {
-		t.Fatalf("POST ?do=tags: %v", err)
+		t.Fatalf("POST tags: %v", err)
 	}
 	closeTestBody(t, tagResp.Body)
 	if tagResp.StatusCode != http.StatusOK {
-		t.Errorf("?do=tags: status = %d", tagResp.StatusCode)
+		t.Errorf("tags: status = %d", tagResp.StatusCode)
 	}
 
 	resp = get("/" + testNS + "/routing-target?do=edit")
@@ -130,15 +132,15 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 	basehash = m[1]
 
-	saveResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=save", url.Values{
+	saveResp, err := postPageSave(t, client, server, testNS+"/routing-target", url.Values{
 		"title": {"Routing Target"}, "body": {"hello v2"}, "basehash": {basehash},
 	})
 	if err != nil {
-		t.Fatalf("POST ?do=save: %v", err)
+		t.Fatalf("POST save: %v", err)
 	}
 	closeTestBody(t, saveResp.Body)
-	if saveResp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("?do=save: status = %d, want 303", saveResp.StatusCode)
+	if saveResp.StatusCode != http.StatusOK {
+		t.Fatalf("save: status = %d, want 200", saveResp.StatusCode)
 	}
 
 	histResp := get("/" + testNS + "/routing-target?do=history")
@@ -165,34 +167,34 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Errorf("?do=rev: status = %d", resp.StatusCode)
 	}
 
-	revertResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=revert", url.Values{"hash": {hashA}})
+	revertResp, err := postPageRevert(t, client, server, testNS+"/routing-target", hashA)
 	if err != nil {
-		t.Fatalf("POST ?do=revert: %v", err)
+		t.Fatalf("POST revert: %v", err)
 	}
 	closeTestBody(t, revertResp.Body)
-	if revertResp.StatusCode != http.StatusSeeOther {
-		t.Errorf("?do=revert: status = %d, want 303", revertResp.StatusCode)
+	if revertResp.StatusCode != http.StatusOK {
+		t.Errorf("revert: status = %d, want 200", revertResp.StatusCode)
 	}
 
-	renameResp, err := client.PostForm(server.URL+"/"+testNS+"/routing-target?do=rename", url.Values{"title": {"Routing Target Renamed"}})
+	renameResp, err := postPageRename(t, client, server, testNS+"/routing-target", "Routing Target Renamed")
 	if err != nil {
-		t.Fatalf("POST ?do=rename: %v", err)
+		t.Fatalf("POST rename: %v", err)
 	}
 	closeTestBody(t, renameResp.Body)
 	if renameResp.StatusCode != http.StatusOK {
-		t.Errorf("?do=rename: status = %d, want 200", renameResp.StatusCode)
+		t.Errorf("rename: status = %d, want 200", renameResp.StatusCode)
 	}
 
-	deleteResp, err := client.Post(server.URL+"/"+testNS+"/routing-target-renamed?do=delete", "", nil)
+	deleteResp, err := postJSON(t, client, server.URL+"/_/api/pages/delete/"+testNS+"/routing-target-renamed", map[string]any{"hidden": false})
 	if err != nil {
-		t.Fatalf("POST ?do=delete: %v", err)
+		t.Fatalf("POST delete: %v", err)
 	}
 	closeTestBody(t, deleteResp.Body)
-	if deleteResp.StatusCode != http.StatusSeeOther {
-		t.Errorf("?do=delete: status = %d, want 303", deleteResp.StatusCode)
+	if deleteResp.StatusCode != http.StatusOK {
+		t.Errorf("delete: status = %d, want 200", deleteResp.StatusCode)
 	}
 	if app.Index.Exists(testNS + "/routing-target-renamed") {
-		t.Error("?do=delete: page still in search index")
+		t.Error("delete: page still in search index")
 	}
 	resp = get("/" + testNS + "/routing-target-renamed")
 	closeTestBody(t, resp.Body)
@@ -205,7 +207,7 @@ func TestNewPageCanChooseFilename(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/ai/new?do=save", url.Values{
+	resp, err := postPageSave(t, client, server, "ai/new", url.Values{
 		"new_slug": {"ai/actual-name"},
 		"title":    {"Actual name"},
 		"body":     {"content"},
@@ -214,13 +216,13 @@ func TestNewPageCanChooseFilename(t *testing.T) {
 		t.Fatalf("POST new page: %v", err)
 	}
 	closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/ai/actual-name" {
-		t.Fatalf("save redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save status = %d, want 200", resp.StatusCode)
 	}
-	if _, _, err := app.Store.Read(pageFile("ai/actual-name")); err != nil {
+	if _, _, err := app.Store.Read(wiki.PageFile("ai/actual-name")); err != nil {
 		t.Fatalf("reading chosen filename: %v", err)
 	}
-	if _, _, err := app.Store.Read(pageFile("ai/new")); err == nil {
+	if _, _, err := app.Store.Read(wiki.PageFile("ai/new")); err == nil {
 		t.Fatal("placeholder filename should not remain")
 	}
 }
@@ -230,7 +232,7 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	nsCfg, err := wiki.NamespaceConfig{Index: defaultIndexPage}.Encode()
+	nsCfg, err := wiki.NamespaceConfig{Index: store.DefaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
 	}
@@ -243,24 +245,24 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 	}
 	app.SetNamespaces(reg)
 
-	hash, err := app.Store.Save(pageFile(testNS+"/mover"), Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}.Encode(), "Add mover", "test", "test@hmd.local")
+	hash, err := app.Store.Save(wiki.PageFile(testNS+"/mover"), wiki.Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}.Encode(), "Add mover", "test", "test@hmd.local")
 	if err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
-	if err := app.Index.Update(Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}); err != nil {
+	if err := app.Index.Update(wiki.Page{Slug: testNS + "/mover", Title: "Mover", Body: "body"}); err != nil {
 		t.Fatalf("indexing page: %v", err)
 	}
 
 	save := func(newSlug, basehash string) *http.Response {
 		t.Helper()
-		resp, err := client.PostForm(server.URL+"/"+testNS+"/mover?do=save", url.Values{
+		resp, err := postPageSave(t, client, server, testNS+"/mover", url.Values{
 			"new_slug": {newSlug},
 			"title":    {"Mover"},
 			"body":     {"body"},
 			"basehash": {basehash},
 		})
 		if err != nil {
-			t.Fatalf("POST ?do=save: %v", err)
+			t.Fatalf("POST save: %v", err)
 		}
 		closeTestBody(t, resp.Body)
 		return resp
@@ -271,13 +273,13 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 	}
 
 	resp := save("archive/mover", hash)
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/archive/mover" {
-		t.Fatalf("move: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("move: status = %d, want 200", resp.StatusCode)
 	}
-	if _, _, err := app.Store.Read(pageFile("archive/mover")); err != nil {
+	if _, _, err := app.Store.Read(wiki.PageFile("archive/mover")); err != nil {
 		t.Fatalf("reading moved page: %v", err)
 	}
-	if _, _, err := app.Store.Read(pageFile(testNS + "/mover")); err == nil {
+	if _, _, err := app.Store.Read(wiki.PageFile(testNS + "/mover")); err == nil {
 		t.Fatal("page should not remain at its source path")
 	}
 	if app.Index.Exists(testNS + "/mover") {
@@ -324,7 +326,7 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 		t.Error("404 body has no app chrome")
 	}
 
-	seedPage(t, app, Page{Slug: testNS + "/secret", Title: "Secret", Body: "shh"})
+	seedPage(t, app, wiki.Page{Slug: testNS + "/secret", Title: "Secret", Body: "shh"})
 	anon := noAuthClient()
 	get := func(path string) string {
 		t.Helper()
@@ -351,8 +353,8 @@ func TestPageNamedEditIsReachable(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: testNS + "/edit", Title: "edit", Body: "a page named edit"}
-	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
+	page := wiki.Page{Slug: testNS + "/edit", Title: "edit", Body: "a page named edit"}
+	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
 	if err := app.Index.Update(page); err != nil {
@@ -398,8 +400,8 @@ func TestNoBrokenLinksSmoke(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: testNS + "/smoke-page", Title: "Smoke Page", Tags: []string{"smoke"}, Body: "links to [[notes]]"}
-	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
+	page := wiki.Page{Slug: testNS + "/smoke-page", Title: "Smoke Page", Tags: []string{"smoke"}, Body: "links to [[notes]]"}
+	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
 	if err := app.Index.Update(page); err != nil {

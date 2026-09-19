@@ -1,13 +1,14 @@
 package auth
 
 import (
-	appconfig "hmd/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	appconfig "hmd/internal/config"
 )
 
 type Config = appconfig.Config

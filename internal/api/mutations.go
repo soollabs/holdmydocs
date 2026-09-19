@@ -511,16 +511,21 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 	return result, nil
 }
 
-// DeletePage removes one page and drops it from the derived index.
-func (a *API) DeletePage(ctx context.Context, slug string) (*Mutation, error) {
+// DeletePage removes one page from the normal or hidden tree and drops it from
+// the derived index.
+func (a *API) DeletePage(ctx context.Context, slug string, hidden bool) (*Mutation, error) {
 	if !wiki.ValidPageSlug(slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
+	file := wiki.PageFile(slug)
+	if hidden {
+		file = wiki.HiddenFile(slug)
+	}
 	name, email := a.Author(ctx)
-	if err := a.store.Remove(wiki.PageFile(slug), "Delete "+slug, name, email); err != nil {
+	if err := a.store.Remove(file, "Delete "+slug, name, email); err != nil {
 		return nil, Unavailable("deleting page", err)
 	}
 	a.removeFromIndex(slug)

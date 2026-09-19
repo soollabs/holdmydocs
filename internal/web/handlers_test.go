@@ -2,11 +2,8 @@ package web
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"hmd/internal/api"
-	"hmd/internal/wiki"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -21,15 +18,23 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"hmd/internal/api"
+	"hmd/internal/auth"
+	"hmd/internal/config"
+	"hmd/internal/httpapi"
+	"hmd/internal/httpmiddleware"
+	"hmd/internal/search"
+	"hmd/internal/store"
+	"hmd/internal/wiki"
 )
 
 const testNS = "notes"
-const testHome = testNS + "/" + defaultIndexPage
+const testHome = testNS + "/" + store.DefaultIndexPage
 
 type csrfTestTransport struct {
 	base http.RoundTripper
 	jar  http.CookieJar
-	auth *Auth
+	auth *auth.Auth
 }
 
 func (t csrfTestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -77,8 +82,51 @@ func closeTestBody(t *testing.T, closer io.Closer) {
 	}
 }
 
+// postJSON sends a JSON body to the composed test server, mirroring how the
+// browser JavaScript calls the httpapi mutation surface.
+func postJSON(t *testing.T, client *http.Client, url string, body any) (*http.Response, error) {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshalling JSON body for %s: %v", url, err)
+	}
+	return client.Post(url, "application/json", bytes.NewReader(raw))
+}
+
+// postPageSave saves a page through the JSON mutation endpoint, converting the
+// form values the retired ?do=save route accepted.
+func postPageSave(t *testing.T, client *http.Client, server *httptest.Server, slug string, form url.Values) (*http.Response, error) {
+	t.Helper()
+	return postJSON(t, client, server.URL+"/_/api/pages/"+slug, map[string]any{
+		"title":     form.Get("title"),
+		"body":      form.Get("body"),
+		"tags":      wiki.ParseTags(form.Get("tags")),
+		"new_slug":  form.Get("new_slug"),
+		"base_hash": form.Get("basehash"),
+		"hidden":    form.Get("hidden") == "on",
+	})
+}
+
+// postPageRevert restores a revision through the JSON mutation endpoint.
+func postPageRevert(t *testing.T, client *http.Client, server *httptest.Server, slug, hash string) (*http.Response, error) {
+	t.Helper()
+	return postJSON(t, client, server.URL+"/_/api/pages/revert/"+slug, map[string]any{"hash": hash})
+}
+
+// postPageTags replaces a page's tags through the JSON mutation endpoint.
+func postPageTags(t *testing.T, client *http.Client, server *httptest.Server, slug, tags string) (*http.Response, error) {
+	t.Helper()
+	return postJSON(t, client, server.URL+"/_/api/pages/tags/"+slug, map[string]any{"tags": wiki.ParseTags(tags)})
+}
+
+// postPageRename retitles a page through the JSON mutation endpoint.
+func postPageRename(t *testing.T, client *http.Client, server *httptest.Server, slug, title string) (*http.Response, error) {
+	t.Helper()
+	return postJSON(t, client, server.URL+"/_/api/pages/rename/"+slug, map[string]any{"title": title})
+}
+
 func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
-	app := &App{}
+	app := &App{API: api.New(nil, nil, nil)}
 	client := app.apiClient()
 	past := time.Now().Add(-time.Second)
 	future := time.Now().Add(time.Minute)
@@ -99,111 +147,45 @@ func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
 	}
 }
 
-func TestCompression(t *testing.T) {
-	body := strings.Repeat("compress me ", 100)
-	handler := compression(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		_, _ = io.WriteString(w, body)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if got := rec.Header().Get("Content-Encoding"); got != "gzip" {
-		t.Fatalf("Content-Encoding = %q, want gzip", got)
-	}
-	reader, err := gzip.NewReader(rec.Body)
-	if err != nil {
-		t.Fatalf("gzip.NewReader: %v", err)
-	}
-	decoded, err := io.ReadAll(reader)
-	closeTestBody(t, reader)
-	if err != nil || string(decoded) != body {
-		t.Fatalf("decoded response = %q, %v", decoded, err)
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Accept-Encoding", "gzip;q=0")
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if got := rec.Header().Get("Content-Encoding"); got != "" {
-		t.Fatalf("disabled gzip Content-Encoding = %q", got)
-	}
+// testHandler assembles the browser mux exactly as the composition root does,
+// mounting the httpapi JSON surface alongside the browser routes, then wraps
+// the shared middleware. It lets package tests exercise the adapter boundary
+// end to end.
+func testHandler(app *App) http.Handler {
+	mux := http.NewServeMux()
+	httpapi.New(app.API, httpapi.Options{
+		Renderer:         app.Render,
+		DocumentsEnabled: app.API.DocumentsEnabled(),
+	}).Register(mux)
+	mux.Handle("/", app.Routes())
+	return httpmiddleware.SecurityHeaders(app.Auth.Middleware(mux))
 }
 
-func TestRequestSecurity(t *testing.T) {
-	auth, err := OpenAuth(Config{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, ok := auth.Login("admin", "password12345")
-	if !ok {
-		t.Fatal("login failed")
-	}
-	token := auth.CSRFToken(session)
-	app := &App{Auth: auth}
-	app.SetConfig(Config{BaseURL: "https://wiki.example.com", TrustedProxies: []string{"10.0.0.0/8"}})
-	called := 0
-	handler := app.requestSecurity(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called++ }))
-
-	request := func(origin, csrf string) *http.Request {
-		r := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+csrf))
-		r.Host = "wiki.example.com"
-		r.Header.Set("Origin", origin)
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		r.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
-		return r
-	}
-	for _, tc := range []struct{ origin, token string }{{"https://evil.example", token}, {"https://wiki.example.com", "wrong"}, {"", token}} {
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, request(tc.origin, tc.token))
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("origin=%q token=%q status=%d, want 403", tc.origin, tc.token, rec.Code)
-		}
-	}
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, request("https://wiki.example.com", token))
-	if rec.Code != http.StatusOK || called != 1 {
-		t.Fatalf("valid CSRF status/calls = %d/%d, want 200/1", rec.Code, called)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "http://wiki.example.com/", nil)
-	req.RemoteAddr = "192.0.2.1:1234"
-	req.Header.Set("X-Forwarded-Proto", "https")
-	if app.isSecureRequest(req) {
-		t.Fatal("untrusted forwarded proto marked request secure")
-	}
-	if !app.secureCookie(req) {
-		t.Fatal("HTTPS base_url did not enforce Secure cookies")
-	}
-	req.RemoteAddr = "10.1.2.3:1234"
-	if !app.isSecureRequest(req) {
-		t.Fatal("trusted forwarded proto did not mark request secure")
-	}
-	app.SetConfig(Config{BaseURL: "http://wiki.example.com"})
-	req.RemoteAddr = "192.0.2.1:1234"
-	if app.secureCookie(req) {
-		t.Fatal("plain HTTP deployment unexpectedly enforced Secure cookies")
-	}
+// testApp is the package-test fixture: the browser App plus the raw
+// persistence and index handles so tests can seed a repository directly,
+// then exercise the App through the application api.
+type testApp struct {
+	*App
+	Store *store.Store
+	Index *search.Index
 }
 
-func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
+func newTestAppFull(t *testing.T) (*testApp, *httptest.Server, *http.Client) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
 
-	cfg := Config{
+	cfg := config.Config{
 		ConfigFile: filepath.Join(appDir, "config.yaml"),
 		RepoDir:    repoDir,
 		AppDir:     appDir,
-		Git:        GitConfig{User: "test"},
+		Git:        config.GitConfig{User: "test"},
 		AdminUser:  "admin",
 		AdminPass:  "password12345",
 	}
 
 	if path := os.Getenv("HMD_CONFIG_FILE"); path != "" {
 		cfg.ConfigFile = path
-		if loaded, err := LoadConfig(); err == nil {
+		if loaded, err := config.LoadConfig(); err == nil {
 			loaded.RepoDir = repoDir
 			loaded.AppDir = appDir
 			loaded.AdminUser = "admin"
@@ -212,43 +194,43 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		}
 	}
 
-	store, err := OpenStore(cfg)
+	repo, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
 
-	nsCfg, err := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: defaultIndexPage}.Encode()
+	nsCfg, err := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: store.DefaultIndexPage}.Encode()
 	if err != nil {
 		t.Fatalf("encoding namespace config: %v", err)
 	}
-	if _, err := store.Save(wiki.NamespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := repo.Save(wiki.NamespaceConfigPath(testNS), nsCfg, "Configure namespace "+testNS, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding namespace config: %v", err)
 	}
-	if _, err := store.Save(pageFile(testHome), Page{Slug: testHome, Title: testNS, Body: defaultHomeMD}.Encode(), "Add "+testHome, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := repo.Save(wiki.PageFile(testHome), wiki.Page{Slug: testHome, Title: testNS, Body: store.DefaultHomeMD}.Encode(), "Add "+testHome, cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding index page: %v", err)
 	}
-	if _, err := store.Save(".help.md", Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode(), "Add .help.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := repo.Save(".help.md", wiki.Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: store.DefaultHelpMD}.Encode(), "Add .help.md", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding .help.md: %v", err)
 	}
-	wikiData, err := (WikiConfig{Landing: testNS + "/"}).Encode()
+	wikiData, err := (wiki.WikiConfig{Landing: testNS + "/"}).Encode()
 	if err != nil {
 		t.Fatalf("encoding wiki config: %v", err)
 	}
-	if _, err := store.Save(wikiConfigFile, wikiData, "Configure wiki settings", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
+	if _, err := repo.Save(wiki.ConfigFile, wikiData, "Configure wiki settings", cfg.Git.User, cfg.Git.User+"@hmd.local"); err != nil {
 		t.Fatalf("seeding wiki config: %v", err)
 	}
-	store.NeedsSetup.Store(false)
+	repo.NeedsSetup.Store(false)
 
-	pages, _ := store.List()
-	var pageObjs []Page
+	pages, _ := repo.List()
+	var pageObjs []wiki.Page
 	for _, p := range pages {
-		content, _, _ := store.Read(p)
-		pageObjs = append(pageObjs, ParsePage(p[:len(p)-3], content))
+		content, _, _ := repo.Read(p)
+		pageObjs = append(pageObjs, wiki.ParsePage(p[:len(p)-3], content))
 	}
 
-	index, _ := BuildIndex(pageObjs)
-	auth, _ := OpenAuth(cfg)
-	renderer := NewRenderer(index.ResolveLink)
+	index, _ := search.BuildIndex(pageObjs)
+	authn, _ := OpenAuth(cfg)
+	renderer := wiki.NewRenderer(index.ResolveLink)
 
 	tmpl, err := parseTemplates()
 	if err != nil {
@@ -260,18 +242,16 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
-	app := &App{
-		Store:  store,
-		Auth:   auth,
-		Index:  index,
-		Render: renderer,
-		Tmpl:   tmpl,
+	env := &testApp{
+		App:   &App{API: api.New(repo, index, authn), Auth: authn, Render: renderer, Tmpl: tmpl},
+		Store: repo,
+		Index: index,
 	}
-	app.SetConfig(cfg)
-	app.SetWikiConfig(WikiConfig{Landing: testNS + "/"})
-	app.SetNamespaces(namespaces)
+	env.SetConfig(cfg)
+	env.SetWikiConfig(wiki.WikiConfig{Landing: testNS + "/"})
+	env.SetNamespaces(namespaces)
 
-	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
+	server := httptest.NewServer(testHandler(env.App))
 
 	jar, _ := cookiejar.New(&cookiejar.Options{})
 	client := &http.Client{
@@ -279,7 +259,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		Transport: csrfTestTransport{
 			base: http.DefaultTransport,
 			jar:  jar,
-			auth: auth,
+			auth: authn,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -296,7 +276,7 @@ func newTestAppFull(t *testing.T) (*App, *httptest.Server, *http.Client) {
 		t.Fatalf("login request failed: %v", err)
 	}
 
-	return app, server, client
+	return env, server, client
 }
 
 func TestViewHome(t *testing.T) {
@@ -397,7 +377,7 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		"body":     {"This is a test page."},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err = postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -407,8 +387,8 @@ func TestEditSaveRoundTrip(t *testing.T) {
 		}
 	}()
 
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Save status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Save status = %d, want 200", resp.StatusCode)
 	}
 
 	resp, err = client.Get(server.URL + "/" + slug)
@@ -449,7 +429,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 		"body":     {"First version"},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err = postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -462,7 +442,7 @@ func TestOptimisticLockConflict(t *testing.T) {
 		"body":     {"Second version"},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm2)
+	resp, err = postPageSave(t, client, server, slug, saveForm2)
 	if err != nil {
 		t.Fatalf("POST save2 failed: %v", err)
 	}
@@ -477,63 +457,20 @@ func TestOptimisticLockConflict(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("overwrite")) {
-		t.Errorf("Conflict page should have overwrite button")
+	var conflict struct {
+		Error    string `json:"error"`
+		Conflict struct {
+			CurrentHash string `json:"current_hash"`
+		} `json:"conflict"`
+	}
+	if err := json.Unmarshal(body, &conflict); err != nil {
+		t.Fatalf("conflict response is not JSON: %v (%s)", err, body)
+	}
+	if conflict.Conflict.CurrentHash == "" {
+		t.Errorf("conflict response should carry the current hash: %s", body)
 	}
 }
 
-func TestPreview(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	previewForm := url.Values{
-		"body": {"**bold**"},
-	}
-	resp, err := client.PostForm(server.URL+"/_/api/preview", previewForm)
-	if err != nil {
-		t.Fatalf("POST preview failed: %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing preview response body: %v", err)
-		}
-	}()
-
-	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("<strong>")) {
-		t.Errorf("Preview should render bold as <strong>")
-	}
-}
-
-func TestAPIsRejectRootPageSlugs(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	for _, tc := range []struct {
-		method string
-		path   string
-		want   int
-	}{
-		{http.MethodGet, "/_/api/preview/readme", http.StatusNotFound},
-		{http.MethodPost, "/_/api/attachments/readme", http.StatusBadRequest},
-		{http.MethodGet, "/_/attachments/readme/file.png", http.StatusNotFound},
-	} {
-		req, err := http.NewRequest(tc.method, server.URL+tc.path, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
-		}
-		closeTestBody(t, resp.Body)
-		if resp.StatusCode != tc.want {
-			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, resp.StatusCode, tc.want)
-		}
-	}
-}
-
-// TestUnauthenticatedAccess covers anonymous access behavior.
 func TestUnauthenticatedAccess(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
@@ -713,11 +650,11 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 	}
 
 	source := []byte("source text")
-	sidecar, _, err := app.Store.Read(extractedAttachmentPath("attachments/" + testHome + "/source.txt"))
+	sidecar, _, err := app.Store.Read(search.ExtractedAttachmentPath("attachments/" + testHome + "/source.txt"))
 	if err != nil {
 		t.Fatalf("reading extracted sidecar: %v", err)
 	}
-	if text, ok := decodeExtractedAttachment(attachmentBlobHash(source), sidecar); !ok || text != "source text" {
+	if text, ok := search.DecodeExtractedAttachment(search.AttachmentBlobHash(source), sidecar); !ok || text != "source text" {
 		t.Fatalf("extracted sidecar = %q, valid = %v", text, ok)
 	}
 	attachments, err := app.Store.ListAttachments()
@@ -831,7 +768,7 @@ func TestSearchPage(t *testing.T) {
 		"body":     {"This contains uniquewordxyz for searching."},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err := postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -862,7 +799,7 @@ func TestBacklinksShown(t *testing.T) {
 		"body":     {"This links to [[Page Two]]"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/"+testNS+"/page-one?do=save", saveForm)
+	resp, err := postPageSave(t, client, server, testNS+"/page-one", saveForm)
 	if err != nil {
 		t.Fatalf("POST one failed: %v", err)
 	}
@@ -873,7 +810,7 @@ func TestBacklinksShown(t *testing.T) {
 		"body":     {"This is page two."},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/"+testNS+"/page-two?do=save", saveForm)
+	resp, err = postPageSave(t, client, server, testNS+"/page-two", saveForm)
 	if err != nil {
 		t.Fatalf("POST two failed: %v", err)
 	}
@@ -906,7 +843,7 @@ func TestHistoryListAndRevert(t *testing.T) {
 		"body":     {"Version one"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err := postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
@@ -917,7 +854,7 @@ func TestHistoryListAndRevert(t *testing.T) {
 		"body":     {"Version two"},
 		"basehash": {""},
 	}
-	resp, err = client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err = postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST v2 failed: %v", err)
 	}
@@ -951,7 +888,7 @@ func TestRevertToOldVersion(t *testing.T) {
 		"body":     {"Original content"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
+	resp, err := postPageSave(t, client, server, slug, saveForm)
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
@@ -982,7 +919,7 @@ func TestPageChrome(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
-		`src="/_/static/app.js?v=4"`,
+		`src="/_/static/app.js?v=6"`,
 		`class="app-topbar"`,
 		`class="sidebar"`,
 		`action="/_/logout"`,
@@ -1025,7 +962,7 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/"+testNS+"/mermaid-test?do=save", url.Values{
+	resp, err := postPageSave(t, client, server, testNS+"/mermaid-test", url.Values{
 		"title":    {"Mermaid Test"},
 		"body":     {"```mermaid\ngraph TD;\n  A-->B\n```\n"},
 		"tags":     {""},
@@ -1091,9 +1028,7 @@ func TestTagBrowsePages(t *testing.T) {
 		"tags":     {"go, wiki"},
 		"basehash": {""},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/"+testNS+"/tagged?do=save", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postPageSave(t, client, server, testNS+"/tagged", form)
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
@@ -1130,9 +1065,7 @@ func TestTagsOnEditAndView(t *testing.T) {
 		"tags":     {"go, wiki"},
 		"basehash": {""},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/"+testNS+"/tagged?do=save", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postPageSave(t, client, server, testNS+"/tagged", form)
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
@@ -1169,7 +1102,7 @@ func TestTitleEscaped(t *testing.T) {
 		"body":     {"content"},
 		"basehash": {""},
 	}
-	resp, err := client.PostForm(server.URL+"/"+testNS+"/xss-test?do=save", saveForm)
+	resp, err := postPageSave(t, client, server, testNS+"/xss-test", saveForm)
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
@@ -1187,129 +1120,17 @@ func TestTitleEscaped(t *testing.T) {
 	}
 }
 
-func TestSearchAPI(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	slug := testNS + "/api-search-test"
-	saveForm := url.Values{
-		"title":    {"API Search Test"},
-		"body":     {"This contains uniquetestword for API search."},
-		"basehash": {""},
-	}
-	resp, err := client.PostForm(server.URL+"/"+slug+"?do=save", saveForm)
-	if err != nil {
-		t.Fatalf("POST save failed: %v", err)
-	}
-	closeTestBody(t, resp.Body)
-
-	resp, err = client.Get(server.URL + "/_/api/search?q=uniquetestword")
-	if err != nil {
-		t.Fatalf("GET api/search failed: %v", err)
-	}
-	defer closeTestBody(t, resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("API search status = %d, want 200", resp.StatusCode)
-	}
-
-	var results []AutocompleteResult
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		t.Fatalf("Failed to decode JSON: %v", err)
-	}
-
-	if len(results) != 1 || results[0].Slug != slug {
-		t.Errorf("API search results = %+v, want one result with slug %q", results, slug)
-	}
-	if results[0].Title != "API Search Test" {
-		t.Errorf("API search title = %q, want %q", results[0].Title, "API Search Test")
-	}
-}
-
-func TestHealthAPI(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	saveForm := url.Values{"title": {"Dangling"}, "body": {"see [[nowhere]]"}, "basehash": {""}}
-	resp, err := client.PostForm(server.URL+"/blog/dangling?do=save", saveForm)
-	if err != nil {
-		t.Fatalf("POST save failed: %v", err)
-	}
-	closeTestBody(t, resp.Body)
-
-	nsForm := url.Values{"title": {"Dangling"}, "body": {"see [[nowhere]]"}, "basehash": {""}}
-	resp, err = client.PostForm(server.URL+"/notes/dangling?do=save", nsForm)
-	if err != nil {
-		t.Fatalf("POST namespaced save failed: %v", err)
-	}
-	closeTestBody(t, resp.Body)
-
-	resp, err = client.Get(server.URL + "/_/api/health")
-	if err != nil {
-		t.Fatalf("GET api/health failed: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("api/health status = %d, want 200", resp.StatusCode)
-	}
-	var report HealthReport
-	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
-		t.Fatalf("decoding health JSON: %v", err)
-	}
-	closeTestBody(t, resp.Body)
-	if len(report.Missing) != 2 {
-		t.Errorf("unscoped missing = %+v, want 2 entries", report.Missing)
-	}
-
-	resp, err = client.Get(server.URL + "/_/api/health?namespace=notes")
-	if err != nil {
-		t.Fatalf("GET api/health?namespace=notes failed: %v", err)
-	}
-	defer closeTestBody(t, resp.Body)
-	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
-		t.Fatalf("decoding scoped health JSON: %v", err)
-	}
-	if len(report.Missing) != 1 || report.Missing[0].Slug != "notes/nowhere" {
-		t.Errorf("scoped missing = %+v, want [notes/nowhere]", report.Missing)
-	}
-}
-
-func TestSyncAPI(t *testing.T) {
-	server, client := newTestApp(t)
-	defer server.Close()
-
-	resp, err := client.Get(server.URL + "/_/api/sync")
-	if err != nil {
-		t.Fatalf("GET api/sync failed: %v", err)
-	}
-	defer closeTestBody(t, resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("API sync status = %d, want 200", resp.StatusCode)
-	}
-
-	var status SyncStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
-		t.Fatalf("Failed to decode JSON: %v", err)
-	}
-	if status.State == "" {
-		t.Errorf("API sync state = %q, want non-empty", status.State)
-	}
-	if status.At == "" {
-		t.Errorf("API sync at = %q, want non-empty", status.At)
-	}
-}
-
 func TestAppConfigPointer(t *testing.T) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
-	cfg := Config{RepoDir: repoDir, AppDir: appDir, Git: GitConfig{User: "test"}}
-	store, err := OpenStore(cfg)
+	cfg := config.Config{RepoDir: repoDir, AppDir: appDir, Git: config.GitConfig{User: "test"}}
+	repo, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	auth, _ := OpenAuth(cfg)
-	index, _ := BuildIndex(nil)
-	renderer := NewRenderer(index.ResolveLink)
+	authn, _ := OpenAuth(cfg)
+	index, _ := search.BuildIndex(nil)
+	renderer := wiki.NewRenderer(index.ResolveLink)
 	tmpl, err := parseTemplates()
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
@@ -1319,15 +1140,9 @@ func TestAppConfigPointer(t *testing.T) {
 		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
-	app := &App{
-		Store:  store,
-		Auth:   auth,
-		Index:  index,
-		Render: renderer,
-		Tmpl:   tmpl,
-	}
+	app := &App{API: api.New(repo, index, authn), Auth: authn, Render: renderer, Tmpl: tmpl}
 	app.SetConfig(cfg)
-	app.SetWikiConfig(WikiConfig{SiteName: "TestWiki"})
+	app.SetWikiConfig(wiki.WikiConfig{SiteName: "TestWiki"})
 	app.SetNamespaces(namespaces)
 
 	got := app.wikiConfig()
@@ -1335,7 +1150,7 @@ func TestAppConfigPointer(t *testing.T) {
 		t.Errorf("wikiConfig().SiteName = %q, want %q", got.SiteName, "TestWiki")
 	}
 
-	app.SetWikiConfig(WikiConfig{SiteName: "Changed"})
+	app.SetWikiConfig(wiki.WikiConfig{SiteName: "Changed"})
 	got2 := app.wikiConfig()
 	if got2.SiteName != "Changed" {
 		t.Errorf("after swap, wikiConfig().SiteName = %q, want %q", got2.SiteName, "Changed")
@@ -1343,15 +1158,15 @@ func TestAppConfigPointer(t *testing.T) {
 }
 
 func TestBuildSettingsDataEditable(t *testing.T) {
-	cfg := Config{
+	cfg := config.Config{
 		ConfigFile: "/path/config.yaml",
 		Bind:       ":8080",
 		RepoDir:    "/data/repo",
 		AppDir:     "/data/app",
-		Git:        GitConfig{RemoteURL: "https://example.com/repo.git", User: "hmd", Token: "secret"},
+		Git:        config.GitConfig{RemoteURL: "https://example.com/repo.git", User: "hmd", Token: "secret"},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, auth.UserRecord{})
 
 	if !sd.Fields["Bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
@@ -1383,18 +1198,18 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 }
 
 func TestBuildSettingsDataEnvLocked(t *testing.T) {
-	cfg := Config{
+	cfg := config.Config{
 		ConfigFile: "/path/config.yaml",
 		Bind:       ":9999",
 		RepoDir:    "/data/repo",
 		AppDir:     "/data/app",
-		Git:        GitConfig{User: "hmd"},
+		Git:        config.GitConfig{User: "hmd"},
 		EnvOverrides: map[string]string{
 			"Bind": "HMD_BIND",
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, auth.UserRecord{})
 
 	if sd.Fields["Bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
@@ -1405,9 +1220,9 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 }
 
 func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
-	cfg := Config{
+	cfg := config.Config{
 		ConfigFile: "/path/config.yaml",
-		Git:        GitConfig{Token: "file-token", User: "hmd"},
+		Git:        config.GitConfig{Token: "file-token", User: "hmd"},
 		RepoDir:    "/data/repo",
 		AppDir:     "/data/app",
 		EnvOverrides: map[string]string{
@@ -1415,7 +1230,7 @@ func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
 		},
 	}
 
-	sd := buildSettingsData(cfg, userRecord{})
+	sd := buildSettingsData(cfg, auth.UserRecord{})
 
 	if sd.Fields["GitToken"].Editable {
 		t.Error("GitToken should be read-only when token file is set")
@@ -1475,19 +1290,17 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
-		t.Fatalf("POST /admin failed: %v", err)
+		t.Fatalf("POST settings failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
-	loaded, err := LoadFileConfig(cfgFile)
+	loaded, err := config.LoadFileConfig(cfgFile)
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
@@ -1500,24 +1313,21 @@ func TestWikiSettingsPostSavesPortableConfig(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/_/settings/wiki", url.Values{
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/wiki", wikiConfigJSON(url.Values{
 		"site_name": {"Shared Wiki"},
 		"landing":   {"notes/"},
-	})
+	}))
 	if err != nil {
-		t.Fatalf("POST /_/settings/wiki: %v", err)
+		t.Fatalf("POST /_/api/settings/wiki: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	if got := resp.Header.Get("Location"); got != "/_/admin?wiki-saved=1" {
-		t.Errorf("redirect = %q, want wiki settings confirmation", got)
-	}
-	if got := app.wikiConfig(); got != (WikiConfig{Landing: "notes/", SiteName: "Shared Wiki"}) {
+	if got := app.wikiConfig(); got != (wiki.WikiConfig{Landing: "notes/", SiteName: "Shared Wiki"}) {
 		t.Errorf("runtime wiki config = %#v", got)
 	}
-	stored, exists, err := LoadWikiConfig(app.config().RepoDir)
+	stored, exists, err := wiki.LoadWikiConfig(app.config().RepoDir)
 	if err != nil {
 		t.Fatalf("LoadWikiConfig: %v", err)
 	}
@@ -1530,7 +1340,7 @@ func TestWikiSettingsPostSavesPortableConfig(t *testing.T) {
 	}
 	defer closeTestBody(t, admin.Body)
 	body, _ := io.ReadAll(admin.Body)
-	if !bytes.Contains(body, []byte(`action="/_/settings/wiki"`)) || !bytes.Contains(body, []byte("Travels with the content repository")) {
+	if !bytes.Contains(body, []byte(`action="/_/api/settings/wiki"`)) || !bytes.Contains(body, []byte("Travels with the content repository")) {
 		t.Errorf("admin page should distinguish repository settings, body: %s", body)
 	}
 }
@@ -1557,11 +1367,9 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
-		t.Fatalf("POST /admin failed: %v", err)
+		t.Fatalf("POST settings failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 
@@ -1579,15 +1387,13 @@ func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.
 		"font_mono":         {"courier"},
 		"show_tags_sidebar": {"on"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(form))
 	if err != nil {
-		t.Fatalf("POST /_/settings/appearance failed: %v", err)
+		t.Fatalf("POST appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
 	resp2, err := client.Get(server.URL + "/_/settings")
@@ -1613,11 +1419,9 @@ func TestSettingsAppearancePostRejectsUnknownFont(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"font_ui": {"comic-sans"}}
-	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(form))
 	if err != nil {
-		t.Fatalf("POST /_/settings/appearance failed: %v", err)
+		t.Fatalf("POST appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -1639,17 +1443,17 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("setup modal should not appear before re-run is clicked, body: %s", body)
 	}
 
-	resp2, err := client.PostForm(server.URL+"/_/settings/setup", url.Values{})
+	resp2, err := postJSON(t, client, server.URL+"/_/api/settings/setup", emptyJSON(url.Values{}))
 	if err != nil {
-		t.Fatalf("POST /_/settings/setup failed: %v", err)
+		t.Fatalf("POST /_/api/settings/setup failed: %v", err)
 	}
 	defer func() {
 		if err := resp2.Body.Close(); err != nil {
 			t.Errorf("closing setup response body: %v", err)
 		}
 	}()
-	if resp2.StatusCode != http.StatusSeeOther {
-		t.Errorf("re-run setup status = %d, want 303", resp2.StatusCode)
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("re-run setup status = %d, want 200", resp2.StatusCode)
 	}
 
 	resp3, err := client.Get(server.URL + "/_/settings")
@@ -1669,7 +1473,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 		t.Errorf("re-run modal should offer both the namespace and help items, body: %s", body3)
 	}
 
-	resp4, err := client.PostForm(server.URL+"/_/setup", url.Values{"action": {"skip"}})
+	resp4, err := postJSON(t, client, server.URL+"/_/api/setup", setupJSON(url.Values{"action": {"skip"}}))
 	if err != nil {
 		t.Fatalf("POST /setup skip failed: %v", err)
 	}
@@ -1726,17 +1530,15 @@ func TestSettingsFullFlow(t *testing.T) {
 		"sync_poll_ms":     {"10000"},
 		"sync_mode":        {"push"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/_/admin", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp2, err := client.Do(req)
+	resp2, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
-		t.Fatalf("POST /admin failed: %v", err)
+		t.Fatalf("POST settings failed: %v", err)
 	}
 	if err := resp2.Body.Close(); err != nil {
 		t.Fatalf("closing settings response body: %v", err)
 	}
-	if resp2.StatusCode != http.StatusSeeOther {
-		t.Errorf("POST Status = %d, want 303", resp2.StatusCode)
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("POST Status = %d, want 200", resp2.StatusCode)
 	}
 
 	resp3, err := client.Get(server.URL + "/_/admin?saved=1")
@@ -1751,7 +1553,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Errorf("After save, should show updated bind value")
 	}
 
-	loaded, err := LoadFileConfig(cfgFile)
+	loaded, err := config.LoadFileConfig(cfgFile)
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
@@ -1777,16 +1579,16 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/_/settings/export", url.Values{})
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/export", emptyJSON(url.Values{}))
 	if err != nil {
-		t.Fatalf("POST /_/settings/export failed: %v", err)
+		t.Fatalf("POST /_/api/settings/export failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
-	loaded, err := LoadFileConfig(cfgFile)
+	loaded, err := config.LoadFileConfig(cfgFile)
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
@@ -1802,8 +1604,8 @@ func TestConfigExportOmitsResolvedTokenWhenTokenFileSet(t *testing.T) {
 		t.Fatalf("failed to write token file: %v", err)
 	}
 
-	cfg := Config{
-		Git: GitConfig{TokenFile: tokenFile, Token: "secret-from-file"},
+	cfg := config.Config{
+		Git: config.GitConfig{TokenFile: tokenFile, Token: "secret-from-file"},
 	}
 
 	fc := cfg.ToFileConfig()
@@ -1815,8 +1617,14 @@ func TestConfigExportOmitsResolvedTokenWhenTokenFileSet(t *testing.T) {
 	}
 }
 
+// injectTOC builds a browser App over the given index so table-of-contents
+// tests exercise the application api path used in production.
+func injectTOC(body string, ix *search.Index, indexSlug, ns string) string {
+	return (&App{API: api.New(nil, ix, nil)}).injectTOC(body, indexSlug, ns)
+}
+
 func TestInjectTOC(t *testing.T) {
-	pages := []Page{
+	pages := []wiki.Page{
 		{Slug: "notes/readme", Title: "Home"},
 		{Slug: "notes/alpha", Title: "Alpha"},
 		{Slug: "notes/beta", Title: "Beta"},
@@ -1824,7 +1632,7 @@ func TestInjectTOC(t *testing.T) {
 		{Slug: "notes/delta", Title: "Delta", Tags: []string{"meta"}},
 		{Slug: "notes/epsilon", Title: "Epsilon", Tags: []string{"guide"}},
 	}
-	ix, _ := BuildIndex(pages)
+	ix, _ := search.BuildIndex(pages)
 	const index = "notes/readme"
 
 	t.Run("all pages token excludes the namespace index", func(t *testing.T) {
@@ -1860,7 +1668,7 @@ func TestInjectTOC(t *testing.T) {
 	})
 
 	t.Run("empty index", func(t *testing.T) {
-		empty, _ := BuildIndex(nil)
+		empty, _ := search.BuildIndex(nil)
 		out := injectTOC("<!-- hmd:toc -->", empty, index, "notes")
 		if out != "" {
 			t.Errorf("injectTOC on empty index = %q, want empty", out)
@@ -1868,13 +1676,13 @@ func TestInjectTOC(t *testing.T) {
 	})
 
 	t.Run("scoped to namespace, excludes other namespaces", func(t *testing.T) {
-		nsPages := []Page{
+		nsPages := []wiki.Page{
 			{Slug: "blog/readme", Title: "Blog Home"},
 			{Slug: "blog/alpha", Title: "Blog Alpha"},
 			{Slug: "blog/beta", Title: "Blog Beta", Tags: []string{"meta"}},
 			{Slug: "notes/2026-07-31", Title: "Notes Entry", Tags: []string{"meta"}},
 		}
-		nsIx, _ := BuildIndex(nsPages)
+		nsIx, _ := search.BuildIndex(nsPages)
 
 		out := injectTOC("<!-- hmd:toc -->", nsIx, "blog/readme", "blog")
 		want := "- [[Blog Alpha]]\n- [[Blog Beta]]\n"
@@ -1900,7 +1708,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/"+testNS+"/alpha?do=save", url.Values{
+	resp, err := postPageSave(t, client, server, testNS+"/alpha", url.Values{
 		"title":    {"Alpha"},
 		"body":     {"Alpha body"},
 		"tags":     {"meta"},
@@ -1925,7 +1733,7 @@ func TestTOCRenderedOnHome(t *testing.T) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
 
-	resp, err = client.PostForm(server.URL+"/"+testNS+"/toc-test?do=save", url.Values{
+	resp, err = postPageSave(t, client, server, testNS+"/toc-test", url.Values{
 		"title":    {"TOC Test"},
 		"body":     {"Pages:\n\n<!-- hmd:toc:meta -->\n"},
 		"tags":     {""},
@@ -2026,11 +1834,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	repoDir := t.TempDir()
 	appDir := t.TempDir()
 
-	repo, err := git.PlainInit(repoDir, false)
+	gitRepo, err := git.PlainInit(repoDir, false)
 	if err != nil {
 		t.Fatalf("git init failed: %v", err)
 	}
-	wt, err := repo.Worktree()
+	wt, err := gitRepo.Worktree()
 	if err != nil {
 		t.Fatalf("worktree failed: %v", err)
 	}
@@ -2047,27 +1855,27 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Fatalf("initial commit failed: %v", err)
 	}
 
-	cfg := Config{
+	cfg := config.Config{
 		RepoDir:   repoDir,
 		AppDir:    appDir,
-		Git:       GitConfig{User: "test"},
+		Git:       config.GitConfig{User: "test"},
 		AdminUser: "admin",
 		AdminPass: "password12345",
 	}
 
-	store, err := OpenStore(cfg)
+	repo, err := OpenStore(cfg)
 	if err != nil {
 		t.Fatalf("OpenStore failed: %v", err)
 	}
-	pages, _ := store.List()
-	var pageObjs []Page
+	pages, _ := repo.List()
+	var pageObjs []wiki.Page
 	for _, p := range pages {
-		content, _, _ := store.Read(p)
-		pageObjs = append(pageObjs, ParsePage(p[:len(p)-3], content))
+		content, _, _ := repo.Read(p)
+		pageObjs = append(pageObjs, wiki.ParsePage(p[:len(p)-3], content))
 	}
-	index, _ := BuildIndex(pageObjs)
-	auth, _ := OpenAuth(cfg)
-	renderer := NewRenderer(index.ResolveLink)
+	index, _ := search.BuildIndex(pageObjs)
+	authn, _ := OpenAuth(cfg)
+	renderer := wiki.NewRenderer(index.ResolveLink)
 	tmpl, err := parseTemplates()
 	if err != nil {
 		t.Fatalf("parseTemplates failed: %v", err)
@@ -2077,17 +1885,15 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Fatalf("api.BuildNamespaceRegistry failed: %v", err)
 	}
 
-	app := &App{
-		Store:  store,
-		Auth:   auth,
-		Index:  index,
-		Render: renderer,
-		Tmpl:   tmpl,
+	env := &testApp{
+		App:   &App{API: api.New(repo, index, authn), Auth: authn, Render: renderer, Tmpl: tmpl},
+		Store: repo,
+		Index: index,
 	}
-	app.SetConfig(cfg)
-	app.SetNamespaces(namespaces)
+	env.SetConfig(cfg)
+	env.SetNamespaces(namespaces)
 
-	server := httptest.NewServer(securityHeaders(app.Auth.Middleware(app.Routes())))
+	server := httptest.NewServer(testHandler(env.App))
 	defer server.Close()
 
 	jar, _ := cookiejar.New(&cookiejar.Options{})
@@ -2127,13 +1933,13 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup modal should appear when NeedsSetup, body: %s", body2)
 	}
 
-	resp3, err := client.PostForm(server.URL+"/_/setup", url.Values{
+	resp3, err := postJSON(t, client, server.URL+"/_/api/setup", setupJSON(url.Values{
 		"action":            {"add"},
 		"setup_wiki":        {"on"},
-		"site_name":         {defaultSiteName},
-		"default_namespace": {newSetupNamespaceOption},
+		"site_name":         {wiki.DefaultSiteName},
+		"default_namespace": {api.NewSetupNamespaceOption},
 		"new_namespace":     {testNS},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /setup failed: %v", err)
 	}
@@ -2142,8 +1948,8 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 			t.Errorf("closing setup response body: %v", err)
 		}
 	}()
-	if resp3.StatusCode != http.StatusSeeOther {
-		t.Errorf("setup status = %d, want 303", resp3.StatusCode)
+	if resp3.StatusCode != http.StatusOK {
+		t.Errorf("setup status = %d, want 200", resp3.StatusCode)
 	}
 
 	resp4, err := client.Get(server.URL + "/" + testHome)
@@ -2177,11 +1983,11 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("setup modal should not appear after setup, body: %s", body5)
 	}
 
-	if landing := app.wikiConfig().Landing; landing != testNS+"/" {
+	if landing := env.wikiConfig().Landing; landing != testNS+"/" {
 		t.Errorf("landing = %q, want %s/", landing, testNS)
 	}
-	if _, _, err := app.Store.Read(wikiConfigFile); err != nil {
-		t.Errorf("%s should be seeded: %v", wikiConfigFile, err)
+	if _, _, err := env.Store.Read(wiki.ConfigFile); err != nil {
+		t.Errorf("%s should be seeded: %v", wiki.ConfigFile, err)
 	}
 	if _, err := os.Stat(filepath.Join(repoDir, "readme.md")); err != nil {
 		t.Errorf("root readme.md should be seeded for the git host front page: %v", err)
@@ -2192,8 +1998,8 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	if err := app.Store.Remove(wikiConfigFile, "Remove wiki config", "test", "test@hmd.local"); err != nil {
-		t.Fatalf("removing %s: %v", wikiConfigFile, err)
+	if err := app.Store.Remove(wiki.ConfigFile, "Remove wiki config", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("removing %s: %v", wiki.ConfigFile, err)
 	}
 	app.Store.NeedsSetup.Store(true)
 
@@ -2209,20 +2015,20 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 		}
 	}
 
-	resp, err = client.PostForm(server.URL+"/_/setup", url.Values{
+	resp, err = postJSON(t, client, server.URL+"/_/api/setup", setupJSON(url.Values{
 		"action":            {"add"},
 		"setup_wiki":        {"on"},
 		"site_name":         {"Detected Wiki"},
 		"default_namespace": {testNS},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST setup: %v", err)
 	}
 	closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("setup status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("setup status = %d, want 200", resp.StatusCode)
 	}
-	if got := app.wikiConfig(); got != (WikiConfig{Landing: testNS + "/", SiteName: "Detected Wiki"}) {
+	if got := app.wikiConfig(); got != (wiki.WikiConfig{Landing: testNS + "/", SiteName: "Detected Wiki"}) {
 		t.Errorf("wiki config = %#v", got)
 	}
 }

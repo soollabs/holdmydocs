@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"hmd/internal/wiki"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +13,10 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	"hmd/internal/api"
+	"hmd/internal/auth"
+	"hmd/internal/config"
+	"hmd/internal/wiki"
 )
 
 func TestOIDCUsernameFallback(t *testing.T) {
@@ -35,97 +38,97 @@ func TestOIDCUsernameFallback(t *testing.T) {
 }
 
 func TestEmptyHashCannotPasswordLogin(t *testing.T) {
-	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	authn, err := OpenAuth(config.Config{AppDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
-	if _, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://idp.example.com", Subject: "sso-user"}, "sso-user", "", []string{"read"}); err != nil {
+	if _, err := authn.EnsureOIDCUser(auth.OIDCIdentity{Issuer: "https://idp.example.com", Subject: "sso-user"}, "sso-user", "", []string{"read"}); err != nil {
 		t.Fatalf("EnsureOIDCUser failed: %v", err)
 	}
 
-	if _, ok := auth.Login("sso-user", ""); ok {
+	if _, ok := authn.Login("sso-user", ""); ok {
 		t.Errorf("empty password login on empty-hash record should fail")
 	}
-	if _, ok := auth.Login("sso-user", "anything"); ok {
+	if _, ok := authn.Login("sso-user", "anything"); ok {
 		t.Errorf("password login on empty-hash record should fail")
 	}
 }
 
 func TestEnsureOIDCUser(t *testing.T) {
-	cfg := Config{AppDir: t.TempDir()}
-	auth, err := OpenAuth(cfg)
+	cfg := config.Config{AppDir: t.TempDir()}
+	authn, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	identity := oidcIdentity{Issuer: "https://idp.example.com", Subject: "alice-id"}
+	identity := auth.OIDCIdentity{Issuer: "https://idp.example.com", Subject: "alice-id"}
 
-	username, err := auth.EnsureOIDCUser(identity, "alice", "Alice <alice@example.com>", []string{"read"})
+	username, err := authn.EnsureOIDCUser(identity, "alice", "Alice <alice@example.com>", []string{"read"})
 	if err != nil {
 		t.Fatalf("first EnsureOIDCUser failed: %v", err)
 	}
 	if username != "alice" {
 		t.Fatalf("username = %q, want alice", username)
 	}
-	if got := auth.AuthorFor("alice"); got != "Alice <alice@example.com>" {
+	if got := authn.AuthorFor("alice"); got != "Alice <alice@example.com>" {
 		t.Errorf("AuthorFor = %q, want claims author", got)
 	}
 
-	if err := auth.SetAuthor("alice", "Custom <me@example.com>"); err != nil {
+	if err := authn.SetAuthor("alice", "Custom <me@example.com>"); err != nil {
 		t.Fatalf("SetAuthor failed: %v", err)
 	}
-	username, err = auth.EnsureOIDCUser(identity, "renamed", "Changed <alice@example.com>", []string{"settings"})
+	username, err = authn.EnsureOIDCUser(identity, "renamed", "Changed <alice@example.com>", []string{"settings"})
 	if err != nil {
 		t.Fatalf("second EnsureOIDCUser failed: %v", err)
 	}
 	if username != "alice" {
 		t.Errorf("returning username = %q, want alice", username)
 	}
-	if got := auth.AuthorFor("alice"); got != "Custom <me@example.com>" {
+	if got := authn.AuthorFor("alice"); got != "Custom <me@example.com>" {
 		t.Errorf("AuthorFor = %q, second login clobbered the user's override", got)
 	}
-	if auth.Prefs("alice").HasScope(scopeSettings) {
+	if authn.Prefs("alice").HasScope(auth.ScopeSettings) {
 		t.Error("returning OIDC login changed the provisioned scopes")
 	}
 
-	auth2, err := OpenAuth(cfg)
+	authn2, err := OpenAuth(cfg)
 	if err != nil {
 		t.Fatalf("second OpenAuth failed: %v", err)
 	}
-	if got := auth2.AuthorFor("alice"); got != "Custom <me@example.com>" {
+	if got := authn2.AuthorFor("alice"); got != "Custom <me@example.com>" {
 		t.Errorf("provisioned record did not persist, AuthorFor = %q", got)
 	}
 }
 
 func TestEnsureOIDCUserRejectsCollisionsAndSeparatesIssuers(t *testing.T) {
-	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	authn, err := OpenAuth(config.Config{AppDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.AddUser("admin", "password12345"); err != nil {
+	if err := authn.AddUser("admin", "password12345"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://idp.example.com", Subject: "admin"}, "admin", "", []string{"read"}); err == nil {
+	if _, err := authn.EnsureOIDCUser(auth.OIDCIdentity{Issuer: "https://idp.example.com", Subject: "admin"}, "admin", "", []string{"read"}); err == nil {
 		t.Error("OIDC username collision with local admin was accepted")
 	}
-	first, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://one.example.com", Subject: "same"}, "one", "", []string{"read"})
+	first, err := authn.EnsureOIDCUser(auth.OIDCIdentity{Issuer: "https://one.example.com", Subject: "same"}, "one", "", []string{"read"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := auth.EnsureOIDCUser(oidcIdentity{Issuer: "https://two.example.com", Subject: "same"}, "two", "", []string{"read"})
+	second, err := authn.EnsureOIDCUser(auth.OIDCIdentity{Issuer: "https://two.example.com", Subject: "same"}, "two", "", []string{"read"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first == second {
 		t.Error("same subject from different issuers resolved to one user")
 	}
-	if _, err := auth.AddToken(first, "admin", time.Time{}, []string{"settings"}, nil); err == nil {
+	if _, err := authn.AddToken(first, "admin", time.Time{}, []string{"settings"}, nil); err == nil {
 		t.Error("read-only OIDC user minted an administrative token")
 	}
 }
 
 func TestOIDCAdmission(t *testing.T) {
-	cfg := OIDCConfig{AllowedSubjects: []string{"allowed"}, AllowedEmailDomains: []string{"example.com"}}
+	cfg := config.OIDCConfig{AllowedSubjects: []string{"allowed"}, AllowedEmailDomains: []string{"example.com"}}
 	if !(oidcClaims{Subject: "allowed", EmailVerified: true}).Admitted(cfg.AllowedSubjects, cfg.AllowedEmailDomains) {
 		t.Error("allowed subject was rejected")
 	}
@@ -140,16 +143,16 @@ func TestOIDCAdmission(t *testing.T) {
 }
 
 func TestOIDCAdmissionDelegatedToIdentityProvider(t *testing.T) {
-	if !oidcAdmitted(oidcClaims{Subject: "authenticated"}, OIDCConfig{AllowAnyAuthenticated: true}) {
+	if !oidcAdmitted(oidcClaims{Subject: "authenticated"}, config.OIDCConfig{AllowAnyAuthenticated: true}) {
 		t.Error("authenticated subject was rejected when identity-provider admission is enabled")
 	}
-	if oidcAdmitted(oidcClaims{}, OIDCConfig{AllowAnyAuthenticated: true}) {
+	if oidcAdmitted(oidcClaims{}, config.OIDCConfig{AllowAnyAuthenticated: true}) {
 		t.Error("claim without a subject was admitted")
 	}
 }
 
 func TestOIDCCallbackRejectsBadState(t *testing.T) {
-	app := &App{OIDC: &OIDCAuth{}}
+	app := &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{}}
 
 	r := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=x", nil)
 	w := httptest.NewRecorder()
@@ -173,7 +176,7 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 }
 
 func TestOIDCCallbackDisabled(t *testing.T) {
-	app := &App{}
+	app := &App{API: api.New(nil, nil, nil)}
 	r := httptest.NewRequest("GET", "/auth/oidc/callback", nil)
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
@@ -202,14 +205,14 @@ func TestOIDCCallbackFailuresAreGenericAndClearCookies(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			authn, err := OpenAuth(Config{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
+			authn, err := OpenAuth(config.Config{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			app := &App{Auth: authn, OIDC: &OIDCAuth{AuthenticateFunc: func(context.Context, string, string) (oidcClaims, string, error) {
+			app := &App{API: api.New(nil, nil, authn), Auth: authn, OIDC: &OIDCAuth{AuthenticateFunc: func(context.Context, string, string) (oidcClaims, string, error) {
 				return tc.claims, "https://idp.example.com", tc.authErr
 			}}}
-			app.SetConfig(Config{OIDC: OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
+			app.SetConfig(config.Config{OIDC: config.OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
 			request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
 			request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
 			if !tc.withoutPKCE {
@@ -226,11 +229,11 @@ func TestOIDCCallbackFailuresAreGenericAndClearCookies(t *testing.T) {
 }
 
 func TestOIDCCallbackSuccess(t *testing.T) {
-	authn, err := OpenAuth(Config{AppDir: t.TempDir()})
+	authn, err := OpenAuth(config.Config{AppDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &App{Auth: authn, OIDC: &OIDCAuth{
+	app := &App{API: api.New(nil, nil, authn), Auth: authn, OIDC: &OIDCAuth{
 		AuthenticateFunc: func(_ context.Context, code, verifier string) (oidcClaims, string, error) {
 			if code != "code" || verifier != "verifier" {
 				t.Fatalf("exchange got code=%q verifier=%q", code, verifier)
@@ -238,8 +241,8 @@ func TestOIDCCallbackSuccess(t *testing.T) {
 			return oidcClaims{Subject: "subject", PreferredUsername: "alice", Email: "alice@example.com", EmailVerified: true, Name: "Alice"}, "https://idp.example.com", nil
 		},
 	}}
-	app.SetConfig(Config{OIDC: OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
-	app.SetWikiConfig(defaultWikiConfig())
+	app.SetConfig(config.Config{OIDC: config.OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
+	app.SetWikiConfig(wiki.DefaultConfig())
 	app.SetNamespaces(wiki.NamespaceRegistry{})
 
 	request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
@@ -279,7 +282,7 @@ func assertOIDCFlowCookiesCleared(t *testing.T, response *httptest.ResponseRecor
 }
 
 func TestOIDCLoginSetsStateAndRedirects(t *testing.T) {
-	app := &App{OIDC: &OIDCAuth{
+	app := &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{
 		OAuth: oauth2.Config{
 			ClientID:    "hmd",
 			Endpoint:    oauth2.Endpoint{AuthURL: "https://idp.example.com/auth"},
@@ -356,7 +359,7 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 		t.Fatalf("loadOIDCIcon failed: %v", err)
 	}
 
-	app := &App{OIDC: &OIDCAuth{IconData: icon}}
+	app := &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{IconData: icon}}
 	w := httptest.NewRecorder()
 	app.handleOIDCIcon(w, httptest.NewRequest("GET", "/auth/oidc/icon", nil))
 	if w.Code != http.StatusOK || w.Body.String() != svg {
@@ -366,7 +369,7 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 		t.Errorf("Content-Type = %q", ct)
 	}
 
-	app = &App{OIDC: &OIDCAuth{}}
+	app = &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{}}
 	w = httptest.NewRecorder()
 	app.handleOIDCIcon(w, httptest.NewRequest("GET", "/auth/oidc/icon", nil))
 	if w.Code != http.StatusNotFound {

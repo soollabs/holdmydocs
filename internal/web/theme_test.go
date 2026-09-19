@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"hmd/internal/auth"
 )
 
 func TestThemeVariablesAreSemantic(t *testing.T) {
@@ -82,7 +84,7 @@ func TestParseThemeDefaults(t *testing.T) {
 }
 
 func TestBuildThemeStyle(t *testing.T) {
-	prefs := userRecord{
+	prefs := auth.UserRecord{
 		Palette: "gruvbox",
 	}
 	css := string(buildThemeStyle(prefs))
@@ -101,7 +103,7 @@ func TestBuildThemeStyle(t *testing.T) {
 }
 
 func TestBuildThemeStyleEmpty(t *testing.T) {
-	css := buildThemeStyle(userRecord{})
+	css := buildThemeStyle(auth.UserRecord{})
 	if css != "" {
 		t.Errorf("expected empty CSS when no palette is set, got %q", css)
 	}
@@ -163,12 +165,12 @@ func TestFontStacksMatchGroups(t *testing.T) {
 }
 
 func TestBuildThemeStyleFonts(t *testing.T) {
-	css := string(buildThemeStyle(userRecord{FontUI: "georgia", FontMono: "system mono"}))
+	css := string(buildThemeStyle(auth.UserRecord{FontUI: "georgia", FontMono: "system mono"}))
 	if !strings.Contains(css, `--font-ui:Georgia, "Times New Roman", serif;`) ||
 		!strings.Contains(css, `--font-mono:ui-monospace,`) {
 		t.Errorf("font overrides missing from style: %q", css)
 	}
-	if got := buildThemeStyle(userRecord{FontUI: "nope"}); got != "" {
+	if got := buildThemeStyle(auth.UserRecord{FontUI: "nope"}); got != "" {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}
 }

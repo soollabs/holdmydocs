@@ -151,6 +151,34 @@ func (a *API) UploadAttachment(ctx context.Context, in AttachmentUploadInput) (*
 	return upload, nil
 }
 
+// OpenAttachmentForRead opens a page's attachment for streaming to a reader.
+// The slug must be a valid page, the caller must hold access to its namespace,
+// and an anonymous caller may only read an attachment on a public page. The
+// returned file is positioned at the start and must be closed by the caller.
+func (a *API) OpenAttachmentForRead(ctx context.Context, slug, filename string) (io.ReadSeekCloser, error) {
+	if !wiki.ValidPageSlug(slug) {
+		return nil, NotFound("attachment not found")
+	}
+	if !AllowSlug(ctx, slug) {
+		return nil, Forbidden("namespace access denied")
+	}
+	if _, ok := Username(ctx); !ok && !a.Namespaces().IsPublic(slug) {
+		return nil, NotFound("attachment not found")
+	}
+	if filepath.Base(filename) != filename {
+		return nil, NotFound("attachment not found")
+	}
+	path := "attachments/" + slug + "/" + filename
+	if !a.attachmentPathAllowed(path) {
+		return nil, NotFound("attachment not found")
+	}
+	file, _, err := a.store.OpenAttachment(path)
+	if err != nil {
+		return nil, NotFoundCause("attachment not found", err)
+	}
+	return file, nil
+}
+
 // attachmentPathAllowed verifies that a cleaned attachment path stays under the
 // repository's attachments directory. The slug is a caller-supplied path
 // segment, so it must not be able to escape the tree.

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"hmd/internal/auth"
 	"hmd/internal/presentation"
 )
 
@@ -76,7 +77,7 @@ var (
 
 var fontStacks = presentation.FontStacks
 
-func buildThemeStyle(prefs userRecord) template.CSS {
+func buildThemeStyle(prefs auth.UserRecord) template.CSS {
 	var b strings.Builder
 	preset, ok := themePresets[prefs.Palette]
 	if ok {

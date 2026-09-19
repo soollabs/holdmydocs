@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hmd/internal/api"
 	appconfig "hmd/internal/config"
+	staticexport "hmd/internal/export"
 	"hmd/internal/search"
 	storepkg "hmd/internal/store"
 	"hmd/internal/web"
@@ -34,7 +35,6 @@ type Store = storepkg.Store
 var (
 	BuildIndex                      = search.BuildIndex
 	NewRenderer                     = wiki.NewRenderer
-	ExportNamespace                 = web.ExportNamespace
 	BuildNamespaceRegistryFromStore = api.BuildNamespaceRegistryFromStore
 	ErrConflict                     = storepkg.ErrConflict
 	setGitNetworkTimeout            = storepkg.SetGitNetworkTimeout
@@ -348,7 +348,15 @@ func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
 	outDir := t.TempDir()
 	pages := []Page{{Slug: "docs/page", Title: "Page", Body: "body"}}
 	reg := NamespaceRegistry{"docs": {}}
-	if err := ExportNamespace(pages, NewRenderer(func(string, string) (string, bool) { return "", false }), reg, store, "docs", outDir, ""); err != nil {
+	if err := staticexport.Namespace(staticexport.NamespaceRequest{
+		Pages:      pages,
+		Namespace:  "docs",
+		Config:     reg["docs"],
+		OutDir:     outDir,
+		Assets:     web.StaticAssets(),
+		AssetsRoot: "web/static",
+		Store:      store,
+	}, web.NewStaticExporter(NewRenderer(func(string, string) (string, bool) { return "", false }))); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := os.ReadFile(filepath.Join(outDir, "attachments", "page", "real.txt")); err != nil || string(got) != "real" {

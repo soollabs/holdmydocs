@@ -1,4 +1,8 @@
-package web
+// Package httpmiddleware holds the HTTP middleware shared by the browser, data
+// and MCP adapters: security headers, request security, compression, access
+// logging and panic recovery. The composition root applies it once; it must not
+// import any adapter.
+package httpmiddleware
 
 import (
 	"crypto/rand"
@@ -40,7 +44,9 @@ func requestID() string {
 	return hex.EncodeToString(b)
 }
 
-func accessLog(next http.Handler) http.Handler {
+// AccessLog records one debug log line per request and stamps a request ID that
+// recovery and clients can correlate.
+func AccessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := requestID()
 		w.Header().Set("X-Request-ID", id)
@@ -60,7 +66,9 @@ func accessLog(next http.Handler) http.Handler {
 	})
 }
 
-func recoverPanic(next http.Handler) http.Handler {
+// RecoverPanic converts a handler panic into a generic 500 without leaking
+// internals, keeping the request ID set by AccessLog for correlation.
+func RecoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {

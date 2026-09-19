@@ -2,7 +2,6 @@ package web
 
 import (
 	"bytes"
-	"hmd/internal/wiki"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -11,11 +10,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"hmd/internal/auth"
+	"hmd/internal/config"
+	"hmd/internal/wiki"
 )
 
 func TestHasScopeRejectsEmptyScopes(t *testing.T) {
-	u := userRecord{}
-	for _, s := range []scope{scopeRead, scopeWrite, scopeSettings} {
+	u := auth.UserRecord{}
+	for _, s := range []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeSettings} {
 		if u.HasScope(s) {
 			t.Errorf("user with no scopes has %s access", s)
 		}
@@ -23,37 +26,37 @@ func TestHasScopeRejectsEmptyScopes(t *testing.T) {
 }
 
 func TestHasScopeRestricts(t *testing.T) {
-	u := userRecord{Scopes: []string{"read"}}
-	if !u.HasScope(scopeRead) {
+	u := auth.UserRecord{Scopes: []string{"read"}}
+	if !u.HasScope(auth.ScopeRead) {
 		t.Error("expected read access")
 	}
-	if u.HasScope(scopeWrite) {
+	if u.HasScope(auth.ScopeWrite) {
 		t.Error("expected no write access")
 	}
-	if u.HasScope(scopeSettings) {
+	if u.HasScope(auth.ScopeSettings) {
 		t.Error("expected no settings access")
 	}
 }
 
 func TestSetScopesRejectsUnknown(t *testing.T) {
-	auth, err := OpenAuth(Config{AppDir: t.TempDir()})
+	authn, err := OpenAuth(config.Config{AppDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("OpenAuth: %v", err)
 	}
-	if err := auth.AddUser("bob", "password12345"); err != nil {
+	if err := authn.AddUser("bob", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
-	if err := auth.SetScopes("bob", []string{"bogus"}); err == nil {
+	if err := authn.SetScopes("bob", []string{"bogus"}); err == nil {
 		t.Error("expected error for unknown scope")
 	}
-	if err := auth.SetScopes("bob", []string{"read"}); err != nil {
+	if err := authn.SetScopes("bob", []string{"read"}); err != nil {
 		t.Fatalf("SetScopes: %v", err)
 	}
-	if auth.Prefs("bob").HasScope(scopeWrite) {
+	if authn.Prefs("bob").HasScope(auth.ScopeWrite) {
 		t.Error("bob retains write access")
 	}
 
-	if err := auth.SetScopes("bob", nil); err == nil {
+	if err := authn.SetScopes("bob", nil); err == nil {
 		t.Error("SetScopes(nil) accepted empty scopes")
 	}
 }
@@ -92,7 +95,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user GET /page/readme = %d, want 200", viewResp.StatusCode)
 	}
 
-	saveResp, err := client.PostForm(server.URL+"/"+testHome+"?do=save", url.Values{
+	saveResp, err := postPageSave(t, client, server, testHome, url.Values{
 		"title": {"readme"}, "body": {"nope"}, "basehash": {""},
 	})
 	if err != nil {
@@ -184,22 +187,22 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	defer server.Close()
 
-	seed := func(page Page) {
+	seed := func(page wiki.Page) {
 		t.Helper()
-		if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "Seed "+page.Slug, "test", "test@hmd.local"); err != nil {
+		if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "Seed "+page.Slug, "test", "test@hmd.local"); err != nil {
 			t.Fatalf("seed %s: %v", page.Slug, err)
 		}
 		if err := app.Index.Update(page); err != nil {
 			t.Fatalf("index %s: %v", page.Slug, err)
 		}
 	}
-	seed(Page{Slug: "notes/allowed", Title: "Notes allowed", Tags: []string{"shared"}, Body: "notes content [[missing-notes]]"})
-	seed(Page{Slug: "private/denied", Title: "Private denied", Tags: []string{"shared"}, Body: "private content [[missing-private]]"})
-	for _, page := range []Page{
+	seed(wiki.Page{Slug: "notes/allowed", Title: "Notes allowed", Tags: []string{"shared"}, Body: "notes content [[missing-notes]]"})
+	seed(wiki.Page{Slug: "private/denied", Title: "Private denied", Tags: []string{"shared"}, Body: "private content [[missing-private]]"})
+	for _, page := range []wiki.Page{
 		{Slug: "notes/draft", Title: "Notes draft"},
 		{Slug: "private/denied", Title: "Private hidden"},
 	} {
-		if _, err := app.Store.Save(hiddenFile(page.Slug), page.Encode(), "Seed hidden "+page.Slug, "test", "test@hmd.local"); err != nil {
+		if _, err := app.Store.Save(wiki.HiddenFile(page.Slug), page.Encode(), "Seed hidden "+page.Slug, "test", "test@hmd.local"); err != nil {
 			t.Fatalf("seed hidden %s: %v", page.Slug, err)
 		}
 	}
@@ -213,7 +216,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	if _, err := app.Store.Save(wiki.NamespaceConfigPath("notes"), notesConfig, "Configure notes", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seed notes config: %v", err)
 	}
-	app.refreshNamespaces()
+	app.apiClient().RefreshNamespaces()
 
 	token, err := app.Auth.AddToken("admin", "notes-http", time.Time{}, []string{"read", "write"}, []string{"notes"})
 	if err != nil {
@@ -257,10 +260,6 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, got, tc.want)
 		}
 	}
-	if status, body := do(http.MethodGet, "/_/api/preview/private/denied", nil); status != http.StatusForbidden || string(body) != `{"error":"namespace access denied"}` {
-		t.Errorf("API namespace denial = %d %q, want 403 JSON error", status, body)
-	}
-
 	for _, path := range []string{
 		"/_/api/search?q=private",
 		"/_/search?q=denied",
@@ -279,11 +278,11 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 		}
 	}
 
-	if got, _ := do(http.MethodPost, "/_/new?ns=private", nil); got != http.StatusForbidden {
-		t.Errorf("POST /_/new?ns=private = %d, want 403", got)
+	if got, _ := do(http.MethodGet, "/_/new?ns=private", nil); got != http.StatusForbidden {
+		t.Errorf("GET /_/new?ns=private = %d, want 403", got)
 	}
-	if got, _ := do(http.MethodPost, "/_/new?ns=notes", nil); got != http.StatusOK {
-		t.Errorf("POST /_/new?ns=notes = %d, want 200 (draft rendered inline)", got)
+	if got, _ := do(http.MethodGet, "/_/new?ns=notes", nil); got != http.StatusOK {
+		t.Errorf("GET /_/new?ns=notes = %d, want 200 (draft rendered inline)", got)
 	}
 
 	upload := func(slug string) int {
@@ -332,9 +331,9 @@ func TestCreateUserViaSettings(t *testing.T) {
 	}
 	closeTestBody(t, loginResp.Body)
 
-	createResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
+	createResp, err := postJSON(t, client, server.URL+"/_/api/settings/users", userCreateJSON(url.Values{
 		"name": {"newbie"}, "password": {"password12345"}, "scopes": {"read"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /settings/users: %v", err)
 	}
@@ -343,16 +342,16 @@ func TestCreateUserViaSettings(t *testing.T) {
 	if !app.Auth.UserExists("newbie") {
 		t.Fatal("newbie should exist after creation")
 	}
-	if app.Auth.Prefs("newbie").HasScope(scopeWrite) {
+	if app.Auth.Prefs("newbie").HasScope(auth.ScopeWrite) {
 		t.Error("newbie should be read-only per the submitted scopes")
 	}
 	if _, ok := app.Auth.Login("newbie", "password12345"); !ok {
 		t.Error("newbie should be able to log in with the password set at creation")
 	}
 
-	emptyResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
+	emptyResp, err := postJSON(t, client, server.URL+"/_/api/settings/users", userCreateJSON(url.Values{
 		"name": {"no-policy"}, "password": {"password12345"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /settings/users (empty scopes): %v", err)
 	}
@@ -361,9 +360,9 @@ func TestCreateUserViaSettings(t *testing.T) {
 		t.Error("user with no submitted scopes should not have been persisted")
 	}
 
-	dupResp, err := client.PostForm(server.URL+"/_/settings/users", url.Values{
+	dupResp, err := postJSON(t, client, server.URL+"/_/api/settings/users", userCreateJSON(url.Values{
 		"name": {"newbie"}, "password": {"otherpassword"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /settings/users (dup): %v", err)
 	}
@@ -384,9 +383,9 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	}
 	closeTestBody(t, loginResp.Body)
 
-	resp, err := client.PostForm(server.URL+"/_/settings/users/scopes", url.Values{
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/users/scopes", userScopesJSON(url.Values{
 		"name": {"admin"}, "scopes": {"read"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /settings/users/scopes: %v", err)
 	}
@@ -424,15 +423,15 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	}
 	closeTestBody(t, loginResp.Body)
 
-	resp, err := client.PostForm(server.URL+"/_/settings/users/scopes", url.Values{
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/users/scopes", userScopesJSON(url.Values{
 		"name": {"mod"}, "scopes": {"read"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("POST /settings/users/scopes: %v", err)
 	}
 	closeTestBody(t, resp.Body)
 
-	if !app.Auth.Prefs("mod").HasScope(scopeSettings) {
+	if !app.Auth.Prefs("mod").HasScope(auth.ScopeSettings) {
 		t.Error("mod should still have settings scope after the rejected self-lockout")
 	}
 

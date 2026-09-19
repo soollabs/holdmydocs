@@ -1024,7 +1024,9 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
 		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
-		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") {
+		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") ||
+		r.URL.Path == "/_/api/settings" || strings.HasPrefix(r.URL.Path, "/_/api/settings/") ||
+		r.URL.Path == "/_/api/namespaces" || strings.HasPrefix(r.URL.Path, "/_/api/namespaces/") {
 		return scopeSettings
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -1052,7 +1054,7 @@ func restrictedTokenPathAllowed(path string) bool {
 		return path != "/"
 	}
 
-	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/api/search/attachments", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
+	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/api/search/attachments", "/_/api/pages/", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
 		if strings.HasPrefix(path, prefix) {
 			return true
 		}

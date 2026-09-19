@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"hmd/internal/wiki"
 )
 
 // TestWidgetRegistry checks every widgetIDs entry has a registry definition, and vice versa.
@@ -74,8 +76,8 @@ func TestTreeIsRequiredBelowAppBar(t *testing.T) {
 	if err := writeNamespaceConfig(t, app, testNS, "widgets: [pages]\n"); err != nil {
 		t.Fatalf("configuring widgets: %v", err)
 	}
-	seedPage(t, app, Page{Slug: testNS + "/guides", Title: "Guides", Body: "overview"})
-	seedPage(t, app, Page{Slug: testNS + "/guides/setup", Title: "Setup", Body: "steps"})
+	seedPage(t, app, wiki.Page{Slug: testNS + "/guides", Title: "Guides", Body: "overview"})
+	seedPage(t, app, wiki.Page{Slug: testNS + "/guides/setup", Title: "Setup", Body: "steps"})
 
 	resp, err := client.Get(server.URL + "/" + testNS + "/guides")
 	if err != nil {
@@ -105,12 +107,12 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 
 	authorName, authorEmail := app.gitAuthor("admin")
 	today := time.Now().Format("2006-01-02")
-	page := Page{Slug: "daily/" + today, Title: today, Body: "one two three four five"}
+	page := wiki.Page{Slug: "daily/" + today, Title: today, Body: "one two three four five"}
 	if _, err := app.Store.Save("daily/"+today+".md", page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding daily page: %v", err)
 	}
 
-	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {"journal"}})
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{"skin": {"journal"}}))
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}

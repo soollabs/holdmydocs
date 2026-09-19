@@ -69,7 +69,7 @@ func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"bare"}}
-	resp, err := client.PostForm(server.URL+"/_/settings/appearance", form)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(form))
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 		t.Fatalf("reading service worker: %v", err)
 	}
 	body := string(script)
-	for _, asset := range []string{"style.css?v=5", "skins.css?v=2", "app.js?v=4", "page.js?v=1", "editor.js?v=2"} {
+	for _, asset := range []string{"style.css?v=5", "skins.css?v=2", "app.js?v=6", "page.js?v=1", "editor.js?v=2"} {
 		if !strings.Contains(body, asset) {
 			t.Errorf("service worker does not precache the requested URL for %s", asset)
 		}
@@ -127,7 +127,7 @@ func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 
 func TestStaticAssetURLsUseVersionedPaths(t *testing.T) {
 	for path, assets := range map[string][]string{
-		"web/templates/base.html": {"/_/static/style.css?v=5", "/_/static/skins.css?v=2", "/_/static/app.js?v=4", "/_/static/page.js?v=1"},
+		"web/templates/base.html": {"/_/static/style.css?v=5", "/_/static/skins.css?v=2", "/_/static/app.js?v=6", "/_/static/page.js?v=1"},
 		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
 	} {
 		body, err := webFS.ReadFile(path)
@@ -265,11 +265,9 @@ func TestSkinRejectsUnknown(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"nope"}}
-	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(form))
 	if err != nil {
-		t.Fatalf("POST /settings/appearance failed: %v", err)
+		t.Fatalf("POST appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -296,15 +294,13 @@ func TestSkinPersists(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{"skin": {"soft"}}
-	req, _ := http.NewRequest("POST", server.URL+"/_/settings/appearance", bytes.NewBufferString(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(form))
 	if err != nil {
-		t.Fatalf("POST /settings/appearance failed: %v", err)
+		t.Fatalf("POST appearance failed: %v", err)
 	}
 	defer closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("Status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
 	resp2, err := client.Get(server.URL + "/" + testHome)
@@ -347,9 +343,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
 		"skin": {"phosphor"}, "palette": {"dracula"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("setting palette: %v", err)
 	}
@@ -358,9 +354,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("palette = %q, want dracula", got)
 	}
 
-	resp2, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+	resp2, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
 		"skin": {"newsprint"}, "palette": {"dracula"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("switching skin: %v", err)
 	}
@@ -386,9 +382,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Errorf("newsprint response did not render its skin and Solarized primary")
 	}
 
-	resp3, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+	resp3, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
 		"skin": {"newsprint"}, "palette": {"gruvbox"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("repicking palette: %v", err)
 	}
@@ -404,9 +400,9 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
 		"skin": {"newsprint"}, "palette": {"gruvbox"}, "palette_explicit": {"1"},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("switching skin with explicit palette: %v", err)
 	}

@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"hmd/internal/wiki"
 )
 
 // TestWidgetFrontmatterPreservedAcrossSave verifies that pin survives an editor save.
@@ -15,8 +17,8 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	defer server.Close()
 
 	authorName, authorEmail := app.gitAuthor("admin")
-	page := Page{Slug: testNS + "/clip", Title: "Clip", Body: "Original body.", Pin: true}
-	if _, err := app.Store.Save(pageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
+	page := wiki.Page{Slug: testNS + "/clip", Title: "Clip", Body: "Original body.", Pin: true}
+	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding page: %v", err)
 	}
 	if err := app.Index.Update(page); err != nil {
@@ -38,20 +40,20 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 		"body":     {"Edited body."},
 		"basehash": {basehashRe.FindStringSubmatch(getEdit())[1]},
 	}
-	resp, err := client.PostForm(server.URL+"/"+testNS+"/clip?do=save", form)
+	resp, err := postPageSave(t, client, server, testNS+"/clip", form)
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
 	closeTestBody(t, resp.Body)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("save status = %d, want 303", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save status = %d, want 200", resp.StatusCode)
 	}
 
-	content, _, err := app.Store.Read(pageFile(page.Slug))
+	content, _, err := app.Store.Read(wiki.PageFile(page.Slug))
 	if err != nil {
 		t.Fatalf("reading saved page: %v", err)
 	}
-	saved := ParsePage(page.Slug, content)
+	saved := wiki.ParsePage(page.Slug, content)
 	if !saved.Pin {
 		t.Errorf("pin not preserved across editor save: %+v", saved)
 	}

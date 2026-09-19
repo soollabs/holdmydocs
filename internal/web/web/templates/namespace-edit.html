@@ -5,7 +5,7 @@
 <h1 class="page-title"><span class="h"></span>{{if .Form.Name}}edit {{.Form.Name}}{{else}}new namespace{{end}}</h1>
 {{if .Error}}<div class="settings-error" role="alert">{{.Error}}</div>{{end}}
 {{$form := .Form}}
-<form method="POST" action="/_/settings/namespaces" class="namespace-form settings-form">{{template "csrf" $}}
+<form method="POST" action="/_/api/namespaces" class="namespace-form settings-form">{{template "csrf" $}}{{template "json-required" $}}
 <input type="hidden" name="template" value="{{$form.Template}}">
 <input type="hidden" name="basehash" value="{{$form.Hash}}">
 <fieldset class="settings-section settings-panel"><legend>namespace</legend>
@@ -38,7 +38,7 @@
 <div class="settings-row"><label for="namespace-widgets">widget order</label><input id="namespace-widgets" name="widgets" value="{{$form.WidgetsCSV}}" class="widget-input" placeholder="built-in widgets"></div>
 <p class="settings-note">Use the choices above to include widgets. This field remains available for exact ordering and works without JavaScript; leave it empty for the built-in set.</p>
 </details>
-<div class="settings-actions"><button type="submit" class="primary">Save namespace</button><a class="ghost-btn" href="/_/namespaces">Cancel</a>{{if $form.Configured}}<button type="submit" formaction="/_/settings/namespaces/reset" class="ghost-btn">Reset namespace settings</button><button type="submit" formaction="/_/settings/namespaces/delete" class="ghost-btn danger-btn">Delete empty namespace</button><button type="submit" formaction="/_/settings/namespaces/delete-all" class="ghost-btn danger-btn" data-confirm="Delete this namespace and every file in it?">Delete namespace and all files</button>{{end}}</div>
+<div class="settings-actions"><button type="submit" class="primary">Save namespace</button><a class="ghost-btn" href="/_/namespaces">Cancel</a>{{if $form.Configured}}<button type="submit" formaction="/_/api/namespaces/reset" class="ghost-btn">Reset namespace settings</button><button type="submit" formaction="/_/api/namespaces/delete" class="ghost-btn danger-btn">Delete empty namespace</button><button type="submit" formaction="/_/api/namespaces/delete-all" class="ghost-btn danger-btn" data-confirm="Delete this namespace and every file in it?">Delete namespace and all files</button>{{end}}</div>
 </form>
 <script nonce="{{$.CSPNonce}}">
 (function () {

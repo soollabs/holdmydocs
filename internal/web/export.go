@@ -12,14 +12,15 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
-
+	"hmd/internal/auth"
 	staticexport "hmd/internal/export"
+	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
 var exportSemaphore = make(chan struct{}, 1)
 
-func pageDisplayTitle(p Page) string {
+func pageDisplayTitle(p wiki.Page) string {
 	if p.Title != "" {
 		return p.Title
 	}
@@ -56,11 +57,11 @@ func StaticAssets() fs.FS { return webFS }
 // widget machinery. It implements export.NamespaceRenderer; keeping it here
 // makes the renderer, template and theme dependencies explicit at the caller.
 type StaticExporter struct {
-	Renderer *Renderer
+	Renderer *wiki.Renderer
 }
 
 // NewStaticExporter builds the web static-export renderer.
-func NewStaticExporter(renderer *Renderer) StaticExporter {
+func NewStaticExporter(renderer *wiki.Renderer) StaticExporter {
 	return StaticExporter{Renderer: renderer}
 }
 
@@ -72,11 +73,11 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 	ns, cfg, outDir, title := request.Namespace, request.Config, request.OutDir, request.Title
 
 	hrefs := make(map[string]string, len(nsPages))
-	entries := make([]BacklinkEntry, 0, len(nsPages))
+	entries := make([]search.BacklinkEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := wiki.NamespaceFor(p.Slug)
 		hrefs[p.Slug] = rest
-		entries = append(entries, BacklinkEntry{Slug: p.Slug, Title: pageDisplayTitle(p)})
+		entries = append(entries, search.BacklinkEntry{Slug: p.Slug, Title: pageDisplayTitle(p)})
 	}
 
 	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)
@@ -125,7 +126,7 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 			Namespace:      ns,
 			NamespaceTitle: title,
 			Skin:           skinName(cfg.Skin),
-			ThemeStyle:     buildThemeStyle(userRecord{Palette: palette}),
+			ThemeStyle:     buildThemeStyle(auth.UserRecord{Palette: palette}),
 			SidebarTree:    renderStaticTree(tree, rest, func(to string) string { return staticPageHref(rest, to) }),
 			RailWidgets:    widgetsForSlot(slotRail, cfg.Widgets),
 		}
@@ -156,29 +157,12 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 		}
 	}
 	if indexPage == "" {
-		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(userRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: "<p>Select a page from the sidebar.</p>", RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
+		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: "<p>Select a page from the sidebar.</p>", RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {
 			return nil, err
 		}
 	}
 	return searchEntries, nil
-}
-
-// ExportNamespace renders a namespace to static HTML under outDir using the web
-// presentation stack. It is a thin adapter over export.Namespace for the
-// browser handler and tests; the composition root wires export.Namespace with
-// NewStaticExporter directly.
-func ExportNamespace(pages []Page, renderer *Renderer, reg wiki.NamespaceRegistry, store *Store, ns, outDir, title string) error {
-	return staticexport.Namespace(staticexport.NamespaceRequest{
-		Pages:      pages,
-		Namespace:  ns,
-		Config:     reg[ns],
-		OutDir:     outDir,
-		Title:      title,
-		Assets:     webFS,
-		AssetsRoot: "web/static",
-		Store:      store,
-	}, NewStaticExporter(renderer))
 }
 
 type exportSearchEntry = staticexport.SearchEntry
@@ -229,27 +213,6 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	paths, err := app.Store.List()
-	if err != nil {
-		slog.Error("listing export pages", "namespace", name, "err", err)
-		http.Error(w, "export failed", http.StatusInternalServerError)
-		return
-	}
-	var pages []Page
-	for _, path := range paths {
-		slug := strings.TrimSuffix(path, ".md")
-		if ns, _ := wiki.NamespaceFor(slug); ns != name {
-			continue
-		}
-		content, _, err := app.Store.Read(path)
-		if err != nil {
-			slog.Error("reading export page", "namespace", name, "err", err)
-			http.Error(w, "export failed", http.StatusInternalServerError)
-			return
-		}
-		pages = append(pages, ParsePage(slug, content))
-	}
-
 	tmpDir, err := os.MkdirTemp("", "hmd-export-*")
 	if err != nil {
 		slog.Error("creating export directory", "namespace", name, "err", err)
@@ -262,7 +225,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if err := ExportNamespace(pages, app.Render, app.Namespaces(), app.Store, name, tmpDir, ""); err != nil {
+	if err := app.apiClient().ExportNamespace(r.Context(), name, tmpDir, webFS, "web/static", NewStaticExporter(app.Render)); err != nil {
 		slog.Error("exporting namespace", "namespace", name, "err", err)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return

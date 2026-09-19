@@ -6,16 +6,18 @@ import (
 	"strings"
 	"testing"
 
+	"hmd/internal/config"
+	"hmd/internal/httpmiddleware"
 	"hmd/internal/search"
+	"hmd/internal/wiki"
 )
 
 func TestRequestSecurityRejectsOversizedForm(t *testing.T) {
-	app := &App{}
-	app.SetConfig(Config{})
-	h := app.requestSecurity(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	security := httpmiddleware.Security{Config: func() config.Config { return config.Config{} }}
+	h := security.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
-	req := httptest.NewRequest(http.MethodPost, "/_/login", strings.NewReader(strings.Repeat("x", maxFormBytes+1)))
+	req := httptest.NewRequest(http.MethodPost, "/_/login", strings.NewReader(strings.Repeat("x", httpmiddleware.MaxFormBytes+1)))
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, req)
 	if res.Code != http.StatusRequestEntityTooLarge {
@@ -30,7 +32,7 @@ func TestSearchQueryLimitAndLiteralSyntax(t *testing.T) {
 	if err := search.ValidateQuery(strings.Repeat("x", maxSearchQueryRunes+1)); err == nil {
 		t.Error("accepted oversized query")
 	}
-	ix, err := BuildIndex([]Page{{Slug: "notes/literal", Title: "literal", Body: `alpha +beta`}})
+	ix, err := search.BuildIndex([]wiki.Page{{Slug: "notes/literal", Title: "literal", Body: `alpha +beta`}})
 	if err != nil {
 		t.Fatal(err)
 	}

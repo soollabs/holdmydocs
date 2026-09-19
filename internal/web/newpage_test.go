@@ -9,17 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"hmd/internal/wiki"
 )
 
-func seedNewPageTemplate(t *testing.T, app *App, slugTemplate, titleTemplate, bodyTemplate string) {
+func seedNewPageTemplate(t *testing.T, app *testApp, slugTemplate, titleTemplate, bodyTemplate string) {
 	t.Helper()
 	yaml := "new:\n  template: entry\n  slug: '" + slugTemplate + "'\n"
 	if err := writeNamespaceConfig(t, app, testNS, yaml); err != nil {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 	authorName, authorEmail := app.gitAuthor("admin")
-	tpl := Page{Slug: testNS + "/entry", Title: titleTemplate, Body: bodyTemplate}
-	if _, err := app.Store.Save(hiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
+	tpl := wiki.Page{Slug: testNS + "/entry", Title: titleTemplate, Body: bodyTemplate}
+	if _, err := app.Store.Save(wiki.HiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding template page: %v", err)
 	}
 }
@@ -45,7 +47,7 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 
 	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, `{{.Now.Format "2006-01-02"}}`, "Template content.")
 
-	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -63,7 +65,7 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 		t.Errorf("draft edit form missing template content: %s", body)
 	}
 
-	if _, _, err := app.Store.Read(pageFile(testNS + "/" + today)); err == nil {
+	if _, _, err := app.Store.Read(wiki.PageFile(testNS + "/" + today)); err == nil {
 		t.Error("page should not be created until Save, but it was persisted by /_/new")
 	}
 }
@@ -76,8 +78,8 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 
 	today := time.Now().Format("2006-01-02")
 	authorName, authorEmail := app.gitAuthor("admin")
-	existing := Page{Slug: testNS + "/" + today, Title: "Already here", Body: "Don't touch me."}
-	if _, err := app.Store.Save(pageFile(existing.Slug), existing.Encode(), "seed existing", authorName, authorEmail); err != nil {
+	existing := wiki.Page{Slug: testNS + "/" + today, Title: "Already here", Body: "Don't touch me."}
+	if _, err := app.Store.Save(wiki.PageFile(existing.Slug), existing.Encode(), "seed existing", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding existing page: %v", err)
 	}
 	if err := app.Index.Update(existing); err != nil {
@@ -88,7 +90,7 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 		Jar:           client.Jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	resp, err := noRedirectClient.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := noRedirectClient.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -129,7 +131,7 @@ func TestNewPageRejectsUnsafeRenderedSlugs(t *testing.T) {
 			defer server.Close()
 			seedNewPageTemplate(t, app, tt.slugTemplate, "Title", "Body.")
 
-			resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+			resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 			if err != nil {
 				t.Fatalf("POST /_/new: %v", err)
 			}
@@ -147,7 +149,7 @@ func TestNewPageRejectsUnsafeTemplatePage(t *testing.T) {
 	seedNewPageTemplate(t, app, "page", "Title", "Body.")
 	app.Namespaces()[testNS].New.Template = "../private"
 
-	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -167,7 +169,7 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 		t.Error("template page should not be in the search index")
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -179,7 +181,7 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 		t.Error("draft entry should not be indexed until it is saved")
 	}
 
-	saveResp, err := client.PostForm(server.URL+"/"+testNS+"/"+today+"?do=save", url.Values{
+	saveResp, err := postPageSave(t, client, server, testNS+"/"+today, url.Values{
 		"title": {draftField(draftTitleRe, string(body))}, "body": {"Body."}, "basehash": {""},
 	})
 	if err != nil {
@@ -199,7 +201,7 @@ func TestNewPageUnknownNamespace404s(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Post(server.URL+"/_/new?ns=nope", "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=nope")
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -218,7 +220,7 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -246,18 +248,18 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 		`{{.Now.Format "Monday, 2 January 2006"}}`,
 		`Written by {{.User}} in {{.Namespace}} at {{.Now.Format "15:04"}}.`)
 
-	tpl := Page{
+	tpl := wiki.Page{
 		Slug:  testNS + "/entry",
 		Title: `{{.Now.Format "Monday, 2 January 2006"}}`,
 		Tags:  []string{`{{.Now.Format "2006-01"}}`, "notes"},
 		Body:  `Written by {{.User}} in {{.Namespace}} at {{.Now.Format "15:04"}}.`,
 	}
 	authorName, authorEmail := app.gitAuthor("admin")
-	if _, err := app.Store.Save(hiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
+	if _, err := app.Store.Save(wiki.HiddenFile(testNS+"/entry"), tpl.Encode(), "seed template", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding template page: %v", err)
 	}
 
-	resp, err := client.Post(server.URL+"/_/new?ns="+testNS, "", nil)
+	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
@@ -265,7 +267,7 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 	closeTestBody(t, resp.Body)
 
 	now := time.Now()
-	tags := ParseTags(draftField(draftTagsRe, string(body)))
+	tags := wiki.ParseTags(draftField(draftTagsRe, string(body)))
 
 	if want := now.Format("Monday, 2 January 2006"); draftField(draftTitleRe, string(body)) != want {
 		t.Errorf("title = %q, want %q", draftField(draftTitleRe, string(body)), want)

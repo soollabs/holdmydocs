@@ -12,7 +12,7 @@ func TestAllSkinsRenderWithoutError(t *testing.T) {
 
 	for _, p := range skinNames {
 		t.Run(p, func(t *testing.T) {
-			resp, err := client.PostForm(server.URL+"/_/settings/appearance", url.Values{"skin": {p}})
+			resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{"skin": {p}}))
 			if err != nil {
 				t.Fatalf("setting skin: %v", err)
 			}

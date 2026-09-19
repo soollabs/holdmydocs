@@ -86,7 +86,7 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 	ns, _ := wiki.NamespaceFor(data.Slug)
 	var titles map[string]string
 	if needs("namespaces") || ns != "" {
-		titles = app.Index.Titles()
+		titles = app.apiClient().PageTitles()
 	}
 	needsDates := needs("calendar") || needs("writing-stats") || needs("prev-entries")
 	var dates []string
@@ -99,18 +99,18 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 	}
 
 	bodyWords := func(slug string) int {
-		content, _, err := app.Store.Read(pageFile(slug))
+		view, err := app.apiClient().ViewPage(ctx, slug)
 		if err != nil {
 			return 0
 		}
-		return countWords(ParsePage(slug, content).Body)
+		return countWords(view.Body)
 	}
 	firstLine := func(slug string) string {
-		content, _, err := app.Store.Read(pageFile(slug))
+		view, err := app.apiClient().ViewPage(ctx, slug)
 		if err != nil {
 			return ""
 		}
-		return firstNonEmptyLine(ParsePage(slug, content).Body)
+		return firstNonEmptyLine(view.Body)
 	}
 
 	now := time.Now()
@@ -124,7 +124,7 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 		data.PrevEntries = buildPrevEntries(data.Slug, dates, 3, firstLine)
 	}
 	if needs("pinned") {
-		data.PinnedPages = app.Index.PinnedPages()
+		data.PinnedPages = app.apiClient().PinnedPages()
 	}
 	if needs("namespaces") {
 		data.NamespaceNav = namespaceNav(app.apiClient().NamespaceSummaries(), ns)
