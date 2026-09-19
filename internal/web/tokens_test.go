@@ -56,7 +56,9 @@ func TestTokenSettingsUI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	app.apiClient().RefreshNamespaces()
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
+		t.Fatalf("refreshing namespaces: %v", err)
+	}
 
 	token := createTokenViaUI(t, server, client, "laptop", "30d", []string{"read"}, []string{"notes"})
 	privateToken := createTokenViaUI(t, server, client, "private-pages", "30d", []string{"read"}, []string{"private"})

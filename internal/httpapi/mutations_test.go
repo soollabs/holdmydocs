@@ -29,7 +29,7 @@ func postMutation(t *testing.T, client *http.Client, url string, body any) *http
 // decodeMutation decodes a successful mutation result.
 func decodeMutation(t *testing.T, resp *http.Response) pageMutation {
 	t.Helper()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -73,6 +73,31 @@ func TestSavePageCreatesThenUpdates(t *testing.T) {
 	}
 }
 
+// TestSavePageIndexFailureStillSucceeds pins the committed-write contract at the
+// adapter: a durable page write returns 200 even when the derived index cannot
+// refresh, reporting the pending refresh as index_warning rather than as an
+// error that would invite a retry of an already-committed write.
+func TestSavePageIndexFailureStillSucceeds(t *testing.T) {
+	env, client := newTestEnv(t, false)
+	if err := env.index.Close(); err != nil {
+		t.Fatalf("closing index: %v", err)
+	}
+	slug := testNS + "/index-warning"
+
+	result := decodeMutation(t, postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
+		"title": "Index Warning", "body": "committed body",
+	}))
+	if result.Slug != slug || result.BlobHash == "" {
+		t.Fatalf("result = %+v, want a committed slug and hash", result)
+	}
+	if result.IndexWarning == "" {
+		t.Fatal("result has no index_warning after an index failure")
+	}
+	if _, _, err := env.store.Read(wiki.PageFile(slug)); err != nil {
+		t.Fatalf("committed page missing on disk: %v", err)
+	}
+}
+
 // TestSavePageConflictCarriesCurrentRevision checks the 409 shape the browser
 // uses to keep the user's draft.
 func TestSavePageConflictCarriesCurrentRevision(t *testing.T) {
@@ -86,7 +111,7 @@ func TestSavePageConflictCarriesCurrentRevision(t *testing.T) {
 	resp := postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
 		"title": "Conflict Page", "body": "my draft", "base_hash": "deadbeef",
 	})
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale save status = %d, want 409", resp.StatusCode)
 	}
@@ -99,6 +124,65 @@ func TestSavePageConflictCarriesCurrentRevision(t *testing.T) {
 	}
 	if conflict.Conflict.Body != "live body" {
 		t.Errorf("conflict body = %q, want the live revision", conflict.Conflict.Body)
+	}
+}
+
+// TestSavePageConflictPreservesDraftContext pins the 409 contract the browser
+// relies on to keep the user's unsaved input after a stale write. The conflict
+// body must echo the caller's stale base_hash and carry the entire current
+// committed revision (hash, title, body, tags, pin) so app.js can rewrite the
+// edit form's basehash input while leaving the draft in the editor DOM and the
+// localStorage draft untouched.
+//
+// The client-side half of that behaviour lives in app.js showConflict (keeps
+// the editor/title/tags inputs, updates basehash, shows "Your draft is
+// preserved"). It is deliberately not asserted here: app.js is a DOM-bound
+// module and exercising it would require a real browser, which this suite does
+// not fake. The server-side contract below is what makes that retention
+// possible; retention itself is covered by code review of app.js.
+func TestSavePageConflictPreservesDraftContext(t *testing.T) {
+	env, client := newTestEnv(t, false)
+	slug := testNS + "/conflict-fields"
+
+	// The live revision the browser's stale save will collide with.
+	live := decodeMutation(t, postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
+		"title": "Live Title", "body": "live body", "tags": []string{"live", "revision"}, "pin": true,
+	}))
+
+	// The browser submits a draft built from an older base hash.
+	resp := postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
+		"title": "My Draft", "body": "my unsaved draft", "base_hash": "deadbeef",
+	})
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale save status = %d, want 409", resp.StatusCode)
+	}
+	var conflict conflictResponse
+	if err := json.NewDecoder(resp.Body).Decode(&conflict); err != nil {
+		t.Fatalf("decoding conflict JSON: %v", err)
+	}
+
+	got := conflict.Conflict
+	if got.BaseHash != "deadbeef" {
+		t.Errorf("base_hash = %q, want the caller's stale hash so app.js can detect what it rewrites", got.BaseHash)
+	}
+	if got.CurrentHash != live.BlobHash {
+		t.Errorf("current_hash = %q, want %q", got.CurrentHash, live.BlobHash)
+	}
+	if got.Slug != slug {
+		t.Errorf("slug = %q, want %q", got.Slug, slug)
+	}
+	if got.Title != "Live Title" {
+		t.Errorf("title = %q, want the live revision", got.Title)
+	}
+	if got.Body != "live body" {
+		t.Errorf("body = %q, want the live revision", got.Body)
+	}
+	if len(got.Tags) != 2 || got.Tags[0] != "live" || got.Tags[1] != "revision" {
+		t.Errorf("tags = %v, want [live revision]", got.Tags)
+	}
+	if !got.Pin {
+		t.Errorf("pin = %v, want the live revision's pinned state", got.Pin)
 	}
 }
 
@@ -148,7 +232,7 @@ func TestRenameRepairsBacklinks(t *testing.T) {
 	env.seedPage(t, wiki.Page{Slug: testNS + "/source", Title: "Source", Body: "see [[Old Name]]"})
 
 	resp := postMutation(t, client, env.server.URL+"/_/api/pages/rename/"+testNS+"/old-name", map[string]any{"title": "New Name"})
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("rename status = %d, want 200", resp.StatusCode)
 	}

@@ -386,3 +386,34 @@ func TestCorruptIndexRebuilds(t *testing.T) {
 		t.Fatal("rebuilt index is not ready")
 	}
 }
+
+// TestSearchAttachmentsDisabledBusyAndEmptyQuery pins the attachment-search
+// error states the application layer maps onto explicit categories: disabled
+// when no document search is configured, an empty-query rejection and a busy
+// refusal once the bounded concurrency slots are held.
+func TestSearchAttachmentsDisabledBusyAndEmptyQuery(t *testing.T) {
+	blevIdx, err := bleve.NewMemOnly(attachmentIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := newIndex(blevIdx)
+	defer closeTestBody(t, blevIdx)
+
+	if _, err := ix.SearchAttachments(context.Background(), "query", 20); !errors.Is(err, errDocumentSearchDisabled) {
+		t.Fatalf("disabled search error = %v, want errDocumentSearchDisabled", err)
+	}
+
+	ix.documents = &DocumentSearch{embedder: &testEmbedder{vector: testVector(0)}}
+	if _, err := ix.SearchAttachments(context.Background(), "   ", 20); err == nil || !strings.Contains(err.Error(), "cannot be empty") {
+		t.Fatalf("empty-query error = %v, want an empty-query rejection", err)
+	}
+
+	// Both concurrent-search slots held: a further search is refused as busy.
+	ix.searches <- struct{}{}
+	ix.searches <- struct{}{}
+	if _, err := ix.SearchAttachments(context.Background(), "query", 20); !errors.Is(err, ErrBusy) {
+		t.Fatalf("busy search error = %v, want ErrBusy", err)
+	}
+	<-ix.searches
+	<-ix.searches
+}

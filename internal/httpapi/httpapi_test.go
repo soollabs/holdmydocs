@@ -170,7 +170,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	}
 
 	resp := post(`{"name":"hi"}`)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("valid body status = %d, want 200", resp.StatusCode)
 	}
@@ -185,26 +185,26 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	if resp := post(`{"name":`); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("malformed body status = %d, want 400", resp.StatusCode)
 	} else {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if resp := post(`{"name":"boom"}`); resp.StatusCode != http.StatusConflict {
 		t.Errorf("conflict status = %d, want 409", resp.StatusCode)
 	} else {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if resp := post(`{"name":"bad"}`); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("invalid input status = %d, want 400", resp.StatusCode)
 	} else {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Oversized bodies are rejected inside the shared decoding helper.
 	if resp := post(`{"name":"` + strings.Repeat("x", maxJSONBodyBytes) + `"}`); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("oversized body status = %d, want 400", resp.StatusCode)
 	} else {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// A bodyless GET decodes its input from the query string.
@@ -212,7 +212,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatalf("decoding GET response: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST empty: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("empty POST status = %d, want 200", resp.StatusCode)
 	}
@@ -245,7 +245,7 @@ func TestSearchEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET api/search: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", resp.StatusCode)
 	}
@@ -269,7 +269,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET api/health: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("health status = %d, want 200", resp.StatusCode)
 	}
@@ -285,7 +285,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET scoped api/health: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
 		t.Fatalf("decoding scoped health JSON: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET invalid namespace health: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("invalid namespace status = %d, want 400", resp.StatusCode)
 	}
@@ -310,7 +310,7 @@ func TestSyncEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET api/sync: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("sync status = %d, want 200", resp.StatusCode)
 	}
@@ -331,7 +331,7 @@ func TestPreviewEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET preview: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("preview status = %d, want 200", resp.StatusCode)
 	}
@@ -355,7 +355,7 @@ func TestPreviewEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST preview: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("<strong>")) {
 		t.Errorf("preview body = %q, want rendered <strong>", body)
@@ -382,7 +382,7 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST upload: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want 200", resp.StatusCode)
 	}
@@ -395,7 +395,7 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET attachment: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("serve status = %d, want 200", resp.StatusCode)
 	}
@@ -425,7 +425,7 @@ func TestAPIsRejectRootPageSlugs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != tc.want {
 			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, resp.StatusCode, tc.want)
 		}
@@ -453,7 +453,7 @@ func TestRestrictedTokenNamespaceDeniedJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET denied preview: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("reading response: %v", err)

@@ -216,7 +216,9 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 	if _, err := app.Store.Save(wiki.NamespaceConfigPath("notes"), notesConfig, "Configure notes", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seed notes config: %v", err)
 	}
-	app.apiClient().RefreshNamespaces()
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
+		t.Fatalf("refreshing namespaces: %v", err)
+	}
 
 	token, err := app.Auth.AddToken("admin", "notes-http", time.Time{}, []string{"read", "write"}, []string{"notes"})
 	if err != nil {

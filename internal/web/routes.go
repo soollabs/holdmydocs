@@ -85,9 +85,6 @@ func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
-
-func (app *App) externalBaseURL() string { return app.config().BaseURL }
-
 func reservedPath(path string) bool {
 	return path == "_" || strings.HasPrefix(path, "_/")
 }

@@ -408,6 +408,44 @@ func TestEditSaveRoundTrip(t *testing.T) {
 
 }
 
+// TestCommittedSaveWithIndexWarning demonstrates the browser save contract when
+// the derived index cannot refresh: the write is committed (200) and the JSON
+// result reports a pending index refresh, so the editor does not present a
+// spurious failure or invite a retry of a durable write.
+func TestCommittedSaveWithIndexWarning(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	if err := app.Index.Close(); err != nil {
+		t.Fatalf("closing index: %v", err)
+	}
+
+	slug := testNS + "/index-warning"
+	resp, err := postPageSave(t, client, server, slug, url.Values{
+		"title":    {"Index Warning"},
+		"body":     {"committed despite index failure"},
+		"basehash": {""},
+	})
+	if err != nil {
+		t.Fatalf("POST save failed: %v", err)
+	}
+	defer closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save status = %d, want 200 (committed)", resp.StatusCode)
+	}
+	var result struct {
+		IndexWarning string `json:"index_warning"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decoding save result: %v", err)
+	}
+	if result.IndexWarning == "" {
+		t.Error("committed save should report the pending index refresh")
+	}
+	if _, _, err := app.Store.Read(wiki.PageFile(slug)); err != nil {
+		t.Fatalf("committed page missing: %v", err)
+	}
+}
+
 func TestOptimisticLockConflict(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()

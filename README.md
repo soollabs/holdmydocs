@@ -47,9 +47,21 @@ To enable document search, set `HMD_TIKA_URL=https://your-tika-server:9998`. On 
 
 Read the [installation guide](https://docs.example.com/hmd/getting-started/install) before exposing HMD to a network. It covers TLS, secrets, storage, backup and recovery. The full documentation site also has configuration, operations, MCP, and development guides.
 
+## Architecture
+
+HMD keeps transport adapters separate from transport-independent application operations:
+
+- `internal/api` — shared application operations, permissions, validation and mutation coordination. Server-rendered HTML and MCP call this package directly.
+- `internal/web` — server-rendered HTML, templates, themes and assets.
+- `internal/httpapi` — the browser's JSON data and mutation endpoints plus attachment upload/download. Browser JavaScript calls this surface.
+- `internal/mcp` — MCP protocol handling and tools.
+- `internal/app` — dependency wiring, route assembly and lifecycle.
+
+The adapters never import one another, and application packages never import an adapter or `app`. The browser calls `/_/api/*` over HTTP; every adapter funnels through the same `api` operations, so there are no HTTP loopback calls and no parallel implementations.
+
 ## Development
 
-Requires Go 1.26.6.
+Requires Go 1.27.
 
 ```sh
 go test ./...

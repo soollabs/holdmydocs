@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -110,6 +112,45 @@ func TestUpdatePagePatchesOmittedMetadata(t *testing.T) {
 	}
 	if view.Body != "changed" {
 		t.Fatalf("patch body = %q, want %q", view.Body, "changed")
+	}
+}
+
+// TestRenameReportsPartialLinkRepair verifies that when one backlink source
+// cannot be rewritten the rename still commits and names the unrepaired source,
+// rather than failing the whole operation or silently claiming success.
+func TestRenameReportsPartialLinkRepair(t *testing.T) {
+	ix, err := search.BuildIndex(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, st := newMutationAPI(t, ix)
+	ctx := writeCtx()
+
+	if _, err := a.SavePage(ctx, SavePageInput{Slug: "notes/target", Title: "Old Title", Body: "target body"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SavePage(ctx, SavePageInput{Slug: "notes/source", Title: "Source", Body: "see [[Old Title]]"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Drop the backlink source from the working tree without touching the index,
+	// so the index still reports it while the repair read fails.
+	if err := os.Remove(filepath.Join(st.Dir(), wiki.PageFile("notes/source"))); err != nil {
+		t.Fatalf("removing backlink source: %v", err)
+	}
+
+	result, err := a.RenamePage(ctx, RenamePageInput{Slug: "notes/target", NewTitle: "New Title"})
+	if err != nil {
+		t.Fatalf("RenamePage with one unreachable backlink source = %v, want a committed rename", err)
+	}
+	if result.Slug != "notes/new-title" || result.BlobHash == "" {
+		t.Fatalf("rename result = %+v, want committed notes/new-title", result)
+	}
+	if len(result.FailedLinks) != 1 || result.FailedLinks[0] != "notes/source" {
+		t.Fatalf("FailedLinks = %v, want [notes/source]", result.FailedLinks)
+	}
+	if _, _, err := st.Read(wiki.PageFile("notes/new-title")); err != nil {
+		t.Fatalf("rename is not durable: %v", err)
 	}
 }
 

@@ -397,7 +397,9 @@ func saveConfiguredEmptyNamespace(t *testing.T, app *testApp, name string) []byt
 	if _, err := app.Store.Save(wiki.NamespaceConfigPath(name), content, "Configure namespace "+name, "test", "test@hmd.local"); err != nil {
 		t.Fatalf("saving %s config: %v", name, err)
 	}
-	app.apiClient().RefreshNamespaces()
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
+		t.Fatalf("refreshing namespaces: %v", err)
+	}
 	return content
 }
 
@@ -925,7 +927,9 @@ func TestSaveNamespaceRejectsStaleBrowserUpdate(t *testing.T) {
 	if _, err := app.Store.Save(wiki.NamespaceConfigPath("blog"), concurrent, "Concurrent edit", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("concurrent save: %v", err)
 	}
-	app.apiClient().RefreshNamespaces()
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
+		t.Fatalf("refreshing namespaces: %v", err)
+	}
 	_, currentHash, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
 	if err != nil {
 		t.Fatalf("reading concurrent hash: %v", err)
@@ -996,7 +1000,9 @@ func TestSaveNamespaceCreatesConfigForImplicitNamespace(t *testing.T) {
 	if _, err := app.Store.Save(wiki.PageFile("implicit/note"), wiki.Page{Slug: "implicit/note", Title: "Note"}.Encode(), "Add implicit/note", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("saving implicit page: %v", err)
 	}
-	app.apiClient().RefreshNamespaces()
+	if err := app.apiClient().RefreshNamespaces(); err != nil {
+		t.Fatalf("refreshing namespaces: %v", err)
+	}
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/namespaces", namespaceSaveJSON(url.Values{"name": {"implicit"}, "widgets": {"pages"}}))
 	if err != nil {

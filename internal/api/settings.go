@@ -320,8 +320,8 @@ func (a *API) CompleteFirstRunSetup(ctx context.Context, in FirstRunSetupInput) 
 		if in.SetupWiki {
 			selected := strings.TrimSpace(in.DefaultNamespace)
 			landing := ""
-			switch {
-			case selected == NewSetupNamespaceOption:
+			switch selected {
+			case NewSetupNamespaceOption:
 				name := strings.Trim(strings.TrimSpace(in.NewNamespace), "/")
 				if name == "" {
 					name = DefaultSetupNamespace
