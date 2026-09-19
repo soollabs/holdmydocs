@@ -8,9 +8,23 @@ import (
 	"time"
 )
 
+// indexRetryLimit bounds how many reconciliation passes retry a page whose
+// derived-index update failed. A page's hash is recorded only once an update
+// succeeds, so a transient failure recovers on a later pass; after the limit a
+// persistent failure stops being retried until the page changes or the process
+// restarts, when startup reconciliation retries from the manifest.
+const indexRetryLimit = 5
+
+// indexRetry tracks one page's pending index reconciliation across poll passes.
+type indexRetry struct {
+	hash     string
+	attempts int
+}
+
 func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]string, setNamespaces func(wiki.NamespaceRegistry), setWikiConfig func(WikiConfig)) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	retries := make(map[string]indexRetry)
 	for {
 		select {
 		case <-ctx.Done():
@@ -28,34 +42,7 @@ func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]stri
 		} else {
 			setWikiConfig(cfg)
 		}
-		paths, err := store.List()
-		if err != nil {
-			slog.Warn("pollFS: list failed", "err", err)
-			continue
-		}
-		seen := make(map[string]bool, len(paths))
-		for _, path := range paths {
-			slug := path[:len(path)-3]
-			seen[slug] = true
-			content, hash, err := store.Read(path)
-			if err != nil {
-				slog.Warn("pollFS: read failed", "path", path, "err", err)
-				continue
-			}
-			if hashes[slug] == hash {
-				continue
-			}
-			hashes[slug] = hash
-			if err := ix.UpdatePage(ParsePage(slug, content), hash); err != nil {
-				slog.Error("pollFS: updating search index", "slug", slug, "err", err)
-			}
-		}
-		for slug := range hashes {
-			if !seen[slug] {
-				delete(hashes, slug)
-				ix.Remove(slug)
-			}
-		}
+		reconcilePages(store, ix, hashes, retries)
 		if !ix.DocumentsEnabled() {
 			continue
 		}
@@ -75,5 +62,50 @@ func pollFS(ctx context.Context, store *Store, ix *Index, hashes map[string]stri
 			attachmentHashes[path] = hash
 		}
 		ix.ReconcileAttachments(attachmentHashes)
+	}
+}
+
+// reconcilePages re-reads the store and refreshes the derived index for pages
+// whose content hash changed. It is the reconciliation path for a post-commit
+// index failure: a failed update is retried on a later pass up to
+// indexRetryLimit times, and the hash is recorded only after indexing succeeds
+// so a transient failure eventually recovers.
+func reconcilePages(store *Store, ix *Index, hashes map[string]string, retries map[string]indexRetry) {
+	paths, err := store.List()
+	if err != nil {
+		slog.Warn("pollFS: list failed", "err", err)
+		return
+	}
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		slug := path[:len(path)-3]
+		seen[slug] = true
+		content, hash, err := store.Read(path)
+		if err != nil {
+			slog.Warn("pollFS: read failed", "path", path, "err", err)
+			continue
+		}
+		if hashes[slug] == hash {
+			continue
+		}
+		pending := retries[slug]
+		if pending.hash == hash && pending.attempts >= indexRetryLimit {
+			continue
+		}
+		if err := ix.UpdatePage(ParsePage(slug, content), hash); err != nil {
+			pending.hash = hash
+			pending.attempts++
+			retries[slug] = pending
+			slog.Error("pollFS: updating search index", "slug", slug, "attempt", pending.attempts, "err", err)
+			continue
+		}
+		delete(retries, slug)
+		hashes[slug] = hash
+	}
+	for slug := range hashes {
+		if !seen[slug] {
+			delete(hashes, slug)
+			ix.Remove(slug)
+		}
 	}
 }

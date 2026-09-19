@@ -147,6 +147,7 @@ type TemplateData struct {
 	SyncPollMs              int    // injected as a JS global for sync polling
 	SyncMode                string
 	BlobHash                string // current page blob hash, for client-side change detection
+	IndexWarning            string // post-commit indexing note, e.g. after a save whose index refresh failed
 	ThemeStyle              template.CSS
 	CSRFToken               string
 	CSPNonce                string
@@ -1505,7 +1506,18 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		BlobHash:      view.Hash,
 		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, plural(revisionCount)),
 		RecentCommits: recentCommits,
+		IndexWarning:  indexPendingNote(r),
 	})
+}
+
+// indexPendingNote reports a post-commit indexing warning carried on a
+// navigation redirect. The commit succeeded; only the derived search index is
+// behind and will be reconciled in the background.
+func indexPendingNote(r *http.Request) string {
+	if r.URL.Query().Get("index") == "pending" {
+		return "Saved. Search indexing is pending and will be reconciled automatically."
+	}
+	return ""
 }
 
 func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug string, page Page) {
@@ -1702,13 +1714,14 @@ func (app *App) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	if err := app.Store.Remove(pageFile(slug), "Delete "+slug, authorName, authorEmail); err != nil {
+	if _, err := app.apiClient().DeletePage(r.Context(), slug); err != nil {
+		if api.CategoryOf(err) == api.CategoryForbidden {
+			app.tokenNamespaceDenied(w, r)
+			return
+		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	app.Index.Remove(slug)
-	slog.Info("deleted", "slug", slug, "by", app.currentUser(r))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -1783,140 +1796,107 @@ func (app *App) handleSave(w http.ResponseWriter, r *http.Request, oldFile strin
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
+	fromHidden := oldFile == hiddenFile(slug)
 	title := r.FormValue("title")
 	body := r.FormValue("body")
 	tagsInput := r.FormValue("tags")
 	basehash := r.FormValue("basehash")
-	hidden := r.FormValue("hidden") == "on"
-	username := app.currentUser(r)
+	toHidden := r.FormValue("hidden") == "on"
 	targetSlug := slug
 	if want := strings.TrimSpace(r.FormValue("new_slug")); want != "" && want != slug {
 		targetSlug = want
-		newNamespace, newPage := wiki.NamespaceFor(targetSlug)
-		if !wiki.ValidPagePath(newPage) {
-			http.Error(w, "invalid filename", http.StatusBadRequest)
-			return
-		}
-		// Crossing into another namespace files the page somewhere that
-		// already exists; a typo in the path shouldn't conjure a namespace
-		// directory. Staying within the namespace is a rename.
-		if oldNamespace, _ := wiki.NamespaceFor(slug); oldNamespace != newNamespace {
-			if _, ok := app.Namespaces()[newNamespace]; !ok {
-				http.Error(w, "unknown namespace", http.StatusBadRequest)
-				return
-			}
-		}
-		dest := pageFile(targetSlug)
-		if hidden {
-			dest = hiddenFile(targetSlug)
-		}
-		if _, _, err := app.Store.Read(dest); err == nil {
-			http.Error(w, "a page with that filename already exists", http.StatusConflict)
-			return
-		}
-		if !app.requireTokenSlug(w, r, targetSlug) {
-			return
-		}
 	}
-
-	newFile := pageFile(slug)
-	newPrefix := ""
-	if hidden {
-		newFile = hiddenFile(targetSlug)
-		newPrefix = "/_/hidden"
-	}
-	if !hidden {
-		newFile = pageFile(targetSlug)
-	}
-
-	cfg := app.config()
-	if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
-		if _, err := app.Store.FetchAndFF(); err != nil {
-			slog.Warn("save-time fetch", "slug", slug, "err", err)
-		}
-	}
-
 	tags := ParseTags(tagsInput)
-	if err := validatePageInput(title, tags, body); err != nil {
+
+	var (
+		mutation *api.Mutation
+		err      error
+	)
+	switch {
+	case targetSlug != slug:
+		mutation, err = app.apiClient().MovePage(r.Context(), api.MovePageInput{
+			FromSlug: slug, ToSlug: targetSlug, FromHidden: fromHidden, ToHidden: toHidden,
+			Title: title, Tags: tags, Body: body, BaseHash: basehash,
+		})
+	case basehash == "":
+		mutation, err = app.apiClient().SavePage(r.Context(), api.SavePageInput{
+			Slug: slug, Title: title, Tags: tags, Body: body, Hidden: toHidden,
+		})
+	default:
+		mutation, err = app.apiClient().UpdatePage(r.Context(), api.UpdatePageInput{
+			Slug: slug, BaseHash: basehash, FromHidden: fromHidden, ToHidden: toHidden,
+			Title: &title, Tags: &tags, Body: &body,
+		})
+	}
+	if err != nil {
+		app.renderSaveError(w, r, err, slug, oldFile, title, body, tagsInput, toHidden)
+		return
+	}
+
+	prefix := ""
+	if toHidden {
+		prefix = "/_/hidden"
+	}
+	location := prefix + "/" + mutation.Slug
+	if mutation.IndexWarning != "" {
+		location += "?index=pending"
+	}
+	slog.Info("saved", "slug", slug, "target", mutation.Slug, "warning", mutation.IndexWarning)
+	http.Redirect(w, r, location, http.StatusSeeOther)
+}
+
+// renderSaveError maps a page-write failure to the browser response. A
+// committed write is never an error: an index failure is carried on the
+// mutation as a warning and surfaces as a post-save note instead.
+func (app *App) renderSaveError(w http.ResponseWriter, r *http.Request, err error, slug, oldFile, title, body, tagsInput string, hidden bool) {
+	switch api.CategoryOf(err) {
+	case api.CategoryConflict:
+		app.renderSaveConflict(w, r, slug, oldFile, title, body, tagsInput, hidden)
+	case api.CategoryForbidden:
+		app.tokenNamespaceDenied(w, r)
+	case api.CategoryInvalidInput:
 		status := http.StatusBadRequest
-		if len(body) > maxPageBodyBytes {
+		if len(body) > api.MaxPageBodyBytes {
 			status = http.StatusRequestEntityTooLarge
 		}
 		http.Error(w, err.Error(), status)
-		return
+	default:
+		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
-	page := Page{Slug: targetSlug, Title: title, Tags: tags, Body: body}
-	// pin has no editor UI yet — round-trip it from whatever was on disk
-	// before this save, untouched.
-	if oldContent, _, err := app.Store.Read(oldFile); err == nil {
-		old := ParsePage(slug, oldContent)
-		page.Pin = old.Pin
-	}
+}
 
-	message := "Update " + title
-	if basehash == "" {
-		message = "Create " + title
-	}
-	if oldFile != newFile {
-		message = "Move " + title
-	}
-
-	// SaveChecked verifies basehash against oldFile's current hash and
-	// performs the write atomically under the store lock, so two concurrent
-	// saves against the same basehash can't both succeed.
-	authorName, authorEmail := app.gitAuthor(username)
-	blobHash, err := app.Store.SaveChecked(oldFile, newFile, basehash, page.Encode(), message, authorName, authorEmail)
-	if errors.Is(err, ErrConflict) {
-		_, currentHash, readErr := app.Store.Read(oldFile)
-		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		oldPrefix := ""
-		if oldFile == hiddenFile(slug) {
-			oldPrefix = "/_/hidden"
-		}
-		headAuthor, headWhen, headShortHash := "", "", ""
-		if history, herr := app.Store.History(oldFile); herr == nil && len(history) > 0 {
-			headAuthor = history[0].Author
-			headWhen = relativeTime(history[0].When)
-			headShortHash = history[0].Hash[:8]
-		}
-		app.render(w, r, http.StatusConflict, "conflict", TemplateData{
-			Authed:        true,
-			Title:         title,
-			Slug:          slug,
-			Body:          body,
-			BaseHash:      currentHash,
-			TagsInput:     tagsInput,
-			HeadShortHash: headShortHash,
-			HeadAuthor:    headAuthor,
-			HeadWhen:      headWhen,
-			StatusMode:    "conflict",
-			RoutePrefix:   oldPrefix,
-			IsHidden:      hidden,
-		})
-		return
-	}
-	if err != nil {
+// renderSaveConflict renders the optimistic-lock conflict page with the
+// currently committed revision, so unsaved input survives.
+func (app *App) renderSaveConflict(w http.ResponseWriter, r *http.Request, slug, oldFile, title, body, tagsInput string, hidden bool) {
+	_, currentHash, readErr := app.Store.Read(oldFile)
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-
-	slog.Info("saved", "slug", slug, "file", newFile, "author", authorName, "message", message)
-
-	if targetSlug != slug {
-		app.Index.Remove(slug)
+	oldPrefix := ""
+	if oldFile == hiddenFile(slug) {
+		oldPrefix = "/_/hidden"
 	}
-	if hidden {
-		app.Index.Remove(slug)
-	} else {
-		if err := app.Index.UpdatePage(page, blobHash); err != nil {
-			slog.Error("updating search index", "slug", page.Slug, "err", err)
-		}
+	headAuthor, headWhen, headShortHash := "", "", ""
+	if history, herr := app.Store.History(oldFile); herr == nil && len(history) > 0 {
+		headAuthor = history[0].Author
+		headWhen = relativeTime(history[0].When)
+		headShortHash = history[0].Hash[:8]
 	}
-
-	http.Redirect(w, r, newPrefix+"/"+targetSlug, http.StatusSeeOther)
+	app.render(w, r, http.StatusConflict, "conflict", TemplateData{
+		Authed:        true,
+		Title:         title,
+		Slug:          slug,
+		Body:          body,
+		BaseHash:      currentHash,
+		TagsInput:     tagsInput,
+		HeadShortHash: headShortHash,
+		HeadAuthor:    headAuthor,
+		HeadWhen:      headWhen,
+		StatusMode:    "conflict",
+		RoutePrefix:   oldPrefix,
+		IsHidden:      hidden,
+	})
 }
 
 func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
@@ -1927,14 +1907,14 @@ func (app *App) handlePreview(w http.ResponseWriter, r *http.Request) {
 		}
 		body = r.FormValue("body")
 	} else {
-		b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPageBodyBytes))
+		b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, api.MaxPageBodyBytes))
 		if err != nil {
 			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 		body = string(b)
 	}
-	if len(body) > maxPageBodyBytes {
+	if len(body) > api.MaxPageBodyBytes {
 		http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
 		return
 	}
@@ -2485,96 +2465,35 @@ func (app *App) handleSyncPushNow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var wikiLinkRe = regexp.MustCompile(`\[\[([^\[\]]+)\]\]`)
-
 func (app *App) handleRenamePage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	newTitle := strings.TrimSpace(r.FormValue("title"))
-	if newTitle == "" {
-		http.Error(w, "missing title", http.StatusBadRequest)
-		return
-	}
-	// A rename retitles a page in place: keep it in its namespace instead of
-	// slugifying it out to the wiki root.
-	renameNS, _ := wiki.NamespaceFor(slug)
-	if Slugify(newTitle) == "" {
-		http.Error(w, "invalid title", http.StatusBadRequest)
-		return
-	}
-	newSlug := wiki.NamespaceSlug(renameNS, Slugify(newTitle))
-	if !app.requireTokenSlug(w, r, newSlug) {
-		return
-	}
-
-	content, hash, err := app.Store.Read(pageFile(slug))
+	result, err := app.apiClient().RenamePage(r.Context(), api.RenamePageInput{Slug: slug, NewTitle: r.FormValue("title")})
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		switch api.CategoryOf(err) {
+		case api.CategoryConflict:
+			http.Error(w, err.Error(), http.StatusConflict)
+		case api.CategoryInvalidInput:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case api.CategoryForbidden:
+			app.tokenNamespaceDenied(w, r)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
-	if newSlug != slug && app.Index.Exists(newSlug) {
-		http.Error(w, "a page with that title already exists", http.StatusConflict)
-		return
-	}
 
-	sources := app.Index.Backlinks(slug)
-	for _, source := range sources {
-		if !app.requireTokenSlug(w, r, source) {
-			return
-		}
-	}
-
-	page := ParsePage(slug, content)
-	oldTitle := page.Title
-	page.Title = newTitle
-	page.Slug = newSlug
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	message := fmt.Sprintf("Rename %s to %s", oldTitle, newTitle)
-	newHash, err := app.Store.SaveChecked(pageFile(slug), pageFile(newSlug), hash, page.Encode(), message, authorName, authorEmail)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if newSlug != slug {
-		app.Index.Remove(slug)
-	}
-	if err := app.Index.UpdatePage(page, newHash); err != nil {
-		slog.Error("updating search index", "slug", page.Slug, "err", err)
-	}
-
-	for _, src := range sources {
-		srcContent, srcHash, err := app.Store.Read(pageFile(src))
-		if err != nil {
-			continue
-		}
-		srcPage := ParsePage(src, srcContent)
-		srcNS, _ := wiki.NamespaceFor(src)
-		updated := wikiLinkRe.ReplaceAllStringFunc(srcPage.Body, func(m string) string {
-			// Mirror Index.ResolveLink: the link pointed at the old page by
-			// title, or — for casing that didn't match — by slug, namespace
-			// first. Title alone isn't enough now that a slug can be namespaced.
-			inner := m[2 : len(m)-2]
-			if inner == oldTitle || wiki.NamespaceSlug(srcNS, Slugify(inner)) == slug || Slugify(inner) == slug {
-				return "[[" + newTitle + "]]"
-			}
-			return m
-		})
-		if updated == srcPage.Body {
-			continue
-		}
-		srcPage.Body = updated
-		if sourceHash, err := app.Store.SaveChecked(pageFile(src), pageFile(src), srcHash, srcPage.Encode(), "Update links after rename of "+oldTitle, authorName, authorEmail); err == nil {
-			if err := app.Index.UpdatePage(srcPage, sourceHash); err != nil {
-				slog.Error("updating search index", "slug", srcPage.Slug, "err", err)
-			}
-		}
-	}
-
-	slog.Info("renamed", "from", slug, "to", newSlug, "links", len(sources))
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": newSlug}); err != nil {
+	response := map[string]any{"ok": true, "slug": result.Slug}
+	if result.IndexWarning != "" {
+		response["index_warning"] = result.IndexWarning
+	}
+	if len(result.FailedLinks) > 0 {
+		response["link_failures"] = result.FailedLinks
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("encoding rename response", "err", err)
 	}
 }
@@ -2584,24 +2503,26 @@ func (app *App) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	content, hash, err := app.Store.Read(pageFile(slug))
+	mutation, err := app.apiClient().SetPageTags(r.Context(), slug, ParseTags(r.FormValue("tags")))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		switch api.CategoryOf(err) {
+		case api.CategoryNotFound:
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case api.CategoryInvalidInput:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case api.CategoryForbidden:
+			app.tokenNamespaceDenied(w, r)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
-	}
-	page := ParsePage(slug, content)
-	page.Tags = ParseTags(r.FormValue("tags"))
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	newHash, err := app.Store.SaveChecked(pageFile(slug), pageFile(slug), hash, page.Encode(), "Update tags for "+page.Title, authorName, authorEmail)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if err := app.Index.UpdatePage(page, newHash); err != nil {
-		slog.Error("updating search index", "slug", page.Slug, "err", err)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{"ok": true, "slug": slug}); err != nil {
+	response := map[string]any{"ok": true, "slug": mutation.Slug}
+	if mutation.IndexWarning != "" {
+		response["index_warning"] = mutation.IndexWarning
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("encoding tags response", "err", err)
 	}
 }
@@ -2812,29 +2733,24 @@ func (app *App) handleRevert(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenSlug(w, r, slug) {
 		return
 	}
-	hash := r.FormValue("hash")
-	username := app.currentUser(r)
-
-	content, err := app.Store.FileAt(pageFile(slug), hash)
+	mutation, err := app.apiClient().RevertPage(r.Context(), slug, r.FormValue("hash"))
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		switch api.CategoryOf(err) {
+		case api.CategoryNotFound:
+			http.Error(w, "not found", http.StatusNotFound)
+		case api.CategoryForbidden:
+			app.tokenNamespaceDenied(w, r)
+		default:
+			http.Error(w, "error reverting", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	authorName, authorEmail := app.gitAuthor(username)
-	_, err = app.Store.Save(pageFile(slug), content, "Revert "+slug+" to "+hash[:8], authorName, authorEmail)
-	if err != nil {
-		http.Error(w, "error reverting", http.StatusInternalServerError)
-		return
+	location := "/" + slug
+	if mutation.IndexWarning != "" {
+		location += "?index=pending"
 	}
-	slog.Info("reverted", "slug", slug, "to", hash[:8], "author", authorName)
-
-	page := ParsePage(slug, content)
-	if err := app.Index.Update(page); err != nil {
-		slog.Error("updating search index", "slug", page.Slug, "err", err)
-	}
-
-	http.Redirect(w, r, "/"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, location, http.StatusSeeOther)
 }
 
 func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {

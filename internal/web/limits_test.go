@@ -9,25 +9,6 @@ import (
 	"hmd/internal/search"
 )
 
-func TestPageInputLimits(t *testing.T) {
-	tags := make([]string, maxPageTags)
-	for i := range tags {
-		tags[i] = "tag"
-	}
-	if err := validatePageInput(strings.Repeat("t", maxPageTitleRunes), tags, strings.Repeat("x", maxPageBodyBytes)); err != nil {
-		t.Fatalf("at limit: %v", err)
-	}
-	if err := validatePageInput(strings.Repeat("t", maxPageTitleRunes+1), nil, ""); err == nil {
-		t.Error("accepted oversized title")
-	}
-	if err := validatePageInput("", nil, strings.Repeat("x", maxPageBodyBytes+1)); err == nil {
-		t.Error("accepted oversized body")
-	}
-	if err := validatePageInput("", append(tags, "one-more"), ""); err == nil {
-		t.Error("accepted too many tags")
-	}
-}
-
 func TestRequestSecurityRejectsOversizedForm(t *testing.T) {
 	app := &App{}
 	app.SetConfig(Config{})

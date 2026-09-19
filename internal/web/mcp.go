@@ -99,8 +99,9 @@ type mcpSaveIn struct {
 }
 
 type mcpSaveOut struct {
-	Slug string `json:"slug"`
-	Hash string `json:"hash" jsonschema:"the new basehash for a follow-up save"`
+	Slug         string `json:"slug"`
+	Hash         string `json:"hash" jsonschema:"the new basehash for a follow-up save"`
+	IndexWarning string `json:"index_warning,omitempty" jsonschema:"set when the save committed but the search index refresh failed; the commit is durable and indexing is reconciled in the background"`
 }
 
 type mcpSearchIn struct {
@@ -598,59 +599,33 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, mcpSaveOut{}, err
 		}
 		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+		if err := app.mcpRequireSlug(ctx, slug); err != nil {
 			return nil, mcpSaveOut{}, err
 		}
-		title := strings.TrimSpace(in.Title)
-		if title == "" {
-			title = in.Slug
-		}
-		if err := validatePageInput(title, in.Tags, in.Body); err != nil {
-			return nil, mcpSaveOut{}, err
-		}
-		page := Page{
-			Slug: in.Slug, Title: title, Tags: in.Tags, Body: in.Body,
-			Pin: in.Pin,
-		}
-
-		cfg := app.config()
-		if cfg.SyncMode == "bidirectional" && cfg.Git.RemoteURL != "" {
-			if _, err := app.Store.FetchAndFF(); err != nil {
-				slog.Warn("mcp save-time fetch", "slug", in.Slug, "err", err)
-			}
-		}
-
-		message := "Update " + title
-		if in.BaseHash == "" {
-			message = "Create " + title
-		}
-		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
-		file := pageFile(in.Slug)
-		hash, err := app.Store.SaveChecked(file, file, in.BaseHash, page.Encode(), message, authorName, authorEmail)
-		if errors.Is(err, ErrConflict) {
-			content, currentHash, readErr := app.Store.Read(file)
-			if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-				return nil, mcpSaveOut{}, readErr
-			}
-			current := ParsePage(in.Slug, content)
-			payload, _ := json.Marshal(map[string]string{
-				"error": "conflict: the page changed since basehash (or already exists)",
-				"hash":  currentHash,
-				"body":  current.Body,
-			})
-			return &mcp.CallToolResult{
-				IsError: true,
-				Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}},
-			}, mcpSaveOut{}, nil
-		}
+		mutation, err := app.apiClient().SavePage(ctx, api.SavePageInput{
+			Slug: slug, Title: in.Title, Tags: in.Tags, Body: in.Body, Pin: in.Pin, BaseHash: in.BaseHash,
+		})
 		if err != nil {
+			if api.CategoryOf(err) == api.CategoryConflict {
+				content, currentHash, readErr := app.Store.Read(pageFile(slug))
+				if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+					return nil, mcpSaveOut{}, readErr
+				}
+				current := ParsePage(slug, content)
+				payload, _ := json.Marshal(map[string]string{
+					"error": "conflict: the page changed since basehash (or already exists)",
+					"hash":  currentHash,
+					"body":  current.Body,
+				})
+				return &mcp.CallToolResult{
+					IsError: true,
+					Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}},
+				}, mcpSaveOut{}, nil
+			}
 			return nil, mcpSaveOut{}, err
 		}
-		if err := app.Index.UpdatePage(page, hash); err != nil {
-			return nil, mcpSaveOut{}, err
-		}
-		slog.Info("mcp saved", "slug", in.Slug, "author", authorName, "message", message)
-		return nil, mcpSaveOut{Slug: in.Slug, Hash: hash}, nil
+		slog.Info("mcp saved", "slug", mutation.Slug, "warning", mutation.IndexWarning)
+		return nil, mcpSaveOut{Slug: mutation.Slug, Hash: mutation.BlobHash, IndexWarning: mutation.IndexWarning}, nil
 	})
 
 	app.registerMCPEditTool(server)
@@ -667,17 +642,15 @@ func (app *App) mcpHandler() http.Handler {
 			return nil, nil, err
 		}
 		in.Slug = slug
-		if err := app.mcpRequireSlug(ctx, in.Slug); err != nil {
+		if err := app.mcpRequireSlug(ctx, slug); err != nil {
 			return nil, nil, err
 		}
-		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
-		if err := app.Store.Remove(pageFile(in.Slug), "Delete "+in.Slug, authorName, authorEmail); err != nil {
+		if _, err := app.apiClient().DeletePage(ctx, slug); err != nil {
 			return nil, nil, err
 		}
-		app.Index.Remove(in.Slug)
-		slog.Info("mcp deleted", "slug", in.Slug, "author", authorName)
+		slog.Info("mcp deleted", "slug", slug)
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "deleted " + in.Slug}},
+			Content: []mcp.Content{&mcp.TextContent{Text: "deleted " + slug}},
 		}, nil, nil
 	})
 
