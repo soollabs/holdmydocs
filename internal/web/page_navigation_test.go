@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -79,7 +78,7 @@ func TestLiveReadingEnhancements(t *testing.T) {
 }
 
 func TestPageNeighboursSkipsDirectoriesAndMissingPages(t *testing.T) {
-	entries := []search.BacklinkEntry{{Slug: "docs/a", Title: "A"}, {Slug: "docs/folder/b", Title: "B"}, {Slug: "docs/c", Title: "C"}}
+	entries := []wiki.BacklinkEntry{{Slug: "docs/a", Title: "A"}, {Slug: "docs/folder/b", Title: "B"}, {Slug: "docs/c", Title: "C"}}
 	tree := buildPageTree(entries, "docs", "a", []string{"folder", "c"})
 	pages := orderedTreePages(tree)
 	href := func(to string) string { return "/docs/" + to }

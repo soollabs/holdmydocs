@@ -132,11 +132,6 @@ func (env *testEnv) handler(mcpEnabled bool) http.Handler {
 // capability: it redeems the token and streams the file to the shared
 // api.UploadAttachment operation.
 func (env *testEnv) capabilityUpload(w http.ResponseWriter, r *http.Request) {
-	capability, ok := env.api.TakeUploadCapability(r.PathValue("token"))
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
 	const maxBytes = 10 << 20
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes+(1<<20))
 	reader, err := r.MultipartReader()
@@ -145,6 +140,7 @@ func (env *testEnv) capabilityUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var content []byte
+	var filename string
 	for {
 		part, partErr := reader.NextPart()
 		if errors.Is(partErr, io.EOF) {
@@ -159,6 +155,7 @@ func (env *testEnv) capabilityUpload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		content, err = io.ReadAll(io.LimitReader(part, maxBytes+1))
+		filename = part.FileName()
 		_ = part.Close()
 		if err != nil {
 			http.Error(w, "error reading file", http.StatusInternalServerError)
@@ -170,10 +167,12 @@ func (env *testEnv) capabilityUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no file uploaded", http.StatusBadRequest)
 		return
 	}
-	upload, err := env.api.UploadAttachment(r.Context(), api.AttachmentUploadInput{
-		Slug: capability.Slug, Filename: capability.Filename, ExpectFilename: capability.Filename, Actor: capability.User, Content: content,
-	})
+	upload, err := env.api.RedeemUploadCapability(r.Context(), r.PathValue("token"), filename, content)
 	if err != nil {
+		if api.CategoryOf(err) == api.CategoryNotFound {
+			http.NotFound(w, r)
+			return
+		}
 		http.Error(w, "error saving file", http.StatusInternalServerError)
 		return
 	}

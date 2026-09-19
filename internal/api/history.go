@@ -40,6 +40,9 @@ type RevisionPage struct {
 // touches falls inside the caller's namespace access, so a commit spanning
 // multiple namespaces is only visible to a caller allowed all of them.
 func (a *API) RecentChanges(ctx context.Context, limit int) ([]Commit, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 20
 	}
@@ -63,6 +66,9 @@ func (a *API) RecentChanges(ctx context.Context, limit int) ([]Commit, error) {
 // PageHistory returns the committed revisions of an accessible page, newest
 // first.
 func (a *API) PageHistory(ctx context.Context, slug string) ([]Revision, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
@@ -82,6 +88,9 @@ func (a *API) PageHistory(ctx context.Context, slug string) ([]Revision, error) 
 // RevisionPage reads one historical revision of an accessible page and the
 // time of that commit.
 func (a *API) RevisionPage(ctx context.Context, slug, hash string) (*RevisionPage, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
@@ -140,6 +149,9 @@ func commitPathNamespace(path string) (string, bool) {
 // PageDiff returns the unified diff between two committed revisions of an
 // accessible page.
 func (a *API) PageDiff(ctx context.Context, slug, fromHash, toHash string) (string, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return "", err
+	}
 	if !AllowSlug(ctx, slug) {
 		return "", Forbidden("namespace access denied")
 	}

@@ -35,6 +35,9 @@ type AttachmentHit struct {
 // may receive a short page even when further authorised matches exist.
 // Authorisation-aware retrieval is intentionally out of scope for this API.
 func (a *API) SearchPages(ctx context.Context, query string) ([]PageHit, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if err := search.ValidateQuery(query); err != nil {
 		return nil, InvalidInput(err.Error(), err)
 	}
@@ -69,6 +72,9 @@ const attachmentSearchCandidates = 50
 // clamps limit to [1, MaxAttachmentSearchResults], and maps disabled, busy and
 // failed states onto explicit error categories.
 func (a *API) SearchAttachments(ctx context.Context, query string, limit int) ([]AttachmentHit, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if !a.index.DocumentsEnabled() {
 		return nil, Unavailable("attachment search is not enabled", nil)
 	}

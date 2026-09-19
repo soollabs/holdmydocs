@@ -86,7 +86,7 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 	ns, _ := wiki.NamespaceFor(data.Slug)
 	var titles map[string]string
 	if needs("namespaces") || ns != "" {
-		titles = app.apiClient().PageTitles()
+		titles = app.apiClient().PageTitles(ctx)
 	}
 	needsDates := needs("calendar") || needs("writing-stats") || needs("prev-entries")
 	var dates []string
@@ -124,10 +124,10 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 		data.PrevEntries = buildPrevEntries(data.Slug, dates, 3, firstLine)
 	}
 	if needs("pinned") {
-		data.PinnedPages = app.apiClient().PinnedPages()
+		data.PinnedPages = app.apiClient().PinnedPages(ctx)
 	}
 	if needs("namespaces") {
-		data.NamespaceNav = namespaceNav(app.apiClient().NamespaceSummaries(), ns)
+		data.NamespaceNav = namespaceNav(app.apiClient().ListNamespaces(ctx), ns)
 	}
 	// Filter these entries in render(), before flattening the tree to HTML.
 	if ns != "" {

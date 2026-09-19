@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -14,17 +15,16 @@ import (
 
 	"hmd/internal/api"
 	"hmd/internal/auth"
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
 var tocToken = regexp.MustCompile(`<!-- hmd:toc(?::([a-z0-9,-]+))? -->`)
 
-func (app *App) injectTOC(body string, indexSlug string, ns string) string {
+func (app *App) injectTOC(ctx context.Context, body string, indexSlug string, ns string) string {
 	if !strings.Contains(body, "hmd:toc") {
 		return body
 	}
-	titles := app.apiClient().PageTitles()
+	titles := app.apiClient().PageTitles(ctx)
 	inNS := func(slug string) bool {
 		pageNS, _ := wiki.NamespaceFor(slug)
 		return pageNS == ns
@@ -43,7 +43,7 @@ func (app *App) injectTOC(body string, indexSlug string, ns string) string {
 			}
 		} else {
 			tagSlugs := strings.Split(tagList, ",")
-			for _, s := range app.apiClient().PagesForTags(tagSlugs) {
+			for _, s := range app.apiClient().PagesForTags(ctx, tagSlugs) {
 				if s != indexSlug && inNS(s) {
 					slugs = append(slugs, s)
 				}
@@ -182,7 +182,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ns, _ := wiki.NamespaceFor(slug)
-	page.Body = app.injectTOC(page.Body, app.Namespaces().IndexSlug(ns), ns)
+	page.Body = app.injectTOC(r.Context(), page.Body, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -194,9 +194,9 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	backlinks := make([]search.BacklinkEntry, 0, len(backlinkSummaries))
+	backlinks := make([]wiki.BacklinkEntry, 0, len(backlinkSummaries))
 	for _, backlink := range backlinkSummaries {
-		backlinks = append(backlinks, search.BacklinkEntry{Slug: backlink.Slug, Title: backlink.Title})
+		backlinks = append(backlinks, wiki.BacklinkEntry{Slug: backlink.Slug, Title: backlink.Title})
 	}
 
 	var pageTags []TagChip
@@ -256,7 +256,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	}
 
 	pageNS, _ := wiki.NamespaceFor(slug)
-	isPublicLink := func(s string) bool { return app.apiClient().PageExists(s) && ns.IsPublic(s) }
+	isPublicLink := func(s string) bool { return app.apiClient().PageExists(r.Context(), s) && ns.IsPublic(s) }
 	renderedBody, err := app.Render.RenderPublic(page.Body, pageNS, isPublicLink)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -270,7 +270,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		palette = skin.Palette
 	}
 	var sidebarTreeNS string
-	var sidebarTreeEntries []search.BacklinkEntry
+	var sidebarTreeEntries []wiki.BacklinkEntry
 	if summary := app.apiClient().NamespaceSummary(r.Context(), pageNS); summary != nil {
 		sidebarTreeNS = pageNS
 		sidebarTreeEntries = summary.Pages
@@ -311,7 +311,7 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	}
 	r.SetPathValue("slug", slug)
 	if r.URL.Query().Get("do") == "" {
-		if name, ok := app.namespaceIndexName(slug); ok {
+		if name, ok := app.namespaceIndexName(r.Context(), slug); ok {
 			app.handleNamespaceIndex(w, r, name)
 			return
 		}
@@ -336,12 +336,12 @@ func (app *App) handlePageGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *App) namespaceIndexName(path string) (string, bool) {
+func (app *App) namespaceIndexName(ctx context.Context, path string) (string, bool) {
 	name := strings.TrimSuffix(path, "/")
 	if name == "" || strings.Contains(name, "/") {
 		return "", false
 	}
-	for _, entry := range app.apiClient().NamespaceSummaries() {
+	for _, entry := range app.apiClient().ListNamespaces(ctx) {
 		if entry.Name == name {
 			return entry.Name, true
 		}
@@ -366,7 +366,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	// the configured page doesn't exist.
 	if summary.Config.Index != "" {
 		indexSlug := wiki.NamespaceSlug(name, summary.Config.Index)
-		if app.apiClient().PageExists(indexSlug) {
+		if app.apiClient().PageExists(r.Context(), indexSlug) {
 			r.SetPathValue("slug", indexSlug)
 			app.handleViewPage(w, r)
 			return
@@ -460,9 +460,9 @@ func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 	tagSlug := r.PathValue("tag")
 	name, summaries := app.apiClient().TagPages(r.Context(), tagSlug)
 
-	pages := make([]search.BacklinkEntry, 0, len(summaries))
+	pages := make([]wiki.BacklinkEntry, 0, len(summaries))
 	for _, summary := range summaries {
-		pages = append(pages, search.BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
+		pages = append(pages, wiki.BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
 	}
 
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
@@ -563,7 +563,7 @@ func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
-	titles := app.apiClient().PageTitles()
+	titles := app.apiClient().PageTitles(r.Context())
 	report, err := app.apiClient().Health(r.Context(), "")
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -705,7 +705,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 
 	page := wiki.Page{Slug: revision.Slug, Title: revision.Title, Tags: revision.Tags, Body: revision.Body}
 	ns, _ := wiki.NamespaceFor(slug)
-	page.Body = app.injectTOC(page.Body, app.Namespaces().IndexSlug(ns), ns)
+	page.Body = app.injectTOC(r.Context(), page.Body, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -733,9 +733,9 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	pages := make([]search.BacklinkEntry, 0, len(summaries))
+	pages := make([]wiki.BacklinkEntry, 0, len(summaries))
 	for _, summary := range summaries {
-		pages = append(pages, search.BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
+		pages = append(pages, wiki.BacklinkEntry{Slug: summary.Slug, Title: summary.Title})
 	}
 	app.render(w, r, http.StatusOK, "hidden", TemplateData{
 		Authed:      true,

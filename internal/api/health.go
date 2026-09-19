@@ -45,6 +45,9 @@ func (a *API) Ready() bool {
 // The namespace roots come from the shared registry snapshot, so sub-namespace
 // roots such as index pages are excluded from the orphan list.
 func (a *API) Health(ctx context.Context, namespace string) (HealthReport, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return HealthReport{}, err
+	}
 	if namespace != "" {
 		if !wiki.ValidNamespaceName(namespace) {
 			return HealthReport{}, InvalidInput("invalid namespace", nil)

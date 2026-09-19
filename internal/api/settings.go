@@ -77,6 +77,9 @@ type ServerSettingsInput struct {
 // value the environment owns. It reloads the configuration and rebuilds the
 // store remote after a successful write.
 func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if in.Bind == "" {
 		return InvalidInput("bind cannot be empty", nil)
 	}
@@ -176,6 +179,9 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 // ExportServerConfig bakes the resolved runtime configuration (including
 // environment-derived values) into the configuration file.
 func (a *API) ExportServerConfig(ctx context.Context) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	cfg := a.Config()
 	if err := config.SaveFileConfig(cfg.ConfigFile, cfg.ToFileConfig()); err != nil {
 		return Unavailable("exporting config", err)
@@ -199,6 +205,9 @@ type WikiConfigInput struct {
 // updates the runtime snapshot. It is used by the settings screen and the
 // first-run setup wizard.
 func (a *API) SaveWikiConfig(ctx context.Context, in WikiConfigInput) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	cfg := wiki.WikiConfig{Landing: strings.TrimSpace(in.Landing), SiteName: strings.TrimSpace(in.SiteName)}
 	if cfg.SiteName == "" {
 		return InvalidInput("site name cannot be empty", nil)
@@ -221,6 +230,9 @@ func (a *API) SaveWikiConfig(ctx context.Context, in WikiConfigInput) error {
 
 // ResetHelp rewrites the built-in help guide.
 func (a *API) ResetHelp(ctx context.Context) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	name, email := a.Author(ctx)
 	content := wiki.Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: store.DefaultHelpMD}.Encode()
 	if _, err := a.store.Save(".help.md", content, "Reset .help.md to built-in", name, email); err != nil {
@@ -234,6 +246,9 @@ func (a *API) ResetHelp(ctx context.Context) error {
 // reset: selecting a new skin discards the submitted palette unless the
 // browser reports an explicit later palette choice.
 func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin string, paletteExplicit bool) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if palette != "" && !presentation.ValidPalette(palette) {
 		return InvalidInput("unknown palette", nil)
 	}
@@ -265,6 +280,9 @@ func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin
 
 // SetGitAuthor stores the caller's per-user git author override.
 func (a *API) SetGitAuthor(ctx context.Context, author string) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	author = strings.TrimSpace(author)
 	if err := ValidateGitAuthor(author); err != nil {
 		return InvalidInput(err.Error(), err)
@@ -278,6 +296,9 @@ func (a *API) SetGitAuthor(ctx context.Context, author string) error {
 
 // RerunSetup requests the first-run setup wizard on the next navigation.
 func (a *API) RerunSetup(ctx context.Context) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	a.store.ForceSetup.Store(true)
 	return nil
 }
@@ -286,13 +307,18 @@ func (a *API) RerunSetup(ctx context.Context) error {
 // when the user does not name one.
 const DefaultSetupNamespace = "notes"
 
+// DefaultHomeBody and DefaultHelpBody expose the built-in setup previews
+// without granting a presentation adapter access to persistence.
+func DefaultHomeBody() string { return store.DefaultHomeMD }
+func DefaultHelpBody() string { return store.DefaultHelpMD }
+
 // NewSetupNamespaceOption is the wizard's select value for "create a new
 // namespace" rather than picking a detected one.
 const NewSetupNamespaceOption = "_new"
 
 // FirstRunSetupInput is the submitted first-run setup wizard. Action is
 // "add" to seed the selected items or anything else to dismiss the wizard;
-// the wizard is state-gated rather than scope-gated.
+// the wizard requires settings access.
 type FirstRunSetupInput struct {
 	Action           string
 	SetupWiki        bool
@@ -309,6 +335,9 @@ type FirstRunSetupInput struct {
 // first-run flags so the wizard stops appearing. Every write goes through the
 // shared operations, so the wizard cannot diverge from the settings screens.
 func (a *API) CompleteFirstRunSetup(ctx context.Context, in FirstRunSetupInput) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if in.Action == "add" {
 		_, wikiExists, wikiErr := wiki.LoadWikiConfig(a.Config().RepoDir)
 		if wikiErr != nil {
@@ -381,6 +410,9 @@ var TokenTTLs = map[string]time.Duration{
 
 // CreateUser adds a user with the given scopes.
 func (a *API) CreateUser(ctx context.Context, name, password string, scopes []string) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if name == "" || password == "" {
 		return InvalidInput("name and password are required", nil)
 	}
@@ -397,6 +429,9 @@ func (a *API) CreateUser(ctx context.Context, name, password string, scopes []st
 // SetUserScopes replaces a user's scopes, guarding the bootstrap admin and the
 // caller's own settings access.
 func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if name == a.Config().AdminUser {
 		return InvalidInput("the bootstrap admin user always has full access", nil)
 	}
@@ -422,6 +457,9 @@ func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) e
 // CreateToken mints a personal access token for the caller. The adapter maps
 // form TTL choices to an absolute expiry before calling.
 func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, scopes, namespaces []string) (string, error) {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return "", err
+	}
 	label = strings.TrimSpace(label)
 	if label == "" {
 		return "", InvalidInput("token needs a name", nil)
@@ -430,7 +468,7 @@ func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, 
 		return "", InvalidInput("token needs at least one scope", nil)
 	}
 	known := make(map[string]struct{})
-	for _, summary := range a.NamespaceSummaries() {
+	for _, summary := range a.namespaceSummaries() {
 		known[summary.Name] = struct{}{}
 	}
 	cleaned := make([]string, 0, len(namespaces))
@@ -458,6 +496,9 @@ func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, 
 
 // RevokeToken removes one of the caller's personal access tokens.
 func (a *API) RevokeToken(ctx context.Context, label string) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	username, _ := Username(ctx)
 	if err := a.auth.RemoveToken(username, label); err != nil {
 		return InvalidInput(err.Error(), err)
@@ -468,8 +509,11 @@ func (a *API) RevokeToken(ctx context.Context, label string) error {
 
 // SeedFirstNamespace creates the initial namespace configuration, its index
 // page and the root readme, then refreshes the registry. It is used by the
-// first-run setup wizard, which is state-gated rather than scope-gated.
+// first-run setup wizard, which requires settings access.
 func (a *API) SeedFirstNamespace(ctx context.Context, name string) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
 	if !wiki.ValidNamespaceName(name) {
 		return InvalidInput("invalid namespace name", nil)
 	}

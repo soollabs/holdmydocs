@@ -109,7 +109,10 @@ func TestTokenSettingsUI(t *testing.T) {
 	for _, cookie := range client.Jar.Cookies(settingsRequest.URL) {
 		settingsRequest.AddCookie(cookie)
 	}
-	settingsData := app.settingsData(settingsRequest)
+	var settingsData SettingsData
+	app.Auth.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		settingsData = app.settingsData(r)
+	})).ServeHTTP(httptest.NewRecorder(), settingsRequest)
 
 	findToken := func(name string) TokenView {
 		t.Helper()

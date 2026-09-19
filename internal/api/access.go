@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"hmd/internal/auth"
+	"hmd/internal/wiki"
 )
 
 // Scope identifies a permission scope required by an operation.
@@ -45,12 +46,52 @@ func AllowSlug(ctx context.Context, slug string) bool {
 // record. Direct calls are checked here, not left to HTTP middleware.
 func (a *API) HasScope(ctx context.Context, scope Scope) bool {
 	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok {
-		return principal.HasScope(scope)
+		return principal.User != "" && principal.HasScope(scope)
 	}
 	if name := auth.UserFromContext(ctx); name != "" && a.auth != nil {
-		return a.auth.Prefs(name).HasScope(scope)
+		return a.auth.UserExists(name) && a.auth.Prefs(name).HasScope(scope)
 	}
 	return false
+}
+
+// canReadPage includes the deliberate public-page exception, but never widens
+// an authenticated principal's scope or namespace policy.
+func (a *API) canReadPage(ctx context.Context, slug string) bool {
+	if !wiki.ValidPageSlug(slug) || !AllowSlug(ctx, slug) {
+		return false
+	}
+	if _, ok := Username(ctx); ok {
+		return a.HasScope(ctx, ScopeRead)
+	}
+	return a.Namespaces().IsPublic(slug)
+}
+
+func (a *API) requirePageRead(ctx context.Context, slug string) error {
+	if !wiki.ValidPageSlug(slug) {
+		return InvalidInput("invalid page identifier", nil)
+	}
+	if !AllowSlug(ctx, slug) {
+		return Forbidden("namespace access denied")
+	}
+	if a.canReadPage(ctx, slug) {
+		return nil
+	}
+	if _, authenticated := Username(ctx); !authenticated {
+		return NotFound("page not found")
+	}
+	return a.RequireScope(ctx, ScopeRead)
+}
+
+// Repository-wide operations cannot disclose or mutate namespaces outside a
+// restricted token's policy. Settings principals are unrestricted by design.
+func (a *API) requireGlobalScope(ctx context.Context, scope Scope) error {
+	if err := a.RequireScope(ctx, scope); err != nil {
+		return err
+	}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && principal.Restricted() {
+		return Forbidden("namespace-restricted tokens cannot access repository-wide operations")
+	}
+	return nil
 }
 
 // RequireScope returns an unauthenticated or forbidden error unless the caller

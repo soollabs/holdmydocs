@@ -1026,6 +1026,7 @@ func requiredScope(r *http.Request) scope {
 		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
 		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") ||
 		r.URL.Path == "/_/api/settings" || strings.HasPrefix(r.URL.Path, "/_/api/settings/") ||
+		r.URL.Path == "/_/api/setup" ||
 		r.URL.Path == "/_/api/namespaces" || strings.HasPrefix(r.URL.Path, "/_/api/namespaces/") {
 		return scopeSettings
 	}

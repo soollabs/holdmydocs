@@ -15,6 +15,12 @@ import (
 // HTML rendering to the supplied presentation renderer. Assets names the
 // browser asset tree copied alongside the HTML.
 func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets fs.FS, assetsRoot string, renderer export.NamespaceRenderer) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
+	if !AllowNamespace(ctx, name) {
+		return Forbidden("namespace access denied")
+	}
 	cfg, ok := a.Namespaces()[name]
 	if !ok {
 		return InvalidInput(fmt.Sprintf("unknown namespace %q", name), nil)

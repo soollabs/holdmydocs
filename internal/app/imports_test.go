@@ -38,6 +38,15 @@ func TestImportBoundaries(t *testing.T) {
 	// reach none of the other adapters or the composition root, directly or
 	// transitively.
 	for _, adapter := range adapters {
+		output, err := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}", adapter).CombinedOutput()
+		if err != nil {
+			t.Fatalf("go list %s: %v: %s", adapter, err, output)
+		}
+		for _, forbidden := range []string{"hmd/internal/store", "hmd/internal/search"} {
+			if contains(strings.Fields(string(output)), forbidden) {
+				t.Errorf("%s must access %s through api, not import it directly", adapter, forbidden)
+			}
+		}
 		forbidden := []string{appPath}
 		for _, other := range adapters {
 			if other != adapter {

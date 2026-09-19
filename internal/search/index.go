@@ -11,14 +11,6 @@ import (
 	"github.com/blevesearch/bleve/v2"
 )
 
-type TagCount struct {
-	Tag   string
-	Slug  string
-	Count int
-}
-
-type BacklinkEntry struct{ Slug, Title string }
-
 type Index struct {
 	mu                sync.RWMutex
 	bleve             bleve.Index
@@ -314,13 +306,13 @@ func (ix *Index) Backlinks(slug string) []string {
 	return backlinks
 }
 
-func (ix *Index) Tags() []TagCount {
+func (ix *Index) Tags() []wiki.TagCount {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	result := make([]TagCount, 0, len(ix.tags))
+	result := make([]wiki.TagCount, 0, len(ix.tags))
 	for tagSlug, slugs := range ix.tags {
-		result = append(result, TagCount{
+		result = append(result, wiki.TagCount{
 			Tag:   ix.tagNames[tagSlug],
 			Slug:  tagSlug,
 			Count: len(slugs),
@@ -331,11 +323,11 @@ func (ix *Index) Tags() []TagCount {
 }
 
 // TagsInNamespace returns tags used within a namespace.
-func (ix *Index) TagsInNamespace(ns string) []TagCount {
+func (ix *Index) TagsInNamespace(ns string) []wiki.TagCount {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	result := make([]TagCount, 0, len(ix.tags))
+	result := make([]wiki.TagCount, 0, len(ix.tags))
 	for tagSlug, slugs := range ix.tags {
 		count := 0
 		for slug := range slugs {
@@ -346,7 +338,7 @@ func (ix *Index) TagsInNamespace(ns string) []TagCount {
 		if count == 0 {
 			continue
 		}
-		result = append(result, TagCount{
+		result = append(result, wiki.TagCount{
 			Tag:   ix.tagNames[tagSlug],
 			Slug:  tagSlug,
 			Count: count,
@@ -447,14 +439,14 @@ func (ix *Index) TagName(tagSlug string) string {
 }
 
 // PinnedPages returns pages with `pin: true`, sorted by title.
-func (ix *Index) PinnedPages() []BacklinkEntry {
+func (ix *Index) PinnedPages() []wiki.BacklinkEntry {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	var result []BacklinkEntry
+	var result []wiki.BacklinkEntry
 	for slug, pinned := range ix.pinned {
 		if pinned {
-			result = append(result, BacklinkEntry{Slug: slug, Title: ix.titles[slug]})
+			result = append(result, wiki.BacklinkEntry{Slug: slug, Title: ix.titles[slug]})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Title < result[j].Title })

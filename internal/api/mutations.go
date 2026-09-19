@@ -93,6 +93,9 @@ type SavePageInput struct {
 // SavePage creates or replaces a page with replacement semantics. An empty
 // BaseHash creates; a BaseHash replaces the revision it names.
 func (a *API) SavePage(ctx context.Context, in SavePageInput) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(in.Slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -152,6 +155,9 @@ type UpdatePageInput struct {
 // field the caller omits and uses the checked write as the concurrency
 // boundary.
 func (a *API) UpdatePage(ctx context.Context, in UpdatePageInput) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(in.Slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -230,6 +236,9 @@ type MovePageInput struct {
 // succeeds when the destination namespace already exists; a destination that
 // already holds a page is rejected.
 func (a *API) MovePage(ctx context.Context, in MovePageInput) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(in.FromSlug) || !wiki.ValidPageSlug(in.ToSlug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -310,6 +319,9 @@ type EditResult struct {
 // EditPage applies exact-text edits to an existing page's body, preserving its
 // metadata. An unchanged body is a no-op that still reports the current hash.
 func (a *API) EditPage(ctx context.Context, in EditPageInput) (*EditResult, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(in.Slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -369,6 +381,9 @@ func (a *API) EditPage(ctx context.Context, in EditPageInput) (*EditResult, erro
 // SetPageTags replaces a page's tags, checking against the current revision.
 // The tag replacement is atomic; an index failure is a warning, not an error.
 func (a *API) SetPageTags(ctx context.Context, slug string, tags []string) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -422,6 +437,9 @@ type RenameResult struct {
 // whose wiki-links pointed at it. All affected source and destination pages are
 // authorised before any write.
 func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(in.Slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -514,6 +532,9 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 // DeletePage removes one page from the normal or hidden tree and drops it from
 // the derived index.
 func (a *API) DeletePage(ctx context.Context, slug string, hidden bool) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -535,6 +556,9 @@ func (a *API) DeletePage(ctx context.Context, slug string, hidden bool) (*Mutati
 
 // RevertPage restores one committed revision of a page as a new commit.
 func (a *API) RevertPage(ctx context.Context, slug, hash string) (*Mutation, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}

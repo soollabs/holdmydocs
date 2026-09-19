@@ -15,8 +15,6 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/httpmiddleware"
-	"hmd/internal/search"
-	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
 
@@ -92,12 +90,12 @@ type TemplateData struct {
 	Content                 template.HTML
 	Body                    string
 	BaseHash                string
-	Backlinks               []search.BacklinkEntry
+	Backlinks               []wiki.BacklinkEntry
 	TagsInput               string
 	PageTags                []TagChip
-	AllTags                 []search.TagCount
+	AllTags                 []wiki.TagCount
 	TagName                 string
-	TagPages                []search.BacklinkEntry
+	TagPages                []wiki.BacklinkEntry
 	SyncState               string
 	Error                   string
 	Query                   string
@@ -171,11 +169,11 @@ type TemplateData struct {
 	// populateWidgetData).
 	Calendar           CalendarMonth
 	WritingStats       WritingStats
-	PinnedPages        []search.BacklinkEntry
+	PinnedPages        []wiki.BacklinkEntry
 	PrevEntries        []PrevEntry
 	NamespaceNav       []NamespaceNavEntry
-	SidebarTreeNS      string                 // namespace used to stage SidebarTreeEntries
-	SidebarTreeEntries []search.BacklinkEntry // unfiltered entries; filtered during render
+	SidebarTreeNS      string               // namespace used to stage SidebarTreeEntries
+	SidebarTreeEntries []wiki.BacklinkEntry // unfiltered entries; filtered during render
 	SidebarTree        template.HTML
 	NewPageEnabled     bool   // whether ctrl-j is available
 	NewNamespace       string // which namespace ctrl-j targets
@@ -244,8 +242,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed {
 		cfg := app.config()
 		prefs := app.Auth.Prefs(app.currentUser(r))
-		data.CanWrite = prefs.HasScope(auth.ScopeWrite)
-		data.CanSettings = prefs.HasScope(auth.ScopeSettings)
+		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
+		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
 		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {
 			if data.IsNamespaceIndex {
@@ -277,7 +275,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.NewPageEnabled = true
 			data.NewNamespace = target
 		}
-		if state := app.apiClient().SetupState(); state.Needed {
+		if state := app.apiClient().SetupState(); state.Needed && data.CanSettings {
 			if state.Wiki {
 				data.NeedsWikiSetup = true
 				data.SetupNamespace = api.DefaultSetupNamespace
@@ -288,14 +286,14 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			if state.Namespace {
 				data.NeedsNamespaceSetup = true
 				data.SetupNamespace = api.DefaultSetupNamespace
-				homePreview, _ := app.Render.Render(store.DefaultHomeMD, api.DefaultSetupNamespace)
+				homePreview, _ := app.Render.Render(api.DefaultHomeBody(), api.DefaultSetupNamespace)
 				data.SetupHomePreview = template.HTML(homePreview)
 			}
 
 			if state.Help {
 				data.NeedsHelpSetup = true
 				data.HelpFileExists = state.HelpFileExists
-				helpPreview, _ := app.Render.Render(store.DefaultHelpMD, "")
+				helpPreview, _ := app.Render.Render(api.DefaultHelpBody(), "")
 				data.SetupHelpPreview = template.HTML(helpPreview)
 			}
 
@@ -406,8 +404,8 @@ func (app *App) requireTokenSlug(w http.ResponseWriter, r *http.Request, slug st
 	return false
 }
 
-func filterBacklinkEntries(ctx context.Context, entries []search.BacklinkEntry) []search.BacklinkEntry {
-	filtered := make([]search.BacklinkEntry, 0, len(entries))
+func filterBacklinkEntries(ctx context.Context, entries []wiki.BacklinkEntry) []wiki.BacklinkEntry {
+	filtered := make([]wiki.BacklinkEntry, 0, len(entries))
 	for _, entry := range entries {
 		if auth.TokenAllowsSlug(ctx, entry.Slug) {
 			filtered = append(filtered, entry)

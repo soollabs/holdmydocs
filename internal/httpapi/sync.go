@@ -37,7 +37,10 @@ type noInput struct{}
 
 // syncStatus reports the current repository synchronisation state.
 func (h *Handlers) syncStatus(ctx context.Context, _ noInput) (SyncStatus, error) {
-	status := h.api.Sync(ctx)
+	status, err := h.api.Sync(ctx)
+	if err != nil {
+		return SyncStatus{}, err
+	}
 	resp := SyncStatus{
 		State:           status.State,
 		Detail:          status.Detail,
@@ -63,7 +66,10 @@ func (h *Handlers) syncStatus(ctx context.Context, _ noInput) (SyncStatus, error
 
 // syncPushNow pushes committed local changes and reports the resulting state.
 func (h *Handlers) syncPushNow(ctx context.Context, _ noInput) (PushResult, error) {
-	status := h.api.PushNow(ctx)
+	status, err := h.api.PushNow(ctx)
+	if err != nil {
+		return PushResult{}, err
+	}
 	return PushResult{
 		OK:              status.State == "ok",
 		State:           status.State,

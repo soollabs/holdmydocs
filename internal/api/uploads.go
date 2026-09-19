@@ -17,9 +17,9 @@ type UploadCapability struct {
 // MaxPendingUploadCapabilities bounds the number of outstanding upload capabilities.
 const MaxPendingUploadCapabilities = 1024
 
-// AddUploadCapability records a pending capability, purging expired entries
+// addUploadCapability records a pending capability, purging expired entries
 // first and refusing once the pending set is full.
-func (a *API) AddUploadCapability(token string, capability UploadCapability) error {
+func (a *API) addUploadCapability(token string, capability UploadCapability) error {
 	a.uploadMu.Lock()
 	defer a.uploadMu.Unlock()
 	if a.uploads == nil {
@@ -38,8 +38,8 @@ func (a *API) AddUploadCapability(token string, capability UploadCapability) err
 	return nil
 }
 
-// TakeUploadCapability consumes a capability, whether or not it has expired.
-func (a *API) TakeUploadCapability(token string) (UploadCapability, bool) {
+// takeUploadCapability consumes a capability, whether or not it has expired.
+func (a *API) takeUploadCapability(token string) (UploadCapability, bool) {
 	a.uploadMu.Lock()
 	defer a.uploadMu.Unlock()
 	capability, ok := a.uploads[token]

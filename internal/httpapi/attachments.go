@@ -23,30 +23,21 @@ func (h *Handlers) uploadAttachment(w http.ResponseWriter, r *http.Request) {
 		writeNamespaceDenied(w)
 		return
 	}
-	h.upload(w, r, slug, "", "")
+	h.upload(w, r, slug, "")
 }
 
 // capabilityUpload redeems a one-use upload capability and streams its file to
 // the owning page.
 func (h *Handlers) capabilityUpload(w http.ResponseWriter, r *http.Request) {
-	capability, ok := h.api.TakeUploadCapability(r.PathValue("token"))
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	if time.Now().After(capability.Expires) {
-		http.Error(w, "upload URL expired", http.StatusGone)
-		return
-	}
-	h.upload(w, r, capability.Slug, capability.Filename, capability.User)
+	h.upload(w, r, "", r.PathValue("token"))
 }
 
 // upload parses the multipart body and enforces the transport upload bound,
 // then streams the file to the shared application upload operation. Filename
 // canonicalisation, storage, extraction and capability binding live behind
 // api.UploadAttachment so the MCP and browser transports cannot diverge.
-func (h *Handlers) upload(w http.ResponseWriter, r *http.Request, slug, expectedFilename, actor string) {
-	if !wiki.ValidPageSlug(slug) {
+func (h *Handlers) upload(w http.ResponseWriter, r *http.Request, slug, token string) {
+	if token == "" && !wiki.ValidPageSlug(slug) {
 		http.Error(w, "invalid slug", http.StatusBadRequest)
 		return
 	}
@@ -128,15 +119,20 @@ func (h *Handlers) upload(w http.ResponseWriter, r *http.Request, slug, expected
 		return
 	}
 
-	upload, err := h.api.UploadAttachment(r.Context(), api.AttachmentUploadInput{
-		Slug:           slug,
-		Filename:       filenameInput,
-		ExpectFilename: expectedFilename,
-		Actor:          actor,
-		Content:        content,
-	})
+	var upload *api.AttachmentUpload
+	if token != "" {
+		upload, err = h.api.RedeemUploadCapability(r.Context(), token, filenameInput, content)
+	} else {
+		upload, err = h.api.UploadAttachment(r.Context(), api.AttachmentUploadInput{
+			Slug: slug, Filename: filenameInput, Content: content,
+		})
+	}
 	if err != nil {
 		switch api.CategoryOf(err) {
+		case api.CategoryNotFound:
+			http.NotFound(w, r)
+		case api.CategoryUnauthenticated:
+			http.Error(w, "authentication required", http.StatusUnauthorized)
 		case api.CategoryForbidden:
 			http.Error(w, "forbidden", http.StatusForbidden)
 		case api.CategoryInvalidInput:

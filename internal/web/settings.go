@@ -13,7 +13,6 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/presentation"
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -259,7 +258,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	sd.Users = app.Auth.Users()
 	sd.AllScopes = []string{string(auth.ScopeRead), string(auth.ScopeWrite), string(auth.ScopeSettings)}
 	sd.CurrentUser = user
-	for _, summary := range app.apiClient().NamespaceSummaries() {
+	for _, summary := range app.apiClient().ListNamespaces(r.Context()) {
 		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
 	}
 	for _, t := range app.Auth.TokensFor(user) {
@@ -347,7 +346,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 				entry.Hash = detail.Hash
 			}
 			data.Form = entry
-			data.TreeEditor = namespaceTreeEditor(app.apiClient().PageTitles(), entry.Name, entry.Index, entry.Tree)
+			data.TreeEditor = namespaceTreeEditor(app.apiClient().PageTitles(r.Context()), entry.Name, entry.Index, entry.Tree)
 			break
 		}
 	}
@@ -355,10 +354,10 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 }
 
 func namespaceTreeItems(titles map[string]string, namespace, index string, tree []string) []NamespaceTreeItem {
-	entries := make([]search.BacklinkEntry, 0)
+	entries := make([]wiki.BacklinkEntry, 0)
 	for slug, title := range titles {
 		if ns, rest := wiki.NamespaceFor(slug); ns == namespace && rest != "" {
-			entries = append(entries, search.BacklinkEntry{Slug: slug, Title: title})
+			entries = append(entries, wiki.BacklinkEntry{Slug: slug, Title: title})
 		}
 	}
 	root := buildPageTree(entries, namespace, index, tree)
@@ -379,10 +378,10 @@ func namespaceTreeItems(titles map[string]string, namespace, index string, tree 
 }
 
 func namespaceTreeEditor(titles map[string]string, namespace, index string, tree []string) template.HTML {
-	entries := make([]search.BacklinkEntry, 0)
+	entries := make([]wiki.BacklinkEntry, 0)
 	for slug, title := range titles {
 		if ns, rest := wiki.NamespaceFor(slug); ns == namespace && rest != "" {
-			entries = append(entries, search.BacklinkEntry{Slug: slug, Title: title})
+			entries = append(entries, wiki.BacklinkEntry{Slug: slug, Title: title})
 		}
 	}
 	root := buildPageTree(entries, namespace, index, tree)

@@ -81,6 +81,12 @@ func decodeInput[In any](w http.ResponseWriter, r *http.Request, in *In) error {
 		}
 		return api.InvalidInput("invalid JSON request body", err)
 	}
+	// A successful first Decode does not consume trailing input. Require EOF
+	// so concatenated values, junk and oversized trailing whitespace cannot
+	// slip past validation or the body bound before an operation runs.
+	if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
+		return api.InvalidInput("request body must contain a single JSON value", err)
+	}
 	return nil
 }
 

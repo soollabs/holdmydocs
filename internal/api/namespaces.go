@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"hmd/internal/auth"
-	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
@@ -164,13 +163,13 @@ type NamespaceSummary struct {
 	Name   string
 	Config wiki.NamespaceConfig
 	Count  int
-	Pages  []search.BacklinkEntry
+	Pages  []wiki.BacklinkEntry
 }
 
-// NamespaceSummaries returns the full namespace catalogue without caller
+// namespaceSummaries returns the full namespace catalogue without caller
 // filtering. It lists every configured namespace plus every namespace that
 // holds a page, each with its pages sorted by slug, in name order.
-func (a *API) NamespaceSummaries() []NamespaceSummary {
+func (a *API) namespaceSummaries() []NamespaceSummary {
 	reg := a.Namespaces()
 	titles := a.index.Titles()
 	entries := make(map[string]*NamespaceSummary)
@@ -197,7 +196,7 @@ func (a *API) NamespaceSummaries() []NamespaceSummary {
 		if title == "" {
 			title = slug
 		}
-		entry.Pages = append(entry.Pages, search.BacklinkEntry{Slug: slug, Title: title})
+		entry.Pages = append(entry.Pages, wiki.BacklinkEntry{Slug: slug, Title: title})
 	}
 
 	result := make([]NamespaceSummary, 0, len(entries))
@@ -214,13 +213,18 @@ func (a *API) NamespaceSummaries() []NamespaceSummary {
 // namespace access, with each entry's pages filtered by slug access and its
 // count recomputed. Adapters render their namespace listings from it.
 func (a *API) ListNamespaces(ctx context.Context) []NamespaceSummary {
-	summaries := a.NamespaceSummaries()
+	summaries := a.namespaceSummaries()
 	filtered := make([]NamespaceSummary, 0, len(summaries))
 	for _, summary := range summaries {
+		if !a.HasScope(ctx, ScopeRead) && !a.HasScope(ctx, ScopeSettings) {
+			if _, authenticated := Username(ctx); authenticated || !a.Namespaces()[summary.Name].Public {
+				continue
+			}
+		}
 		if !AllowNamespace(ctx, summary.Name) {
 			continue
 		}
-		pages := make([]search.BacklinkEntry, 0, len(summary.Pages))
+		pages := make([]wiki.BacklinkEntry, 0, len(summary.Pages))
 		for _, page := range summary.Pages {
 			if AllowSlug(ctx, page.Slug) {
 				pages = append(pages, page)
@@ -253,6 +257,9 @@ type NamespaceDetail struct {
 // ReadNamespace reads one namespace's settings and current config hash. The
 // caller must be allowed the namespace; an unknown namespace is not found.
 func (a *API) ReadNamespace(ctx context.Context, name string) (*NamespaceDetail, error) {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidNamespaceName(name) {
 		return nil, InvalidInput("invalid namespace", nil)
 	}

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -82,5 +83,30 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("server did not stop gracefully")
+	}
+
+	// Exercise the real export entry point on the stopped, isolated repository.
+	// No live user data or external document services are involved.
+	namespaceDir := filepath.Join(data, "repo", "notes")
+	if err := os.MkdirAll(namespaceDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		".namespace.yaml": "title: CLI Test\nindex: home\n",
+		"home.md":         "---\ntitle: Exported Home\n---\n\nCLI export acceptance.\n",
+	} {
+		if err := os.WriteFile(filepath.Join(namespaceDir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outDir := filepath.Join(data, "export")
+	export := exec.Command(binary, "-export-namespace", "notes", "-export-dir", outDir)
+	export.Env = command.Env
+	if output, err := export.CombinedOutput(); err != nil {
+		t.Fatalf("CLI export: %v: %s", err, output)
+	}
+	html, err := os.ReadFile(filepath.Join(outDir, "index.html"))
+	if err != nil || !strings.Contains(string(html), "CLI export acceptance.") {
+		t.Fatalf("exported index: %v: %s", err, html)
 	}
 }

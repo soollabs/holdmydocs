@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"hmd/internal/auth"
 	"hmd/internal/wiki"
 )
 
@@ -259,7 +260,9 @@ func TestSetTagsAndRevert(t *testing.T) {
 	decodeMutation(t, postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
 		"title": "Tag And Revert", "body": "version one",
 	}))
-	history, err := env.api.PageHistory(context.Background(), slug)
+	history, err := env.api.PageHistory(auth.WithTokenPrincipal(context.Background(), auth.TokenPrincipal{
+		User: "admin", Scopes: []string{"read"},
+	}), slug)
 	if err != nil || len(history) == 0 {
 		t.Fatalf("reading history: %v (%d revisions)", err, len(history))
 	}

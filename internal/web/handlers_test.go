@@ -2,8 +2,8 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -123,28 +123,6 @@ func postPageTags(t *testing.T, client *http.Client, server *httptest.Server, sl
 func postPageRename(t *testing.T, client *http.Client, server *httptest.Server, slug, title string) (*http.Response, error) {
 	t.Helper()
 	return postJSON(t, client, server.URL+"/_/api/pages/rename/"+slug, map[string]any{"title": title})
-}
-
-func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
-	app := &App{API: api.New(nil, nil, nil)}
-	client := app.apiClient()
-	past := time.Now().Add(-time.Second)
-	future := time.Now().Add(time.Minute)
-	if err := client.AddUploadCapability("stale", api.UploadCapability{Expires: past}); err != nil {
-		t.Fatalf("adding stale capability: %v", err)
-	}
-	for i := range api.MaxPendingUploadCapabilities {
-		token := fmt.Sprintf("token-%d", i)
-		if err := client.AddUploadCapability(token, api.UploadCapability{Expires: future}); err != nil {
-			t.Fatalf("adding capability %d: %v (stale entry was not purged)", i, err)
-		}
-	}
-	if err := client.AddUploadCapability("overflow", api.UploadCapability{Expires: future}); err == nil {
-		t.Fatal("pending upload capability limit was not enforced")
-	}
-	if _, ok := client.TakeUploadCapability("token-0"); !ok {
-		t.Fatal("taking a capability failed")
-	}
 }
 
 // testHandler assembles the browser mux exactly as the composition root does,
@@ -1658,7 +1636,8 @@ func TestConfigExportOmitsResolvedTokenWhenTokenFileSet(t *testing.T) {
 // injectTOC builds a browser App over the given index so table-of-contents
 // tests exercise the application api path used in production.
 func injectTOC(body string, ix *search.Index, indexSlug, ns string) string {
-	return (&App{API: api.New(nil, ix, nil)}).injectTOC(body, indexSlug, ns)
+	ctx := auth.WithTokenPrincipal(context.Background(), auth.TokenPrincipal{User: "tester", Scopes: []string{"read"}})
+	return (&App{API: api.New(nil, ix, nil)}).injectTOC(ctx, body, indexSlug, ns)
 }
 
 func TestInjectTOC(t *testing.T) {

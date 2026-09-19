@@ -10,7 +10,6 @@ import (
 
 	"hmd/internal/api"
 	"hmd/internal/presentation"
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -41,7 +40,7 @@ type navNode struct {
 	Children []*navNode
 }
 
-func buildPageTree(entries []search.BacklinkEntry, ns, index string, tree []string) *navNode {
+func buildPageTree(entries []wiki.BacklinkEntry, ns, index string, tree []string) *navNode {
 	root := &navNode{}
 	for _, e := range entries {
 		_, rest := wiki.NamespaceFor(e.Slug)

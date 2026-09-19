@@ -14,7 +14,6 @@ import (
 	"golang.org/x/net/html"
 	"hmd/internal/auth"
 	staticexport "hmd/internal/export"
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -73,11 +72,11 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 	ns, cfg, outDir, title := request.Namespace, request.Config, request.OutDir, request.Title
 
 	hrefs := make(map[string]string, len(nsPages))
-	entries := make([]search.BacklinkEntry, 0, len(nsPages))
+	entries := make([]wiki.BacklinkEntry, 0, len(nsPages))
 	for _, p := range nsPages {
 		_, rest := wiki.NamespaceFor(p.Slug)
 		hrefs[p.Slug] = rest
-		entries = append(entries, search.BacklinkEntry{Slug: p.Slug, Title: pageDisplayTitle(p)})
+		entries = append(entries, wiki.BacklinkEntry{Slug: p.Slug, Title: pageDisplayTitle(p)})
 	}
 
 	tree := buildPageTree(entries, ns, cfg.Index, cfg.Tree)

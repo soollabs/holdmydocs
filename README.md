@@ -59,11 +59,34 @@ HMD keeps transport adapters separate from transport-independent application ope
 
 The adapters never import one another, and application packages never import an adapter or `app`. The browser calls `/_/api/*` over HTTP; every adapter funnels through the same `api` operations, so there are no HTTP loopback calls and no parallel implementations.
 
+Application operations enforce scopes and namespace policy independently of transport middleware. The `settings` scope implies administrator access; setup and namespace exports require it. Anonymous reads are limited to public pages and their attachments. Upload capabilities are redeemed inside `api`, which owns their one-use token, expiry, page, filename and actor.
+
+Adapter import tests forbid direct `store`/`search` access. Neutral navigation/tag value types live in `wiki`, not in a persistence adapter.
+
 ## Development
 
-Requires Go 1.27.
+Requires Go 1.27, Node.js (for the dependency-free JavaScript tests), and the Dockerfile-pinned `golangci-lint` v2.13.2. Docker is needed for the image check. From a clean checkout:
 
 ```sh
 go test ./...
+go test -race ./...
 go vet ./...
+golangci-lint run ./...
+node --test test/ui/*.test.cjs
+docker build -t hmd:check .
 ```
+
+The Go suite includes a compiled-server lifecycle and CLI export check using temporary data directories. The JavaScript suite executes the production script with DOM/CodeMirror fixtures, checking saves, errors, conflicts, draft preservation and index warnings; it is not a real-browser layout test. The race suite can take several minutes because authentication tests exercise password hashing.
+
+To check the container's CLI readiness probe without exposing a port:
+
+```sh
+docker run -d --name hmd-check \
+  -e HMD_ADMIN_USER=admin -e HMD_ADMIN_PASSWORD='temporary-check-password' \
+  hmd:check
+docker exec hmd-check /hmd -healthcheck
+docker stop hmd-check
+docker rm hmd-check
+```
+
+Run the probe after the server reports that it is listening. These checks need no live content repository, Tika server, model download or OIDC provider; external-service tests use fixtures.

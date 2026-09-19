@@ -11,7 +11,7 @@ import (
 
 // tagCountsByTag indexes a tag-count slice by tag name for order-independent
 // assertions.
-func tagCountsByTag(tags []search.TagCount) map[string]int {
+func tagCountsByTag(tags []wiki.TagCount) map[string]int {
 	counts := make(map[string]int, len(tags))
 	for _, tag := range tags {
 		counts[tag.Tag] = tag.Count
@@ -28,7 +28,7 @@ func TestNamespaceTagsScopesTagsToNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := New(nil, index, nil)
-	ctx := context.Background()
+	ctx := writeCtx()
 
 	blog := tagCountsByTag(a.NamespaceTags(ctx, "blog"))
 	if len(blog) != 2 || blog["release"] != 1 || blog["shared"] != 1 {

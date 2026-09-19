@@ -181,6 +181,18 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	if out.Echo != "hi" {
 		t.Errorf("echo = %q, want hi", out.Echo)
 	}
+	for _, body := range []string{
+		`{"name":"hi"} {"name":"other"}`,
+		`{"name":"hi"} trailing`,
+		`{"name":"hi","unknown":true}`,
+		`{"name":"hi"}` + strings.Repeat(" ", maxJSONBodyBytes),
+	} {
+		resp := post(body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("invalid/trailing body status = %d, want 400", resp.StatusCode)
+		}
+	}
 
 	if resp := post(`{"name":`); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("malformed body status = %d, want 400", resp.StatusCode)

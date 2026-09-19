@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"hmd/internal/auth"
 	"hmd/internal/search"
@@ -59,25 +61,47 @@ func TestIssueUploadCapabilityBindsOwnerFilenameAndActor(t *testing.T) {
 	if grant.Filename != "report.pdf" || grant.Slug != "notes/page" || grant.Token == "" {
 		t.Fatalf("grant = %+v", grant)
 	}
-	capability, ok := a.TakeUploadCapability(grant.Token)
+	capability, ok := a.takeUploadCapability(grant.Token)
 	if !ok {
 		t.Fatal("issued capability was not stored")
 	}
 	if capability.Slug != "notes/page" || capability.Filename != "report.pdf" || capability.User != "tester" {
 		t.Fatalf("stored capability = %+v", capability)
 	}
-	if _, ok := a.TakeUploadCapability(grant.Token); ok {
+	if _, ok := a.takeUploadCapability(grant.Token); ok {
 		t.Fatal("capability was reusable; it must be one-use")
 	}
 }
 
 func TestUploadAttachmentRejectsMismatchedCapabilityFilename(t *testing.T) {
 	a, _ := newAttachmentAPI(t)
-	_, err := a.UploadAttachment(writeCtx(), AttachmentUploadInput{
-		Slug: "notes/page", Filename: "other.txt", ExpectFilename: "report.pdf", Content: []byte("x"),
-	})
+	grant, err := a.IssueUploadCapability(writeCtx(), "notes/page", "report.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.RedeemUploadCapability(context.Background(), grant.Token, "other.txt", []byte("x"))
 	if err == nil || CategoryOf(err) != CategoryInvalidInput {
 		t.Fatalf("mismatched upload = %v, want invalid input", err)
+	}
+}
+
+func TestUploadCapabilitiesAreBoundedAndExpiredEntriesPurged(t *testing.T) {
+	client := New(nil, nil, nil)
+	past := time.Now().Add(-time.Second)
+	future := time.Now().Add(time.Minute)
+	if err := client.addUploadCapability("stale", UploadCapability{Expires: past}); err != nil {
+		t.Fatal(err)
+	}
+	for i := range MaxPendingUploadCapabilities {
+		if err := client.addUploadCapability(fmt.Sprintf("token-%d", i), UploadCapability{Expires: future}); err != nil {
+			t.Fatalf("adding capability %d: %v (stale entry was not purged)", i, err)
+		}
+	}
+	if err := client.addUploadCapability("overflow", UploadCapability{Expires: future}); err == nil {
+		t.Fatal("pending upload capability limit was not enforced")
+	}
+	if _, ok := client.takeUploadCapability("token-0"); !ok {
+		t.Fatal("taking a capability failed")
 	}
 }
 

@@ -27,7 +27,7 @@ func TestSearchPagesRejectsInvalidQuery(t *testing.T) {
 	}
 	a := New(nil, ix, nil)
 	for _, query := range []string{strings.Repeat("x", 513), "\xff\xfe"} {
-		if _, err := a.SearchPages(context.Background(), query); err == nil || CategoryOf(err) != CategoryInvalidInput {
+		if _, err := a.SearchPages(writeCtx(), query); err == nil || CategoryOf(err) != CategoryInvalidInput {
 			t.Fatalf("SearchPages(%q) = %v, want invalid input", query, err)
 		}
 	}
@@ -62,11 +62,11 @@ func TestSearchPagesFiltersDeniedNamespacesAndEscapesSnippets(t *testing.T) {
 
 	// An unrestricted caller sees both; an unmatched query yields an empty
 	// collection rather than an error.
-	all, err := a.SearchPages(context.Background(), "uniqueterm")
+	all, err := a.SearchPages(writeCtx(), "uniqueterm")
 	if err != nil || len(all) != 2 {
 		t.Fatalf("unrestricted hits = %+v, %v; want both pages", all, err)
 	}
-	none, err := a.SearchPages(context.Background(), "absentterm")
+	none, err := a.SearchPages(writeCtx(), "absentterm")
 	if err != nil {
 		t.Fatalf("SearchPages(absent): %v", err)
 	}
@@ -83,7 +83,7 @@ func TestSearchAttachmentsDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := New(nil, ix, nil)
-	if _, err := a.SearchAttachments(context.Background(), "anything", 0); err == nil || CategoryOf(err) != CategoryUnavailable {
+	if _, err := a.SearchAttachments(writeCtx(), "anything", 0); err == nil || CategoryOf(err) != CategoryUnavailable {
 		t.Fatalf("SearchAttachments without document search = %v, want unavailable", err)
 	}
 }

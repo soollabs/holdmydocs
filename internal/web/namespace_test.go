@@ -15,7 +15,6 @@ import (
 	"hmd/internal/api"
 	"hmd/internal/config"
 	"hmd/internal/presentation"
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -870,7 +869,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 
 // TestRenderLiveTreeOnlyOpensCurrentPageAncestors tests ancestor branch expansion.
 func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
-	entries := []search.BacklinkEntry{
+	entries := []wiki.BacklinkEntry{
 		{Slug: "docs/a/one", Title: "One"},
 		{Slug: "docs/a/two", Title: "Two"},
 		{Slug: "docs/b/three", Title: "Three"},
@@ -890,7 +889,7 @@ func TestRenderLiveTreeOnlyOpensCurrentPageAncestors(t *testing.T) {
 }
 
 func TestBuildPageTreeOrdersIndexAndSections(t *testing.T) {
-	entries := []search.BacklinkEntry{
+	entries := []wiki.BacklinkEntry{
 		{Slug: "docs/about", Title: "About"},
 		{Slug: "docs/guides/setup", Title: "Setup"},
 		{Slug: "docs/home", Title: "Home"},

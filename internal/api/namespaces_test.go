@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"testing"
 
 	"hmd/internal/search"
@@ -20,7 +19,7 @@ func TestNamespaceSummariesCatalogue(t *testing.T) {
 	a := New(nil, index, nil)
 	a.SetNamespaces(reg)
 
-	summaries := a.NamespaceSummaries()
+	summaries := a.namespaceSummaries()
 	if len(summaries) != 2 {
 		t.Fatalf("NamespaceSummaries() returned %d entries, want 2: %+v", len(summaries), summaries)
 	}
@@ -48,7 +47,7 @@ func TestListNamespacesFiltersDeniedNamespace(t *testing.T) {
 	a.SetNamespaces(reg)
 
 	// With no token principal every namespace is visible.
-	if got := len(a.ListNamespaces(context.Background())); got != 2 {
+	if got := len(a.ListNamespaces(writeCtx())); got != 2 {
 		t.Errorf("ListNamespaces() = %d entries, want 2", got)
 	}
 }

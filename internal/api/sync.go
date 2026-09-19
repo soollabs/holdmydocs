@@ -28,18 +28,21 @@ type SyncStatus struct {
 // with a remote configured, performs a fetch and fast-forward first. A fetch
 // failure is reported through the state, not as an operation error, matching
 // the store's own sync-state contract.
-func (a *API) Sync(_ context.Context) SyncStatus {
+func (a *API) Sync(ctx context.Context) (SyncStatus, error) {
+	if err := a.requireGlobalScope(ctx, ScopeRead); err != nil {
+		return SyncStatus{}, err
+	}
 	cfg := a.Config()
 	state, detail := a.store.SyncState()
 	status := SyncStatus{State: state, Detail: detail, LastSuccessUnix: a.store.LastSyncUnix()}
 	if cfg.SyncMode != "bidirectional" || cfg.Git.RemoteURL == "" {
-		return status
+		return status, nil
 	}
 	result, err := a.store.FetchAndFF()
 	if err != nil {
 		state, detail = a.store.SyncState()
 		status.State, status.Detail = state, detail
-		return status
+		return status, nil
 	}
 	status.PagesChanged = result.ChangedPaths
 	for _, commit := range result.Commits {
@@ -47,7 +50,7 @@ func (a *API) Sync(_ context.Context) SyncStatus {
 			Hash: commit.Hash, Message: commit.Message, Author: commit.Author, When: commit.When,
 		})
 	}
-	return status
+	return status, nil
 }
 
 // SyncState reports the current synchronisation state without performing a
@@ -58,7 +61,10 @@ func (a *API) SyncState() (state, detail string, lastSuccessUnix int64) {
 }
 
 // PushNow pushes committed local changes and reports the resulting sync state.
-func (a *API) PushNow(_ context.Context) SyncStatus {
+func (a *API) PushNow(ctx context.Context) (SyncStatus, error) {
+	if err := a.requireGlobalScope(ctx, ScopeWrite); err != nil {
+		return SyncStatus{}, err
+	}
 	state, detail := a.store.PushNow()
-	return SyncStatus{State: state, Detail: detail, LastSuccessUnix: a.store.LastSyncUnix()}
+	return SyncStatus{State: state, Detail: detail, LastSuccessUnix: a.store.LastSyncUnix()}, nil
 }

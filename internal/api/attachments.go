@@ -47,6 +47,9 @@ type UploadGrant struct {
 // It never grants unrestricted write access: redeeming the capability only
 // uploads that one filename to that one page.
 func (a *API) IssueUploadCapability(ctx context.Context, slug, filename string) (*UploadGrant, error) {
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
+	}
 	if !wiki.ValidPageSlug(slug) {
 		return nil, InvalidInput("invalid page identifier", nil)
 	}
@@ -64,23 +67,18 @@ func (a *API) IssueUploadCapability(ctx context.Context, slug, filename string) 
 	actor, _ := Username(ctx)
 	expires := time.Now().Add(UploadCapabilityTTL)
 	tokenString := fmt.Sprintf("%x", token)
-	if err := a.AddUploadCapability(tokenString, UploadCapability{Slug: slug, Filename: canonical, User: actor, Expires: expires}); err != nil {
+	if err := a.addUploadCapability(tokenString, UploadCapability{Slug: slug, Filename: canonical, User: actor, Expires: expires}); err != nil {
 		return nil, Busy(err.Error())
 	}
 	return &UploadGrant{Slug: slug, Filename: canonical, Token: tokenString, Expires: expires}, nil
 }
 
-// AttachmentUploadInput describes one attachment upload. ExpectFilename, when
-// set, is the canonical filename a one-use capability was bound to; the upload
-// is rejected unless the canonical filename matches it. Actor is the git author
-// identity for a capability upload, taken from the server-issued capability;
-// when empty the request context identity is used.
+// AttachmentUploadInput describes one authenticated attachment upload.
+// Identity always comes from the context, never a submitted actor field.
 type AttachmentUploadInput struct {
-	Slug           string
-	Filename       string
-	ExpectFilename string
-	Actor          string
-	Content        []byte
+	Slug     string
+	Filename string
+	Content  []byte
 }
 
 // AttachmentUpload is a committed attachment. Indexed reports whether the
@@ -93,22 +91,42 @@ type AttachmentUpload struct {
 	IndexWarning string
 }
 
-// UploadAttachment canonicalises the filename, checks the caller's access to
-// the owning page and any capability binding, and atomically commits the file
-// with its extraction sidecar. Both the MCP capability flow and the browser
-// transport call it, so storage and security rules cannot diverge.
+// UploadAttachment checks the caller's write access, then uses the same
+// canonicalisation and atomic file/sidecar commit pipeline as capability
+// redemption. Storage and extraction rules cannot diverge between transports.
 func (a *API) UploadAttachment(ctx context.Context, in AttachmentUploadInput) (*AttachmentUpload, error) {
-	if !wiki.ValidPageSlug(in.Slug) {
-		return nil, InvalidInput("invalid slug", nil)
+	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
+		return nil, err
 	}
 	if !AllowSlug(ctx, in.Slug) {
 		return nil, Forbidden("namespace access denied")
+	}
+	actor, _ := Username(ctx)
+	return a.uploadAttachment(ctx, in, "", actor)
+}
+
+// RedeemUploadCapability consumes the server-issued capability before checking
+// the filename. Its stored owner, filename and actor are authoritative; the
+// unauthenticated transport cannot manufacture a principal or widen the grant.
+func (a *API) RedeemUploadCapability(ctx context.Context, token, filename string, content []byte) (*AttachmentUpload, error) {
+	capability, ok := a.takeUploadCapability(token)
+	if !ok || time.Now().After(capability.Expires) {
+		return nil, NotFound("upload URL not found or expired")
+	}
+	return a.uploadAttachment(ctx, AttachmentUploadInput{
+		Slug: capability.Slug, Filename: filename, Content: content,
+	}, capability.Filename, capability.User)
+}
+
+func (a *API) uploadAttachment(ctx context.Context, in AttachmentUploadInput, expectedFilename, actor string) (*AttachmentUpload, error) {
+	if !wiki.ValidPageSlug(in.Slug) {
+		return nil, InvalidInput("invalid slug", nil)
 	}
 	filename, err := CanonicalAttachmentFilename(in.Filename)
 	if err != nil {
 		return nil, InvalidInput(err.Error(), err)
 	}
-	if in.ExpectFilename != "" && filename != in.ExpectFilename {
+	if expectedFilename != "" && filename != expectedFilename {
 		return nil, InvalidInput("filename does not match upload URL", nil)
 	}
 	path := "attachments/" + in.Slug + "/" + filename
@@ -120,10 +138,6 @@ func (a *API) UploadAttachment(ctx context.Context, in AttachmentUploadInput) (*
 		if extracted, ok := a.index.ExtractAttachment(ctx, bytes.NewReader(in.Content), filename, in.Content); ok {
 			files[search.ExtractedAttachmentPath(path)] = extracted
 		}
-	}
-	actor := in.Actor
-	if actor == "" {
-		actor, _ = Username(ctx)
 	}
 	name, email := a.authorFor(actor)
 	if _, err := a.store.SaveAll(files, "Add attachment "+filename, name, email); err != nil {
@@ -165,6 +179,9 @@ func (a *API) OpenAttachmentForRead(ctx context.Context, slug, filename string) 
 	if _, ok := Username(ctx); !ok && !a.Namespaces().IsPublic(slug) {
 		return nil, NotFound("attachment not found")
 	}
+	if err := a.requirePageRead(ctx, slug); err != nil {
+		return nil, err
+	}
 	if filepath.Base(filename) != filename {
 		return nil, NotFound("attachment not found")
 	}
@@ -201,6 +218,9 @@ func (a *API) attachmentPathAllowed(path string) bool {
 // verifying it still matches the current source blob; a stale extraction is
 // rejected rather than returned.
 func (a *API) ReadAttachment(ctx context.Context, slug, filename string) (string, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return "", err
+	}
 	if !wiki.ValidPageSlug(slug) {
 		return "", InvalidInput("invalid page identifier", nil)
 	}

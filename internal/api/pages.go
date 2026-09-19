@@ -6,7 +6,6 @@ import (
 	"os"
 	"sort"
 
-	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
 
@@ -31,6 +30,9 @@ type PageView struct {
 // filtered by the caller's namespace access before leaving the application
 // boundary; denied pages never reach an adapter.
 func (a *API) ListPages(ctx context.Context) ([]PageSummary, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if a.index == nil {
 		return nil, Unavailable("page listing is unavailable", nil)
 	}
@@ -49,42 +51,60 @@ func (a *API) ListPages(ctx context.Context) ([]PageSummary, error) {
 // PageExists reports whether the index holds a page with the slug. It serves
 // rendering decisions — index-page handoff and public wikilink filtering —
 // without exposing the index to adapters.
-func (a *API) PageExists(slug string) bool {
-	return a.index != nil && a.index.Exists(slug)
+func (a *API) PageExists(ctx context.Context, slug string) bool {
+	return a.canReadPage(ctx, slug) && a.index != nil && a.index.Exists(slug)
 }
 
 // PageTitles returns the current page-title snapshot keyed by slug, for
 // rendering navigation, tables of contents and folder trees.
-func (a *API) PageTitles() map[string]string {
+func (a *API) PageTitles(ctx context.Context) map[string]string {
 	if a.index == nil {
 		return map[string]string{}
 	}
-	return a.index.Titles()
+	titles := a.index.Titles()
+	for slug := range titles {
+		if !a.canReadPage(ctx, slug) {
+			delete(titles, slug)
+		}
+	}
+	return titles
 }
 
 // PagesForTags returns the slugs carrying any of the given tag slugs, for
 // rendering a tag-filtered table of contents.
-func (a *API) PagesForTags(tags []string) []string {
+func (a *API) PagesForTags(ctx context.Context, tags []string) []string {
 	if a.index == nil {
 		return nil
 	}
-	return a.index.PagesForTags(tags)
+	slugs := make([]string, 0)
+	for _, slug := range a.index.PagesForTags(tags) {
+		if a.canReadPage(ctx, slug) {
+			slugs = append(slugs, slug)
+		}
+	}
+	return slugs
 }
 
 // PinnedPages returns the pinned pages for the sidebar pin widget.
-func (a *API) PinnedPages() []search.BacklinkEntry {
+func (a *API) PinnedPages(ctx context.Context) []wiki.BacklinkEntry {
 	if a.index == nil {
 		return nil
 	}
-	return a.index.PinnedPages()
+	pages := make([]wiki.BacklinkEntry, 0)
+	for _, page := range a.index.PinnedPages() {
+		if a.canReadPage(ctx, page.Slug) {
+			pages = append(pages, page)
+		}
+	}
+	return pages
 }
 
 // ViewPage reads one page the caller may read. A caller without slug access
 // gets a forbidden result and a missing page a categorised not-found carrying
 // os.ErrNotExist, so an adapter can still tell "missing" from "unreadable".
 func (a *API) ViewPage(ctx context.Context, slug string) (*PageView, error) {
-	if !AllowSlug(ctx, slug) {
-		return nil, Forbidden("namespace access denied")
+	if err := a.requirePageRead(ctx, slug); err != nil {
+		return nil, err
 	}
 	content, hash, err := a.store.Read(wiki.PageFile(slug))
 	if err != nil {
@@ -101,13 +121,13 @@ func (a *API) ViewPage(ctx context.Context, slug string) (*PageView, error) {
 
 // Backlinks lists the caller-visible pages whose wiki-links resolve to slug.
 func (a *API) Backlinks(ctx context.Context, slug string) ([]PageSummary, error) {
-	if !AllowSlug(ctx, slug) {
-		return nil, Forbidden("namespace access denied")
+	if err := a.requirePageRead(ctx, slug); err != nil {
+		return nil, err
 	}
 	titles := a.index.Titles()
 	backlinks := make([]PageSummary, 0, 4)
 	for _, source := range a.index.Backlinks(slug) {
-		if !AllowSlug(ctx, source) {
+		if !a.canReadPage(ctx, source) {
 			continue
 		}
 		backlinks = append(backlinks, PageSummary{Slug: source, Title: titles[source], Tags: a.index.TagsFor(source)})
@@ -117,28 +137,28 @@ func (a *API) Backlinks(ctx context.Context, slug string) ([]PageSummary, error)
 
 // Tags lists the tags used by the caller-visible pages across the whole wiki,
 // with counts restricted to those pages.
-func (a *API) Tags(ctx context.Context) []search.TagCount {
+func (a *API) Tags(ctx context.Context) []wiki.TagCount {
 	return a.filterTags(ctx, "", false)
 }
 
 // NamespaceTags lists the tags used by the caller-visible pages in one
 // namespace, with counts restricted to that namespace. An empty namespace
 // means the root namespace, matching search.Index.TagsInNamespace.
-func (a *API) NamespaceTags(ctx context.Context, namespace string) []search.TagCount {
+func (a *API) NamespaceTags(ctx context.Context, namespace string) []wiki.TagCount {
 	return a.filterTags(ctx, namespace, true)
 }
 
 // filterTags drops tags with no caller-visible pages and recomputes each count
 // from the pages the caller may read. When scoped, both the tag set and the
 // counts are limited to one namespace.
-func (a *API) filterTags(ctx context.Context, namespace string, scoped bool) []search.TagCount {
-	var tags []search.TagCount
+func (a *API) filterTags(ctx context.Context, namespace string, scoped bool) []wiki.TagCount {
+	var tags []wiki.TagCount
 	if scoped {
 		tags = a.index.TagsInNamespace(namespace)
 	} else {
 		tags = a.index.Tags()
 	}
-	filtered := make([]search.TagCount, 0, len(tags))
+	filtered := make([]wiki.TagCount, 0, len(tags))
 	for _, tag := range tags {
 		count := 0
 		for _, slug := range a.index.PagesForTag(tag.Slug) {
@@ -147,7 +167,7 @@ func (a *API) filterTags(ctx context.Context, namespace string, scoped bool) []s
 					continue
 				}
 			}
-			if AllowSlug(ctx, slug) {
+			if a.canReadPage(ctx, slug) {
 				count++
 			}
 		}
@@ -169,7 +189,7 @@ func (a *API) TagPages(ctx context.Context, tagSlug string) (string, []PageSumma
 	titles := a.index.Titles()
 	pages := make([]PageSummary, 0)
 	for _, slug := range a.index.PagesForTag(tagSlug) {
-		if !AllowSlug(ctx, slug) {
+		if !a.canReadPage(ctx, slug) {
 			continue
 		}
 		pages = append(pages, PageSummary{Slug: slug, Title: titles[slug], Tags: a.index.TagsFor(slug)})
@@ -180,6 +200,9 @@ func (a *API) TagPages(ctx context.Context, tagSlug string) (string, []PageSumma
 // HiddenPages lists the hidden pages the caller may read, sorted by slug.
 // Hidden pages are browser-only and never appear in the shared page index.
 func (a *API) HiddenPages(ctx context.Context) ([]PageSummary, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if a.store == nil {
 		return nil, Unavailable("hidden page listing is unavailable", nil)
 	}
@@ -207,6 +230,9 @@ func (a *API) HiddenPages(ctx context.Context) ([]PageSummary, error) {
 // access gets a forbidden result and a missing page a categorised not-found
 // carrying os.ErrNotExist, so the browser can offer to create it.
 func (a *API) ViewHidden(ctx context.Context, slug string) (*PageView, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
