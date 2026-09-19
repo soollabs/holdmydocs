@@ -1181,7 +1181,6 @@ const newSetupNamespaceOption = "_new"
 func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	cfg := app.config()
-	authorName, authorEmail := app.gitAuthor(cfg.Git.User)
 
 	if action == "add" {
 		_, wikiExists, wikiErr := LoadWikiConfig(cfg.RepoDir)
@@ -1209,7 +1208,7 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "namespace already exists; select it as the default instead", http.StatusBadRequest)
 					return
 				}
-				if err := app.seedFirstNamespace(name, authorName, authorEmail); err != nil {
+				if err := app.apiClient().SeedFirstNamespace(r.Context(), name); err != nil {
 					slog.Error("seeding first namespace", "namespace", name, "err", err)
 					http.Error(w, "failed to seed namespace", http.StatusInternalServerError)
 					return
@@ -1221,21 +1220,14 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "choose a detected namespace or create a new one", http.StatusBadRequest)
 				return
 			}
-			wiki := WikiConfig{Landing: landing, SiteName: strings.TrimSpace(r.FormValue("site_name"))}
-			if wiki.SiteName == "" {
-				http.Error(w, "site name cannot be empty", http.StatusBadRequest)
-				return
-			}
-			data, err := wiki.Encode()
-			if err != nil {
-				http.Error(w, "failed to encode wiki config", http.StatusInternalServerError)
-				return
-			}
-			if _, err := app.Store.Save(wikiConfigFile, data, "Configure wiki settings", authorName, authorEmail); err != nil {
+			if err := app.apiClient().SaveWikiConfig(r.Context(), api.WikiConfigInput{Landing: landing, SiteName: strings.TrimSpace(r.FormValue("site_name"))}); err != nil {
+				if api.CategoryOf(err) == api.CategoryInvalidInput {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 				http.Error(w, "failed to save wiki config", http.StatusInternalServerError)
 				return
 			}
-			app.SetWikiConfig(wiki)
 		}
 		if r.FormValue("add_namespace") == "on" {
 			name := strings.Trim(strings.TrimSpace(r.FormValue("namespace")), "/")
@@ -1246,15 +1238,14 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "invalid namespace name", http.StatusBadRequest)
 				return
 			}
-			if err := app.seedFirstNamespace(name, authorName, authorEmail); err != nil {
+			if err := app.apiClient().SeedFirstNamespace(r.Context(), name); err != nil {
 				slog.Error("seeding first namespace", "namespace", name, "err", err)
 				http.Error(w, "failed to seed namespace", http.StatusInternalServerError)
 				return
 			}
 		}
 		if r.FormValue("add_help") == "on" {
-			content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
-			if _, err := app.Store.Save(".help.md", content, "Add .help.md", authorName, authorEmail); err != nil {
+			if err := app.apiClient().ResetHelp(r.Context()); err != nil {
 				http.Error(w, "failed to seed help guide", http.StatusInternalServerError)
 				return
 			}
@@ -1264,38 +1255,6 @@ func (app *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 	app.Store.NeedsSetup.Store(false)
 	app.Store.ForceSetup.Store(false)
 	http.Redirect(w, r, refererPath(r, app.landingPath()), http.StatusSeeOther)
-}
-
-func (app *App) seedFirstNamespace(name, authorName, authorEmail string) error {
-	nsCfg := wiki.NamespaceConfig{Widgets: wiki.BuiltinNamespaceWidgets, Index: defaultIndexPage}
-	data, err := nsCfg.Encode()
-	if err != nil {
-		return fmt.Errorf("encoding namespace config: %w", err)
-	}
-	path := wiki.NamespaceConfigPath(name)
-	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
-		return fmt.Errorf("saving namespace config: %w", err)
-	}
-
-	indexSlug := wiki.NamespaceSlug(name, defaultIndexPage)
-	if _, _, err := app.Store.Read(pageFile(indexSlug)); err != nil {
-		content := Page{Slug: indexSlug, Title: name, Body: defaultHomeMD}.Encode()
-		if _, err := app.Store.Save(pageFile(indexSlug), content, "Add "+indexSlug, authorName, authorEmail); err != nil {
-			return fmt.Errorf("saving index page: %w", err)
-		}
-		if err := app.Index.Update(ParsePage(indexSlug, content)); err != nil {
-			slog.Error("updating search index", "slug", indexSlug, "err", err)
-		}
-	}
-
-	if _, _, err := app.Store.Read("readme.md"); err != nil {
-		if _, err := app.Store.Save("readme.md", []byte(rootReadmeMD), "Add readme.md", authorName, authorEmail); err != nil {
-			return fmt.Errorf("saving root readme: %w", err)
-		}
-	}
-
-	app.refreshNamespaces()
-	return nil
 }
 
 func refererPath(r *http.Request, fallback string) string {
@@ -1314,17 +1273,20 @@ func refererPath(r *http.Request, fallback string) string {
 }
 
 func (app *App) handleRerunSetup(w http.ResponseWriter, r *http.Request) {
-	app.Store.ForceSetup.Store(true)
+	if err := app.apiClient().RerunSetup(r.Context()); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/_/admin", http.StatusSeeOther)
 }
 
 func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 	author := strings.TrimSpace(r.FormValue("git_author"))
-	if err := validateGitAuthor(author); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := app.Auth.SetAuthor(app.currentUser(r), author); err != nil {
+	if err := app.apiClient().SetGitAuthor(r.Context(), author); err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to save git author", http.StatusInternalServerError)
 		return
 	}
@@ -1332,9 +1294,7 @@ func (app *App) handleSetAuthor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleResetHelp(w http.ResponseWriter, r *http.Request) {
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	content := Page{Slug: "help", Title: "Help", Tags: []string{"meta"}, Body: defaultHelpMD}.Encode()
-	if _, err := app.Store.Save(".help.md", content, "Reset .help.md to built-in", authorName, authorEmail); err != nil {
+	if err := app.apiClient().ResetHelp(r.Context()); err != nil {
 		http.Error(w, "failed to reset .help.md", http.StatusInternalServerError)
 		return
 	}
@@ -2943,12 +2903,6 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	label := strings.TrimSpace(r.FormValue("label"))
-	if label == "" {
-		sd := app.settingsData(r)
-		sd.TokenError = "Token needs a name"
-		app.renderSettings(w, r, sd, "settings")
-		return
-	}
 	ttl, ok := tokenTTLs[r.FormValue("expiry")]
 	if !ok {
 		ttl = tokenTTLs["30d"]
@@ -2957,62 +2911,25 @@ func (app *App) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	if ttl > 0 {
 		expires = time.Now().Add(ttl)
 	}
-	scopes := append([]string(nil), r.Form["scopes"]...)
-	if len(scopes) == 0 {
-		sd := app.settingsData(r)
-		sd.TokenError = "Token needs at least one scope"
-		app.renderSettings(w, r, sd, "settings")
-		return
-	}
-
-	knownNamespaces := make(map[string]struct{})
-	for _, summary := range app.apiClient().NamespaceSummaries() {
-		knownNamespaces[summary.Name] = struct{}{}
-	}
-	namespaces := make([]string, 0, len(r.Form["namespaces"]))
-	for _, raw := range r.Form["namespaces"] {
-		namespace := strings.TrimSpace(raw)
-		if namespace == "" {
-			sd := app.settingsData(r)
-			sd.TokenError = "invalid namespace"
-			app.renderSettings(w, r, sd, "settings")
-			return
-		}
-		if _, ok := knownNamespaces[namespace]; !ok {
-			sd := app.settingsData(r)
-			sd.TokenError = fmt.Sprintf("unknown namespace %q", namespace)
-			app.renderSettings(w, r, sd, "settings")
-			return
-		}
-		namespaces = append(namespaces, namespace)
-	}
-	if len(namespaces) == 0 {
-		namespaces = nil
-	}
-	user := app.currentUser(r)
-	token, err := app.Auth.AddToken(user, label, expires, scopes, namespaces)
+	token, err := app.apiClient().CreateToken(r.Context(), label, expires, append([]string(nil), r.Form["scopes"]...), r.Form["namespaces"])
 	if err != nil {
 		sd := app.settingsData(r)
 		sd.TokenError = err.Error()
 		app.renderSettings(w, r, sd, "settings")
 		return
 	}
-	slog.Info("token created", "user", user, "label", label)
 	sd := app.settingsData(r)
 	sd.NewToken = token
 	app.renderSettings(w, r, sd, "settings")
 }
 
 func (app *App) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
-	user := app.currentUser(r)
-	label := r.FormValue("label")
-	if err := app.Auth.RemoveToken(user, label); err != nil {
+	if err := app.apiClient().RevokeToken(r.Context(), r.FormValue("label")); err != nil {
 		sd := app.settingsData(r)
 		sd.TokenError = err.Error()
 		app.renderSettings(w, r, sd, "settings")
 		return
 	}
-	slog.Info("token revoked", "user", user, "label", label)
 	http.Redirect(w, r, "/_/settings", http.StatusSeeOther)
 }
 
@@ -3034,6 +2951,9 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	}
 	for _, entry := range namespaceListEntries(app.Namespaces(), user) {
 		if entry.Name == name && tokenAllowsNamespace(r.Context(), entry.Name) {
+			if detail, err := app.apiClient().ReadNamespace(r.Context(), entry.Name); err == nil {
+				entry.Hash = detail.Hash
+			}
 			data.Form = entry
 			data.TreeEditor = namespaceTreeEditor(app.Index.Titles(), entry.Name, entry.Index, entry.Tree)
 			break
@@ -3225,7 +3145,8 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Whether this save is what brings the namespace into being, which decides
-	// if it gets a template page seeded below.
+	// if it gets a template page seeded below. Seeding is passed to the shared
+	// operation explicitly and never overwrites an existing template.
 	creating := !app.Namespaces()[name].Configured
 
 	title := strings.TrimSpace(r.FormValue("title"))
@@ -3242,7 +3163,8 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 	cfg := wiki.NamespaceConfig{Widgets: ids, Public: r.FormValue("public") == "on", Title: title, Description: r.FormValue("description"), Skin: strings.TrimSpace(r.FormValue("skin")), Palette: strings.TrimSpace(r.FormValue("palette")), Index: strings.TrimSpace(r.FormValue("index")), Tree: tree}
 	if r.FormValue("new_enabled") == "on" {
 		// The slug comes from the preset select; only "custom" falls through
-		// to the raw pattern field.
+		// to the raw pattern field. The pattern is validated by the shared
+		// operation when it normalises the config.
 		slug := slugPatternFor(r.FormValue("slug_preset"))
 		if slug == "" {
 			slug = strings.TrimSpace(r.FormValue("slug_custom"))
@@ -3251,49 +3173,54 @@ func (app *App) handleSaveNamespace(w http.ResponseWriter, r *http.Request) {
 			fail("choose how new pages here are named, or give a custom pattern")
 			return
 		}
-		// Reject a pattern that doesn't parse (or renders to something
-		// unusable) here, at the form, rather than at ctrl-j time.
-		rendered, err := api.RenderNewPageText(slug, api.NewPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
-		if err != nil {
-			fail("slug pattern is not a valid template: " + err.Error())
-			return
-		}
-		if !wiki.ValidPageSegment(rendered) {
-			fail(fmt.Sprintf("that pattern names a page %q, which isn't usable: no slashes, no leading dot, not empty", rendered))
-			return
-		}
 		cfg.New = &wiki.NewPageConfig{Template: template, Slug: slug}
 	}
-	var err error
-	cfg, err = api.NormaliseNamespaceConfig(name, cfg, api.NewPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name})
-	if err != nil {
-		fail(err.Error())
-		return
-	}
 
-	data, err := cfg.Encode()
+	_, err := app.apiClient().SaveNamespace(r.Context(), api.SaveNamespaceInput{
+		Name:         name,
+		Config:       cfg,
+		TemplateData: api.NewPageTemplateData{Now: time.Now(), User: app.currentUser(r), Namespace: name},
+		BaseHash:     r.FormValue("basehash"),
+		SeedTemplate: creating || cfg.New != nil,
+		TemplateName: template,
+	})
 	if err != nil {
-		fail("encoding namespace config: " + err.Error())
-		return
-	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := wiki.NamespaceConfigPath(name)
-	if _, err := app.Store.Save(path, data, "Configure namespace "+path, authorName, authorEmail); err != nil {
-		slog.Error("saving namespace config", "namespace", name, "err", err)
-		fail("failed to save namespace config: " + err.Error())
-		return
-	}
-
-	// Seed the template when creating or enabling new pages, without overwriting it.
-	if creating || cfg.New != nil {
-		if err := app.ensureNewPageTemplate(name, template, authorName, authorEmail); err != nil {
-			slog.Warn("seeding namespace template page", "namespace", name, "err", err)
+		switch api.CategoryOf(err) {
+		case api.CategoryConflict:
+			app.renderNamespaceConflict(w, r, name, cfg)
+		case api.CategoryInvalidInput:
+			fail(err.Error())
+		case api.CategoryForbidden:
+			app.tokenNamespaceDenied(w, r)
+		default:
+			slog.Error("saving namespace config", "namespace", name, "err", err)
+			fail("failed to save namespace config: " + err.Error())
 		}
+		return
 	}
 
-	app.refreshNamespaces()
 	slog.Info("namespace configured", "namespace", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
+}
+
+// renderNamespaceConflict renders the namespace editor after a rejected checked
+// write. It preserves the submitted settings and carries the currently
+// committed hash so the user can review and resubmit; the current
+// configuration is never overwritten by the rejected write itself.
+func (app *App) renderNamespaceConflict(w http.ResponseWriter, r *http.Request, name string, cfg wiki.NamespaceConfig) {
+	data := app.namespaceManagementData(r, name, "")
+	cfg.Configured = true
+	if entries := namespaceListEntries(wiki.NamespaceRegistry{name: cfg}, app.currentUser(r)); len(entries) > 0 {
+		form := entries[0]
+		if detail, err := app.apiClient().ReadNamespace(r.Context(), name); err == nil {
+			form.Hash = detail.Hash
+		}
+		data.Form = form
+	}
+	data.Error = "This namespace changed since you opened the form, or was created by someone else. Review the settings below and save again; nothing has been overwritten."
+	app.render(w, r, http.StatusConflict, "namespace-edit", TemplateData{
+		Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data,
+	})
 }
 
 func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
@@ -3305,13 +3232,10 @@ func (app *App) handleResetNamespace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid namespace name", http.StatusBadRequest)
 		return
 	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := wiki.NamespaceConfigPath(name)
-	if err := app.Store.Remove(path, "Reset namespace settings "+path, authorName, authorEmail); err != nil {
+	if err := app.apiClient().ResetNamespace(r.Context(), name); err != nil {
 		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, "failed to reset namespace settings: "+err.Error())
 		return
 	}
-	app.refreshNamespaces()
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
@@ -3320,19 +3244,18 @@ func (app *App) handleDeleteNamespace(w http.ResponseWriter, r *http.Request) {
 	if !app.requireTokenNamespace(w, r, name) {
 		return
 	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	path := wiki.NamespaceConfigPath(name)
-	if err := app.Store.DeleteNamespace(name, "Remove namespace config "+path, authorName, authorEmail); err != nil {
-		if errors.Is(err, errInvalidNamespaceName) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := app.apiClient().DeleteNamespace(r.Context(), name); err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			if !wiki.ValidNamespaceName(name) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
 			return
 		}
-		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-
-	app.refreshNamespaces()
-	slog.Info("namespace config removed", "namespace", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
@@ -3341,23 +3264,18 @@ func (app *App) handleDeleteNamespaceAll(w http.ResponseWriter, r *http.Request)
 	if !app.requireTokenNamespace(w, r, name) {
 		return
 	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	if err := app.Store.DeleteNamespaceAll(name, "Delete namespace "+name, authorName, authorEmail); err != nil {
-		if errors.Is(err, errInvalidNamespaceName) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := app.apiClient().DeleteNamespaceAll(r.Context(), name); err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			if !wiki.ValidNamespaceName(name) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
 			return
 		}
-		app.renderNamespace(w, r, http.StatusOK, "namespace-edit", name, err.Error())
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	for slug := range app.Index.Titles() {
-		ns, _ := wiki.NamespaceFor(slug)
-		if ns == name {
-			app.Index.Remove(slug)
-		}
-	}
-	app.refreshNamespaces()
-	slog.Info("namespace deleted with all files", "namespace", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/namespaces?saved=1", http.StatusSeeOther)
 }
 
@@ -3367,82 +3285,17 @@ func (app *App) refreshNamespaces() {
 	}
 }
 
-func (app *App) ensureNewPageTemplate(ns, template, authorName, authorEmail string) error {
-	slug := wiki.NamespaceSlug(ns, template)
-	if _, _, err := app.Store.Read(hiddenFile(slug)); err == nil {
-		return nil
-	}
-	page := Page{
-		Slug:  slug,
-		Title: `{{.Now.Format "Monday, 2 January 2006"}}`,
-		Body:  newPageTemplateBody(ns),
-	}
-	if ns != "" {
-		page.Tags = []string{ns}
-	}
-	_, err := app.Store.Save(hiddenFile(slug), page.Encode(), "Add new-page template "+slug, authorName, authorEmail)
-	return err
-}
-
-var newPageTemplateFields = []string{
-	`.Now.Format "2006-01-02"`,
-	`.Now.Format "Monday, 2 January 2006"`,
-	`.Now.Format "15:04"`,
-	`.User`,
-	`.Namespace`,
-}
-
-func newPageTemplateBody(ns string) string {
-	where := "the root of the wiki"
-	if ns != "" {
-		where = "`" + ns + "/`"
-	}
-
-	var table strings.Builder
-	table.WriteString("| field | what it puts on the page |\n| --- | --- |\n")
-	for _, f := range newPageTemplateFields {
-		table.WriteString("| `" + f + "` | {{" + f + "}} |\n")
-	}
-
-	return "This is the template page for " + where + ". Every page created here " +
-		"starts as a copy of it, so whatever you leave in it — headings, a " +
-		"checklist, tags — is what a new page begins with.\n\n" +
-		"Wrap a field in double braces to have it filled in when the page is " +
-		"created; the title of this page does exactly that. Title, tags and " +
-		"body are all substituted, and these are the only fields there are:\n\n" +
-		table.String() +
-		"\nDates use Go's layout syntax: write out the reference time " +
-		"`2006-01-02 15:04` in the shape you want it, so `02/01/2006` gives " +
-		`{{.Now.Format "02/01/2006"}}` + " and `Jan 2` gives " +
-		`{{.Now.Format "Jan 2"}}` + ".\n\n" +
-		"This page is hidden — it never shows up in the page list, search, tags " +
-		"or backlinks. Delete all of this and make it yours.\n"
-}
-
 func (app *App) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	password := r.FormValue("password")
 	scopes := r.Form["scopes"]
 
-	fail := func(msg string) {
+	if err := app.apiClient().CreateUser(r.Context(), name, password, scopes); err != nil {
 		sd := app.settingsData(r)
-		sd.UserError = msg
+		sd.UserError = err.Error()
 		app.renderSettings(w, r, sd, "admin")
-	}
-
-	if name == "" || password == "" {
-		fail("Name and password are required")
 		return
 	}
-	if app.Auth.UserExists(name) {
-		fail(fmt.Sprintf("User %q already exists", name))
-		return
-	}
-	if err := app.Auth.AddUserWithScopes(name, password, scopes); err != nil {
-		fail(err.Error())
-		return
-	}
-	slog.Info("user created", "user", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
@@ -3450,198 +3303,100 @@ func (app *App) handleSetUserScopes(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	scopes := r.Form["scopes"]
 
-	if name == app.config().AdminUser {
-		sd := app.settingsData(r)
-		sd.UserError = "the bootstrap admin user always has full access"
-		app.renderSettings(w, r, sd, "admin")
-		return
-	}
-
-	if name == app.currentUser(r) {
-		hasSettings := len(scopes) == 0
-		for _, s := range scopes {
-			if s == string(scopeSettings) {
-				hasSettings = true
-			}
-		}
-		if !hasSettings {
-			sd := app.settingsData(r)
-			sd.UserError = "cannot remove your own settings access"
-			app.renderSettings(w, r, sd, "admin")
-			return
-		}
-	}
-
-	if err := app.Auth.SetScopes(name, scopes); err != nil {
+	if err := app.apiClient().SetUserScopes(r.Context(), name, scopes); err != nil {
 		sd := app.settingsData(r)
 		sd.UserError = err.Error()
 		app.renderSettings(w, r, sd, "admin")
 		return
 	}
-	slog.Info("user scopes updated", "user", name, "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
 func (app *App) handleSettingsPost(w http.ResponseWriter, r *http.Request) {
-	configPath := app.config().ConfigFile
-
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
 
-	bind := r.FormValue("bind")
-	repoDir := r.FormValue("repo_dir")
-	remoteURL := r.FormValue("remote_url")
-	gitUser := r.FormValue("git_user")
-	gitAuthor := r.FormValue("git_author")
-	gitToken := r.FormValue("git_token")
-	maxUploadStr := r.FormValue("max_upload_bytes")
-	syncPollStr := r.FormValue("sync_poll_ms")
-	syncMode := r.FormValue("sync_mode")
+	maxUploadBytes, err := strconv.ParseInt(r.FormValue("max_upload_bytes"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid upload size", http.StatusBadRequest)
+		return
+	}
+	syncPollMs, err := strconv.Atoi(r.FormValue("sync_poll_ms"))
+	if err != nil {
+		http.Error(w, "invalid sync poll", http.StatusBadRequest)
+		return
+	}
 	list := func(name string) []string {
 		return strings.FieldsFunc(r.FormValue(name), func(r rune) bool { return r == ',' || r == '\n' })
 	}
 
-	if bind == "" {
-		http.Error(w, "bind cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if repoDir == "" {
-		http.Error(w, "repo directory cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if gitUser == "" {
-		http.Error(w, "git user cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if remoteURL != "" && !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "git@") {
-		http.Error(w, "remote URL must be HTTPS or git@ SSH format", http.StatusBadRequest)
-		return
-	}
-	if syncMode != "push" && syncMode != "bidirectional" {
-		http.Error(w, "sync mode must be push or bidirectional", http.StatusBadRequest)
-		return
-	}
-	if err := validateGitAuthor(gitAuthor); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	err = app.apiClient().SaveServerSettings(r.Context(), api.ServerSettingsInput{
+		Bind:           r.FormValue("bind"),
+		RepoDir:        r.FormValue("repo_dir"),
+		MaxUploadBytes: maxUploadBytes,
+		SyncPollMs:     syncPollMs,
+		SyncMode:       r.FormValue("sync_mode"),
+		DefaultBranch:  r.FormValue("default_branch"),
+		Skin:           r.FormValue("skin"),
+		Debug:          r.FormValue("debug") == "on",
+		BaseURL:        r.FormValue("base_url"),
+		TrustedProxies: list("trusted_proxies"),
 
-	maxUploadBytes, err := strconv.ParseInt(maxUploadStr, 10, 64)
-	if err != nil || maxUploadBytes < 1 {
-		http.Error(w, "invalid upload size", http.StatusBadRequest)
-		return
-	}
-	syncPollMs, err := strconv.Atoi(syncPollStr)
-	if err != nil || syncPollMs < 100 {
-		http.Error(w, "sync poll must be at least 100ms", http.StatusBadRequest)
-		return
-	}
+		RemoteURL:     r.FormValue("remote_url"),
+		GitUser:       r.FormValue("git_user"),
+		GitAuthor:     r.FormValue("git_author"),
+		GitToken:      r.FormValue("git_token"),
+		StoreGitToken: r.FormValue("store_git_token") == "on",
+		GitTokenFile:  r.FormValue("git_token_file"),
 
-	fc, err := LoadFileConfig(configPath)
-	if err != nil && !os.IsNotExist(err) {
-		http.Error(w, "Failed to read config: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+		MCPEnabled: r.FormValue("mcp_enabled") == "on",
 
-	// Environment variables are authoritative. Do not let a crafted form change
-	// their on-disk fallback values (and, especially, do not turn an omitted
-	// disabled checkbox into false).
-	set := func(path string, apply func()) {
-		if app.config().EnvOverrides[path] == "" {
-			apply()
-		}
-	}
-	set("Bind", func() { fc.Bind = bind })
-	set("RepoDir", func() { fc.RepoDir = repoDir })
-	set("Git.RemoteURL", func() { fc.Git.RemoteURL = remoteURL })
-	set("Git.User", func() { fc.Git.User = gitUser })
-	set("Git.Author", func() { fc.Git.Author = gitAuthor })
-	set("MaxUploadBytes", func() { fc.MaxUploadBytes = new(maxUploadBytes) })
-	set("SyncPollMs", func() { fc.SyncPollMs = new(syncPollMs) })
-	set("SyncMode", func() { fc.SyncMode = syncMode })
-	set("DefaultBranch", func() { fc.DefaultBranch = r.FormValue("default_branch") })
-	set("Skin", func() { fc.Skin = r.FormValue("skin") })
-	set("Debug", func() { fc.Debug = r.FormValue("debug") == "on" })
-	set("BaseURL", func() { fc.BaseURL = r.FormValue("base_url") })
-	set("TrustedProxies", func() { fc.TrustedProxies = list("trusted_proxies") })
-	set("Git.TokenFile", func() { fc.Git.TokenFile = r.FormValue("git_token_file") })
-	set("MCP.Enabled", func() { fc.MCP.Enabled = r.FormValue("mcp_enabled") == "on" })
-	set("DocumentSearch.Model", func() { fc.DocumentSearch.Model = r.FormValue("document_model") })
-	set("DocumentSearch.ModelDir", func() { fc.DocumentSearch.ModelDir = r.FormValue("document_model_dir") })
-	set("DocumentSearch.IndexDir", func() { fc.DocumentSearch.IndexDir = r.FormValue("document_index_dir") })
-	set("OIDC.Issuer", func() { fc.OIDC.Issuer = r.FormValue("oidc_issuer") })
-	set("OIDC.ClientID", func() { fc.OIDC.ClientID = r.FormValue("oidc_client_id") })
-	set("OIDC.ClientSecretFile", func() { fc.OIDC.ClientSecretFile = r.FormValue("oidc_client_secret_file") })
-	set("OIDC.ClientSecret", func() {
-		if secret := r.FormValue("oidc_client_secret"); secret != "" {
-			fc.OIDC.ClientSecret = secret
-		}
+		DocumentModel:    r.FormValue("document_model"),
+		DocumentModelDir: r.FormValue("document_model_dir"),
+		DocumentIndexDir: r.FormValue("document_index_dir"),
+
+		OIDCIssuer:                r.FormValue("oidc_issuer"),
+		OIDCClientID:              r.FormValue("oidc_client_id"),
+		OIDCClientSecret:          r.FormValue("oidc_client_secret"),
+		OIDCClientSecretFile:      r.FormValue("oidc_client_secret_file"),
+		OIDCLocalLogin:            r.FormValue("oidc_local_login") == "on",
+		OIDCButtonText:            r.FormValue("oidc_button_text"),
+		OIDCIcon:                  r.FormValue("oidc_icon"),
+		OIDCDefaultScopes:         list("oidc_default_scopes"),
+		OIDCAllowedSubjects:       list("oidc_allowed_subjects"),
+		OIDCAllowedEmailDomains:   list("oidc_allowed_email_domains"),
+		OIDCAllowAnyAuthenticated: r.FormValue("oidc_allow_any_authenticated") == "on",
+		OIDCAllowInsecureLoopback: r.FormValue("oidc_allow_insecure_loopback") == "on",
 	})
-	set("OIDC.LocalLogin", func() { localLogin := r.FormValue("oidc_local_login") == "on"; fc.OIDC.LocalLogin = &localLogin })
-	set("OIDC.ButtonText", func() { fc.OIDC.ButtonText = r.FormValue("oidc_button_text") })
-	set("OIDC.Icon", func() { fc.OIDC.Icon = r.FormValue("oidc_icon") })
-	set("OIDC.DefaultScopes", func() { fc.OIDC.DefaultScopes = list("oidc_default_scopes") })
-	set("OIDC.AllowedSubjects", func() { fc.OIDC.AllowedSubjects = list("oidc_allowed_subjects") })
-	set("OIDC.AllowedEmailDomains", func() { fc.OIDC.AllowedEmailDomains = list("oidc_allowed_email_domains") })
-	set("OIDC.AllowAnyAuthenticated", func() { fc.OIDC.AllowAnyAuthenticated = r.FormValue("oidc_allow_any_authenticated") == "on" })
-	set("OIDC.AllowInsecureLoopback", func() { fc.OIDC.AllowInsecureLoopback = r.FormValue("oidc_allow_insecure_loopback") == "on" })
-
-	set("Git.Token", func() {
-		if gitToken != "" && r.FormValue("store_git_token") == "on" {
-			fc.Git.Token = gitToken
+	if err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-	})
-
-	if err := SaveFileConfig(configPath, fc); err != nil {
 		slog.Error("saving config", "err", err)
 		http.Error(w, "failed to save config", http.StatusInternalServerError)
 		return
 	}
 
-	newCfg, err := LoadConfig()
-	if err != nil {
-		slog.Error("reloading config after save", "err", err)
-		http.Error(w, "config saved but reload failed", http.StatusInternalServerError)
-		return
-	}
-	app.SetConfig(newCfg)
-
-	if err := app.Store.UpdateRemote(storeOptions(newCfg)); err != nil {
-		slog.Warn("updating store remote", "err", err)
-	}
-
-	slog.Info("settings updated", "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?saved=1", http.StatusSeeOther)
 }
 
 func (app *App) handleSaveWikiConfig(w http.ResponseWriter, r *http.Request) {
-	wiki := WikiConfig{
+	err := app.apiClient().SaveWikiConfig(r.Context(), api.WikiConfigInput{
 		Landing:  strings.TrimSpace(r.FormValue("landing")),
 		SiteName: strings.TrimSpace(r.FormValue("site_name")),
-	}
-	if wiki.SiteName == "" {
-		http.Error(w, "site name cannot be empty", http.StatusBadRequest)
-		return
-	}
-	if !validWikiLanding(wiki.Landing) {
-		http.Error(w, "landing must be a namespace index such as notes/ or a page such as notes/inbox", http.StatusBadRequest)
-		return
-	}
-	data, err := wiki.Encode()
+	})
 	if err != nil {
-		http.Error(w, "failed to encode wiki settings", http.StatusInternalServerError)
-		return
-	}
-	authorName, authorEmail := app.gitAuthor(app.currentUser(r))
-	if _, err := app.Store.Save(wikiConfigFile, data, "Configure wiki settings", authorName, authorEmail); err != nil {
+		if api.CategoryOf(err) == api.CategoryInvalidInput {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		slog.Error("saving wiki config", "err", err)
 		http.Error(w, "failed to save wiki settings", http.StatusInternalServerError)
 		return
 	}
-	app.SetWikiConfig(wiki)
-	slog.Info("wiki settings updated", "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?wiki-saved=1", http.StatusSeeOther)
 }
 
@@ -3682,31 +3437,19 @@ func (app *App) handleSettingsAppearance(w http.ResponseWriter, r *http.Request)
 		palette = resolveSkin(chosenSkin).Palette
 	}
 
-	if err := app.Auth.SetPrefs(user, palette, fontUI, fontMono, chosenSkin); err != nil {
+	if err := app.apiClient().SetAppearance(r.Context(), palette, fontUI, fontMono, chosenSkin); err != nil {
 		http.Error(w, "failed to save appearance", http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("appearance updated", "by", user)
 	http.Redirect(w, r, "/_/settings?saved=1", http.StatusSeeOther)
 }
 
 func (app *App) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
-	cfg := app.config()
-	if err := SaveFileConfig(cfg.ConfigFile, cfg.ToFileConfig()); err != nil {
+	if err := app.apiClient().ExportServerConfig(r.Context()); err != nil {
 		slog.Error("exporting config", "err", err)
 		http.Error(w, "failed to export config", http.StatusInternalServerError)
 		return
 	}
-
-	newCfg, err := LoadConfig()
-	if err != nil {
-		slog.Error("reloading config after export", "err", err)
-		http.Error(w, "config exported but reload failed", http.StatusInternalServerError)
-		return
-	}
-	app.SetConfig(newCfg)
-
-	slog.Info("settings exported to config file", "by", app.currentUser(r))
 	http.Redirect(w, r, "/_/admin?exported=1", http.StatusSeeOther)
 }

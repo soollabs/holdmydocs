@@ -2,14 +2,12 @@ package web
 
 import (
 	"fmt"
-	"strings"
 	"unicode/utf8"
 )
 
 const (
 	maxFormBytes        = 2 << 20
 	maxSearchQueryRunes = 512
-	maxGitAuthorRunes   = 256
 	maxExportFiles      = 10_000
 	maxExportBytes      = 100 << 20
 )
@@ -23,13 +21,6 @@ func exportBudget(files *int, bytes *int64, size int64) error {
 	*bytes += size
 	if *files > maxExportFiles || *bytes > maxExportBytes {
 		return fmt.Errorf("export exceeds %d files or %d bytes", maxExportFiles, maxExportBytes)
-	}
-	return nil
-}
-
-func validateGitAuthor(author string) error {
-	if !validRunes(author, maxGitAuthorRunes) || strings.ContainsAny(author, "\r\n") {
-		return fmt.Errorf("git author must be valid UTF-8, at most %d characters, and one line", maxGitAuthorRunes)
 	}
 	return nil
 }

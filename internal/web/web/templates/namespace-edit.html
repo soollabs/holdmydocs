@@ -7,6 +7,7 @@
 {{$form := .Form}}
 <form method="POST" action="/_/settings/namespaces" class="namespace-form settings-form">{{template "csrf" $}}
 <input type="hidden" name="template" value="{{$form.Template}}">
+<input type="hidden" name="basehash" value="{{$form.Hash}}">
 <fieldset class="settings-section settings-panel"><legend>namespace</legend>
 <div class="settings-row"><label for="namespace-name">name</label><input id="namespace-name" name="name" value="{{$form.Name}}" placeholder="e.g. blog" autocomplete="off" required {{if $form.Name}}readonly{{end}}></div>
 <div class="settings-row"><label for="namespace-description">description</label><textarea id="namespace-description" name="description" maxlength="255" placeholder="optional brief summary for namespace listings">{{$form.Description}}</textarea></div>

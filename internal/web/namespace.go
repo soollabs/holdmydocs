@@ -198,6 +198,7 @@ type NamespaceListEntry struct {
 	LoadError   string   // why an existing .namespace.yaml was ignored, if it was
 	Index       string   // page name that replaces the page-list view at /{namespace}/, if any
 	Tree        []string // explicit page or folder order in the rendered tree
+	Hash        string   // current .namespace.yaml blob hash, carried back for checked writes; empty when creating
 
 	// New-page (ctrl-j) state.
 	NewEnabled   bool

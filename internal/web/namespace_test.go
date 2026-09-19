@@ -755,9 +755,13 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("template link = %q, want the hidden-page editor for blog/entry", blog.TemplateHref)
 	}
 
+	_, hash, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
+	if err != nil {
+		t.Fatalf("reading blog config hash: %v", err)
+	}
 	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"pages"}, "template": {blog.Template},
-		"new_enabled": {"on"}, "slug_preset": {"monthly"},
+		"new_enabled": {"on"}, "slug_preset": {"monthly"}, "basehash": {hash},
 	})
 	if err != nil {
 		t.Fatalf("saving blog: %v", err)
@@ -772,9 +776,13 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("slug = %q, want the monthly preset", cfg.New.Slug)
 	}
 
+	_, hash, err = app.Store.Read(wiki.NamespaceConfigPath("blog"))
+	if err != nil {
+		t.Fatalf("reading blog config hash: %v", err)
+	}
 	off, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
 		"name": {"blog"}, "widgets": {"pages"}, "public": {"on"}, "template": {blog.Template},
-		"slug_preset": {"monthly"},
+		"slug_preset": {"monthly"}, "basehash": {hash},
 	})
 	if err != nil {
 		t.Fatalf("disabling new pages: %v", err)
@@ -811,7 +819,7 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 	}
 	tpl := ParsePage("blog/"+wiki.DefaultNewPageTemplate, content)
 
-	for _, field := range newPageTemplateFields {
+	for _, field := range api.NewPageTemplateFields {
 		if !strings.Contains(tpl.Body, "`"+field+"`") {
 			t.Errorf("seeded template should document %q as text, body was:\n%s", field, tpl.Body)
 		}
@@ -876,5 +884,114 @@ func TestBuildPageTreeOrdersIndexAndSections(t *testing.T) {
 	}
 	if want := []string{"home", "reference", "guides", "about"}; !slices.Equal(got, want) {
 		t.Errorf("root tree = %v, want %v", got, want)
+	}
+}
+
+// TestSaveNamespaceRejectsStaleBrowserUpdate verifies the browser's checked
+// namespace write: a form carrying an out-of-date hash is rejected, the
+// concurrent configuration is preserved, and the submitted settings are
+// rendered back with the current hash for a deliberate retry.
+func TestSaveNamespaceRejectsStaleBrowserUpdate(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	adminLogin(t, server, client)
+
+	saveConfiguredEmptyNamespace(t, app, "blog")
+	_, staleHash, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
+	if err != nil {
+		t.Fatalf("reading blog hash: %v", err)
+	}
+
+	// A concurrent writer replaces the config after the form was rendered.
+	concurrent := []byte("public: true\ntitle: Concurrent\n")
+	if _, err := app.Store.Save(wiki.NamespaceConfigPath("blog"), concurrent, "Concurrent edit", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("concurrent save: %v", err)
+	}
+	app.refreshNamespaces()
+
+	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
+		"name": {"blog"}, "widgets": {"pages"}, "title": {"Submitted title"}, "basehash": {staleHash},
+	})
+	if err != nil {
+		t.Fatalf("stale save: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale save = %d, want 409", resp.StatusCode)
+	}
+	if got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog")); err != nil || string(got) != string(concurrent) {
+		t.Fatalf("config after stale save = %q, %v; want the concurrent config preserved", got, err)
+	}
+	if !strings.Contains(string(body), "Submitted title") {
+		t.Errorf("conflict response should preserve the submitted settings: %s", body)
+	}
+	if !strings.Contains(string(body), `name="basehash"`) {
+		t.Errorf("conflict response should carry a basehash for a deliberate retry: %s", body)
+	}
+}
+
+// TestSaveNamespaceRejectsSimultaneousCreation verifies that a browser create
+// does not overwrite a configuration created concurrently: an empty basehash
+// write fails when the configuration already exists.
+func TestSaveNamespaceRejectsSimultaneousCreation(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	adminLogin(t, server, client)
+
+	config := saveConfiguredEmptyNamespace(t, app, "blog")
+
+	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{
+		"name": {"blog"}, "widgets": {"pages"},
+	})
+	if err != nil {
+		t.Fatalf("simultaneous create: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("simultaneous create = %d, want 409", resp.StatusCode)
+	}
+	if got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog")); err != nil || string(got) != string(config) {
+		t.Fatalf("config after simultaneous create = %q, %v; want the existing config preserved", got, err)
+	}
+}
+
+// TestSaveNamespaceCreatesConfigForImplicitNamespace verifies that a namespace
+// with no configuration file yet can still be configured with an empty basehash,
+// while a concurrent create is rejected.
+func TestSaveNamespaceCreatesConfigForImplicitNamespace(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	adminLogin(t, server, client)
+
+	// An implicit namespace: a page directory with no .namespace.yaml.
+	if _, err := app.Store.Save(pageFile("implicit/note"), Page{Slug: "implicit/note", Title: "Note"}.Encode(), "Add implicit/note", "test", "test@hmd.local"); err != nil {
+		t.Fatalf("saving implicit page: %v", err)
+	}
+	app.refreshNamespaces()
+
+	resp, err := client.PostForm(server.URL+"/_/settings/namespaces", url.Values{"name": {"implicit"}, "widgets": {"pages"}})
+	if err != nil {
+		t.Fatalf("configuring implicit namespace: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("configuring implicit namespace = %d, want 303", resp.StatusCode)
+	}
+	if _, _, err := app.Store.Read(wiki.NamespaceConfigPath("implicit")); err != nil {
+		t.Fatalf("implicit namespace config missing after save: %v", err)
+	}
+
+	// A concurrent create must not overwrite the freshly written configuration.
+	resp, err = client.PostForm(server.URL+"/_/settings/namespaces", url.Values{"name": {"implicit"}, "widgets": {"tags"}})
+	if err != nil {
+		t.Fatalf("simultaneous create: %v", err)
+	}
+	closeTestBody(t, resp.Body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("simultaneous create = %d, want 409", resp.StatusCode)
+	}
+	if cfg := app.Namespaces()["implicit"]; strings.Join(cfg.Widgets, ",") != "pages" {
+		t.Fatalf("implicit namespace widgets = %v, want the first create preserved", cfg.Widgets)
 	}
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -12,6 +13,7 @@ const (
 	maxPageTitleRunes = 256
 	maxPageTags       = 32
 	maxPageTagRunes   = 64
+	maxGitAuthorRunes = 256
 )
 
 func validRunes(s string, max int) bool {
@@ -34,6 +36,16 @@ func ValidatePageInput(title string, tags []string, body string) error {
 		if !validRunes(tag, maxPageTagRunes) {
 			return fmt.Errorf("tags must be valid UTF-8 and at most %d characters", maxPageTagRunes)
 		}
+	}
+	return nil
+}
+
+// ValidateGitAuthor rejects a git author that is not valid UTF-8, exceeds the
+// rune limit, or spans more than one line. It is shared by the author-setting
+// and server-settings operations.
+func ValidateGitAuthor(author string) error {
+	if !validRunes(author, maxGitAuthorRunes) || strings.ContainsAny(author, "\r\n") {
+		return fmt.Errorf("git author must be valid UTF-8, at most %d characters, and one line", maxGitAuthorRunes)
 	}
 	return nil
 }

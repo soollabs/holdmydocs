@@ -534,34 +534,29 @@ func (app *App) mcpHandler() http.Handler {
 		if err := app.mcpRequireNamespace(ctx, in.Name); err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		cfg, err := api.NormaliseNamespaceConfig(in.Name, wiki.NamespaceConfig{
+		cfg := wiki.NamespaceConfig{
 			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
 			Palette: in.Palette, Index: in.Index, Tree: in.Tree, New: in.New,
-		}, api.NewPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name})
-		if err != nil {
-			return nil, mcpNamespaceOut{}, err
 		}
-		data, err := cfg.Encode()
+		detail, err := app.apiClient().SaveNamespace(ctx, api.SaveNamespaceInput{
+			Name:         in.Name,
+			Config:       cfg,
+			TemplateData: api.NewPageTemplateData{Now: time.Now(), User: app.mcpUser(ctx), Namespace: in.Name},
+			BaseHash:     in.BaseHash,
+		})
 		if err != nil {
-			return nil, mcpNamespaceOut{}, err
-		}
-		authorName, authorEmail := app.gitAuthor(app.mcpUser(ctx))
-		path := wiki.NamespaceConfigPath(in.Name)
-		hash, err := app.Store.SaveChecked(path, path, in.BaseHash, data, "Configure namespace "+path, authorName, authorEmail)
-		if errors.Is(err, ErrConflict) {
-			current, readErr := app.apiClient().ReadNamespace(ctx, in.Name)
-			if readErr != nil {
-				return nil, mcpNamespaceOut{}, readErr
+			if api.CategoryOf(err) == api.CategoryConflict {
+				current, readErr := app.apiClient().ReadNamespace(ctx, in.Name)
+				if readErr != nil {
+					return nil, mcpNamespaceOut{}, readErr
+				}
+				payload, _ := json.Marshal(map[string]any{"error": "conflict: the namespace changed since basehash (or already exists)", "namespace": mcpNamespaceFromDetail(current)})
+				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}}}, mcpNamespaceOut{}, nil
 			}
-			payload, _ := json.Marshal(map[string]any{"error": "conflict: the namespace changed since basehash (or already exists)", "namespace": mcpNamespaceFromDetail(current)})
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(payload)}}}, mcpNamespaceOut{}, nil
-		}
-		if err != nil {
 			return nil, mcpNamespaceOut{}, err
 		}
-		app.refreshNamespaces()
-		slog.Info("mcp namespace configured", "namespace", in.Name, "author", authorName)
-		return nil, mcpNamespaceOutput(in.Name, cfg, hash), nil
+		slog.Info("mcp namespace configured", "namespace", in.Name, "author", app.mcpUser(ctx))
+		return nil, mcpNamespaceFromDetail(detail), nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
