@@ -46,7 +46,7 @@ func TestLiveReadingEnhancements(t *testing.T) {
 					t.Fatalf("%s: status %d", page.path, resp.StatusCode)
 				}
 				s := string(body)
-				if !strings.Contains(s, `src="/_/static/page.js?v=1"`) {
+				if !strings.Contains(s, `src="`+staticURL("page.js")+`"`) {
 					t.Errorf("%s: missing shared reader script", page.path)
 				}
 				for rel, href := range map[string]string{"prev": page.prev, "next": page.next} {
@@ -62,7 +62,7 @@ func TestLiveReadingEnhancements(t *testing.T) {
 					if !strings.Contains(s, "<h1>Start</h1>") {
 						t.Error("author heading removed")
 					}
-					if !strings.Contains(s, `src="/_/static/mermaid.min.js"`) {
+					if !strings.Contains(s, `src="`+staticURL("mermaid.min.js")+`"`) {
 						t.Error("missing Mermaid dependency")
 					}
 				}

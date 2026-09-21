@@ -1077,7 +1077,9 @@
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        if (editForm) editForm.requestSubmit();
+        // Call through the prototype: a control named "requestSubmit" would
+        // otherwise shadow the method on the form object.
+        if (editForm) HTMLFormElement.prototype.requestSubmit.call(editForm);
       }
     });
 
@@ -1521,7 +1523,13 @@
       if (e.defaultPrevented) return; // a data-confirm handler already cancelled it
       e.preventDefault();
       if (e.submitter && e.submitter.dataset.confirm && !window.confirm(e.submitter.dataset.confirm)) return;
-      const url = (e.submitter && e.submitter.formAction) ? e.submitter.formAction : form.action;
+      // formAction resolves to the current document URL when the button has no
+      // formaction attribute, and a control named "action" shadows
+      // form.action (a RadioNodeList with two submit buttons), so read the
+      // submitter attribute and the form's action attribute directly.
+      const url = (e.submitter && e.submitter.hasAttribute('formaction'))
+        ? e.submitter.formAction
+        : (form.getAttribute('action') || window.location.href);
       clearFormError(form);
       mutateJSON(url, build(form, e.submitter))
         .then(data => { if (onSuccess) onSuccess(data, form); else window.location.reload(); })
@@ -1628,7 +1636,7 @@
   // Namespace editor: save, reset, delete and delete-all share one form; the
   // submitter's formaction names the endpoint.
   jsonForm($('.namespace-form'), (form, submitter) => {
-    const action = submitter && submitter.formAction ? submitter.formAction : '';
+    const action = (submitter && submitter.hasAttribute('formaction')) ? submitter.formAction : '';
     if (/\/namespaces\/(reset|delete|delete-all)$/.test(action)) {
       return { name: fieldValue(form, 'name') };
     }

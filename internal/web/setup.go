@@ -9,6 +9,7 @@ var webFS = FS
 
 func parseTemplates() (map[string]*template.Template, error) {
 	templates := make(map[string]*template.Template)
+	funcs := template.FuncMap{"static": staticURL}
 	widgetFiles := []string{
 		"web/templates/widgets/tree.html", "web/templates/widgets/pages.html",
 		"web/templates/widgets/namespaces.html", "web/templates/widgets/pinned.html",
@@ -20,7 +21,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 	}
 	for _, name := range []string{"login", "page", "edit", "create", "error", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
-		parsed, err := template.ParseFS(webFS, files...)
+		parsed, err := template.New(name).Funcs(funcs).ParseFS(webFS, files...)
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", name, err)
 		}

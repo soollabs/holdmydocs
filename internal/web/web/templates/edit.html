@@ -13,7 +13,7 @@
 	<span id="conflict-text">This page changed while you were editing. Your draft is preserved.</span>
 	<button type="button" id="conflict-overwrite" class="btn-danger">overwrite with mine</button>
 </div>
-<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=save" class="edit-form" id="edit-form">{{template "csrf" .}}
+<form method="GET" action="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
 	<div class="edit-topbar">
 		<div class="edit-field">
 			<label for="new-slug">path:</label>
@@ -64,7 +64,7 @@
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
 
-{{if ne .BaseHash ""}}<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=delete" id="delete-form" data-confirm="Delete this page? History stays in git, but it disappears from the wiki.">{{template "csrf" .}}</form>{{end}}
+{{if ne .BaseHash ""}}<form method="GET" action="{{.RoutePrefix}}/{{.Slug}}?do=edit" id="delete-form" data-confirm="Delete this page? History stays in git, but it disappears from the wiki.">{{template "csrf" .}}</form>{{end}}
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>
@@ -76,6 +76,6 @@
 	<p class="js-required">JavaScript is required to edit pages. Enable JavaScript, or view the page source rendered without the editor.</p>
 </noscript>
 
-<script src="/_/static/editor.js?v=2"></script>
+<script src="{{static "editor.js"}}"></script>
 </div>
 {{end}}

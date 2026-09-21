@@ -4,7 +4,7 @@
 	<p><strong>Viewing an old version from {{.OldVersionDate}}</strong></p>
 	<div class="old-version-actions">
 		<a href="{{.RoutePrefix}}/{{.Slug}}">View current version</a>
-		<form method="POST" action="{{.RoutePrefix}}/{{.Slug}}?do=revert" class="js-revert" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">{{template "csrf" .}}
+		<form method="GET" action="{{.RoutePrefix}}/{{.Slug}}" class="js-revert" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">{{template "csrf" .}}{{template "json-required" .}}
 			<input type="hidden" name="hash" value="{{.RevHash}}">
 			<button type="submit">Revert to this version</button>
 		</form>

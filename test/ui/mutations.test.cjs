@@ -12,7 +12,7 @@ const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/
 class Element {
   constructor(value = '') {
     Object.assign(this, { value, dataset: {}, style: {}, hidden: true, checked: false,
-      disabled: false, type: 'text', textContent: '', handlers: {}, children: [], selectors: new Map() });
+      disabled: false, type: 'text', textContent: '', handlers: {}, children: [], selectors: new Map(), attributes: {} });
     this.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
   }
   addEventListener(name, callback) { (this.handlers[name] ||= []).push(callback); }
@@ -21,7 +21,9 @@ class Element {
   querySelectorAll(selector) { return this.selectors.get(selector) || []; }
   appendChild(child) { this.children.push(child); }
   insertBefore(child) { this.children.unshift(child); this.selectors.set('[data-form-error]', [child]); }
-  setAttribute(name, value) { this[name] = value; }
+  setAttribute(name, value) { this[name] = value; this.attributes[name] = String(value); }
+  getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; }
+  hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); }
   emit(name, extra = {}) {
     const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
     for (const handler of this.handlers[name] || []) handler(event);
@@ -41,14 +43,38 @@ function fixture(kind, responses) {
     elements[selector] = el;
     return el;
   };
-  const form = add(kind === 'page' ? '#edit-form' : '.namespace-form');
-  form.action = kind === 'page' ? '/_/api/pages/notes%2Fpage' : '/_/api/namespaces/save';
-  const values = kind === 'page'
-    ? { title: 'Draft title', tags: 'one, two', basehash: 'old-hash', hidden: '' }
-    : { name: 'notes', title: 'Draft namespace', description: 'Unsaved description',
-        basehash: 'old-hash', tree: 'home, folder', widgets: 'toc, backlinks', public: '' };
+  const configs = {
+    page: {
+      selector: '#edit-form', action: '/_/api/pages/notes%2Fpage',
+      values: { title: 'Draft title', tags: 'one, two', basehash: 'old-hash', hidden: '' }
+    },
+    namespace: {
+      selector: '.namespace-form', action: '/_/api/namespaces',
+      values: { name: 'notes', title: 'Draft namespace', description: 'Unsaved description',
+        basehash: 'old-hash', tree: 'home, folder', widgets: 'toc, backlinks', public: '' }
+    },
+    setup: {
+      selector: '.setup-modal form', action: '/_/api/setup',
+      values: { setup_wiki: 'on', default_namespace: '_new', new_namespace: 'notes',
+        site_name: 'Wiki', namespace: '', add_namespace: '', add_help: '' }
+    },
+    appearance: {
+      selector: '#appearance-form', action: '/_/api/settings/appearance',
+      values: { palette: 'dark', font_ui: 'system', font_mono: 'mono', skin: 'default', palette_explicit: '1' }
+    },
+    token: {
+      selector: 'form[action="/_/api/settings/tokens"]', action: '/_/api/settings/tokens',
+      values: { label: 'laptop', expiry: '30d', scopes: 'read', namespaces: 'notes' }
+    },
+    revert: {
+      selector: 'form.js-revert', action: '/_/api/pages/revert/notes%2Fpage',
+      values: { hash: 'abc123' }
+    }
+  };
+  const form = add(configs[kind].selector);
+  form.setAttribute('action', configs[kind].action);
   const fields = {};
-  for (const [name, value] of Object.entries(values)) {
+  for (const [name, value] of Object.entries(configs[kind].values)) {
     const input = new Element(value);
     fields[name] = input;
     form.selectors.set(`[name="${name}"]`, [input]);
@@ -57,6 +83,12 @@ function fixture(kind, responses) {
   }
   fields.hidden && (fields.hidden.type = 'checkbox');
   if (fields.public) { fields.public.type = 'checkbox'; fields.public.checked = true; }
+  if (fields.setup_wiki) fields.setup_wiki.type = 'hidden';
+  if (fields.add_namespace) { fields.add_namespace.type = 'checkbox'; fields.add_namespace.checked = true; }
+  if (fields.add_help) { fields.add_help.type = 'checkbox'; fields.add_help.checked = true; }
+  if (fields.scopes) { fields.scopes.type = 'checkbox'; fields.scopes.checked = true; }
+  if (fields.namespaces) { fields.namespaces.type = 'checkbox'; fields.namespaces.checked = true; }
+  if (kind === 'revert') form.dataset.slug = 'notes/page';
 
   let editorOptions;
   class EditorView {
@@ -202,4 +234,99 @@ test('namespace validation failure stays inline without replacing fields', async
   assert.equal(f.fields.basehash.value, 'old-hash');
   assert.equal(f.fields.description.value, 'Unsaved description');
   assert.equal(f.form.querySelector('[data-form-error]').textContent, 'invalid index');
+});
+
+// Browsers resolve a submit button's formAction to the current document URL when
+// the button carries no formaction attribute, so a plain submit must fall back
+// to the form's own action rather than posting back to the page it was on.
+test('a submit button without formaction posts to the form action, not the page URL', async () => {
+  const f = fixture('namespace', [{ status: 200, body: { ok: true } }]);
+  const submitter = new Element();
+  submitter.formAction = 'http://localhost:8080/_/namespaces/notes/edit';
+  f.form.emit('submit', { submitter });
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/namespaces');
+});
+
+test('a submit button with formaction posts to that endpoint', async () => {
+  const f = fixture('namespace', [{ status: 200, body: { ok: true } }]);
+  const submitter = new Element();
+  submitter.setAttribute('formaction', '/_/api/namespaces/reset');
+  submitter.formAction = 'http://localhost:8080/_/api/namespaces/reset';
+  f.form.emit('submit', { submitter });
+  await settle();
+  assert.equal(f.calls[0].url, 'http://localhost:8080/_/api/namespaces/reset');
+  assert.deepEqual(f.calls[0].payload, { name: 'notes' });
+});
+
+// Controls named "action" are exposed over HTMLFormElement#action, so a form
+// with submit buttons called "action" returns a RadioNodeList there. The
+// handler must read the action attribute to keep a real endpoint URL.
+test('a control named action does not shadow the form action URL', async () => {
+  const f = fixture('namespace', [{ status: 200, body: { ok: true } }]);
+  f.form.action = { toString: () => '[object RadioNodeList]' };
+  f.form.emit('submit', { submitter: new Element() });
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/namespaces');
+});
+
+// The setup wizard is the only production form whose submit buttons are named
+// "action", which is exactly what makes form.action a RadioNodeList and what
+// first exposed the URL-resolution bug.
+test('setup modal posts the clicked action button to the setup endpoint', async () => {
+  const f = fixture('setup', [{ status: 200, body: { ok: true } }]);
+  const skip = new Element('skip');
+  skip.type = 'submit';
+  f.form.emit('submit', { submitter: skip });
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/setup');
+  assert.deepEqual(f.calls[0].payload, {
+    action: 'skip', setup_wiki: true, default_namespace: '_new', new_namespace: 'notes',
+    site_name: 'Wiki', add_namespace: true, namespace: '', add_help: true
+  });
+});
+
+test('setup modal defaults to the add action without a clicked button', async () => {
+  const f = fixture('setup', [{ status: 200, body: { ok: true } }]);
+  f.form.emit('submit');
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/setup');
+  assert.equal(f.calls[0].payload.action, 'add');
+});
+
+test('setup modal keeps the form endpoint despite action-named controls', async () => {
+  const f = fixture('setup', [{ status: 200, body: { ok: true } }]);
+  f.form.action = { toString: () => '[object RadioNodeList]' };
+  const add = new Element('add');
+  add.type = 'submit';
+  f.form.emit('submit', { submitter: add });
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/setup');
+  assert.equal(f.calls[0].payload.action, 'add');
+});
+
+test('appearance sends palette_explicit as a boolean', async () => {
+  const f = fixture('appearance', [{ status: 200, body: { ok: true } }]);
+  f.form.emit('submit');
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/settings/appearance');
+  assert.deepEqual(f.calls[0].payload, {
+    palette: 'dark', font_ui: 'system', font_mono: 'mono', skin: 'default', palette_explicit: true
+  });
+});
+
+test('token create sends scopes and namespaces as string arrays', async () => {
+  const f = fixture('token', [{ status: 200, body: { token: 'abc' } }]);
+  f.form.emit('submit');
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/settings/tokens');
+  assert.deepEqual(f.calls[0].payload, { label: 'laptop', expiry: '30d', scopes: ['read'], namespaces: ['notes'] });
+});
+
+test('revert posts the revision hash to the revert endpoint', async () => {
+  const f = fixture('revert', [{ status: 200, body: { slug: 'notes/page' } }]);
+  f.form.emit('submit');
+  await settle();
+  assert.equal(f.calls[0].url, '/_/api/pages/revert/notes%2Fpage');
+  assert.deepEqual(f.calls[0].payload, { hash: 'abc123' });
 });

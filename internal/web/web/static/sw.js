@@ -1,5 +1,10 @@
-const CACHE = 'hmd-static-v5';
-const ASSETS = ['/_/static/style.css?v=5', '/_/static/skins.css?v=2', '/_/static/app.js?v=6', '/_/static/page.js?v=1', '/_/static/editor.js?v=2', '/_/static/manifest.json'];
+// __ASSET_VERSION__ is substituted with the build's content hash when the
+// service worker is served. It names the cache and versions every precached
+// URL, so a new build installs a fresh cache and old entries are dropped.
+const VERSION = '__ASSET_VERSION__';
+const CACHE = 'hmd-static-' + VERSION;
+const FILES = ['style.css', 'skins.css', 'app.js', 'page.js', 'editor.js', 'toc.js', 'sidebar.js', 'manifest.json', 'fonts/JetBrainsMono-Regular.woff2', 'fonts/JetBrainsMono-Bold.woff2'];
+const ASSETS = FILES.map(name => '/_/static/' + name + '?v=' + VERSION);
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

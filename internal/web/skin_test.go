@@ -95,10 +95,14 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 		t.Fatalf("reading service worker: %v", err)
 	}
 	body := string(script)
-	for _, asset := range []string{"style.css?v=5", "skins.css?v=2", "app.js?v=6", "page.js?v=1", "editor.js?v=2"} {
-		if !strings.Contains(body, asset) {
-			t.Errorf("service worker does not precache the requested URL for %s", asset)
+	// Every precache URL is derived from the build content hash at serve time.
+	for _, file := range []string{"style.css", "skins.css", "app.js", "page.js", "editor.js", "toc.js", "sidebar.js", "manifest.json", "fonts/JetBrainsMono-Regular.woff2", "fonts/JetBrainsMono-Bold.woff2"} {
+		if !strings.Contains(body, "'"+file+"'") {
+			t.Errorf("service worker does not precache %s", file)
 		}
+	}
+	if !strings.Contains(body, "__ASSET_VERSION__") {
+		t.Error("service worker must embed the content-hash placeholder")
 	}
 	if !strings.Contains(body, "if (response.ok)") {
 		t.Error("service worker must not replace valid cached assets with failed responses")
@@ -110,6 +114,31 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 	}
 	if strings.Contains(body, "cached || fetch(e.request)") {
 		t.Error("cache-first static assets keep obsolete CSS across deployments")
+	}
+}
+
+func TestServiceWorkerCarriesContentHash(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	server.Close()
+	req := httptest.NewRequest(http.MethodGet, "/_/static/sw.js", nil)
+	rec := httptest.NewRecorder()
+	app.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /_/static/sw.js = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("service worker Cache-Control = %q, want revalidation", got)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "__ASSET_VERSION__") {
+		t.Error("served service worker still contains the version placeholder")
+	}
+	if !strings.Contains(body, "VERSION = '"+StaticVersion()+"'") {
+		t.Error("service worker does not embed the content hash")
+	}
+	if !strings.Contains(body, "hmd-static-") || !strings.Contains(body, "?v=") {
+		t.Error("service worker does not derive its cache name and URLs from the version")
 	}
 }
 
@@ -125,19 +154,57 @@ func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 	}
 }
 
-func TestStaticAssetURLsUseVersionedPaths(t *testing.T) {
-	for path, assets := range map[string][]string{
-		"web/templates/base.html": {"/_/static/style.css?v=5", "/_/static/skins.css?v=2", "/_/static/app.js?v=6", "/_/static/page.js?v=1"},
-		"web/templates/edit.html": {"/_/static/editor.js?v=2"},
+func TestStyleSheetCarriesContentHashForFonts(t *testing.T) {
+	app, server, _ := newTestAppFull(t)
+	server.Close()
+	req := httptest.NewRequest(http.MethodGet, "/_/static/style.css?v="+StaticVersion(), nil)
+	rec := httptest.NewRecorder()
+	app.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /_/static/style.css = %d, want 200", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "__ASSET_VERSION__") {
+		t.Error("served stylesheet still contains the version placeholder")
+	}
+	for _, font := range []string{"JetBrainsMono-Regular.woff2", "JetBrainsMono-Bold.woff2"} {
+		if !strings.Contains(rec.Body.String(), font+"?v="+StaticVersion()) {
+			t.Errorf("stylesheet does not version %s", font)
+		}
+	}
+}
+
+func TestStaticAssetURLsUseContentHash(t *testing.T) {
+	if !regexp.MustCompile(`^[0-9a-f]{12}$`).MatchString(StaticVersion()) {
+		t.Fatalf("StaticVersion = %q, want 12 hex chars", StaticVersion())
+	}
+	if got, want := staticURL("app.js"), "/_/static/app.js?v="+StaticVersion(); got != want {
+		t.Fatalf("staticURL(app.js) = %q, want %q", got, want)
+	}
+
+	// Templates must call the static func rather than hardcode a version, so a
+	// forgotten bump is impossible.
+	for _, path := range []string{
+		"web/templates/base.html",
+		"web/templates/edit.html",
+		"web/templates/namespace-edit.html",
 	} {
 		body, err := webFS.ReadFile(path)
 		if err != nil {
 			t.Fatalf("reading %s: %v", path, err)
 		}
-		for _, asset := range assets {
-			if !bytes.Contains(body, []byte(asset)) {
-				t.Errorf("%s does not request versioned asset %s", path, asset)
-			}
+		if bytes.Contains(body, []byte("?v=")) {
+			t.Errorf("%s hardcodes a version query; use {{static ...}}", path)
+		}
+	}
+
+	base, err := webFS.ReadFile("web/templates/base.html")
+	if err != nil {
+		t.Fatalf("reading base.html: %v", err)
+	}
+	for _, name := range []string{"style.css", "skins.css", "app.js", "page.js", "toc.js", "sidebar.js", "manifest.json", "mermaid.min.js", "sw.js"} {
+		if !bytes.Contains(base, []byte(`{{static "`+name+`"}}`)) {
+			t.Errorf("base.html does not version %s through static", name)
 		}
 	}
 }

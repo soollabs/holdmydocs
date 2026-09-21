@@ -935,7 +935,7 @@ func TestPageChrome(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
-		`src="/_/static/app.js?v=6"`,
+		`src="` + staticURL("app.js") + `"`,
 		`class="app-topbar"`,
 		`class="sidebar"`,
 		`action="/_/logout"`,
@@ -946,7 +946,7 @@ func TestPageChrome(t *testing.T) {
 		}
 	}
 
-	if bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
+	if bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script loaded on page without mermaid content")
 	}
 
@@ -964,7 +964,7 @@ func TestPageChrome(t *testing.T) {
 	for _, want := range []string{
 		`id="cm-host"`,
 		`data-slug="` + testHome + `"`,
-		`src="/_/static/editor.js?v=2"`,
+		`src="` + staticURL("editor.js") + `"`,
 		`id="preview"`,
 		`data-action="toc"`,
 	} {
@@ -996,7 +996,7 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	defer closeTestBody(t, resp.Body)
 	body, _ := io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
+	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script missing on page with mermaid content")
 	}
 
@@ -1007,7 +1007,7 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	defer closeTestBody(t, resp.Body)
 	body, _ = io.ReadAll(resp.Body)
 
-	if !bytes.Contains(body, []byte(`src="/_/static/mermaid.min.js"`)) {
+	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script missing on edit page when body contains mermaid")
 	}
 }

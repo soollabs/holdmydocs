@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -30,8 +31,8 @@ func (app *App) Routes() http.Handler {
 
 	mux.HandleFunc("GET /_/new", app.handleNewPage)
 
-	fsys, _ := fs.Sub(webFS, "web/static")
-	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(fsys))
+	wFS, _ := fs.Sub(webFS, "web/static")
+	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(wFS))
 	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// FileServer renders directory listings. Assets are public, but listing
 		// embedded directories needlessly advertises every shipped file and can
@@ -43,6 +44,12 @@ func (app *App) Routes() http.Handler {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		staticHandler.ServeHTTP(w, r)
 	}))
+
+	// These assets contain the build hash in their own source, so they are
+	// rendered rather than served as frozen files. Exact routes outrank the
+	// /_/static/ subtree their bytes live under.
+	mux.HandleFunc("GET /_/static/sw.js", app.handleServiceWorker)
+	mux.HandleFunc("GET /_/static/style.css", app.handleStyleSheet)
 
 	mux.HandleFunc("GET /_/login", app.handleLoginGet)
 	mux.HandleFunc("POST /_/login", app.handleLoginPost)
@@ -75,6 +82,32 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /{path...}", app.handlePageGet)
 
 	return mux
+}
+
+func (app *App) handleServiceWorker(w http.ResponseWriter, r *http.Request) {
+	app.serveVersionedStatic(w, "web/static/sw.js", "text/javascript; charset=utf-8")
+}
+
+func (app *App) handleStyleSheet(w http.ResponseWriter, r *http.Request) {
+	app.serveVersionedStatic(w, "web/static/style.css", "text/css; charset=utf-8")
+}
+
+func (app *App) serveVersionedStatic(w http.ResponseWriter, path, contentType string) {
+	body, err := webFS.ReadFile(path)
+	if err != nil {
+		http.Error(w, "static asset unavailable", http.StatusInternalServerError)
+		return
+	}
+	body = bytes.ReplaceAll(body, []byte("__ASSET_VERSION__"), []byte(staticVersion))
+	w.Header().Set("Content-Type", contentType)
+	// Versioned URLs are safe to cache, but the service worker script itself
+	// must be revalidated so a new build's hash reaches clients.
+	if path == "web/static/sw.js" {
+		w.Header().Set("Cache-Control", "no-cache")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+	_, _ = w.Write(body)
 }
 
 func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
