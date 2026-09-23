@@ -21,6 +21,16 @@ func TestRender(t *testing.T) {
 			wantContains: []string{"<table>"},
 		},
 		{
+			name:         "GFM strikethrough",
+			input:        "~~obsolete~~",
+			wantContains: []string{"<del>obsolete</del>"},
+		},
+		{
+			name:         "footnote",
+			input:        "Note[^1]\n\n[^1]: Detail",
+			wantContains: []string{"<sup", "Detail", "footnote"},
+		},
+		{
 			name:            "mermaid block",
 			resolve:         func(title, ns string) (string, bool) { return "", false },
 			input:           "```mermaid\ngraph TD;\n```",

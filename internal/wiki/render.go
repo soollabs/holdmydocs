@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	goldmarkhtml "github.com/yuin/goldmark/v2/renderer/html"
 )
 
 var sanitizePolicy = newSanitizePolicy()
@@ -28,41 +28,46 @@ func newSanitizePolicy() *bluemonday.Policy {
 }
 
 type Renderer struct {
-	md      goldmark.Markdown
+	parser  parser.Parser
+	html    goldmarkhtml.Renderer
 	resolve func(title, ns string) (slug string, ok bool)
 }
 
 // NewRenderer creates a renderer with a namespace-aware wiki-link resolver.
 func NewRenderer(resolve func(title, ns string) (slug string, ok bool)) *Renderer {
-	md := goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			extension.Footnote,
-		),
-		goldmark.WithRendererOptions(
-			goldmarkhtml.WithUnsafe(),
-		),
-	)
 	return &Renderer{
-		md:      md,
+		parser: parser.New(parser.WithExtensions(
+			extension.GFMParser,
+			extension.FootnoteParser,
+		)),
+		html: goldmarkhtml.New(
+			goldmarkhtml.WithUnsafe(),
+			goldmarkhtml.WithExtensions(
+				extension.GFMHTMLRenderer,
+				extension.FootnoteHTMLRenderer,
+			),
+		),
 		resolve: resolve,
 	}
+}
+
+func (r *Renderer) convert(body string) (string, error) {
+	source := []byte(body)
+	doc := r.parser.Parse(source)
+	var buf bytes.Buffer
+	if err := r.html.Render(&buf, source, doc); err != nil {
+		return "", fmt.Errorf("rendering markdown: %w", err)
+	}
+	return sanitizePolicy.Sanitize(r.processMermaidBlocks(buf.String())), nil
 }
 
 // Render renders body for an authenticated viewer using the page's namespace for link resolution.
 func (r *Renderer) Render(body, ns string) (htmltemplate.HTML, error) {
 	body = r.processWikiLinks(body, ns)
-
-	var buf bytes.Buffer
-	err := r.md.Convert([]byte(body), &buf)
+	htmlStr, err := r.convert(body)
 	if err != nil {
-		return "", fmt.Errorf("rendering markdown: %w", err)
+		return "", err
 	}
-
-	htmlStr := buf.String()
-	htmlStr = r.processMermaidBlocks(htmlStr)
-	htmlStr = sanitizePolicy.Sanitize(htmlStr)
-
 	return htmltemplate.HTML(htmlStr), nil
 }
 
@@ -101,12 +106,10 @@ func (r *Renderer) RenderPublic(body, ns string, isPublicLink func(slug string) 
 		return escaped
 	})
 
-	var buf bytes.Buffer
-	if err := r.md.Convert([]byte(body), &buf); err != nil {
-		return "", fmt.Errorf("rendering markdown: %w", err)
+	htmlStr, err := r.convert(body)
+	if err != nil {
+		return "", err
 	}
-	htmlStr := r.processMermaidBlocks(buf.String())
-	htmlStr = sanitizePolicy.Sanitize(htmlStr)
 	return htmltemplate.HTML(htmlStr), nil
 }
 
@@ -129,12 +132,10 @@ func (r *Renderer) RenderStatic(body, ns string, hrefFor func(slug string) (href
 		return fmt.Sprintf(`<a class="wiki" href="%s">%s</a>`, href, escaped)
 	})
 
-	var buf bytes.Buffer
-	if err := r.md.Convert([]byte(body), &buf); err != nil {
-		return "", fmt.Errorf("rendering markdown: %w", err)
+	htmlStr, err := r.convert(body)
+	if err != nil {
+		return "", err
 	}
-	htmlStr := r.processMermaidBlocks(buf.String())
-	htmlStr = sanitizePolicy.Sanitize(htmlStr)
 	return htmltemplate.HTML(htmlStr), nil
 }
 

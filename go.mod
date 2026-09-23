@@ -10,7 +10,6 @@ require (
 	github.com/knights-analytics/hugot v0.7.8
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/yuin/goldmark v1.8.6
 	github.com/yuin/goldmark/v2 v2.1.5
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
@@ -47,7 +46,6 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/daulet/tokenizers v1.27.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
@@ -77,7 +75,6 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/viant/afs v1.30.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yalue/onnxruntime_go v1.35.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
@@ -85,7 +82,6 @@ require (
 	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
