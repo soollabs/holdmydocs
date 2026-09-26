@@ -174,3 +174,20 @@ func TestBuildThemeStyleFonts(t *testing.T) {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}
 }
+
+func TestThemeFollowsSystemPreference(t *testing.T) {
+	base, err := webFS.ReadFile("web/templates/base.html")
+	if err != nil {
+		t.Fatalf("reading base template: %v", err)
+	}
+	body := string(base)
+	for _, want := range []string{
+		"matchMedia('(prefers-color-scheme: light)')",
+		"window.HMDTheme",
+		"localStorage.removeItem('hmd-theme')",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("theme script missing system-preference support: %q", want)
+		}
+	}
+}

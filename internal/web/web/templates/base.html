@@ -41,13 +41,50 @@
 		{{if not .Static}}if ('serviceWorker' in navigator) {
 			window.addEventListener('load', () => navigator.serviceWorker.register('{{static "sw.js"}}'));
 		}{{end}}
-		(function() {
-			var saved;
-			try { saved = localStorage.getItem('hmd-theme'); } catch (_) { /* Storage may be blocked. */ }
-			if (saved === 'light') {
-				document.documentElement.setAttribute('data-theme', 'light');
+		window.HMDTheme = (function() {
+			var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+			function stored() {
+				try { return localStorage.getItem('hmd-theme'); } catch (_) { return null; }
 			}
-			window.HMDSyncThemeColor();
+			function mode() {
+				var value = stored();
+				return value === 'light' || value === 'dark' ? value : 'system';
+			}
+			function effective() {
+				return mode() === 'system' ? (media && media.matches ? 'light' : 'dark') : mode();
+			}
+			function apply() {
+				var theme = effective();
+				document.documentElement.setAttribute('data-theme', theme);
+				window.HMDSyncThemeColor();
+				if (window.HMDSetMermaidTheme) window.HMDSetMermaidTheme(theme);
+				syncToggle();
+			}
+			function syncToggle() {
+				var button = document.getElementById('theme-toggle');
+				if (!button) return;
+				var labels = { system: 'System theme', light: 'Light theme', dark: 'Dark theme' };
+				button.title = labels[mode()] + ' (click to change)';
+				button.setAttribute('aria-label', button.title);
+			}
+			function cycle() {
+				var order = ['system', 'light', 'dark'];
+				setMode(order[(order.indexOf(mode()) + 1) % order.length]);
+			}
+			function setMode(next) {
+				try {
+					if (next === 'system') { localStorage.removeItem('hmd-theme'); }
+					else { localStorage.setItem('hmd-theme', next); }
+				} catch (_) { /* Theme still works without persistence. */ }
+				apply();
+			}
+			if (media) {
+				var onSystemChange = function() { if (mode() === 'system') apply(); };
+				if (media.addEventListener) media.addEventListener('change', onSystemChange);
+				else if (media.addListener) media.addListener(onSystemChange);
+			}
+			apply();
+			return { mode: mode, cycle: cycle, syncToggle: syncToggle };
 		})();
 	</script>
 </head>
@@ -69,7 +106,7 @@
 					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
-					<button type="button" id="theme-toggle">Light / dark</button>
+					<button type="button" id="theme-toggle">Theme</button>
 					<form method="POST" action="/_/logout">{{template "csrf" .}}<button type="submit">Logout</button></form>
 				</div>
 			</details>
@@ -211,20 +248,12 @@
 	{{end}}
 	<script nonce="{{.CSPNonce}}">
 		var themeToggle = document.getElementById('theme-toggle');
-		if (themeToggle) {
+		if (themeToggle && window.HMDTheme) {
 			themeToggle.addEventListener('click', function() {
-				var current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-				var next = current === 'dark' ? 'light' : 'dark';
-				if (next === 'dark') {
-					document.documentElement.removeAttribute('data-theme');
-				} else {
-					document.documentElement.setAttribute('data-theme', 'light');
-				}
-				try { localStorage.setItem('hmd-theme', next); } catch (_) { /* Theme still works without persistence. */ }
-				window.HMDSyncThemeColor();
-				if (window.HMDSetMermaidTheme) window.HMDSetMermaidTheme(next);
+				window.HMDTheme.cycle();
 			});
 		}
+		if (window.HMDTheme) window.HMDTheme.syncToggle();
 		document.querySelectorAll('form[data-confirm]').forEach(function(form) {
 			form.addEventListener('submit', function(event) {
 				if (!confirm(form.dataset.confirm)) event.preventDefault();
