@@ -284,6 +284,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		Slug:               slug,
 		Content:            renderedBody,
 		Namespace:          pageNS,
+		NamespacePublic:    true,
 		NamespaceTitle:     publishedTitle,
 		Skin:               skinName(cfg.Skin),
 		ThemeStyle:         buildThemeStyle(auth.UserRecord{Palette: palette}),
