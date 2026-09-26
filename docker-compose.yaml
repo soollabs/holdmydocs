@@ -5,11 +5,13 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       GOMEMLIMIT: 384MiB
-      HMD_GIT_REMOTE_URL: "https://git.example.com/you/wiki.git"
-      HMD_GIT_USER: "you"
-      HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
       HMD_ADMIN_USER: "${HMD_ADMIN_USER:?set HMD_ADMIN_USER}"
       HMD_ADMIN_PASSWORD: "${HMD_ADMIN_PASSWORD:?set HMD_ADMIN_PASSWORD}"
+      # Optional: sync content to a Git remote. Create ./git_token.txt, then
+      # uncomment these and the service `secrets` entry below.
+      # HMD_GIT_REMOTE_URL: "https://git.example.com/you/wiki.git"
+      # HMD_GIT_USER: "you"
+      # HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
       # Uncomment with `--profile documents` to enable extraction/search.
       # HMD_TIKA_URL: "http://tika:9998"
     volumes:
@@ -17,8 +19,8 @@ services:
       - repo:/data/repo
       # App state (users.json) — MUST be local disk, never NFS.
       - app:/data/app
-    secrets:
-      - git_token
+    # secrets:
+    #   - git_token
     networks:
       - default
       - tika
@@ -57,9 +59,9 @@ services:
       - /tmp:size=256m,mode=1777,nosuid,nodev,noexec
     networks: [tika]
 
-secrets:
-  git_token:
-    file: ./git_token.txt
+# secrets:
+#   git_token:
+#     file: ./git_token.txt
 
 volumes:
   repo:
