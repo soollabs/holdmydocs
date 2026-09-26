@@ -292,6 +292,9 @@ func TestHealthEndpoint(t *testing.T) {
 	if len(report.Missing) != 1 || report.Missing[0].Slug != testNS+"/nowhere" {
 		t.Errorf("missing = %+v, want [%s/nowhere]", report.Missing, testNS)
 	}
+	if report.Stale == nil || len(report.Stale) != 0 {
+		t.Errorf("stale = %+v, want an empty list for freshly saved pages", report.Stale)
+	}
 
 	resp, err = client.Get(env.server.URL + "/_/api/health?namespace=" + testNS)
 	if err != nil {

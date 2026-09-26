@@ -72,13 +72,12 @@ func TestImportBoundaries(t *testing.T) {
 // imports as well.
 //
 // Documented test-only exception: the browser integration suite in
-// internal/web composes internal/httpapi to build the full browser integration route tree
+// internal/web composes internal/httpapi to build the full route tree
 // so end-to-end assertions across the web tests exercise the real browser+JSON
 // boundary. That is a test-only composition dependency; it cannot create a
 // production dependency (TestImportBoundaries above still forbids web's
-// transitive imports of httpapi) and is recorded here so the architecture review audit can
-// see it is deliberate rather than an oversight. internal/mcp is not imported
-// by any web test, so it stays forbidden.
+// transitive imports of httpapi). This exception is deliberate. Web tests do
+// not import internal/mcp, so it remains forbidden.
 func TestAdapterTestImportBoundaries(t *testing.T) {
 	for pkg, forbidden := range map[string][]string{
 		"hmd/internal/web":     {"hmd/internal/app", "hmd/internal/mcp"},

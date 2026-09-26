@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"hmd/internal/api"
@@ -83,9 +84,15 @@ type mcpHealthEntry struct {
 	Sources []string `json:"sources"`
 }
 
+type mcpHealthStaleEntry struct {
+	Slug        string    `json:"slug"`
+	LastUpdated time.Time `json:"last_updated"`
+}
+
 type mcpHealthOut struct {
-	Missing []mcpHealthEntry `json:"missing"`
-	Orphans []string         `json:"orphans"`
+	Missing []mcpHealthEntry      `json:"missing"`
+	Orphans []string              `json:"orphans"`
+	Stale   []mcpHealthStaleEntry `json:"stale"`
 }
 
 func (s *Server) registerPages(server *sdk.Server) {
@@ -215,7 +222,7 @@ func (s *Server) registerPages(server *sdk.Server) {
 
 	sdk.AddTool(server, &sdk.Tool{
 		Name: "health",
-		Description: "Read-only wiki hygiene report for accessible pages: dangling [[wiki-links]] (target page missing) and orphan pages (no incoming links). " +
+		Description: fmt.Sprintf("Read-only wiki hygiene report for accessible pages: dangling [[wiki-links]] (target page missing), orphan pages (no incoming links), and stale pages (no Git revision in at least %d days, with last-updated time). ", api.StalePageDays) +
 			"Argument: namespace (optional namespace-name string; omit for the whole accessible wiki).",
 	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpHealthIn) (*sdk.CallToolResult, mcpHealthOut, error) {
 		if err := s.requireScope(ctx, api.ScopeRead); err != nil {
@@ -225,9 +232,16 @@ func (s *Server) registerPages(server *sdk.Server) {
 		if err != nil {
 			return nil, mcpHealthOut{}, err
 		}
-		out := mcpHealthOut{Missing: make([]mcpHealthEntry, 0, len(report.Missing)), Orphans: report.Orphans}
+		out := mcpHealthOut{
+			Missing: make([]mcpHealthEntry, 0, len(report.Missing)),
+			Orphans: report.Orphans,
+			Stale:   make([]mcpHealthStaleEntry, 0, len(report.Stale)),
+		}
 		for _, entry := range report.Missing {
 			out.Missing = append(out.Missing, mcpHealthEntry{Slug: entry.Slug, Sources: entry.Sources})
+		}
+		for _, entry := range report.Stale {
+			out.Stale = append(out.Stale, mcpHealthStaleEntry{Slug: entry.Slug, LastUpdated: entry.LastUpdated})
 		}
 		return nil, out, nil
 	})

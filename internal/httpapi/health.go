@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"time"
 )
 
 // HealthMissingEntry is one dangling wiki-link target and its sources in the
@@ -16,6 +17,13 @@ type HealthMissingEntry struct {
 type HealthReport struct {
 	Missing []HealthMissingEntry `json:"missing"`
 	Orphans []string             `json:"orphans"`
+	Stale   []HealthStaleEntry   `json:"stale"`
+}
+
+// HealthStaleEntry is one page whose latest Git revision is old.
+type HealthStaleEntry struct {
+	Slug        string    `json:"slug"`
+	LastUpdated time.Time `json:"last_updated"`
 }
 
 // healthInput carries the optional namespace scope for the health report.
@@ -29,9 +37,16 @@ func (h *Handlers) health(ctx context.Context, in healthInput) (HealthReport, er
 	if err != nil {
 		return HealthReport{}, err
 	}
-	envelope := HealthReport{Missing: make([]HealthMissingEntry, 0, len(report.Missing)), Orphans: report.Orphans}
+	envelope := HealthReport{
+		Missing: make([]HealthMissingEntry, 0, len(report.Missing)),
+		Orphans: report.Orphans,
+		Stale:   make([]HealthStaleEntry, 0, len(report.Stale)),
+	}
 	for _, entry := range report.Missing {
 		envelope.Missing = append(envelope.Missing, HealthMissingEntry{Slug: entry.Slug, Sources: entry.Sources})
+	}
+	for _, entry := range report.Stale {
+		envelope.Stale = append(envelope.Stale, HealthStaleEntry{Slug: entry.Slug, LastUpdated: entry.LastUpdated})
 	}
 	return envelope, nil
 }

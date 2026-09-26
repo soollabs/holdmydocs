@@ -210,12 +210,12 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.Namespace, _ = wiki.NamespaceFor(data.Slug)
 	}
 	if data.Authed {
-		health, err := app.apiClient().Health(r.Context(), "")
+		health, err := app.apiClient().HealthSummary(r.Context())
 		if err != nil {
 			slog.Error("reading health summary", "err", err)
 		}
-		data.HealthMissing = len(health.Missing)
-		data.HealthOrphans = len(health.Orphans)
+		data.HealthMissing = health.Missing
+		data.HealthOrphans = health.Orphans
 		// Default the tags widget to the current page's namespace tags, but
 		// preserve an explicit whole-wiki list supplied by the handler (the
 		// tags index).

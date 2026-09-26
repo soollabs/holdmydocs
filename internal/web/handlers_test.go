@@ -695,6 +695,25 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 	}
 }
 
+func TestHealthReportHTMLShowsStalePages(t *testing.T) {
+	report := api.HealthReport{
+		Missing: []api.HealthEntry{},
+		Orphans: []string{},
+		Stale: []api.StalePageEntry{{
+			Slug: "notes/old-page", LastUpdated: time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC),
+		}},
+	}
+	html := string(healthReportHTML(report, map[string]string{"notes/old-page": "<unsafe title>"}))
+	for _, want := range []string{"Stale pages (1)", "No Git revision in at least 180 days", "&lt;unsafe title&gt;", "2 Jan 2020"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("health report HTML missing %q: %s", want, html)
+		}
+	}
+	if strings.Contains(html, "<unsafe title>") {
+		t.Fatal("health report rendered the title without escaping")
+	}
+}
+
 func TestAttachmentRejectsOversizedUpload(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

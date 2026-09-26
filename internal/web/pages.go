@@ -570,6 +570,17 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	content := healthReportHTML(report, titles)
+	app.render(w, r, http.StatusOK, "page", TemplateData{
+		Authed:        true,
+		Title:         "wiki health",
+		Slug:          "health-report",
+		Content:       content,
+		StatusContext: fmt.Sprintf("%d missing · %d orphan%s · %d stale", len(report.Missing), len(report.Orphans), wiki.Plural(len(report.Orphans)), len(report.Stale)),
+	})
+}
+
+func healthReportHTML(report api.HealthReport, titles map[string]string) template.HTML {
 	var b strings.Builder
 	if len(report.Missing) > 0 {
 		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(report.Missing))
@@ -602,17 +613,23 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		b.WriteString(`</ul></section>`)
 	}
 
-	if len(report.Missing) == 0 && len(report.Orphans) == 0 {
-		b.WriteString(`<p>✓ Your wiki is healthy!</p>`)
+	if len(report.Stale) > 0 {
+		fmt.Fprintf(&b, `<section><h2>Stale pages (%d)</h2><p>No Git revision in at least %d days:</p><ul>`, len(report.Stale), api.StalePageDays)
+		for _, stale := range report.Stale {
+			title := titles[stale.Slug]
+			if title == "" {
+				title = stale.Slug
+			}
+			fmt.Fprintf(&b, `<li><a href="/%s">%s</a> — last updated %s</li>`,
+				stale.Slug, htmlEscape(title), stale.LastUpdated.Format("2 Jan 2006"))
+		}
+		b.WriteString(`</ul></section>`)
 	}
 
-	app.render(w, r, http.StatusOK, "page", TemplateData{
-		Authed:        true,
-		Title:         "wiki health",
-		Slug:          "health-report",
-		Content:       template.HTML(b.String()),
-		StatusContext: fmt.Sprintf("%d missing · %d orphan%s", len(report.Missing), len(report.Orphans), wiki.Plural(len(report.Orphans))),
-	})
+	if len(report.Missing) == 0 && len(report.Orphans) == 0 && len(report.Stale) == 0 {
+		b.WriteString(`<p>✓ Your wiki is healthy!</p>`)
+	}
+	return template.HTML(b.String())
 }
 
 func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {

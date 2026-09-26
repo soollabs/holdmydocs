@@ -1039,6 +1039,9 @@ func TestMCPHealth(t *testing.T) {
 	if !slices.Contains(out.Orphans, "notes/orphan") {
 		t.Errorf("unscoped orphans = %v, want notes/orphan", out.Orphans)
 	}
+	if len(out.Stale) != 0 {
+		t.Errorf("fresh pages reported stale = %v, want none", out.Stale)
+	}
 
 	res = callTool(t, session, "health", map[string]any{"namespace": "notes"})
 	if res.IsError {
