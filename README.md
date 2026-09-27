@@ -4,7 +4,7 @@
 
 Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown in an ordinary Git repository. Every save is a commit, so your docs have real history and can sync to a remote you already use.
 
-<img src="docs/demo.gif" width="860" alt="HMD walkthrough: a homelab wiki landing page, a page with a Mermaid network diagram, the split-pane Markdown editor, search, namespace management, tags, and a public blog in the light newsprint skin">
+<img src="docs/hero.png" width="860" alt="A fictional Field Lab wiki in HMD, shown side by side in a desktop browser and a framed mobile screen">
 
 ## Features
 
@@ -45,6 +45,8 @@ HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='use-a-unique-password-of-at-least-12-ch
 On first start, HMD downloads a pinned, checksum-verified `BAAI/bge-small-en-v1.5` ONNX model into `<HMD_APP_DIR>/models` when document search is enabled. `HMD_REPO_DIR` holds the Git-backed content and can be on network storage; keep `HMD_APP_DIR` on local disk — it contains application state and must not be on NFS.
 
 ## Screenshots
+
+<img src="docs/demo.gif" width="860" alt="HMD walkthrough: a homelab wiki landing page, a page with a Mermaid network diagram, the split-pane Markdown editor, search, namespace management, tags, and a public blog in the light newsprint skin">
 
 | | |
 | --- | --- |
