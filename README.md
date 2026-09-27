@@ -4,7 +4,7 @@
 
 Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown in an ordinary Git repository. Every save is a commit, so your docs have real history and can sync to a remote you already use.
 
-<img src="docs/hero.png" width="860" alt="A fictional Field Lab wiki in HMD, shown on a dark desktop monitor beside a phone using the light newsprint theme">
+<img src="docs/hero.png" width="860" alt="A fictional Field Lab wiki in HMD, shown on a dark desktop monitor beside a phone using the soft skin in light mode">
 
 ## Features
 
