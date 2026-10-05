@@ -59,7 +59,7 @@ More stills, including search, namespace management and the tag index, live in [
 
 Full documentation — installation, configuration, operations, MCP, and development guides — lives on the HMD docs site.
 
-> **Docs site:** `https://docs.example.com` — placeholder, to be replaced when the site launches.
+**Docs site:** <https://hmd.sool.dev>
 
 ## License
 
