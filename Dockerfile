@@ -1,4 +1,3 @@
-FROM golangci/golangci-lint:v2.13.2@sha256:ba07dffad130794ae79ebaa0056809d18c0168f3f846480ffd3eb6c04578b83d AS lint
 FROM golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b AS build
 ARG BUILD_VERSION=dev
 ARG VCS_REF=unknown
@@ -6,12 +5,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=lint /usr/bin/golangci-lint /usr/bin/golangci-lint
-
-RUN golangci-lint run ./... \
-    && go test ./... \
-    && go vet ./... \
-    && CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X hmd/internal/app.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd ./cmd/hmd \
+RUN CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X hmd/internal/app.buildVersion=$(printf '%s' "$BUILD_VERSION" | cut -c1-8)" -o /hmd ./cmd/hmd \
     && mkdir -m 1777 /scratch-tmp \
     && install -d -m 0700 -o 65532 -g 65532 /data/app /data/repo
 

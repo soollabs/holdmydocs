@@ -11,14 +11,26 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   IMAGE_NAME: ghcr.io/soollabs/holdmydocs
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
+  test:
+    uses: ./.github/workflows/test.yml
+
+  vet:
+    uses: ./.github/workflows/vet.yml
+
   build:
+    needs: [lint, test, vet]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -49,3 +61,4 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ steps.metadata.outputs.version }}
             VCS_REF=${{ github.sha }}
+
