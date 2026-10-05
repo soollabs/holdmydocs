@@ -1,5 +1,6 @@
 .env
 config.yaml
+dist/
 
 # Test binary, built with `go test -c`
 *.test
@@ -13,4 +14,3 @@ profile.cov
 # Go workspace file
 go.work
 go.work.sum
-
