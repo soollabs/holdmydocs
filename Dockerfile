@@ -1,11 +1,13 @@
-FROM golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b AS build
+ARG TARGETOS
+ARG TARGETARCH
 ARG BUILD_VERSION=dev
 ARG VCS_REF=unknown
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -tags timetzdata -trimpath -ldflags="-s -w -X hmd/internal/app.buildVersion=$BUILD_VERSION" -o /hmd ./cmd/hmd \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags timetzdata -trimpath -ldflags="-s -w -X hmd/internal/app.buildVersion=$BUILD_VERSION" -o /hmd ./cmd/hmd \
     && mkdir -m 1777 /scratch-tmp \
     && install -d -m 0700 -o 65532 -g 65532 /data/app /data/repo
 
