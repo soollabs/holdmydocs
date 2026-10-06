@@ -135,6 +135,67 @@ func TestLoadConfigYAMLFile(t *testing.T) {
 	})
 }
 
+func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
+	tests := []struct {
+		name      string
+		yaml      string
+		wantError string
+	}{
+		{
+			name:      "requires MCP",
+			yaml:      "base_url: https://wiki.example.test\noauth:\n  enabled: true\n",
+			wantError: "mcp.enabled",
+		},
+		{
+			name:      "requires TLS",
+			yaml:      "base_url: http://wiki.example.test\nmcp:\n  enabled: true\noauth:\n  enabled: true\n",
+			wantError: "https",
+		},
+		{
+			name: "loopback development allowed explicitly",
+			yaml: "base_url: http://localhost:8080\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n  allow_admin_delegation: true\n",
+		},
+		{
+			name:      "remote HTTP rejected even with loopback option",
+			yaml:      "base_url: http://wiki.example.test\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n",
+			wantError: "https",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(tt.yaml), 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HMD_CONFIG_FILE", path)
+			cfg, err := LoadConfig()
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("LoadConfig error = %v, want %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.OAuth.Enabled || !cfg.OAuth.AllowInsecureLoopback || !cfg.OAuth.AllowAdminDelegation {
+				t.Fatalf("OAuth configuration was not loaded: %#v", cfg.OAuth)
+			}
+			reloaded, err := LoadFileConfig(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			exported := cfg.toFileConfig()
+			if err := SaveFileConfig(path, exported); err != nil {
+				t.Fatal(err)
+			}
+			if reloaded.OAuth != exported.OAuth {
+				t.Fatalf("exported OAuth config = %#v, want %#v", exported.OAuth, reloaded.OAuth)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsNonPositiveLimits(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"

@@ -35,6 +35,14 @@ type MCPConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// OAuthConfig contains opt-in MCP OAuth policy. Client registrations and
+// credentials live separately in private AppDir state.
+type OAuthConfig struct {
+	Enabled               bool `yaml:"enabled"`
+	AllowInsecureLoopback bool `yaml:"allow_insecure_loopback"`
+	AllowAdminDelegation  bool `yaml:"allow_admin_delegation"`
+}
+
 // DocumentSearchConfig contains local model and index settings.
 type DocumentSearchConfig struct {
 	Model    string `yaml:"model"`
@@ -95,6 +103,7 @@ type Config struct {
 
 	Git            GitConfig
 	MCP            MCPConfig
+	OAuth          OAuthConfig
 	OIDC           OIDCConfig
 	DocumentSearch DocumentSearchConfig
 	TikaURL        string
@@ -114,6 +123,7 @@ type fileConfig struct {
 
 	Git            GitConfig            `yaml:"git"`
 	MCP            MCPConfig            `yaml:"mcp"`
+	OAuth          OAuthConfig          `yaml:"oauth"`
 	OIDC           oidcFileConfig       `yaml:"oidc"`
 	DocumentSearch DocumentSearchConfig `yaml:"document_search"`
 }
@@ -270,7 +280,8 @@ func LoadConfig() (Config, error) {
 			TokenFile: file.Git.TokenFile,
 			Author:    file.Git.Author,
 		},
-		MCP: file.MCP,
+		MCP:   file.MCP,
+		OAuth: file.OAuth,
 		OIDC: OIDCConfig{
 			Issuer:                file.OIDC.Issuer,
 			ClientID:              file.OIDC.ClientID,
@@ -334,6 +345,17 @@ func LoadConfig() (Config, error) {
 	if cfg.MCP.Enabled && cfg.BaseURL == "" {
 		return Config{}, fmt.Errorf("base_url must be set when mcp.enabled is true")
 	}
+	if cfg.OAuth.Enabled {
+		if !cfg.MCP.Enabled {
+			return Config{}, fmt.Errorf("mcp.enabled must be true when oauth.enabled is true")
+		}
+		if cfg.BaseURL == "" {
+			return Config{}, fmt.Errorf("base_url must be set when oauth.enabled is true")
+		}
+		if err := validateOAuthOrigin(cfg.BaseURL, cfg.OAuth.AllowInsecureLoopback); err != nil {
+			return Config{}, err
+		}
+	}
 
 	if cfg.OIDC.Issuer != "" {
 		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" {
@@ -385,6 +407,7 @@ func (c Config) toFileConfig() fileConfig {
 		TrustedProxies: append([]string(nil), c.TrustedProxies...),
 		Git:            git,
 		MCP:            c.MCP,
+		OAuth:          c.OAuth,
 		OIDC: oidcFileConfig{
 			Issuer:                c.OIDC.Issuer,
 			ClientID:              c.OIDC.ClientID,
@@ -404,6 +427,21 @@ func (c Config) toFileConfig() fileConfig {
 
 // ToFileConfig returns the safe persisted configuration form.
 func (c Config) ToFileConfig() fileConfig { return c.toFileConfig() }
+
+func validateOAuthOrigin(raw string, allowInsecureLoopback bool) error {
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil ||
+		u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return fmt.Errorf("base_url must be an origin without path, query, fragment or user-info when OAuth is enabled")
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && allowInsecureLoopback && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("OAuth requires an https base_url (http is allowed only for loopback with oauth.allow_insecure_loopback)")
+}
 
 func validateOIDCURL(field, raw string, allowInsecureLoopback bool) error {
 	u, err := url.Parse(raw)
