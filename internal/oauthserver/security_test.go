@@ -288,3 +288,23 @@ func TestAuthorizationErrorsRedirectAfterRedirectValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDynamicClientAuthorizationErrorsDoNotRedirect(t *testing.T) {
+	service, store, _, session, _ := newOAuthServiceFixture(t)
+	dynamic, err := store.provisionClient("Dynamic test client",
+		[]string{"https://dynamic.example.test/callback"}, clientAuthNone, []string{"read"}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := authorizationFields(dynamic.ClientID)
+	values.Set("redirect_uri", "https://dynamic.example.test/callback")
+	values.Set("scope", "read")
+	values.Set("response_type", "token")
+	_, err = service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+	if err == nil {
+		t.Fatal("invalid request was accepted")
+	}
+	if redirect, ok := ErrorRedirect(err, service.options.Issuer); ok {
+		t.Fatalf("dynamically registered client received an error redirect: %q", redirect)
+	}
+}

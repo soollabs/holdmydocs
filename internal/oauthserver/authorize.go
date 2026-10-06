@@ -185,9 +185,14 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 	}
 	// RFC 6749 section 4.1.2.1: the redirect URI and client are proven, so
 	// every remaining authorisation error is returned to the client via a
-	// redirect instead of an unauthenticated error page.
+	// redirect instead of an unauthenticated error page. Dynamically
+	// registered clients are excluded: their callbacks are selected by the
+	// registrant, so an error redirect would be an open-redirect/phishing
+	// vector rather than a trusted allowlist match.
 	redirectable := func(err *ProtocolError) *ProtocolError {
-		err.RedirectURI, err.State = redirectURI, stateFrom(values)
+		if !client.Dynamic {
+			err.RedirectURI, err.State = redirectURI, stateFrom(values)
+		}
 		return err
 	}
 	responseType, err := single("response_type", true)
