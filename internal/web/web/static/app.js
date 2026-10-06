@@ -130,7 +130,7 @@
       const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
       const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
       const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '<span class="recent-glyph">·</span>';
-      return `<li>${glyph}${dot}<a href="/${e.slug}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+      return `<li>${glyph}${dot}<a href="/${escapeHtml(e.slug)}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
     }).join('');
   }
 
@@ -448,7 +448,7 @@
     }
     const rowsHtml = paletteRows.map((r, i) => {
       if (r.verb) {
-        return `<div class="palette-row palette-verb${i === paletteSelected ? ' selected' : ''}" data-action="${r.slug}">
+        return `<div class="palette-row palette-verb${i === paletteSelected ? ' selected' : ''}" data-action="${escapeHtml(r.slug)}">
           <span class="title">${escapeHtml(r.title)}</span>
           <span class="verb-desc">${escapeHtml(r.snippet)}</span>
         </div>`;
@@ -458,14 +458,14 @@
       const href = r.href || '/' + r.slug;
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
-      return `<a href="${href}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
+      return `<a href="${escapeHtml(href)}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
         <span class="filetype">${r.attachment ? 'att' : 'md'}</span>
         <span class="title">${escapeHtml(r.title)}</span>
         <span class="snippet">${r.snippet || ''}</span>${tags}${owner}
       </a>`;
     }).join('');
     const createRow = (query && !paletteVerbMode && createNamespace())
-      ? `<a href="${createHref(query)}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}" in ${escapeHtml(createNamespace())}</a>`
+      ? `<a href="${escapeHtml(createHref(query))}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}" in ${escapeHtml(createNamespace())}</a>`
       : '';
     paletteResults.innerHTML = rowsHtml + createRow;
     if (!paletteVerbMode) {
@@ -704,7 +704,16 @@
       return;
     }
     const row = paletteRows[paletteSelected];
-    if (row) window.location.href = row.href || '/' + row.slug + (editMode ? '?do=edit' : '');
+    if (row) {
+      // Only follow same-origin paths. row.href comes from the search API and
+      // row.slug from local storage, so neither can be trusted to be a path:
+      // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
+      // (javascript:, data:) would execute in the page origin.
+      const target = row.href || '/' + row.slug + (editMode ? '?do=edit' : '');
+      if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
+        window.location.href = target;
+      }
+    }
   }
 
   if (paletteBackdrop) {
@@ -1241,7 +1250,7 @@
 
     // Handle attachment uploads, with paste and drop remaining image-only.
     function escapeMarkdownText(text) {
-      return text.replace(/[\[\]()]/g, '\\$&');
+      return text.replace(/[\\\[\]()]/g, '\\$&');
     }
 
     function handleAttachmentFiles(files, imagesOnly) {
