@@ -11,6 +11,13 @@ import (
 const maxStoredPageBytes = 1<<20 + 64<<10
 
 func repositoryPathParts(path string) ([]string, error) {
+	// filepath.IsLocal rejects absolute paths, volume names, and any ".."
+	// element that would escape the root. It is the same guarantee the
+	// explicit checks below enforce on every platform; keeping both makes the
+	// trust boundary legible to readers and to static analysis.
+	if !filepath.IsLocal(path) {
+		return nil, fmt.Errorf("invalid repository path %q", path)
+	}
 	if path == "" || filepath.IsAbs(path) || filepath.VolumeName(path) != "" || strings.Contains(path, "\\") {
 		return nil, fmt.Errorf("invalid repository path %q", path)
 	}
