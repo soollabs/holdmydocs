@@ -6,6 +6,9 @@ Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown
 
 <img src="docs/hero.png" width="860" alt="A fictional Field Lab wiki in HMD, shown on a dark desktop monitor beside a phone using the soft skin in light mode">
 
+> [!WARNING]
+> Hold My Docs is an early-stage project. Expect rough edges and breaking changes. Keep backups and test upgrades before relying on it for using it as your only source for important documentation.
+
 ## Features
 
 - **Git is the source of truth.** Every save is a commit; optionally push to and pull from a remote.
