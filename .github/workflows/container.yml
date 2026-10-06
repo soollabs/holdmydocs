@@ -27,6 +27,10 @@ on:
       - ".github/workflows/**"
   workflow_dispatch:
 
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
