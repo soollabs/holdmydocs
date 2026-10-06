@@ -491,6 +491,20 @@
       .replace(/^-+|-+$/g, '');
   }
 
+  // encodeSlugPath percent-encodes each segment of a page slug for use in a
+  // URL. Slugs read back from location.pathname are already encoded, so decode
+  // before re-encoding to avoid double-encoding; malformed input falls back to
+  // encoding the raw segment.
+  function encodeSlugPath(slug) {
+    return String(slug || '').split('/').map(segment => {
+      try {
+        return encodeURIComponent(decodeURIComponent(segment));
+      } catch (e) {
+        return encodeURIComponent(segment);
+      }
+    }).join('/');
+  }
+
   function escapeHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -708,8 +722,9 @@
       // Only follow same-origin paths. row.href comes from the search API and
       // row.slug from local storage, so neither can be trusted to be a path:
       // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
-      // (javascript:, data:) would execute in the page origin.
-      const target = row.href || '/' + row.slug + (editMode ? '?do=edit' : '');
+      // (javascript:, data:) would execute in the page origin. Percent-encode
+      // the slug before it reaches the URL.
+      const target = row.href || '/' + encodeSlugPath(row.slug) + (editMode ? '?do=edit' : '');
       if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
         window.location.href = target;
       }
