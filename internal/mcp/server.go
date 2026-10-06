@@ -34,7 +34,9 @@ func NewServer(a *api.API, opts Options) *Server {
 // Handler returns the streamable-HTTP handler that serves the MCP endpoint. The
 // composition root mounts it at /_/mcp.
 func (s *Server) Handler() http.Handler {
-	server := sdk.NewServer(&sdk.Implementation{Name: "hmd", Version: s.options.Version}, nil)
+	server := sdk.NewServer(&sdk.Implementation{Name: "hmd", Version: s.options.Version}, &sdk.ServerOptions{
+		SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"},
+	})
 	s.registerPages(server)
 	s.registerNamespaces(server)
 	s.registerSearch(server)

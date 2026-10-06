@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -627,6 +628,106 @@ func TestMCPRejectsUnsupportedInitialise(t *testing.T) {
 	}
 	if response.Error.Code != -32601 {
 		t.Errorf("unsupported initialise: got error code %d, want -32601", response.Error.Code)
+	}
+}
+
+func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
+	for _, version := range []string{"2025-03-26", "2025-06-18", "2025-11-25"} {
+		t.Run(version, func(t *testing.T) {
+			server, token := newMCPTestApp(t, true)
+			post := func(body, version string) (*http.Response, []byte) {
+				t.Helper()
+				req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				req.Header.Set("Content-Type", "application/json")
+				if version != "" {
+					req.Header.Set("MCP-Protocol-Version", version)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer closeTestBody(t, resp.Body)
+				responseBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+					var data [][]byte
+					for _, line := range bytes.Split(responseBody, []byte("\n")) {
+						if bytes.HasPrefix(line, []byte("data:")) {
+							data = append(data, bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:"))))
+						}
+					}
+					responseBody = bytes.Join(data, []byte("\n"))
+				}
+				return resp, responseBody
+			}
+
+			// Legacy Streamable HTTP initialise has no version header and no modern
+			// per-request metadata. Negotiation is carried in initialize.params.
+			init, body := post(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":%q,"capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`, version), "")
+			if init.StatusCode != http.StatusOK {
+				t.Fatalf("initialize: got %d: %s", init.StatusCode, body)
+			}
+			if !bytes.Contains(body, []byte(`"protocolVersion":"`+version+`"`)) {
+				t.Fatalf("initialize did not negotiate legacy protocol: %s", body)
+			}
+
+			notification, body := post(`{"jsonrpc":"2.0","method":"notifications/initialized"}`, version)
+			if notification.StatusCode != http.StatusAccepted && notification.StatusCode != http.StatusOK {
+				t.Fatalf("notifications/initialized: got %d: %s", notification.StatusCode, body)
+			}
+
+			list, body := post(`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`, version)
+			if list.StatusCode != http.StatusOK {
+				t.Fatalf("tools/list: got %d: %s", list.StatusCode, body)
+			}
+			if !bytes.Contains(body, []byte(`"tools"`)) {
+				t.Fatalf("tools/list response missing tools: %s", body)
+			}
+			for _, header := range []string{version, ""} {
+				call, body := post(fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_page","arguments":{"slug":%q}}}`, testHome), header)
+				if call.StatusCode != http.StatusOK {
+					t.Fatalf("tools/call (header %q): %d: %s", header, call.StatusCode, body)
+				}
+				var result struct {
+					Result struct {
+						IsError bool              `json:"isError"`
+						Content []json.RawMessage `json:"content"`
+					} `json:"result"`
+					Error json.RawMessage `json:"error"`
+				}
+				if err := json.Unmarshal(body, &result); err != nil || result.Result.IsError || len(result.Result.Content) == 0 || len(result.Error) != 0 {
+					t.Fatalf("tools/call (header %q) did not read the page: %s (%v)", header, body, err)
+				}
+			}
+			unsupported, body := post(`{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}`, "2024-11-05")
+			if unsupported.StatusCode != http.StatusBadRequest {
+				t.Fatalf("unsupported version: %d: %s", unsupported.StatusCode, body)
+			}
+			for _, method := range []string{http.MethodGet, http.MethodDelete} {
+				req, err := http.NewRequest(method, server.URL+"/_/mcp", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
+				req.Header.Set("MCP-Protocol-Version", version)
+				req.Header.Set("Accept", "text/event-stream")
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				closeTestBody(t, resp.Body)
+				if resp.StatusCode != http.StatusMethodNotAllowed {
+					t.Fatalf("stateless %s: %d, want 405", method, resp.StatusCode)
+				}
+			}
+		})
 	}
 }
 

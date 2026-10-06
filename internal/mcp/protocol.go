@@ -16,8 +16,10 @@ const mcpGateBodyLimit = 1 << 20
 
 type mcpGateRequest struct {
 	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
 	Params struct {
-		Meta map[string]json.RawMessage `json:"_meta"`
+		ProtocolVersion string                     `json:"protocolVersion"`
+		Meta            map[string]json.RawMessage `json:"_meta"`
 	} `json:"params"`
 }
 
@@ -43,31 +45,19 @@ func writeMCPGateError(w http.ResponseWriter, code int, id json.RawMessage, mess
 	})
 }
 
-// mcpProtocolGate enforces the modern MCP transport contract: POST only, the
-// negotiated protocol version header, no session headers or query parameters,
-// and the per-request metadata (protocol version, client info, capabilities)
-// that the stateless server requires. It re-buffers the body so the SDK handler
-// can read it after the gate inspects it.
+// mcpProtocolGate applies the additional request contract introduced by the
+// modern protocol only. Older Streamable HTTP requests are passed through to
+// the SDK, which handles their version negotiation and transport lifecycle.
+// The body is re-buffered so the SDK handler can read it after inspection.
 func mcpProtocolGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		if r.Header.Get("MCP-Protocol-Version") != mcpProtocolVersion {
-			writeMCPGateError(w, sdk.CodeUnsupportedProtocolVersion, nil, "unsupported protocol version", sdk.UnsupportedProtocolVersionData{
-				Supported: []string{mcpProtocolVersion},
-				Requested: r.Header.Get("MCP-Protocol-Version"),
-			})
-			return
-		}
-		if r.Header.Get("Mcp-Session-Id") != "" {
-			writeMCPGateError(w, sdk.CodeHeaderMismatch, nil, "session headers are unsupported", nil)
-			return
-		}
-		if r.URL.Query().Get("sessionId") != "" {
-			writeMCPGateError(w, sdk.CodeHeaderMismatch, nil, "session query parameters are unsupported", nil)
+			if r.Header.Get("MCP-Protocol-Version") >= mcpProtocolVersion {
+				w.Header().Set("Allow", http.MethodPost)
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			next.ServeHTTP(w, r)
 			return
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, mcpGateBodyLimit))
@@ -78,6 +68,41 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 		var request mcpGateRequest
 		if err := json.Unmarshal(body, &request); err != nil {
 			writeMCPGateError(w, -32600, nil, "invalid request", nil)
+			return
+		}
+		headerVersion := r.Header.Get("MCP-Protocol-Version")
+		// A request is modern when it declares the modern version in either
+		// transport metadata location. An initialise request without those
+		// fields, or with an older negotiated version, belongs to legacy
+		// Streamable HTTP and must be left to the SDK.
+		_, hasModernClientInfo := request.Params.Meta["io.modelcontextprotocol/clientInfo"]
+		_, hasModernCapabilities := request.Params.Meta["io.modelcontextprotocol/clientCapabilities"]
+		modern := headerVersion >= mcpProtocolVersion ||
+			request.Params.Meta["io.modelcontextprotocol/protocolVersion"] != nil ||
+			hasModernClientInfo || hasModernCapabilities
+		if !modern {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if headerVersion != mcpProtocolVersion {
+			writeMCPGateError(w, sdk.CodeUnsupportedProtocolVersion, request.ID, "unsupported protocol version", sdk.UnsupportedProtocolVersionData{
+				Supported: []string{mcpProtocolVersion},
+				Requested: headerVersion,
+			})
+			return
+		}
+		if r.Header.Get("Mcp-Session-Id") != "" {
+			writeMCPGateError(w, sdk.CodeHeaderMismatch, request.ID, "session headers are unsupported", nil)
+			return
+		}
+		if r.URL.Query().Get("sessionId") != "" {
+			writeMCPGateError(w, sdk.CodeHeaderMismatch, request.ID, "session query parameters are unsupported", nil)
 			return
 		}
 		if len(request.Params.Meta) == 0 {
