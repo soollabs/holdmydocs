@@ -19,7 +19,7 @@ func TestOAuthTokenStoreIndexesDigestsAndRehydratesPresentedToken(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	tokens := tokenStore{store: store}
 	const code = "hmd_oc_synthetic-code-marker"
 	const access = "hmd_oa_synthetic-access-marker"
@@ -114,7 +114,7 @@ func TestOAuthTokenStoreMutationsRequireTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	err = (tokenStore{store: store}).Create(t.Context(), models.NewToken())
 	if err != errOAuthTransactionRequired {
 		t.Fatalf("Create outside transaction = %v", err)

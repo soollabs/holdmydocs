@@ -44,7 +44,7 @@ func TestStoreUpdatePersistsAndReopens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reopened.Close()
+	defer func() { _ = reopened.Close() }()
 	state, err := reopened.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestStoreGarbageCollectionRemovesExpiredReplayHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	now := time.Now().UTC()
 	err = store.Update(func(state *oauthState) error {
 		state.Clients["client-a"] = testStoreClient()
@@ -112,7 +112,7 @@ func TestStoreUpdateRollsBackCallbackError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	sentinel := errors.New("transaction failed")
 	if err := store.Update(func(state *oauthState) error {
@@ -137,7 +137,7 @@ func TestStoreRejectsConcurrentOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Close()
+	defer func() { _ = first.Close() }()
 	if _, err := OpenStore(dir); !errors.Is(err, errStoreBusy) {
 		t.Fatalf("second open error = %v, want busy", err)
 	}
@@ -185,7 +185,7 @@ func TestStorePersistenceFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer store.Close()
+			defer func() { _ = store.Close() }()
 			client := testStoreClient()
 			if err := store.Update(func(state *oauthState) error {
 				state.Clients[client.ID] = client
@@ -252,7 +252,7 @@ func TestStorePersistenceFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer reopened.Close()
+			defer func() { _ = reopened.Close() }()
 			state, err = reopened.Snapshot()
 			if err != nil || state.Clients["client-a"].Disabled != uncertain {
 				t.Fatalf("reopened state does not match rename outcome: %v", err)

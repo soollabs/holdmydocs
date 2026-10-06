@@ -1243,7 +1243,7 @@ func oauthConnectionPath(path string) bool {
 		return false
 	}
 	for _, r := range id[len("hmd_g_"):] {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
 			return false
 		}
 	}

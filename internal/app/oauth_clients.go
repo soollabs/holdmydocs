@@ -17,7 +17,7 @@ func ProvisionOAuthClient(cfg config.Config, name string, redirectURIs []string,
 	if err != nil {
 		return oauthserver.ProvisionedClient{}, err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	return store.ProvisionClient(name, redirectURIs, authMethod, scopes, cfg.OAuth.AllowAdminDelegation)
 }
 
@@ -31,6 +31,6 @@ func DisableOAuthClient(cfg config.Config, clientID string) error {
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	return store.DisableClient(clientID)
 }

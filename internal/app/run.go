@@ -79,7 +79,7 @@ func Run() {
 		if err := DisableOAuthClient(cfg, *oauthClientID); err != nil {
 			log.Fatalf("disabling OAuth client failed: %v", err)
 		}
-		fmt.Fprintf(os.Stdout, "OAuth client disabled and grants revoked: %s\n", *oauthClientID)
+		_, _ = fmt.Fprintf(os.Stdout, "OAuth client disabled and grants revoked: %s\n", *oauthClientID)
 		return
 	}
 	level := slog.LevelInfo
@@ -100,9 +100,9 @@ func Run() {
 		if err != nil {
 			log.Fatalf("provisioning OAuth client failed: %v", err)
 		}
-		fmt.Fprintf(os.Stdout, "Client ID: %s\n", client.ClientID)
+		_, _ = fmt.Fprintf(os.Stdout, "Client ID: %s\n", client.ClientID)
 		if client.Secret != "" {
-			fmt.Fprintf(os.Stdout, "Client secret (shown once): %s\n", client.Secret)
+			_, _ = fmt.Fprintf(os.Stdout, "Client secret (shown once): %s\n", client.Secret)
 		}
 		return
 	}

@@ -11,7 +11,7 @@ func TestProvisionClientPersistsSecretDigestOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	provisioned, err := store.ProvisionClient("Example integration",
 		[]string{"https://client.example.test/callback"}, clientAuthBasic,
@@ -43,7 +43,7 @@ func TestProvisionPublicClientAndRedirectValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	client, err := store.ProvisionClient("Local tool",
 		[]string{"http://127.0.0.1:8787/callback"}, clientAuthNone,
@@ -78,7 +78,7 @@ func TestProvisionClientAdministratorPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if _, err := store.ProvisionClient("Admin", []string{"https://client.example.test/cb"},
 		clientAuthNone, []string{"settings"}, false); err == nil {
 		t.Fatal("administrator scope provisioned while disabled")

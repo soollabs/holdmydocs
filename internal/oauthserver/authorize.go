@@ -3,8 +3,6 @@ package oauthserver
 import (
 	"context"
 	"crypto/subtle"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -71,8 +69,7 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 		}
 		handle := handles[0]
 		flowCookie := requestCookie(r, "hmd_oauth_flow")
-		pending, err := s.getPending(handle, flowCookie)
-		if err != nil {
+		if _, err := s.getPending(handle, flowCookie); err != nil {
 			return AuthorizationStart{}, err
 		}
 		if session == "" {
@@ -83,7 +80,7 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 			return AuthorizationStart{}, invalidRequest("browser session is no longer valid")
 		}
 		s.pendingMu.Lock()
-		pending = s.pending[handle]
+		pending := s.pending[handle]
 		if pending == nil || subtle.ConstantTimeCompare([]byte(pending.flowDigest), []byte(tokenDigest(flowCookie))) != 1 {
 			s.pendingMu.Unlock()
 			return AuthorizationStart{}, invalidRequest("OAuth continuation expired")
@@ -328,13 +325,12 @@ func (s *Service) BindAuthorization(handle, flowCookie, user, session string) er
 	if !ok || currentUser != user {
 		return invalidRequest("browser session is not valid for this user")
 	}
-	pending, err := s.getPending(handle, flowCookie)
-	if err != nil {
+	if _, err := s.getPending(handle, flowCookie); err != nil {
 		return err
 	}
 	s.pendingMu.Lock()
 	defer s.pendingMu.Unlock()
-	pending = s.pending[handle]
+	pending := s.pending[handle]
 	if pending == nil || subtle.ConstantTimeCompare([]byte(pending.flowDigest), []byte(tokenDigest(flowCookie))) != 1 {
 		return invalidRequest("OAuth continuation expired")
 	}
@@ -573,12 +569,4 @@ func digestMatches(digest, raw string) bool {
 
 func invalidRequest(message string) *ProtocolError {
 	return &ProtocolError{Code: "invalid_request", Description: message, Status: http.StatusBadRequest}
-}
-
-func protocolDescription(err error) string {
-	var protocol *ProtocolError
-	if errors.As(err, &protocol) {
-		return protocol.Description
-	}
-	return fmt.Sprintf("%v", err)
 }

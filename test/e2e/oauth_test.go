@@ -213,11 +213,12 @@ func beginOAuthConsent(t *testing.T, browser *http.Client, base, clientID, state
 	response := getE2E(t, browser, base+"/_/oauth/authorize?"+params.Encode())
 	location := response.Header.Get("Location")
 	var consentBody string
-	if response.StatusCode == http.StatusOK {
+	switch response.StatusCode {
+	case http.StatusOK:
 		consentBody = readE2EBody(t, response)
-	} else if response.StatusCode == http.StatusSeeOther {
+	case http.StatusSeeOther:
 		_ = response.Body.Close()
-	} else {
+	default:
 		t.Fatalf("authorization start = %d: %s", response.StatusCode, readE2EBody(t, response))
 	}
 	if strings.HasPrefix(location, "/_/login") {

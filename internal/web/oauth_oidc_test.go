@@ -32,7 +32,7 @@ func TestOAuthAuthorizationContinuationSurvivesOIDCLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer state.Close()
+	defer func() { _ = state.Close() }()
 	client, err := state.ProvisionClient("OIDC-flow test",
 		[]string{"https://client.example.test/callback"}, "none", []string{"read"}, false)
 	if err != nil {
@@ -159,12 +159,12 @@ func newFakeOIDCProvider(t *testing.T) *fakeOIDCProvider {
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		exponent := make([]byte, 4)
-		binary.BigEndian.PutUint32(exponent, uint32(privateKey.PublicKey.E))
+		binary.BigEndian.PutUint32(exponent, uint32(privateKey.E))
 		exponent = bytes.TrimLeft(exponent, "\x00")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"keys": []map[string]string{{
 				"kty": "RSA", "use": "sig", "kid": "hmd-test-key", "alg": "RS256",
-				"n": base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
+				"n": base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
 				"e": base64.RawURLEncoding.EncodeToString([]byte(exponent)),
 			}},
 		})

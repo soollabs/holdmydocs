@@ -203,7 +203,7 @@ func (s *Store) load() error {
 	if err != nil {
 		return fmt.Errorf("open OAuth state: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, 64<<20))
 	if err != nil {
 		return fmt.Errorf("read OAuth state: %w", err)
@@ -447,7 +447,7 @@ func (s *Store) save(state oauthState) (bool, error) {
 		return false, fmt.Errorf("create OAuth state temporary file: %w", err)
 	}
 	tmp := file.Name()
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }()
 	if err := file.Chmod(0600); err != nil {
 		_ = file.Close()
 		return false, fmt.Errorf("secure OAuth state temporary file: %w", err)
@@ -473,7 +473,7 @@ func (s *Store) save(state oauthState) (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("open OAuth state directory: %w", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if err := s.fs.sync(d); err != nil {
 		return true, fmt.Errorf("sync OAuth state directory: %w", err)
 	}

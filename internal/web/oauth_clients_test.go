@@ -18,7 +18,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	app.OAuth, err = oauthserver.NewService(oauthserver.ServerOptions{Issuer: "https://wiki.example.test"}, store, app.Auth)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bearerResponse.Body.Close()
+	_ = bearerResponse.Body.Close()
 	if bearerResponse.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("bearer administration = %d", bearerResponse.StatusCode)
 	}
@@ -52,7 +52,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(response.Body)
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusCreated || !strings.Contains(string(body), "hmd_cs_") {
 		t.Fatalf("create = %d: %s", response.StatusCode, body)
 	}
@@ -71,7 +71,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ = io.ReadAll(response.Body)
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.Header.Get("Referrer-Policy") != "same-origin" {
 		t.Fatal("client list must preserve the native form Origin")
 	}
@@ -88,7 +88,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("missing CSRF = %d", response.StatusCode)
 	}
@@ -96,7 +96,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusSeeOther {
 		t.Fatalf("disable = %d", response.StatusCode)
 	}
@@ -108,7 +108,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusSeeOther {
 		t.Fatalf("delete = %d", response.StatusCode)
 	}

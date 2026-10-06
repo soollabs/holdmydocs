@@ -26,7 +26,7 @@ func TestLoopbackMCPAllowsOnlyConfiguredProxyHost(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			allowed := host == "127.0.0.1" || configured && host == "wiki.example.test"
 			if allowed && resp.StatusCode != http.StatusOK || !allowed && resp.StatusCode != http.StatusForbidden {
 				t.Fatalf("configured=%v host=%s status=%d", configured, host, resp.StatusCode)

@@ -18,7 +18,7 @@ func TestOAuthBearerVerifierRechecksGrantAndCurrentPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	const issuer = "https://wiki.example.test"
 	const raw = "hmd_oa_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
@@ -78,7 +78,7 @@ func TestOAuthBearerVerifierRejectsRevokedGrantAndClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	const issuer = "https://wiki.example.test"
 	const raw = "hmd_oa_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
 	now := time.Now().UTC()

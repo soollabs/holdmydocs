@@ -20,7 +20,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer state.Close()
+	defer func() { _ = state.Close() }()
 	client, err := state.ProvisionClient("Browser-flow test",
 		[]string{"https://client.example.test/callback"}, "none", []string{"read"}, false)
 	if err != nil {
@@ -99,7 +99,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("consent page = %d: %s", response.StatusCode, body)
@@ -128,7 +128,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	returnBody, _ := io.ReadAll(response.Body)
 	match := regexp.MustCompile(`id="oauth-return-link" href="([^"]+)"`).FindStringSubmatch(string(returnBody))
 	if len(match) != 2 {
@@ -178,7 +178,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	client, err := store.ProvisionClient("Redirect-error test",
 		[]string{"https://client.example.test/callback"}, "none", []string{"read"}, false)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusSeeOther {
 		t.Fatalf("validated-redirect error = %d, want 303", response.StatusCode)
 	}
@@ -229,7 +229,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusBadRequest || response.Header.Get("Location") != "" {
 		t.Fatalf("unvalidated redirect = %d %q", response.StatusCode, response.Header.Get("Location"))
 	}

@@ -41,7 +41,7 @@ func TestProvisionOAuthClientRequiresOptInAndPersistsRegistration(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	state, err := store.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestDisableOAuthClientWorksWhenOAuthIsOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer state.Close()
+	defer func() { _ = state.Close() }()
 	snapshot, err := state.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestDisableOAuthClientWorksAsEmergencyOperationWhenOAuthIsOff(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer state.Close()
+	defer func() { _ = state.Close() }()
 	snapshot, err := state.Snapshot()
 	if err != nil {
 		t.Fatal(err)

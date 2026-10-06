@@ -244,7 +244,9 @@ func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.
 			return oautherrors.ErrInvalidAuthorizeCode
 		}
 		if !current.ConsumedAt.IsZero() {
-			revokeFamilyState(state, current.FamilyID, "authorisation code reuse", time.Now().UTC())
+			if err := revokeFamilyState(state, current.FamilyID, "authorisation code reuse", time.Now().UTC()); err != nil {
+				return err
+			}
 			replayDetected = true
 			return nil
 		}
@@ -360,7 +362,9 @@ func (s *Service) refreshTokens(w http.ResponseWriter, r *http.Request, form url
 			return oautherrors.ErrInvalidRefreshToken
 		}
 		if !current.RefreshUsedAt.IsZero() {
-			revokeFamilyState(state, current.FamilyID, "refresh token reuse", time.Now().UTC())
+			if err := revokeFamilyState(state, current.FamilyID, "refresh token reuse", time.Now().UTC()); err != nil {
+				return err
+			}
 			replayDetected = true
 			return nil
 		}

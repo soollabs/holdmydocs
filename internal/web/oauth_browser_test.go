@@ -23,7 +23,7 @@ func TestOAuthBrowserUI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	client, err := store.ProvisionClient("Example documentation assistant",
 		[]string{"https://client.example.test/callback"}, "none", []string{"read", "write", "settings"}, true)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -19,10 +18,6 @@ var errOAuthTransactionRequired = errors.New("OAuth state mutation requires a st
 
 type tokenStore struct {
 	store *Store
-}
-
-func tokenKey(kind, raw string) string {
-	return kind + ":" + tokenDigest(raw)
 }
 
 func tokenDigest(raw string) string {
@@ -258,12 +253,4 @@ func (authorizeGenerator) Token(_ context.Context, _ *oauth2.GenerateBasic) (str
 		return "", err
 	}
 	return code, nil
-}
-
-func requireOAuthTransaction(ctx context.Context) (*oauthState, error) {
-	state := transactionState(ctx)
-	if state == nil {
-		return nil, fmt.Errorf("%w", errOAuthTransactionRequired)
-	}
-	return state, nil
 }
