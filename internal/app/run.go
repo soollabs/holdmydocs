@@ -236,6 +236,7 @@ func Run() {
 		}
 		oauthService, err = oauthserver.NewService(oauthserver.ServerOptions{
 			Issuer: cfg.BaseURL, AllowAdminDelegation: cfg.OAuth.AllowAdminDelegation,
+			DynamicRegistration: cfg.OAuth.DynamicRegistration,
 		}, oauthState, authn)
 		if err != nil {
 			_ = oauthState.Close()

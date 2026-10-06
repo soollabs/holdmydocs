@@ -38,16 +38,17 @@ const (
 // Service is the configured MCP OAuth implementation. It owns protocol state
 // adapters but delegates browser rendering to internal/web.
 type Service struct {
-	store      *Store
-	auth       *auth.Auth
-	options    ServerOptions
-	manager    *manage.Manager
-	tokenStore tokenStore
-	clients    clientStore
-	pendingMu  sync.Mutex
-	pending    map[string]*pendingAuthorization
-	rateMu     sync.Mutex
-	rateLimits map[string]requestWindow
+	store              *Store
+	auth               *auth.Auth
+	options            ServerOptions
+	manager            *manage.Manager
+	tokenStore         tokenStore
+	clients            clientStore
+	pendingMu          sync.Mutex
+	pending            map[string]*pendingAuthorization
+	rateMu             sync.Mutex
+	rateLimits         map[string]requestWindow
+	registrationWindow requestWindow
 }
 
 type requestWindow struct {
@@ -259,6 +260,7 @@ func (s *Service) ProtocolHandler() http.Handler {
 	}
 	mux.Handle("POST "+tokenPath, s.TokenHandler())
 	mux.Handle("POST "+revokePath, s.RevocationHandler())
+	mux.Handle("POST "+registerPath, s.RegistrationHandler())
 	return mux
 }
 

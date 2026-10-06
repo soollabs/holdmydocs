@@ -1225,7 +1225,7 @@ func publicOAuthMetadataPath(path string) bool {
 
 func protocolOAuthPath(path string) bool {
 	switch path {
-	case "/_/oauth/authorize", "/_/oauth/token", "/_/oauth/revoke":
+	case "/_/oauth/authorize", "/_/oauth/token", "/_/oauth/revoke", "/_/oauth/register":
 		return true
 	default:
 		return false

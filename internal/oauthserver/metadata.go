@@ -7,6 +7,7 @@ import (
 )
 
 type authorizationServerMetadata struct {
+	RegistrationEndpoint                   string   `json:"registration_endpoint,omitempty"`
 	Issuer                                 string   `json:"issuer"`
 	AuthorizationEndpoint                  string   `json:"authorization_endpoint"`
 	TokenEndpoint                          string   `json:"token_endpoint"`
@@ -46,6 +47,9 @@ func MetadataHandler(opts ServerOptions) http.Handler {
 	}
 	if opts.AllowAdminDelegation {
 		as.ScopesSupported = append(as.ScopesSupported, "settings")
+	}
+	if opts.DynamicRegistration {
+		as.RegistrationEndpoint = opts.Issuer + registerPath
 	}
 	resource := protectedResourceMetadata{
 		Resource:               opts.Issuer + mcpResourcePath,

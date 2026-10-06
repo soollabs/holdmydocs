@@ -1,11 +1,13 @@
 package web
 
 import (
+	"html"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -103,6 +105,11 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		t.Fatalf("consent page = %d: %s", response.StatusCode, body)
 	}
 	consent, _ := io.ReadAll(response.Body)
+	if !strings.Contains(string(consent), `value="approve" disabled`) ||
+		!strings.Contains(string(consent), `id="oauth-consent-validation"`) ||
+		!strings.Contains(string(consent), `value="deny">Deny`) {
+		t.Fatalf("consent form must gate approval without blocking denial: %s", consent)
+	}
 	if !strings.Contains(string(consent), "Browser-flow test") ||
 		!strings.Contains(string(consent), "Approve connection") ||
 		!strings.Contains(string(consent), "notes") {
@@ -122,16 +129,21 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	callback, err := url.Parse(response.Header.Get("Location"))
+	returnBody, _ := io.ReadAll(response.Body)
+	match := regexp.MustCompile(`id="oauth-return-link" href="([^"]+)"`).FindStringSubmatch(string(returnBody))
+	if len(match) != 2 {
+		t.Fatalf("callback navigation missing: %s", returnBody)
+	}
+	callback, err := url.Parse(html.UnescapeString(match[1]))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != http.StatusSeeOther ||
+	if response.StatusCode != http.StatusOK ||
 		callback.Host != "client.example.test" ||
 		callback.Query().Get("state") != "browser-flow-state" ||
 		callback.Query().Get("iss") != "https://wiki.example.test" ||
 		callback.Query().Get("code") == "" {
-		t.Fatalf("consent approval redirect = %d %q", response.StatusCode, response.Header.Get("Location"))
+		t.Fatalf("consent approval callback = %d %q", response.StatusCode, callback)
 	}
 	response, err = browser.Get(server.URL + "/_/connections")
 	if err != nil {

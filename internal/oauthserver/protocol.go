@@ -6,12 +6,14 @@ const (
 	authorizePath             = "/_/oauth/authorize"
 	tokenPath                 = "/_/oauth/token"
 	revokePath                = "/_/oauth/revoke"
+	registerPath              = "/_/oauth/register"
 	mcpResourcePath           = "/_/mcp"
 )
 
 type ServerOptions struct {
 	Issuer               string
 	AllowAdminDelegation bool
+	DynamicRegistration  bool
 }
 
 type ProtocolError struct {

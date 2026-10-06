@@ -5,7 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -71,6 +75,19 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 			return
 		}
 		headerVersion := r.Header.Get("MCP-Protocol-Version")
+		// Diagnostics deliberately exclude credentials, request bodies and
+		// tool arguments. Do not log arbitrary client-supplied method names.
+		method := "unknown"
+		switch request.Method {
+		case "server/discover", "initialize", "notifications/initialized", "tools/list", "tools/call", "ping", "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get":
+			method = request.Method
+		}
+		slog.Debug("mcp request",
+			"request_id", w.Header().Get("X-Request-ID"),
+			"method", method,
+			"protocol_header_present", headerVersion != "",
+			"modern_protocol_header", headerVersion == mcpProtocolVersion,
+			"session_header_present", r.Header.Get("Mcp-Session-Id") != "")
 		// A request is modern when it declares the modern version in either
 		// transport metadata location. An initialise request without those
 		// fields, or with an older negotiated version, belongs to legacy
@@ -131,11 +148,28 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 type mcpBaseURLKey struct{}
 
 func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *sdk.Server) http.Handler {
+	canonical, _ := url.Parse(baseURL)
+	configuredHost := ""
+	if canonical != nil {
+		configuredHost = canonical.Host
+	}
 	modern := sdk.NewStreamableHTTPHandler(serverForRequest, &sdk.StreamableHTTPOptions{
 		Stateless:                    true,
 		PropagateRequestCancellation: true,
+		// The SDK's loopback guard cannot recognise a configured reverse
+		// proxy origin. Replace it with the equivalent check below, allowing
+		// only that explicit additional host.
+		DisableLocalhostProtection: configuredHost != "",
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if configuredHost != "" {
+			if local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok &&
+				loopbackHost(local.String()) && !loopbackHost(r.Host) &&
+				!strings.EqualFold(r.Host, configuredHost) {
+				http.Error(w, "forbidden: invalid MCP host", http.StatusForbidden)
+				return
+			}
+		}
 		requestBaseURL := baseURL
 		if requestBaseURL == "" {
 			requestBaseURL = "http://" + r.Host
@@ -147,4 +181,13 @@ func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *sdk
 		mcpProtocolGate(modern).ServeHTTP(w, r)
 	})
 	return http.NewCrossOriginProtection().Handler(handler)
+}
+
+func loopbackHost(host string) bool {
+	name := (&url.URL{Host: host}).Hostname()
+	if strings.EqualFold(name, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(name)
+	return ip != nil && ip.IsLoopback()
 }

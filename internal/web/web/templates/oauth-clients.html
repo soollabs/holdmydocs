@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="content-col">
+<div class="breadcrumb"><a href="/_/admin">admin</a><span class="sep">/</span><span class="current">MCP OAuth clients</span></div>
+<h1 class="page-title">MCP OAuth clients</h1>
+<p>Manage MCP clients that authenticate with OAuth.</p>
+{{if .Error}}<p class="settings-banner" role="alert">{{.Error}}</p>{{end}}
+{{with .OAuthCreatedClient}}
+<section class="settings-zone">
+<h2>Client registered</h2>
+<p>Copy these credentials now. The secret cannot be displayed again. Do not refresh or resubmit this page.</p>
+<p>Client ID: <code>{{.ClientID}}</code></p>
+{{if .Secret}}<p>Client secret: <code>{{.Secret}}</code></p>{{else}}<p>Public client: no secret.</p>{{end}}
+</section>
+{{end}}
+<section class="settings-zone">
+<h2>Register a client</h2>
+<form method="POST" action="/_/admin/oauth" class="settings-form">
+{{template "csrf" .}}
+<div class="settings-row"><label for="client-name">name</label><input id="client-name" name="name" required maxlength="120"></div>
+<div class="settings-row"><label for="client-redirects">callback URLs</label><textarea id="client-redirects" name="redirect_uris" required rows="3"></textarea></div>
+<p class="settings-note">One exact URL per line. HTTPS required, except HTTP loopback callbacks. No wildcards.</p>
+<div class="settings-row"><label for="client-method">authentication</label><select id="client-method" name="auth_method">
+<option value="client_secret_post">client_secret_post</option><option value="client_secret_basic">client_secret_basic</option><option value="none">none (public client)</option>
+</select></div>
+<div class="settings-row"><span>allowed actions</span><label><input type="checkbox" name="scope" value="read" checked> read</label><label><input type="checkbox" name="scope" value="write"> write</label></div>
+<p class="settings-note">All clients require S256 PKCE. Client secrets are shown once.</p>
+<button type="submit" class="primary">register client</button>
+</form>
+</section>
+<section class="settings-zone">
+<h2>Registered clients</h2>
+{{if .OAuthClients}}<form method="POST" action="/_/admin/oauth/delete-disabled">{{template "csrf" .}}<button type="submit" class="ghost-btn">delete all disabled clients</button></form>{{end}}
+{{range .OAuthClients}}
+<fieldset class="settings-section">
+<legend>{{.Name}}</legend>
+<p><code>{{.ID}}</code> · {{.AuthMethod}} · {{if .Dynamic}}dynamic registration{{else}}administrator registration{{end}}</p>
+<p>Allowed actions: {{range .AllowedScopes}}<code>{{.}}</code> {{end}}</p>
+{{range .RedirectURIs}}<p><code>{{.}}</code></p>{{end}}
+{{if .Disabled}}<p>Disabled permanently.</p>
+<form method="POST" action="/_/admin/oauth/{{.ID}}/delete">{{template "csrf" $}}<button type="submit" class="ghost-btn">delete client</button></form>
+{{else}}
+<form method="POST" action="/_/admin/oauth/{{.ID}}/disable">{{template "csrf" $}}<button type="submit" class="ghost-btn">disable client and revoke all access</button></form>
+{{end}}
+</fieldset>
+{{else}}<p>No registered clients.</p>{{end}}
+</section>
+</div>
+{{end}}

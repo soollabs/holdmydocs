@@ -62,6 +62,11 @@ func (app *App) Routes() http.Handler {
 		mux.HandleFunc("POST /_/oauth/authorize", app.handleOAuthAuthorizePost)
 		mux.HandleFunc("GET /_/connections", app.handleConnectionsGet)
 		mux.HandleFunc("POST /_/connections/{id}/revoke", app.handleConnectionRevoke)
+		mux.HandleFunc("GET /_/admin/oauth", app.handleOAuthClientsGet)
+		mux.HandleFunc("POST /_/admin/oauth", app.handleOAuthClientCreate)
+		mux.HandleFunc("POST /_/admin/oauth/{id}/disable", app.handleOAuthClientDisable)
+		mux.HandleFunc("POST /_/admin/oauth/{id}/delete", app.handleOAuthClientDelete)
+		mux.HandleFunc("POST /_/admin/oauth/delete-disabled", app.handleOAuthClientsDeleteDisabled)
 	}
 
 	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)

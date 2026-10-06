@@ -41,6 +41,7 @@ type ClientRecord struct {
 	SecretDigest  string    `json:"secret_digest,omitempty"`
 	AllowedScopes []string  `json:"allowed_scopes"`
 	Disabled      bool      `json:"disabled,omitempty"`
+	Dynamic       bool      `json:"dynamic,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -260,11 +261,11 @@ func beginOAuthConsent(t *testing.T, browser *http.Client, base, clientID, state
 		form.Set("namespace_mode", "all")
 	}
 	response = postOAuthForm(t, browser, base+"/_/oauth/authorize", form, csrf)
-	location = response.Header.Get("Location")
-	if response.StatusCode != http.StatusSeeOther || location == "" {
-		t.Fatalf("consent submission = %d %q: %s", response.StatusCode, location, readE2EBody(t, response))
+	returnBody := readE2EBody(t, response)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("consent submission = %d: %s", response.StatusCode, returnBody)
 	}
-	_ = response.Body.Close()
+	location = html.UnescapeString(captureE2E(t, `id="oauth-return-link" href="([^"]+)"`, returnBody))
 	return location
 }
 

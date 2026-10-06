@@ -24,7 +24,7 @@ func (app *App) handleOAuthAuthorizeGet(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	session := ""
 	if cookie, err := r.Cookie("hmd_session"); err == nil {
 		session = cookie.Value
@@ -66,7 +66,7 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid consent form", http.StatusBadRequest)
 		return
@@ -110,7 +110,13 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 		HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()),
 		SameSite: http.SameSiteLaxMode, Path: "/",
 	})
-	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	// A cross-origin redirect after a native form POST can be blocked by
+	// form-action 'self'. Complete with a nonce-protected navigation and a
+	// normal link fallback rather than weakening the page's CSP.
+	app.render(w, r, http.StatusOK, "oauth-return", TemplateData{
+		Authed: true, Username: user, Title: "Return to MCP client",
+		OAuthRedirect: redirect,
+	})
 }
 
 func writeOAuthWebError(w http.ResponseWriter, err error) {
@@ -129,7 +135,7 @@ func (app *App) handleConnectionsGet(w http.ResponseWriter, r *http.Request) {
 	if !app.OAuth.CheckRateLimit(w, r) {
 		return
 	}
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	session, err := r.Cookie("hmd_session")
 	if err != nil || session.Value == "" {
 		http.Error(w, "sign in to view connected applications", http.StatusUnauthorized)
@@ -162,7 +168,7 @@ func (app *App) handleConnectionRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	session, err := r.Cookie("hmd_session")
 	if err != nil || session.Value == "" {
 		http.Error(w, "sign in to disconnect an application", http.StatusUnauthorized)

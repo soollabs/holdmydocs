@@ -203,7 +203,7 @@ func (s Security) Handler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/_/oauth/token" || r.URL.Path == "/_/oauth/revoke" {
+		if r.URL.Path == "/_/oauth/token" || r.URL.Path == "/_/oauth/revoke" || r.URL.Path == "/_/oauth/register" {
 			// Protocol endpoints use OAuth client authentication; browser cookies
 			// are not credentials for these requests.
 			next.ServeHTTP(w, r)

@@ -43,6 +43,7 @@ func newHandler(application *web.App) http.Handler {
 		mux.Handle("HEAD /.well-known/oauth-protected-resource/_/mcp", oauthHandler)
 		mux.Handle("POST /_/oauth/token", oauthHandler)
 		mux.Handle("POST /_/oauth/revoke", oauthHandler)
+		mux.Handle("POST /_/oauth/register", oauthHandler)
 	}
 	mux.Handle("/", application.Routes())
 

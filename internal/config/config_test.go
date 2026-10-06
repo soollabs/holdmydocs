@@ -153,7 +153,7 @@ func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
 		},
 		{
 			name: "loopback development allowed explicitly",
-			yaml: "base_url: http://localhost:8080\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n  allow_admin_delegation: true\n",
+			yaml: "base_url: http://localhost:8080\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  dynamic_registration: true\n  allow_insecure_loopback: true\n  allow_admin_delegation: true\n",
 		},
 		{
 			name:      "remote HTTP rejected even with loopback option",
@@ -178,7 +178,7 @@ func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !cfg.OAuth.Enabled || !cfg.OAuth.AllowInsecureLoopback || !cfg.OAuth.AllowAdminDelegation {
+			if !cfg.OAuth.Enabled || !cfg.OAuth.DynamicRegistration || !cfg.OAuth.AllowInsecureLoopback || !cfg.OAuth.AllowAdminDelegation {
 				t.Fatalf("OAuth configuration was not loaded: %#v", cfg.OAuth)
 			}
 			reloaded, err := LoadFileConfig(path)

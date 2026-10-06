@@ -9,7 +9,7 @@
 		<dt>Resource</dt><dd>{{.OAuthPrompt.Resource}}</dd>
 	</dl>
 	<p>Requested actions: {{range $i, $scope := .OAuthPrompt.RequestedScopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</p>
-	<form method="POST" action="/_/oauth/authorize">
+	<form method="POST" action="/_/oauth/authorize" id="oauth-consent-form">
 		{{template "csrf" .}}
 		<input type="hidden" name="request" value="{{.OAuthPrompt.Handle}}">
 		<fieldset>
@@ -46,7 +46,8 @@
 		</fieldset>
 		{{end}}
 
-		<button type="submit" name="decision" value="approve">Approve connection</button>
+		<p id="oauth-consent-validation" class="error" role="status" aria-live="polite">Choose at least one action and select namespace access.</p>
+		<button type="submit" name="decision" value="approve" disabled aria-describedby="oauth-consent-validation">Approve connection</button>
 		<button type="submit" name="decision" value="deny">Deny</button>
 	</form>
 </div>

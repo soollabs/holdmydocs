@@ -156,16 +156,9 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 		}
 		return items[0], nil
 	}
-	allowedParams := map[string]bool{
-		"client_id": true, "redirect_uri": true, "response_type": true,
-		"state": true, "scope": true, "resource": true,
-		"code_challenge": true, "code_challenge_method": true,
-	}
-	for name := range values {
-		if !allowedParams[name] {
-			return authorizationRequest{}, invalidRequest("unexpected authorisation parameter")
-		}
-	}
+	// RFC 6749 section 3.1 requires unrecognised parameters to be ignored.
+	// Read security-sensitive fields explicitly and reject their duplicates;
+	// optional client hints must not alter the authorisation decision.
 	clientID, err := single("client_id", true)
 	if err != nil {
 		return authorizationRequest{}, err

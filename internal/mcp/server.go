@@ -6,6 +6,7 @@ package mcp
 
 import (
 	"net/http"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"hmd/internal/api"
@@ -34,7 +35,7 @@ func NewServer(a *api.API, opts Options) *Server {
 // Handler returns the streamable-HTTP handler that serves the MCP endpoint. The
 // composition root mounts it at /_/mcp.
 func (s *Server) Handler() http.Handler {
-	server := sdk.NewServer(&sdk.Implementation{Name: "hmd", Version: s.options.Version}, &sdk.ServerOptions{
+	server := sdk.NewServer(s.implementation(), &sdk.ServerOptions{
 		SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"},
 	})
 	s.registerPages(server)
@@ -43,4 +44,19 @@ func (s *Server) Handler() http.Handler {
 	s.registerAttachments(server)
 	s.registerHistory(server)
 	return newMCPHTTPHandler(s.api.Config().BaseURL, func(*http.Request) *sdk.Server { return server })
+}
+
+func (s *Server) implementation() *sdk.Implementation {
+	info := &sdk.Implementation{
+		Name: "hmd", Title: "HoldMyDocs", Version: s.options.Version,
+		Description: "Search, read and manage pages and attachments in HoldMyDocs.",
+	}
+	if origin := strings.TrimRight(s.api.Config().BaseURL, "/"); origin != "" {
+		info.Icons = []sdk.Icon{{
+			Source:   origin + "/_/static/icon.svg",
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"any"},
+		}}
+	}
+	return info
 }

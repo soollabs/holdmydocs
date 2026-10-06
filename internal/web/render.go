@@ -146,6 +146,9 @@ type TemplateData struct {
 	SetupNamespaces         []string // existing namespaces offered as the landing choice
 	OAuthPrompt             *oauthserver.AuthorizationPrompt
 	OAuthConnections        []oauthserver.Connection
+	OAuthClients            []oauthserver.ClientSummary
+	OAuthCreatedClient      *oauthserver.ProvisionedClient
+	OAuthRedirect           string
 	SetupSiteName           string // portable site-name default for first setup
 	RoutePrefix             string
 	IsHidden                bool

@@ -36,6 +36,10 @@ type ProvisionedClient struct {
 // ProvisionClient creates a client registration. Confidential secrets are
 // returned exactly once and only their bcrypt digest is persisted.
 func (s *Store) ProvisionClient(name string, redirectURIs []string, authMethod string, scopes []string, allowAdmin bool) (ProvisionedClient, error) {
+	return s.provisionClient(name, redirectURIs, authMethod, scopes, allowAdmin, false)
+}
+
+func (s *Store) provisionClient(name string, redirectURIs []string, authMethod string, scopes []string, allowAdmin, dynamic bool) (ProvisionedClient, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 {
 		return ProvisionedClient{}, errors.New("client name must be 1–120 characters")
@@ -85,10 +89,22 @@ func (s *Store) ProvisionClient(name string, redirectURIs []string, authMethod s
 		ID: id, Name: name, RedirectURIs: append([]string(nil), redirectURIs...),
 		AuthMethod: authMethod, SecretDigest: secretDigest,
 		AllowedScopes: scopes, CreatedAt: time.Now().UTC(),
+		Dynamic: dynamic,
 	}
 	if err := s.Update(func(state *oauthState) error {
 		if len(state.Clients) >= maxOAuthClients {
 			return errors.New("OAuth client limit reached")
+		}
+		if dynamic {
+			count := 0
+			for _, client := range state.Clients {
+				if client.Dynamic {
+					count++
+				}
+			}
+			if count >= 32 {
+				return errors.New("dynamic OAuth client limit reached")
+			}
 		}
 		state.Clients[id] = record
 		return nil
@@ -154,6 +170,9 @@ func validateRedirectURI(raw string) error {
 	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return errors.New("must be an absolute URI without user-info or fragment")
 	}
+	if strings.ContainsAny(u.Host, "*\\ \t\r\n") || u.Hostname() == "" || strings.Contains(raw, "#") {
+		return errors.New("invalid redirect host or fragment")
+	}
 	if u.Scheme == "https" {
 		return nil
 	}
@@ -161,6 +180,91 @@ func validateRedirectURI(raw string) error {
 		return errors.New("must use HTTPS (HTTP is allowed only for loopback clients)")
 	}
 	return nil
+}
+
+// ClientSummary deliberately excludes secret verifiers.
+type ClientSummary struct {
+	ID            string
+	Name          string
+	RedirectURIs  []string
+	AuthMethod    string
+	AllowedScopes []string
+	Disabled      bool
+	Dynamic       bool
+	CreatedAt     time.Time
+}
+
+func (s *Service) Clients() ([]ClientSummary, error) {
+	state, err := s.store.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	clients := make([]ClientSummary, 0, len(state.Clients))
+	for _, c := range state.Clients {
+		clients = append(clients, ClientSummary{
+			ID: c.ID, Name: c.Name, RedirectURIs: c.RedirectURIs,
+			AuthMethod: c.AuthMethod, AllowedScopes: c.AllowedScopes,
+			Disabled: c.Disabled, Dynamic: c.Dynamic, CreatedAt: c.CreatedAt,
+		})
+	}
+	slices.SortFunc(clients, func(a, b ClientSummary) int { return strings.Compare(a.ID, b.ID) })
+	return clients, nil
+}
+
+func (s *Service) ProvisionClient(name string, redirects []string, method string, scopes []string) (ProvisionedClient, error) {
+	return s.store.ProvisionClient(name, redirects, method, scopes, s.options.AllowAdminDelegation)
+}
+
+func (s *Service) DisableClient(id string) error {
+	return s.store.DisableClient(id)
+}
+
+// DeleteClient removes only a disabled client and its revoked security state.
+func (s *Service) DeleteClient(id string) error {
+	return s.store.Update(func(state *oauthState) error {
+		client, ok := state.Clients[id]
+		if !ok {
+			return errors.New("OAuth client not found")
+		}
+		if !client.Disabled {
+			return errors.New("disable the client before deleting it")
+		}
+		deleteClientState(state, id)
+		return nil
+	})
+}
+
+// DeleteDisabledClients leaves active registrations untouched.
+func (s *Service) DeleteDisabledClients() error {
+	return s.store.Update(func(state *oauthState) error {
+		for id, client := range state.Clients {
+			if client.Disabled {
+				deleteClientState(state, id)
+			}
+		}
+		return nil
+	})
+}
+
+func deleteClientState(state *oauthState, clientID string) {
+	grants := make(map[string]bool)
+	for id, grant := range state.Grants {
+		if grant.ClientID == clientID {
+			grants[id] = true
+			delete(state.Grants, id)
+		}
+	}
+	for id, family := range state.Families {
+		if grants[family.GrantID] {
+			delete(state.Families, id)
+		}
+	}
+	for id, token := range state.Tokens {
+		if token.ClientID == clientID || grants[token.GrantID] {
+			delete(state.Tokens, id)
+		}
+	}
+	delete(state.Clients, clientID)
 }
 
 func isLoopbackRedirectHost(host string) bool {

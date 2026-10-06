@@ -39,6 +39,7 @@ type MCPConfig struct {
 // credentials live separately in private AppDir state.
 type OAuthConfig struct {
 	Enabled               bool `yaml:"enabled"`
+	DynamicRegistration   bool `yaml:"dynamic_registration"`
 	AllowInsecureLoopback bool `yaml:"allow_insecure_loopback"`
 	AllowAdminDelegation  bool `yaml:"allow_admin_delegation"`
 }
