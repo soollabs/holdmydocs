@@ -17,12 +17,8 @@ builds:
       - -s -w -X hmd/internal/app.buildVersion={{ .Tag }}
 
 archives:
-  - formats: [tar.gz]
+  - formats: [binary]
     name_template: "hmd-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: [zip]
-    files: [LICENSE, README.md]
 
 checksum:
   name_template: SHA256SUMS
