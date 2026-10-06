@@ -10,7 +10,7 @@ require (
 	github.com/knights-analytics/hugot v0.7.8
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/yuin/goldmark/v2 v2.1.5
+	github.com/yuin/goldmark/v2 v2.1.6
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
 	golang.org/x/oauth2 v0.37.0
