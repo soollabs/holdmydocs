@@ -50,6 +50,22 @@ func (t bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
+type testOAuthVerifier struct{}
+
+func (testOAuthVerifier) VerifyBearer(_ context.Context, token, path string) (auth.TokenPrincipal, bool) {
+	if token != "oauth-test-token" || path != "/_/mcp" {
+		return auth.TokenPrincipal{}, false
+	}
+	return auth.TokenPrincipal{
+		User: "admin", Scopes: []string{"read"}, Namespaces: []string{"notes"},
+		GrantID: "grant-test", FamilyID: "family-test",
+	}, true
+}
+
+func (testOAuthVerifier) Challenge() string {
+	return `Bearer resource_metadata="https://wiki.example.test/.well-known/oauth-protected-resource"`
+}
+
 func newMCPTestApp(t *testing.T, mcpEnabled bool) (*httptest.Server, string) {
 	t.Helper()
 	app, server, token := newMCPTestAppWithApp(t, mcpEnabled)
@@ -289,6 +305,28 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 	}
 	for name := range allowed {
 		t.Errorf("MCP missing page tool %q", name)
+	}
+}
+
+func TestMCPOAuthPrincipalReceivesScopeStepUpGuidance(t *testing.T) {
+	env, server, _ := newMCPTestAppWithApp(t, true)
+	env.auth.SetOAuthBearerVerifier(testOAuthVerifier{})
+	session := connectMCP(t, server, "oauth-test-token")
+
+	read := callTool(t, session, "read_page", map[string]any{"slug": testHome})
+	if read.IsError {
+		t.Fatalf("OAuth read within its granted namespace failed: %s", toolText(t, read))
+	}
+	write := callTool(t, session, "save_page", map[string]any{
+		"slug": "notes/oauth-denied", "title": "Denied", "body": "should not be saved",
+	})
+	if !write.IsError || !strings.Contains(toolText(t, write), "insufficient_scope") ||
+		!strings.Contains(toolText(t, write), `"write"`) {
+		t.Fatalf("OAuth write denial lacks scope step-up guidance: isError=%v, text=%q", write.IsError, toolText(t, write))
+	}
+	crossNamespace := callTool(t, session, "read_page", map[string]any{"slug": "private/denied"})
+	if !crossNamespace.IsError || !strings.Contains(toolText(t, crossNamespace), "reconnect") {
+		t.Fatalf("OAuth namespace denial lacks reconnect guidance: isError=%v, text=%q", crossNamespace.IsError, toolText(t, crossNamespace))
 	}
 }
 
