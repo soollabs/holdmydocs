@@ -69,6 +69,16 @@ func (app *App) injectTOC(ctx context.Context, body string, indexSlug string, ns
 	})
 }
 
+// isLocalURL reports whether target is safe to use as a redirect location: it
+// must be an absolute path rooted at a single "/". A leading "//" or "/\\"
+// would be interpreted by browsers as a protocol-relative URL and could send
+// the user to an attacker-controlled host.
+func isLocalURL(target string) bool {
+	return strings.HasPrefix(target, "/") &&
+		!strings.HasPrefix(target, "//") &&
+		!strings.HasPrefix(target, "/\\")
+}
+
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("ns")
 	if !app.requireTokenNamespace(w, r, ns) {
@@ -105,7 +115,12 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := app.apiClient().ViewPage(r.Context(), slug); err == nil {
-		http.Redirect(w, r, "/"+slug+"?do=edit", http.StatusSeeOther)
+		target := "/" + slug + "?do=edit"
+		if !isLocalURL(target) {
+			http.Error(w, "invalid redirect target", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
 
