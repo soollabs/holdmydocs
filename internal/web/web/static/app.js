@@ -197,7 +197,6 @@
     const bidi = window.hmdSyncMode === 'bidirectional';
     let pollTimer;
     let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
-    let syncAgeTimer;
     const syncText = $('#sync-text', syncSeg) || syncSeg;
 
     function updateSyncAge() {
@@ -269,30 +268,20 @@
     }
     if (syncSeg.dataset.state === 'pending' || bidi) pollSync();
 
-    // Tick sync age every second
-    syncAgeTimer = setInterval(updateSyncAge, 30000);
+    // Tick sync age every 30 seconds
+    setInterval(updateSyncAge, 30000);
   }
 
   // ---- New-page shortcut (ctrl-j) ---- targets this page's namespace when it
   // has a `new:` template; disabled otherwise (window.hmdNewEnabled).
   //
-  // The server renders the draft straight into this response instead of
+  // The server renders the draft straight into the /_/new response instead of
   // creating+redirecting, so nothing is saved until the user hits Save
-  // (Cancel on the editor leaves no trace). Since there's no redirect to
-  // follow for the pretty /<slug> URL, swap the returned page in directly
-  // and set the URL via pushState instead of navigating.
+  // (Cancel on the editor leaves no trace). Navigate to that response and let
+  // the edit page rewrite the address bar to the pretty /<slug> URL, rather
+  // than injecting the whole document client-side with document.write.
   function openNewPage() {
-    fetch('/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace))
-      .then(r => {
-      if (!r.ok) return;
-      r.text().then(html => {
-        const slug = new DOMParser().parseFromString(html, 'text/html').querySelector('#cm-host')?.dataset.slug;
-        if (slug) history.pushState(null, '', '/' + slug + '?do=edit');
-        document.open();
-        document.write(html);
-        document.close();
-      });
-    });
+    window.location.href = '/_/new?ns=' + encodeURIComponent(window.hmdNewNamespace);
   }
   document.addEventListener('keydown', e => {
     if (!window.hmdNewEnabled) return;
@@ -805,6 +794,13 @@
 
   // ---- Edit page: mount CodeMirror editor ----
   const cmHost = $('#cm-host');
+  // A draft served from /_/new belongs at its pretty edit URL. Rewrite the
+  // address bar without a reload; reloading that URL loads the page itself
+  // (still empty until Save), which matches the previous behaviour.
+  if (cmHost && window.location.pathname === '/_/new') {
+    const draftSlug = cmHost.dataset.slug;
+    if (draftSlug) history.replaceState(null, '', '/' + draftSlug + '?do=edit');
+  }
   if (cmHost && window.HMD) {
     const textarea = $('#editor-src');
     const preview = $('#preview');
@@ -1488,7 +1484,6 @@
       const lines = unifiedDiff.split('\n');
       const html = lines.map(line => {
         let cls = 'diff-context';
-        let prefix = ' ';
         if (line.startsWith('+++') || line.startsWith('---')) return '';
         if (line.startsWith('@@')) return `<div class="diff-line">${escapeHtml(line)}</div>`;
         if (line.startsWith('+')) {
