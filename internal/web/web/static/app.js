@@ -197,7 +197,6 @@
     const bidi = window.hmdSyncMode === 'bidirectional';
     let pollTimer;
     let lastRenderedHash = pageContent ? (pageContent.dataset.blobHash || '') : null;
-    let syncAgeTimer;
     const syncText = $('#sync-text', syncSeg) || syncSeg;
 
     function updateSyncAge() {
@@ -269,8 +268,8 @@
     }
     if (syncSeg.dataset.state === 'pending' || bidi) pollSync();
 
-    // Tick sync age every second
-    syncAgeTimer = setInterval(updateSyncAge, 30000);
+    // Tick sync age every 30 seconds
+    setInterval(updateSyncAge, 30000);
   }
 
   // ---- New-page shortcut (ctrl-j) ---- targets this page's namespace when it
@@ -1488,7 +1487,6 @@
       const lines = unifiedDiff.split('\n');
       const html = lines.map(line => {
         let cls = 'diff-context';
-        let prefix = ' ';
         if (line.startsWith('+++') || line.startsWith('---')) return '';
         if (line.startsWith('@@')) return `<div class="diff-line">${escapeHtml(line)}</div>`;
         if (line.startsWith('+')) {
