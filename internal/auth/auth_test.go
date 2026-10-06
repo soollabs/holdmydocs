@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,19 @@ import (
 )
 
 type Config = appconfig.Config
+
+type testOAuthVerifier struct{}
+
+func (testOAuthVerifier) VerifyBearer(_ context.Context, token, path string) (TokenPrincipal, bool) {
+	if token != "hmd_oa_valid" || path != "/_/mcp" {
+		return TokenPrincipal{}, false
+	}
+	return TokenPrincipal{User: "alice", Scopes: []string{"read"}, GrantID: "grant-id"}, true
+}
+
+func (testOAuthVerifier) Challenge() string {
+	return `Bearer resource_metadata="https://wiki.example.test/.well-known/oauth-protected-resource/_/mcp", scope="read"`
+}
 
 func OpenAuth(cfg Config) (*Auth, error) {
 	return Open(Options{AppDir: cfg.AppDir, AdminUser: cfg.AdminUser, AdminPass: cfg.AdminPass})
@@ -60,6 +74,68 @@ func TestBootstrapAdmin(t *testing.T) {
 		if info.Mode().Perm() != 0600 {
 			t.Errorf("%s mode = %o, want 600", path, info.Mode().Perm())
 		}
+	}
+}
+
+func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
+	authn, err := Open(Options{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	authn.SetOAuthBearerVerifier(testOAuthVerifier{})
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := TokenPrincipalFromContext(r.Context())
+		if !ok {
+			t.Error("OAuth request reached handler without a token principal")
+			return
+		}
+		_, _ = w.Write([]byte(principal.GrantID))
+	})
+	handler := authn.Middleware(next)
+
+	request := httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request.Header.Set("Authorization", "Bearer hmd_oa_valid")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Body.String() != "grant-id" {
+		t.Fatalf("valid OAuth request = %d %q", response.Code, response.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized || response.Header().Get("WWW-Authenticate") != (testOAuthVerifier{}).Challenge() {
+		t.Fatalf("missing credential response = %d, challenge %q", response.Code, response.Header().Get("WWW-Authenticate"))
+	}
+
+	session, ok := authn.Login("admin", "password12345")
+	if !ok {
+		t.Fatal("could not create test browser session")
+	}
+	request = httptest.NewRequest(http.MethodGet, "/_/settings", nil)
+	request.Header.Set("Authorization", "Bearer hmd_oa_invalid")
+	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("invalid OAuth path fell back to a cookie: %d", response.Code)
+	}
+	request = httptest.NewRequest(http.MethodGet, "/_/connections", nil)
+	request.Header.Set("Authorization", "Bearer hmd_oa_invalid")
+	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("invalid Bearer credential fell back to the connections cookie: %d", response.Code)
+	}
+	request = httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unsupported Authorization scheme fell back to a browser cookie: %d", response.Code)
 	}
 }
 
