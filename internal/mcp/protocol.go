@@ -5,7 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -16,8 +20,10 @@ const mcpGateBodyLimit = 1 << 20
 
 type mcpGateRequest struct {
 	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
 	Params struct {
-		Meta map[string]json.RawMessage `json:"_meta"`
+		ProtocolVersion string                     `json:"protocolVersion"`
+		Meta            map[string]json.RawMessage `json:"_meta"`
 	} `json:"params"`
 }
 
@@ -43,31 +49,19 @@ func writeMCPGateError(w http.ResponseWriter, code int, id json.RawMessage, mess
 	})
 }
 
-// mcpProtocolGate enforces the modern MCP transport contract: POST only, the
-// negotiated protocol version header, no session headers or query parameters,
-// and the per-request metadata (protocol version, client info, capabilities)
-// that the stateless server requires. It re-buffers the body so the SDK handler
-// can read it after the gate inspects it.
+// mcpProtocolGate applies the additional request contract introduced by the
+// modern protocol only. Older Streamable HTTP requests are passed through to
+// the SDK, which handles their version negotiation and transport lifecycle.
+// The body is re-buffered so the SDK handler can read it after inspection.
 func mcpProtocolGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		if r.Header.Get("MCP-Protocol-Version") != mcpProtocolVersion {
-			writeMCPGateError(w, sdk.CodeUnsupportedProtocolVersion, nil, "unsupported protocol version", sdk.UnsupportedProtocolVersionData{
-				Supported: []string{mcpProtocolVersion},
-				Requested: r.Header.Get("MCP-Protocol-Version"),
-			})
-			return
-		}
-		if r.Header.Get("Mcp-Session-Id") != "" {
-			writeMCPGateError(w, sdk.CodeHeaderMismatch, nil, "session headers are unsupported", nil)
-			return
-		}
-		if r.URL.Query().Get("sessionId") != "" {
-			writeMCPGateError(w, sdk.CodeHeaderMismatch, nil, "session query parameters are unsupported", nil)
+			if r.Header.Get("MCP-Protocol-Version") >= mcpProtocolVersion {
+				w.Header().Set("Allow", http.MethodPost)
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			next.ServeHTTP(w, r)
 			return
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, mcpGateBodyLimit))
@@ -78,6 +72,54 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 		var request mcpGateRequest
 		if err := json.Unmarshal(body, &request); err != nil {
 			writeMCPGateError(w, -32600, nil, "invalid request", nil)
+			return
+		}
+		headerVersion := r.Header.Get("MCP-Protocol-Version")
+		// Diagnostics deliberately exclude credentials, request bodies and
+		// tool arguments. Do not log arbitrary client-supplied method names.
+		method := "unknown"
+		switch request.Method {
+		case "server/discover", "initialize", "notifications/initialized", "tools/list", "tools/call", "ping", "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get":
+			method = request.Method
+		}
+		slog.Debug("mcp request",
+			"request_id", w.Header().Get("X-Request-ID"),
+			"method", method,
+			"protocol_header_present", headerVersion != "",
+			"modern_protocol_header", headerVersion == mcpProtocolVersion,
+			"session_header_present", r.Header.Get("Mcp-Session-Id") != "")
+		// A request is modern when it declares the modern version in either
+		// transport metadata location. An initialise request without those
+		// fields, or with an older negotiated version, belongs to legacy
+		// Streamable HTTP and must be left to the SDK.
+		_, hasModernClientInfo := request.Params.Meta["io.modelcontextprotocol/clientInfo"]
+		_, hasModernCapabilities := request.Params.Meta["io.modelcontextprotocol/clientCapabilities"]
+		modern := headerVersion >= mcpProtocolVersion ||
+			request.Params.Meta["io.modelcontextprotocol/protocolVersion"] != nil ||
+			hasModernClientInfo || hasModernCapabilities
+		if !modern {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if headerVersion != mcpProtocolVersion {
+			writeMCPGateError(w, sdk.CodeUnsupportedProtocolVersion, request.ID, "unsupported protocol version", sdk.UnsupportedProtocolVersionData{
+				Supported: []string{mcpProtocolVersion},
+				Requested: headerVersion,
+			})
+			return
+		}
+		if r.Header.Get("Mcp-Session-Id") != "" {
+			writeMCPGateError(w, sdk.CodeHeaderMismatch, request.ID, "session headers are unsupported", nil)
+			return
+		}
+		if r.URL.Query().Get("sessionId") != "" {
+			writeMCPGateError(w, sdk.CodeHeaderMismatch, request.ID, "session query parameters are unsupported", nil)
 			return
 		}
 		if len(request.Params.Meta) == 0 {
@@ -106,11 +148,28 @@ func mcpProtocolGate(next http.Handler) http.Handler {
 type mcpBaseURLKey struct{}
 
 func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *sdk.Server) http.Handler {
+	canonical, _ := url.Parse(baseURL)
+	configuredHost := ""
+	if canonical != nil {
+		configuredHost = canonical.Host
+	}
 	modern := sdk.NewStreamableHTTPHandler(serverForRequest, &sdk.StreamableHTTPOptions{
 		Stateless:                    true,
 		PropagateRequestCancellation: true,
+		// The SDK's loopback guard cannot recognise a configured reverse
+		// proxy origin. Replace it with the equivalent check below, allowing
+		// only that explicit additional host.
+		DisableLocalhostProtection: configuredHost != "",
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if configuredHost != "" {
+			if local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok &&
+				loopbackHost(local.String()) && !loopbackHost(r.Host) &&
+				!strings.EqualFold(r.Host, configuredHost) {
+				http.Error(w, "forbidden: invalid MCP host", http.StatusForbidden)
+				return
+			}
+		}
 		requestBaseURL := baseURL
 		if requestBaseURL == "" {
 			requestBaseURL = "http://" + r.Host
@@ -122,4 +181,13 @@ func newMCPHTTPHandler(baseURL string, serverForRequest func(*http.Request) *sdk
 		mcpProtocolGate(modern).ServeHTTP(w, r)
 	})
 	return http.NewCrossOriginProtection().Handler(handler)
+}
+
+func loopbackHost(host string) bool {
+	name := (&url.URL{Host: host}).Hostname()
+	if strings.EqualFold(name, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(name)
+	return ip != nil && ip.IsLoopback()
 }

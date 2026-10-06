@@ -125,6 +125,9 @@ func (s *Server) registerPages(server *sdk.Server) {
 		if err != nil {
 			return nil, mcpPageOut{}, err
 		}
+		if err := s.requireSlug(ctx, slug); err != nil {
+			return nil, mcpPageOut{}, err
+		}
 		view, err := s.api.ViewPage(ctx, slug)
 		if err != nil {
 			return nil, mcpPageOut{}, err

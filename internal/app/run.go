@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/export"
+	"hmd/internal/oauthserver"
 	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/web"
@@ -41,6 +44,14 @@ func Run() {
 	exportDir := flag.String("export-dir", "", "output directory for -export-namespace")
 	exportTitle := flag.String("export-title", "", "override the configured namespace title in the static export")
 	healthcheck := flag.Bool("healthcheck", false, "check local readiness and exit")
+	provisionOAuthClient := flag.Bool("oauth-client-add", false, "provision a pre-registered MCP OAuth client and exit")
+	disableOAuthClient := flag.Bool("oauth-client-disable", false, "permanently disable an OAuth client and revoke its grants")
+	oauthClientName := flag.String("oauth-client-name", "", "display name for the OAuth client")
+	oauthClientID := flag.String("oauth-client-id", "", "OAuth client ID to disable")
+	oauthClientAuth := flag.String("oauth-client-auth-method", "none", "OAuth client authentication: none, client_secret_basic or client_secret_post")
+	oauthClientScopeText := flag.String("oauth-client-scopes", "read", "comma-separated action scopes allowed for the client")
+	var oauthClientRedirects stringListFlag
+	flag.Var(&oauthClientRedirects, "oauth-client-redirect-uri", "exact client callback URI; may be repeated")
 	flag.Parse()
 	if *healthcheck {
 		if err := CheckReadiness(); err != nil {
@@ -55,12 +66,46 @@ func Run() {
 	if err != nil {
 		log.Fatalf("Loading config: %v", err)
 	}
+	if *provisionOAuthClient && *disableOAuthClient {
+		log.Fatal("-oauth-client-add and -oauth-client-disable cannot be used together")
+	}
+	if *disableOAuthClient {
+		if *oauthClientID == "" {
+			log.Fatal("-oauth-client-disable requires -oauth-client-id")
+		}
+		if err := config.ValidateWritableDataDir(cfg.AppDir); err != nil {
+			log.Fatalf("unsafe app directory: %v", err)
+		}
+		if err := DisableOAuthClient(cfg, *oauthClientID); err != nil {
+			log.Fatalf("disabling OAuth client failed: %v", err)
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "OAuth client disabled and grants revoked: %s\n", *oauthClientID)
+		return
+	}
 	level := slog.LevelInfo
 	if cfg.Debug {
 		level = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 	slog.Debug("startup configuration loaded", "app_dir", cfg.AppDir, "repo_dir", cfg.RepoDir, "sync_mode", cfg.SyncMode, "document_search", cfg.TikaURL != "", "oidc", cfg.OIDC.Issuer != "")
+	if *provisionOAuthClient {
+		if *oauthClientName == "" || len(oauthClientRedirects) == 0 {
+			log.Fatal("-oauth-client-add requires -oauth-client-name and at least one -oauth-client-redirect-uri")
+		}
+		if err := config.ValidateWritableDataDir(cfg.AppDir); err != nil {
+			log.Fatalf("unsafe app directory: %v", err)
+		}
+		scopes := strings.Split(*oauthClientScopeText, ",")
+		client, err := ProvisionOAuthClient(cfg, *oauthClientName, oauthClientRedirects, *oauthClientAuth, scopes)
+		if err != nil {
+			log.Fatalf("provisioning OAuth client failed: %v", err)
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "Client ID: %s\n", client.ClientID)
+		if client.Secret != "" {
+			_, _ = fmt.Fprintf(os.Stdout, "Client secret (shown once): %s\n", client.Secret)
+		}
+		return
+	}
 	finishStage := debugStartupStage("validate data directories")
 	for _, path := range []string{cfg.AppDir, cfg.RepoDir} {
 		slog.Debug("validating data directory", "path", path)
@@ -183,13 +228,33 @@ func Run() {
 	if !authn.HasUsers() && cfg.OIDC.Issuer == "" {
 		log.Fatal("no users.json: set HMD_ADMIN_USER and HMD_ADMIN_PASSWORD or configure OIDC admission")
 	}
+	var oauthService *oauthserver.Service
+	if cfg.OAuth.Enabled {
+		oauthState, err := oauthserver.OpenStore(cfg.AppDir)
+		if err != nil {
+			log.Fatalf("open OAuth state failed: %v", err)
+		}
+		oauthService, err = oauthserver.NewService(oauthserver.ServerOptions{
+			Issuer: cfg.BaseURL, AllowAdminDelegation: cfg.OAuth.AllowAdminDelegation,
+			DynamicRegistration: cfg.OAuth.DynamicRegistration,
+		}, oauthState, authn)
+		if err != nil {
+			_ = oauthState.Close()
+			log.Fatalf("configure OAuth failed: %v", err)
+		}
+		authn.SetOAuthBearerVerifier(oauthService.BearerVerifier())
+	}
 	finishStage = debugStartupStage("parse templates")
 	templates, err := web.ParseTemplates()
 	if err != nil {
 		log.Fatalf("Parsing templates: %v", err)
 	}
 	finishStage()
-	application := &web.App{API: api.New(content, index, authn), Auth: authn, Render: renderer, Tmpl: templates}
+	apiClient := api.New(content, index, authn)
+	if oauthService != nil {
+		apiClient.SetOAuthUploadAuthorizer(oauthService)
+	}
+	application := &web.App{API: apiClient, Auth: authn, Render: renderer, Tmpl: templates, OAuth: oauthService}
 	application.SetConfig(cfg)
 	application.SetWikiConfig(wikiConfig)
 	application.SetNamespaces(namespaces)
@@ -221,9 +286,26 @@ func Run() {
 		if err := index.Close(); err != nil {
 			slog.Warn("closing search index", "err", err)
 		}
+		if oauthService != nil {
+			if err := oauthService.Close(); err != nil {
+				slog.Warn("closing OAuth state store", "err", err)
+			}
+		}
 	}()
 	slog.Debug("startup completed; HTTP server listening", "bind", cfg.Bind)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+type stringListFlag []string
+
+func (s *stringListFlag) String() string { return strings.Join(*s, ",") }
+
+func (s *stringListFlag) Set(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("value must not be empty")
+	}
+	*s = append(*s, value)
+	return nil
 }

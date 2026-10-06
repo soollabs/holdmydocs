@@ -266,15 +266,40 @@ func TestOIDCCallbackSuccess(t *testing.T) {
 	assertOIDCFlowCookiesCleared(t, response)
 }
 
+func TestOIDCCallbackRejectsContinuationBoundToDifferentState(t *testing.T) {
+	authn, err := OpenAuth(config.Config{AppDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		API: api.New(nil, nil, authn), Auth: authn,
+		OIDC: &OIDCAuth{AuthenticateFunc: func(context.Context, string, string) (oidcClaims, string, error) {
+			t.Fatal("OIDC token exchange ran with a mismatched continuation state")
+			return oidcClaims{}, "", nil
+		}},
+	}
+	app.SetConfig(config.Config{OIDC: config.OIDCConfig{AllowAnyAuthenticated: true, DefaultScopes: []string{"read"}}})
+	request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=expected&code=code", nil)
+	request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "expected"})
+	request.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
+	request.AddCookie(&http.Cookie{Name: "hmd_oidc_continue", Value: "other-state.hmd_oh_handle"})
+	response := httptest.NewRecorder()
+	app.handleOIDCCallback(response, request)
+	if response.Code != http.StatusBadRequest || authn.HasUsers() {
+		t.Fatalf("mismatched continuation response = %d, user created=%v", response.Code, authn.HasUsers())
+	}
+	assertOIDCFlowCookiesCleared(t, response)
+}
+
 func assertOIDCFlowCookiesCleared(t *testing.T, response *httptest.ResponseRecorder) {
 	t.Helper()
 	cleared := map[string]bool{}
 	for _, cookie := range response.Result().Cookies() {
-		if cookie.Name == "hmd_oidc_state" || cookie.Name == "hmd_oidc_pkce" {
+		if cookie.Name == "hmd_oidc_state" || cookie.Name == "hmd_oidc_pkce" || cookie.Name == "hmd_oidc_continue" {
 			cleared[cookie.Name] = cookie.MaxAge < 0 && cookie.Value == ""
 		}
 	}
-	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
+	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce", "hmd_oidc_continue"} {
 		if !cleared[name] {
 			t.Errorf("%s was not cleared", name)
 		}

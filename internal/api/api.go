@@ -5,6 +5,7 @@
 package api
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 
@@ -19,9 +20,10 @@ import (
 // by application operations. It is not a public bag of Store and Index fields;
 // adapters reach persistence and indexing through operations, not directly.
 type API struct {
-	store *store.Store
-	index *search.Index
-	auth  *auth.Auth
+	store            *store.Store
+	index            *search.Index
+	auth             *auth.Auth
+	uploadAuthorizer OAuthUploadAuthorizer
 
 	cfg        atomic.Pointer[config.Config]
 	wikiCfg    atomic.Pointer[wiki.WikiConfig]
@@ -29,6 +31,19 @@ type API struct {
 
 	uploadMu sync.Mutex
 	uploads  map[string]UploadCapability
+}
+
+// OAuthUploadAuthorizer rechecks an OAuth grant when a detached upload
+// capability is redeemed. It is deliberately narrow and keeps api independent
+// of the OAuth implementation.
+type OAuthUploadAuthorizer interface {
+	AuthorizeUpload(ctx context.Context, grantID, familyID, user, slug string, issuedScopes []string) bool
+}
+
+// SetOAuthUploadAuthorizer installs the OAuth-specific capability verifier.
+// It is called during application composition before serving requests.
+func (a *API) SetOAuthUploadAuthorizer(authorizer OAuthUploadAuthorizer) {
+	a.uploadAuthorizer = authorizer
 }
 
 // New constructs an API over its dependencies. Snapshots start empty and are

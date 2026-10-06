@@ -159,6 +159,21 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 		}
 	})
 
+	currentCfg := a.Config()
+	if currentCfg.OAuth.Enabled {
+		baseURL := currentCfg.BaseURL
+		if currentCfg.EnvOverrides["BaseURL"] == "" {
+			baseURL = strings.TrimRight(fc.BaseURL, "/")
+		}
+		mcpEnabled := currentCfg.MCP.Enabled
+		if currentCfg.EnvOverrides["MCP.Enabled"] == "" {
+			mcpEnabled = fc.MCP.Enabled
+		}
+		if baseURL != currentCfg.BaseURL || !mcpEnabled {
+			return InvalidInput("OAuth issuer and MCP availability require a restart; change them in deployment configuration", nil)
+		}
+	}
+
 	if err := config.SaveFileConfig(configPath, fc); err != nil {
 		return Unavailable("saving config", err)
 	}

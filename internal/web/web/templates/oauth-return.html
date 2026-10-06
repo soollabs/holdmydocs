@@ -1,0 +1,7 @@
+{{define "content"}}
+<div class="content-col">
+<h2>Return to MCP client</h2>
+<p><a id="oauth-return-link" href="{{.OAuthRedirect}}" rel="noreferrer">Continue to the MCP client</a></p>
+</div>
+<script nonce="{{.CSPNonce}}">window.location.replace({{.OAuthRedirect}});</script>
+{{end}}

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"hmd/internal/api"
+	"hmd/internal/auth"
 	"hmd/internal/wiki"
 )
 
@@ -20,13 +22,23 @@ func (s *Server) user(ctx context.Context) string {
 // requireScope enforces the scope a tool needs, delegating to the shared
 // application access primitive so bearer and session scopes are treated alike.
 func (s *Server) requireScope(ctx context.Context, scope api.Scope) error {
-	return s.api.RequireScope(ctx, scope)
+	err := s.api.RequireScope(ctx, scope)
+	if api.CategoryOf(err) != api.CategoryForbidden {
+		return err
+	}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && principal.GrantID != "" {
+		return fmt.Errorf("insufficient_scope: this action requires the %q scope; reconnect and approve it if your current HMD permissions allow it", scope)
+	}
+	return fmt.Errorf("insufficient scope: the %q permission is required", scope)
 }
 
 // requireNamespace rejects a namespace outside the caller's namespace access.
 func (s *Server) requireNamespace(ctx context.Context, namespace string) error {
 	if api.AllowNamespace(ctx, namespace) {
 		return nil
+	}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && principal.GrantID != "" {
+		return fmt.Errorf("namespace access denied: reconnect and approve access to namespace %q", namespace)
 	}
 	return fmt.Errorf("forbidden: namespace %q is not allowed", namespace)
 }
@@ -35,6 +47,10 @@ func (s *Server) requireNamespace(ctx context.Context, namespace string) error {
 func (s *Server) requireSlug(ctx context.Context, slug string) error {
 	if api.AllowSlug(ctx, slug) {
 		return nil
+	}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && principal.GrantID != "" {
+		namespace, _, _ := strings.Cut(slug, "/")
+		return fmt.Errorf("namespace access denied: reconnect and approve access to namespace %q", namespace)
 	}
 	return fmt.Errorf("forbidden: namespace access denied")
 }

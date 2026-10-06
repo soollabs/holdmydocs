@@ -8,10 +8,13 @@ import (
 // UploadCapability is a one-use, time-bounded permission to upload one
 // attachment to one page.
 type UploadCapability struct {
-	Slug     string
-	Filename string
-	User     string
-	Expires  time.Time
+	Slug          string
+	Filename      string
+	User          string
+	Expires       time.Time
+	OAuthGrantID  string
+	OAuthFamilyID string
+	OAuthScopes   []string
 }
 
 // MaxPendingUploadCapabilities bounds the number of outstanding upload capabilities.

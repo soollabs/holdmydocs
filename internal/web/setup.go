@@ -19,7 +19,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"web/templates/widgets/outline.html", "web/templates/widgets/page-meta.html",
 		"web/templates/widgets/backlinks.html", "web/templates/widgets/prev-entries.html",
 	}
-	for _, name := range []string{"login", "page", "edit", "create", "error", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit"} {
+	for _, name := range []string{"login", "page", "edit", "create", "error", "search", "history", "tags", "settings", "admin", "hidden", "namespace", "namespaces", "namespace-edit", "oauth-consent", "oauth-return", "connections", "oauth-clients"} {
 		files := append([]string{"web/templates/base.html", "web/templates/" + name + ".html"}, widgetFiles...)
 		parsed, err := template.New(name).Funcs(funcs).ParseFS(webFS, files...)
 		if err != nil {

@@ -6,7 +6,9 @@ require (
 	github.com/blevesearch/bleve/v2 v2.6.1
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-git/go-git/v5 v5.19.2
+	github.com/go-oauth2/oauth2/v4 v4.6.0
 	github.com/goccy/go-yaml v1.19.2
+	github.com/gofrs/flock v0.13.1
 	github.com/knights-analytics/hugot v0.7.8
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
@@ -50,7 +52,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
-	github.com/gofrs/flock v0.13.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/gomlx/compute v0.1.6 // indirect

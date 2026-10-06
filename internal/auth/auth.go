@@ -52,6 +52,8 @@ type tokenPrincipal struct {
 	User       string
 	Namespaces []string
 	Scopes     []string
+	GrantID    string
+	FamilyID   string
 }
 
 func (p tokenPrincipal) HasScope(need scope) bool {
@@ -240,8 +242,30 @@ type Auth struct {
 	sessions      map[string]sessionRecord // token -> session
 	tokenCache    map[string]cachedToken   // PAT digest -> user + expiry
 	loginAttempts map[string]loginAttempt
+	oauthVerifier OAuthBearerVerifier
 	bcryptSem     chan struct{}
 	mu            sync.RWMutex
+}
+
+// OAuthBearerVerifier resolves an OAuth access token using live grant and user
+// policy. It is deliberately an interface so auth has no OAuth package
+// dependency.
+type OAuthBearerVerifier interface {
+	VerifyBearer(ctx context.Context, token, path string) (TokenPrincipal, bool)
+	Challenge() string
+}
+
+// SetOAuthBearerVerifier installs the optional OAuth bearer resolver.
+func (a *Auth) SetOAuthBearerVerifier(verifier OAuthBearerVerifier) {
+	a.mu.Lock()
+	a.oauthVerifier = verifier
+	a.mu.Unlock()
+}
+
+func (a *Auth) getOAuthBearerVerifier() OAuthBearerVerifier {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.oauthVerifier
 }
 
 type Options struct {
@@ -1069,12 +1093,42 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if browserOAuthPath(r.URL.Path) {
+			if r.Header.Get("Authorization") != "" {
+				http.Error(w, "browser session required", http.StatusUnauthorized)
+				return
+			}
+			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
+				(r.URL.Path == "/_/oauth/authorize" || r.URL.Path == "/_/connections") {
+				if cookie, err := r.Cookie("hmd_session"); err == nil && cookie.Value != "" {
+					if user, ok := a.UserFor(cookie.Value); ok {
+						r = r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, user))
+					}
+				}
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		if publicOAuthMetadataPath(r.URL.Path) || protocolOAuthPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		isAPI := strings.HasPrefix(r.URL.Path, "/_/api/") || r.URL.Path == "/_/mcp"
 
 		// API auth failures return JSON instead of redirecting to the login page.
 		deny := func(status int, msg string) {
 			if isAPI {
+				if r.URL.Path == "/_/mcp" {
+					verifier := a.getOAuthBearerVerifier()
+					if verifier != nil {
+						challenge := verifier.Challenge()
+						if r.Header.Get("Authorization") != "" {
+							challenge = `Bearer error="invalid_token"`
+						}
+						w.Header().Set("WWW-Authenticate", challenge)
+					}
+				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(status)
 				if _, err := w.Write([]byte(`{"error":"` + msg + `"}`)); err != nil {
@@ -1095,8 +1149,18 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		var rawPrincipal tokenPrincipal
 
 		// An invalid Bearer credential must not fall through to cookie authentication.
-		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			rawPrincipal, authed = a.UserForBearerLimited(r.RemoteAddr, strings.TrimPrefix(h, "Bearer "))
+		if authorization := r.Header.Get("Authorization"); authorization != "" {
+			scheme, credential, hasCredential := strings.Cut(strings.TrimSpace(authorization), " ")
+			fields := strings.Fields(credential)
+			if strings.EqualFold(scheme, "Bearer") && hasCredential && len(fields) == 1 {
+				raw := fields[0]
+				rawPrincipal, authed = a.UserForBearerLimited(r.RemoteAddr, raw)
+				if !authed {
+					if verifier := a.getOAuthBearerVerifier(); verifier != nil {
+						rawPrincipal, authed = verifier.VerifyBearer(r.Context(), raw, r.URL.Path)
+					}
+				}
+			}
 			if authed {
 				user = rawPrincipal.User
 				bearer = true
@@ -1146,4 +1210,46 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func publicOAuthMetadataPath(path string) bool {
+	switch path {
+	case "/.well-known/oauth-authorization-server",
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/_/mcp":
+		return true
+	default:
+		return false
+	}
+}
+
+func protocolOAuthPath(path string) bool {
+	switch path {
+	case "/_/oauth/authorize", "/_/oauth/token", "/_/oauth/revoke", "/_/oauth/register":
+		return true
+	default:
+		return false
+	}
+}
+
+func oauthConnectionPath(path string) bool {
+	const prefix = "/_/connections/"
+	rest, ok := strings.CutPrefix(path, prefix)
+	if !ok {
+		return path == "/_/connections"
+	}
+	id, suffix, ok := strings.Cut(rest, "/")
+	if !ok || suffix != "revoke" || !strings.HasPrefix(id, "hmd_g_") || len(id) != len("hmd_g_")+32 {
+		return false
+	}
+	for _, r := range id[len("hmd_g_"):] {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
+func browserOAuthPath(path string) bool {
+	return path == "/_/oauth/authorize" || oauthConnectionPath(path)
 }

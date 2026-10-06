@@ -6,6 +6,7 @@
 	<span class="current">admin</span>
 </div>
 <h1 class="page-title"><span class="h"></span>admin settings</h1>
+{{if .OAuthEnabled}}<p><a href="/_/admin/oauth">Manage MCP OAuth clients</a></p>{{end}}
 
 {{if .Settings}}
 	{{if .Settings.Flash}}

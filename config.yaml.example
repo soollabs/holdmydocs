@@ -112,3 +112,11 @@ sync_poll_ms: 10000
 # Requires a personal access token from /settings. Restart required.
 # mcp:
 #   enabled: true
+
+# --- MCP OAuth ---
+# Requires MCP and a canonical HTTPS base_url. Restart after configuration
+# changes. Manage MCP clients at /_/admin/oauth.
+# oauth:
+#   enabled: true
+#   dynamic_registration: false  # opt-in public RFC 7591 registration
+#   allow_admin_delegation: false

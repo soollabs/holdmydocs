@@ -1,0 +1,70 @@
+{{define "content"}}
+<div class="content-col oauth-page oauth-consent">
+	<header class="oauth-heading">
+		<p class="oauth-eyebrow">Application access</p>
+		<h1 class="page-title">Connect to HoldMyDocs</h1>
+		<p><strong>{{.OAuthPrompt.ClientName}}</strong> wants to use your account.</p>
+	</header>
+	<section class="oauth-panel" aria-label="Connection details">
+		<dl class="oauth-facts">
+			<dt>Signed in as</dt><dd>{{.OAuthPrompt.User}}</dd>
+			<dt>Returning to</dt><dd><code>{{.OAuthPrompt.RedirectHost}}</code></dd>
+		</dl>
+		<p class="oauth-help">Only continue if you started this connection and trust the application. Its name is supplied by the client, not verified by HoldMyDocs.</p>
+		<details class="oauth-details">
+			<summary>Technical details</summary>
+			<dl class="oauth-facts">
+				<dt>Client ID</dt><dd><code>{{.OAuthPrompt.ClientID}}</code></dd>
+				<dt>Resource</dt><dd><code>{{.OAuthPrompt.Resource}}</code></dd>
+				<dt>Requested actions</dt><dd>{{range $i, $scope := .OAuthPrompt.RequestedScopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</dd>
+			</dl>
+		</details>
+	</section>
+	<form method="POST" action="/_/oauth/authorize" id="oauth-consent-form">
+		{{template "csrf" .}}
+		<input type="hidden" name="request" value="{{.OAuthPrompt.Handle}}">
+		<fieldset class="oauth-fieldset">
+			<legend>1. Choose actions</legend>
+			<p class="oauth-help">Allow only what this application needs.</p>
+			{{range .OAuthPrompt.AvailableScopes}}
+			<label class="oauth-choice">
+				<input type="checkbox" name="scope" value="{{.}}"{{if ne . "settings"}} checked{{end}}>
+				<span>{{if eq . "read"}}<strong>Read</strong><small>View and search pages, namespaces and attachments.</small>{{else if eq . "write"}}<strong>Write</strong><small>Create, edit, move and delete content. Does not include read access.</small>{{else}}<strong>Administrator access</strong><small>Manage settings and access every namespace, including future ones. Cannot be restricted.</small>{{end}}</span>
+			</label>
+			{{else}}
+			<p class="oauth-notice oauth-warning" role="alert">Your account cannot allow any of the requested actions. Deny this request and check your permissions.</p>
+			{{end}}
+		</fieldset>
+		{{if .OAuthPrompt.AdminScopeRequested}}
+		<p id="oauth-admin-warning" class="oauth-notice oauth-warning" hidden><strong>Unrestricted administrator access.</strong> Namespace restrictions below do not apply while this action is selected.</p>
+		{{end}}
+		<fieldset class="oauth-fieldset" id="oauth-namespace-access">
+			<legend>2. Choose namespaces</legend>
+			<label class="oauth-choice">
+				<input type="radio" name="namespace_mode" value="selected" checked>
+				<span><strong>Selected namespaces</strong><small>Limit access to the namespaces you choose below.</small></span>
+			</label>
+			<div class="oauth-namespaces" id="oauth-namespace-list">
+				{{range .OAuthPrompt.NamespaceNames}}
+				<label class="oauth-namespace"><input type="checkbox" name="namespace" value="{{.}}"><span>{{.}}</span></label>
+				{{else}}
+				<p class="oauth-help">No namespaces are configured yet.</p>
+				{{end}}
+			</div>
+			<label class="oauth-choice">
+				<input type="radio" name="namespace_mode" value="all">
+				<span><strong>All namespaces</strong><small>Includes namespaces created in the future.</small></span>
+			</label>
+		</fieldset>
+		<footer class="oauth-consent-footer">
+			<p class="oauth-help">You can revoke access at any time in <a href="/_/connections" target="_blank" rel="noopener">Connected applications</a>.</p>
+			<p id="oauth-consent-validation" class="oauth-validation" role="status" aria-live="polite">Select namespace access to continue.</p>
+			<noscript><p class="oauth-notice">JavaScript is needed to approve this connection. You can still deny it.</p></noscript>
+			<div class="oauth-actions">
+				<button type="submit" name="decision" value="approve" disabled class="oauth-primary" aria-describedby="oauth-consent-validation">Approve connection</button>
+				<button type="submit" name="decision" value="deny" class="ghost-btn" formnovalidate>Deny</button>
+			</div>
+		</footer>
+	</form>
+</div>
+{{end}}

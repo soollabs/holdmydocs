@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/httpmiddleware"
+	"hmd/internal/oauthserver"
 	"hmd/internal/wiki"
 )
 
@@ -31,6 +33,7 @@ type App struct {
 	Render *wiki.Renderer
 	Tmpl   map[string]*template.Template
 	OIDC   *auth.OIDC // nil when OIDC is disabled
+	OAuth  *oauthserver.Service
 }
 
 func (app *App) apiClient() *api.API { return app.API }
@@ -119,6 +122,8 @@ type TemplateData struct {
 	OIDCButtonText          string // SSO button label
 	OIDCLocalLogin          bool   // show the password form alongside SSO
 	OIDCIcon                bool   // show the icon (served at /auth/oidc/icon) on the SSO button
+	OAuthContinue           string // opaque, server-side OAuth login continuation handle
+	OAuthEnabled            bool
 	SearchElapsed           string // search timing, e.g. "3ms"
 	SearchHits              int    // match count, for search stats
 	AttachmentHits          int    // attachment match count, for search stats
@@ -140,7 +145,16 @@ type TemplateData struct {
 	HelpFileExists          bool
 	SetupNamespace          string   // new-namespace name the setup form suggests
 	SetupNamespaces         []string // existing namespaces offered as the landing choice
-	SetupSiteName           string   // portable site-name default for first setup
+	OAuthPrompt             *oauthserver.AuthorizationPrompt
+	OAuthConnections        []oauthserver.Connection
+	OAuthClients            []oauthserver.ClientSummary
+	OAuthCreatedClient      *oauthserver.ProvisionedClient
+	OAuthClientForm         url.Values
+	OAuthClientRead         bool
+	OAuthClientWrite        bool
+	OAuthDisabledClients    int
+	OAuthRedirect           string
+	SetupSiteName           string // portable site-name default for first setup
 	RoutePrefix             string
 	IsHidden                bool
 	IsNamespaceIndex        bool
@@ -185,6 +199,7 @@ type LogEntry struct {
 }
 
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
+	data.OAuthEnabled = app.OAuth != nil
 	if data.SiteName == "" {
 		data.SiteName = app.wikiConfig().SiteName
 	}
@@ -202,7 +217,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	// Anonymous error pages deliberately remain byte-identical so private and
 	// missing pages cannot become an existence oracle.
-	if data.Authed || data.NamespacePublic {
+	if data.Authed || data.NamespacePublic || name == "login" {
 		data.CSPNonce = httpmiddleware.CspNonce(r.Context())
 	}
 	// Use the current page's namespace as the default destination.

@@ -10,7 +10,7 @@
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}style.css{{else}}{{static "style.css"}}{{end}}">
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}skins.css{{else}}{{static "skins.css"}}{{end}}">
 	{{if .Static}}<link rel="stylesheet" href="{{.AssetPath}}export.css">{{end}}
-	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='%2300ff9c' font-family='monospace'%3E%23%3C/text%3E%3C/svg%3E">
+	<link rel="icon" href="{{.AssetPath}}icon.svg" type="image/svg+xml">
 	{{if not .Static}}<link rel="manifest" href="{{static "manifest.json"}}">{{end}}
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
 	<meta name="mobile-web-app-capable" content="yes">
@@ -103,6 +103,7 @@
 				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
 				<div class="topbar-menu-items">
 					<a href="/_/settings">Settings</a>
+					{{if .OAuthEnabled}}<a href="/_/connections">Connected applications</a>{{end}}
 					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
@@ -282,6 +283,7 @@
 	<script src="{{.AssetPath}}export.js"></script>
 	{{end}}
 	{{if .Authed}}<script src="{{static "app.js"}}"></script>{{end}}
+	{{if and .Authed .OAuthEnabled}}<script src="{{static "oauth.js"}}"></script>{{end}}
 	{{if .RailWidgets}}<script src="{{if .Static}}{{.AssetPath}}toc.js{{else}}{{static "toc.js"}}{{end}}"></script>{{end}}
 	{{if or .Authed .SidebarTree}}<script src="{{if .Static}}{{.AssetPath}}sidebar.js{{else}}{{static "sidebar.js"}}{{end}}"></script>{{end}}
 </body>

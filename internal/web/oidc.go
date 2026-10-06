@@ -3,9 +3,12 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"golang.org/x/oauth2"
 	internalauth "hmd/internal/auth"
@@ -56,7 +59,7 @@ func (app *App) oidcFlowCookie(w http.ResponseWriter, r *http.Request, name, val
 }
 
 func (app *App) clearOIDCFlowCookies(w http.ResponseWriter, r *http.Request) {
-	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce"} {
+	for _, name := range []string{"hmd_oidc_state", "hmd_oidc_pkce", "hmd_oidc_continue"} {
 		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()), SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/"})
 	}
 }
@@ -75,27 +78,49 @@ func (app *App) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	pkce := oauth2.GenerateVerifier()
 	app.oidcFlowCookie(w, r, "hmd_oidc_state", state)
 	app.oidcFlowCookie(w, r, "hmd_oidc_pkce", pkce)
+	if continuation := r.URL.Query()["continue"]; len(continuation) == 1 && continuation[0] != "" {
+		app.oidcFlowCookie(w, r, "hmd_oidc_continue", state+"."+continuation[0])
+	} else {
+		http.SetCookie(w, &http.Cookie{
+			Name: "hmd_oidc_continue", Value: "", MaxAge: -1,
+			HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()),
+			SameSite: http.SameSiteLaxMode, Path: "/_/auth/oidc/",
+		})
+	}
 	http.Redirect(w, r, app.OIDC.AuthCodeURL(state, pkce), http.StatusSeeOther)
 }
 
 func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
+	continuationCookie, _ := r.Cookie("hmd_oidc_continue")
 	app.clearOIDCFlowCookies(w, r)
 	if app.OIDC == nil {
 		http.NotFound(w, r)
 		return
 	}
 	stateCookie, err := r.Cookie("hmd_oidc_state")
-	if err != nil || stateCookie.Value == "" || r.URL.Query().Get("state") != stateCookie.Value {
+	states := r.URL.Query()["state"]
+	if err != nil || stateCookie.Value == "" || len(states) != 1 ||
+		subtle.ConstantTimeCompare([]byte(states[0]), []byte(stateCookie.Value)) != 1 {
 		slog.Warn("OIDC callback state mismatch")
 		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
+	continuation := ""
+	if continuationCookie != nil && continuationCookie.Value != "" {
+		state, handle, ok := strings.Cut(continuationCookie.Value, ".")
+		if !ok || handle == "" || subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 {
+			http.Error(w, "OIDC login failed", http.StatusBadRequest)
+			return
+		}
+		continuation = handle
+	}
 	pkceCookie, err := r.Cookie("hmd_oidc_pkce")
-	if err != nil || pkceCookie.Value == "" {
+	codes := r.URL.Query()["code"]
+	if err != nil || pkceCookie.Value == "" || len(codes) != 1 || codes[0] == "" {
 		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
-	claims, issuer, err := app.OIDC.Authenticate(r.Context(), r.URL.Query().Get("code"), pkceCookie.Value)
+	claims, issuer, err := app.OIDC.Authenticate(r.Context(), codes[0], pkceCookie.Value)
 	if err != nil {
 		slog.Warn("OIDC authentication failed", "error", err)
 		http.Error(w, "OIDC login failed", http.StatusBadGateway)
@@ -125,5 +150,16 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("OIDC login", "username", username)
 	http.SetCookie(w, &http.Cookie{Name: "hmd_session", Value: sessionToken, HttpOnly: true, Secure: httpmiddleware.SecureCookie(r, app.config()), SameSite: http.SameSiteLaxMode, Path: "/", MaxAge: 30 * 24 * 60 * 60})
+	if continuation != "" {
+		flowCookie, _ := r.Cookie("hmd_oauth_flow")
+		if app.OAuth == nil || flowCookie == nil ||
+			app.OAuth.BindAuthorization(continuation, flowCookie.Value, username, sessionToken) != nil {
+			app.Auth.Logout(sessionToken)
+			http.Error(w, "OAuth login continuation expired; start the connection again", http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, "/_/oauth/authorize?request="+url.QueryEscape(continuation), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }
