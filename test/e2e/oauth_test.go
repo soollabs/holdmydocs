@@ -244,7 +244,7 @@ func beginOAuthConsent(t *testing.T, browser *http.Client, base, clientID, state
 			t.Fatalf("consent page = %d: %s", consent.StatusCode, consentBody)
 		}
 	}
-	if !strings.Contains(consentBody, "Connect an application") {
+	if !strings.Contains(consentBody, "Connect to HoldMyDocs") {
 		t.Fatalf("consent page missing title: %s", consentBody)
 	}
 	csrf := captureE2E(t, `name="csrf_token" value="([^"]+)"`, consentBody)

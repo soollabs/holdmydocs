@@ -92,6 +92,9 @@ func parseOAuthForm(w http.ResponseWriter, r *http.Request) (url.Values, error) 
 }
 
 func (s *Service) authenticateClient(r *http.Request, form url.Values) (parsedClientCredentials, error) {
+	if len(r.Header.Values("Authorization")) > 1 {
+		return parsedClientCredentials{}, errors.New("multiple client authentication headers")
+	}
 	authHeader := r.Header.Get("Authorization")
 	formID, formIDExists := singleFormValue(form, "client_id")
 	formSecret, formSecretExists := singleFormValue(form, "client_secret")
@@ -187,8 +190,8 @@ func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.
 	}
 	codeRecord, ok := snapshot.Tokens["c:"+tokenDigest(code)]
 	if !ok || codeRecord.CodeDigest != tokenDigest(code) ||
-		!codeRecord.ConsumedAt.IsZero() || !codeRecord.RevokedAt.IsZero() ||
-		!codeRecord.CodeExpiresAt.IsZero() && time.Now().After(codeRecord.CodeExpiresAt) {
+		!codeRecord.RevokedAt.IsZero() ||
+		codeRecord.ConsumedAt.IsZero() && !codeRecord.CodeExpiresAt.IsZero() && time.Now().After(codeRecord.CodeExpiresAt) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorisation code is invalid or expired")
 		return
 	}
@@ -199,6 +202,17 @@ func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.
 	}
 	if ValidatePKCEVerifier(verifier, codeRecord.PKCEChallenge) != nil {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "PKCE verification failed")
+		return
+	}
+	if !codeRecord.ConsumedAt.IsZero() {
+		// RFC 6749 section 4.1.2: revoke credentials derived from a reused
+		// code. Verify client, callback, resource and PKCE first so knowledge
+		// of a code alone cannot be used to disconnect its owner.
+		if err := s.revokeFamily(codeRecord.FamilyID, "authorisation code reuse"); err != nil {
+			writeOAuthError(w, http.StatusInternalServerError, "server_error", "could not revoke reused code family")
+			return
+		}
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorisation code reuse revoked the token family")
 		return
 	}
 	grant, ok := snapshot.Grants[codeRecord.GrantID]
@@ -218,13 +232,21 @@ func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.
 		Code: code, CodeVerifier: verifier, Request: request,
 	}
 	var info oauth2.TokenInfo
+	replayDetected := false
 	transactionContext := context.WithValue(r.Context(), redirectURIContextKey{}, redirectURI)
 	err = s.store.Transaction(transactionContext, func(ctx context.Context) error {
 		state := transactionState(ctx)
 		current := state.Tokens["c:"+tokenDigest(code)]
-		if current.CodeDigest != tokenDigest(code) || !current.ConsumedAt.IsZero() ||
-			current.ClientID != client.id || current.Resource != resource {
+		if current.CodeDigest != tokenDigest(code) || !current.RevokedAt.IsZero() ||
+			current.ClientID != client.id || current.Resource != resource ||
+			current.RedirectURI != redirectURI || current.Issuer != s.options.Issuer ||
+			ValidatePKCEVerifier(verifier, current.PKCEChallenge) != nil {
 			return oautherrors.ErrInvalidAuthorizeCode
+		}
+		if !current.ConsumedAt.IsZero() {
+			revokeFamilyState(state, current.FamilyID, "authorisation code reuse", time.Now().UTC())
+			replayDetected = true
+			return nil
 		}
 		currentGrant, exists := state.Grants[current.GrantID]
 		if !exists || !currentGrant.RevokedAt.IsZero() ||
@@ -244,6 +266,10 @@ func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.
 	})
 	if err != nil {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorisation code could not be redeemed")
+		return
+	}
+	if replayDetected {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorisation code reuse revoked the token family")
 		return
 	}
 	writeTokenResponse(w, info)
@@ -478,11 +504,8 @@ func (s *Service) handleRevocation(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "token is required")
 		return
 	}
-	hint, hintOK := singleFormValue(form, "token_type_hint")
-	if hintOK && hint != "access_token" && hint != "refresh_token" {
-		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "unsupported token_type_hint")
-		return
-	}
+	// RFC 7009 section 2.1: an unknown hint is ignored. Both supported token
+	// indexes are searched below, regardless of the caller's hint.
 	state, err := s.store.Snapshot()
 	if err != nil {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "OAuth state is unavailable")

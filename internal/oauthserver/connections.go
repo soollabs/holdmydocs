@@ -26,6 +26,11 @@ func (s *Service) Connections(user string) ([]Connection, error) {
 	if err != nil {
 		return nil, err
 	}
+	revokedFamilies := make(map[string]bool)
+	for _, family := range state.Families {
+		allRevoked, seen := revokedFamilies[family.GrantID]
+		revokedFamilies[family.GrantID] = (!seen || allRevoked) && !family.RevokedAt.IsZero()
+	}
 	var result []Connection
 	for _, grant := range state.Grants {
 		if grant.User != user {
@@ -38,7 +43,7 @@ func (s *Service) Connections(user string) ([]Connection, error) {
 			NamespaceMode: grant.NamespaceMode,
 			Namespaces:    append([]string(nil), grant.Namespaces...),
 			CreatedAt:     grant.CreatedAt, ExpiresAt: grant.ExpiresAt,
-			Revoked: !grant.RevokedAt.IsZero(),
+			Revoked: !grant.RevokedAt.IsZero() || client.Disabled || revokedFamilies[grant.ID],
 			Expired: !grant.ExpiresAt.IsZero() && time.Now().After(grant.ExpiresAt),
 		})
 	}

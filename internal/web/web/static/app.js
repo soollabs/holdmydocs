@@ -1669,29 +1669,4 @@
     namespace: fieldValue(form, 'namespace'),
     add_help: fieldOn(form, 'add_help')
   }), () => { window.location.reload(); });
-  // MCP consent: denial is always available; approval needs an action and
-  // either selected namespaces or explicit all-namespace access.
-  const consentForm = $('#oauth-consent-form');
-  if (consentForm) {
-    const approve = $('button[value="approve"]', consentForm);
-    const validation = $('#oauth-consent-validation');
-    function validateConsent() {
-      const hasScope = !!$('input[name="scope"]:checked', consentForm);
-      const mode = $('input[name="namespace_mode"]:checked', consentForm)
-        || $('input[type="hidden"][name="namespace_mode"]', consentForm);
-      const hasNamespaces = mode && (mode.value === 'all'
-        || !!$('input[name="namespace"]:checked', consentForm));
-      const message = !hasScope ? 'Choose at least one action.'
-        : !hasNamespaces ? 'Select at least one namespace or allow all namespaces.' : '';
-      approve.disabled = !!message;
-      validation.textContent = message;
-      return !message;
-    }
-    consentForm.addEventListener('change', validateConsent);
-    consentForm.addEventListener('submit', event => {
-      if (event.submitter && event.submitter.value === 'deny') return;
-      if (!validateConsent()) event.preventDefault();
-    });
-    validateConsent();
-  }
 })();

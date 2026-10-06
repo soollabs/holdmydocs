@@ -53,6 +53,22 @@ func TestCompression(t *testing.T) {
 	}
 }
 
+func TestOAuthCredentialResponsesAreNotCompressed(t *testing.T) {
+	handler := Compression(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "synthetic credentials and client-controlled text")
+	}))
+	for _, path := range []string{"/_/oauth/token", "/_/oauth/authorize", "/_/oauth/register", "/_/admin/oauth"} {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Header().Get("Content-Encoding") != "" {
+			t.Errorf("credential response at %s was compressed", path)
+		}
+	}
+}
+
 func TestRecoveryReturnsGenericErrorAndRequestID(t *testing.T) {
 	handler := AccessLog(RecoverPanic(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("secret panic")

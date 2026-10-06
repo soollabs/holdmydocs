@@ -31,6 +31,12 @@ func (app *App) handleOAuthAuthorizeGet(w http.ResponseWriter, r *http.Request) 
 	}
 	started, err := app.OAuth.StartAuthorization(r, session, app.Namespaces().Names())
 	if err != nil {
+		// RFC 6749 section 4.1.2.1: once the client's redirect URI has been
+		// exactly validated, authorisation errors are sent back to the client.
+		if redirect, ok := oauthserver.ErrorRedirect(err, app.OAuth.Issuer()); ok {
+			http.Redirect(w, r, redirect, http.StatusSeeOther)
+			return
+		}
 		writeOAuthWebError(w, err)
 		return
 	}

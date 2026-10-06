@@ -107,7 +107,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	consent, _ := io.ReadAll(response.Body)
 	if !strings.Contains(string(consent), `value="approve" disabled`) ||
 		!strings.Contains(string(consent), `id="oauth-consent-validation"`) ||
-		!strings.Contains(string(consent), `value="deny">Deny`) {
+		!strings.Contains(string(consent), `value="deny" class="ghost-btn" formnovalidate>Deny`) {
 		t.Fatalf("consent form must gate approval without blocking denial: %s", consent)
 	}
 	if !strings.Contains(string(consent), "Browser-flow test") ||
@@ -169,5 +169,68 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	connections, err = app.OAuth.Connections("admin")
 	if err != nil || len(connections) != 1 || !connections[0].Revoked {
 		t.Fatalf("disconnected connection = %#v, %v", connections, err)
+	}
+}
+
+func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
+	app, server, browser := newTestAppFull(t)
+	store, err := oauthserver.OpenStore(app.config().AppDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	client, err := store.ProvisionClient("Redirect-error test",
+		[]string{"https://client.example.test/callback"}, "none", []string{"read"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.OAuth, err = oauthserver.NewService(oauthserver.ServerOptions{Issuer: "https://wiki.example.test"}, store, app.Auth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Close()
+	server = httptest.NewServer(testHandler(app.App))
+	defer server.Close()
+	base := url.Values{
+		"client_id":             {client.ClientID},
+		"redirect_uri":          {"https://client.example.test/callback"},
+		"response_type":         {"code"},
+		"state":                 {"error-redirect-state"},
+		"code_challenge":        {"7Cf9_Fvrp7a3sr2lTFtL8Y7unb12dzT_5c1NvGm2HSo"},
+		"code_challenge_method": {"S256"},
+	}
+	// A validated redirect URI receives the authorisation error by redirect.
+	invalidScope := base
+	invalidScope["scope"] = []string{"settings"}
+	invalidScope["resource"] = []string{"https://wiki.example.test/_/mcp"}
+	response, err := browser.Get(server.URL + "/_/oauth/authorize?" + invalidScope.Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusSeeOther {
+		t.Fatalf("validated-redirect error = %d, want 303", response.StatusCode)
+	}
+	location, err := url.Parse(response.Header.Get("Location"))
+	if err != nil || location.Host != "client.example.test" || location.Path != "/callback" ||
+		location.Query().Get("error") != "invalid_scope" ||
+		location.Query().Get("state") != "error-redirect-state" ||
+		location.Query().Get("iss") != "https://wiki.example.test" {
+		t.Fatalf("error redirect = %q", response.Header.Get("Location"))
+	}
+	if response.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal("error redirect is cacheable")
+	}
+	// An unregistered redirect must render an error page, never redirect.
+	wrongRedirect := base
+	wrongRedirect["redirect_uri"] = []string{"https://attacker.example.test/callback"}
+	wrongRedirect["resource"] = []string{"https://wiki.example.test/_/mcp"}
+	response, err = browser.Get(server.URL + "/_/oauth/authorize?" + wrongRedirect.Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest || response.Header.Get("Location") != "" {
+		t.Fatalf("unvalidated redirect = %d %q", response.StatusCode, response.Header.Get("Location"))
 	}
 }

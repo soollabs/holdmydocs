@@ -270,3 +270,8 @@ func (s *Service) Close() error {
 	}
 	return s.store.Close()
 }
+
+// Issuer returns the configured OAuth origin used in error redirects.
+func (s *Service) Issuer() string {
+	return s.options.Issuer
+}

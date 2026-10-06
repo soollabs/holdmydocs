@@ -173,6 +173,9 @@ func validateRedirectURI(raw string) error {
 	if strings.ContainsAny(u.Host, "*\\ \t\r\n") || u.Hostname() == "" || strings.Contains(raw, "#") {
 		return errors.New("invalid redirect host or fragment")
 	}
+	if !redirectQuerySafe(raw) {
+		return errors.New("callback query must not contain OAuth response parameters or malformed encoding")
+	}
 	if u.Scheme == "https" {
 		return nil
 	}
@@ -207,7 +210,18 @@ func (s *Service) Clients() ([]ClientSummary, error) {
 			Disabled: c.Disabled, Dynamic: c.Dynamic, CreatedAt: c.CreatedAt,
 		})
 	}
-	slices.SortFunc(clients, func(a, b ClientSummary) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(clients, func(a, b ClientSummary) int {
+		if a.Disabled != b.Disabled {
+			if a.Disabled {
+				return 1
+			}
+			return -1
+		}
+		if name := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); name != 0 {
+			return name
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
 	return clients, nil
 }
 

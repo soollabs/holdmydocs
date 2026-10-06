@@ -61,7 +61,10 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 	if len(r.URL.RawQuery) > 8192 {
 		return AuthorizationStart{}, invalidRequest("authorisation query is too large")
 	}
-	values := r.URL.Query()
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return AuthorizationStart{}, invalidRequest("malformed authorisation query")
+	}
 	if handles, exists := values["request"]; exists {
 		if len(handles) != 1 || handles[0] == "" || len(values) != 1 {
 			return AuthorizationStart{}, invalidRequest("invalid OAuth continuation")
@@ -167,47 +170,6 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 	if err != nil {
 		return authorizationRequest{}, err
 	}
-	responseType, err := single("response_type", true)
-	if err != nil || responseType != "code" {
-		return authorizationRequest{}, &ProtocolError{Code: "unsupported_response_type", Description: "only the authorisation code response is supported", Status: http.StatusBadRequest}
-	}
-	state, err := single("state", true)
-	if err != nil || len(state) > 2048 {
-		return authorizationRequest{}, invalidRequest("state is required and must be at most 2048 characters")
-	}
-	resource, err := single("resource", true)
-	if err != nil {
-		return authorizationRequest{}, err
-	}
-	if ValidateResource([]string{resource}, s.options.Issuer+mcpResourcePath, true) != nil {
-		return authorizationRequest{}, &ProtocolError{Code: "invalid_target", Description: "unsupported resource", Status: http.StatusBadRequest}
-	}
-	challenge, err := single("code_challenge", true)
-	if err != nil || ValidateS256Challenge(challenge) != nil {
-		return authorizationRequest{}, &ProtocolError{Code: "invalid_request", Description: "a valid S256 PKCE challenge is required", Status: http.StatusBadRequest}
-	}
-	method, err := single("code_challenge_method", true)
-	if err != nil || method != "S256" {
-		return authorizationRequest{}, &ProtocolError{Code: "invalid_request", Description: "only S256 PKCE is supported", Status: http.StatusBadRequest}
-	}
-	responseScope, err := single("scope", false)
-	if err != nil {
-		return authorizationRequest{}, err
-	}
-	if _, supplied := values["scope"]; supplied && responseScope == "" {
-		return authorizationRequest{}, &ProtocolError{Code: "invalid_scope", Description: "scope must be non-empty when supplied", Status: http.StatusBadRequest}
-	}
-	scopes := []string{"read"}
-	if responseScope != "" {
-		scopes, err = NormaliseScopes(strings.Fields(responseScope))
-		if err != nil || len(scopes) == 0 {
-			return authorizationRequest{}, &ProtocolError{Code: "invalid_scope", Description: "unsupported action scope", Status: http.StatusBadRequest}
-		}
-		// Duplicate scope tokens are invalid rather than silently normalised.
-		if len(scopes) != len(strings.Fields(responseScope)) {
-			return authorizationRequest{}, &ProtocolError{Code: "invalid_scope", Description: "duplicate action scope", Status: http.StatusBadRequest}
-		}
-	}
 	stateData, err := s.store.Snapshot()
 	if err != nil {
 		return authorizationRequest{}, &ProtocolError{Code: "server_error", Description: "could not read OAuth registrations", Status: http.StatusInternalServerError}
@@ -224,15 +186,90 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 	if !redirectQuerySafe(redirectURI) {
 		return authorizationRequest{}, &ProtocolError{Code: "invalid_request", Description: "registered redirect URI uses a reserved response parameter", Status: http.StatusBadRequest}
 	}
+	// RFC 6749 section 4.1.2.1: the redirect URI and client are proven, so
+	// every remaining authorisation error is returned to the client via a
+	// redirect instead of an unauthenticated error page.
+	redirectable := func(err *ProtocolError) *ProtocolError {
+		err.RedirectURI, err.State = redirectURI, stateFrom(values)
+		return err
+	}
+	responseType, err := single("response_type", true)
+	if err != nil || responseType != "code" {
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "unsupported_response_type", Description: "only the authorisation code response is supported", Status: http.StatusBadRequest})
+	}
+	state, err := single("state", true)
+	if err != nil || len(state) > 2048 {
+		return authorizationRequest{}, redirectable(invalidRequest("state is required and must be at most 2048 characters"))
+	}
+	resource, err := single("resource", true)
+	if err != nil {
+		return authorizationRequest{}, redirectable(err.(*ProtocolError))
+	}
+	if ValidateResource([]string{resource}, s.options.Issuer+mcpResourcePath, true) != nil {
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_target", Description: "unsupported resource", Status: http.StatusBadRequest})
+	}
+	challenge, err := single("code_challenge", true)
+	if err != nil || ValidateS256Challenge(challenge) != nil {
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_request", Description: "a valid S256 PKCE challenge is required", Status: http.StatusBadRequest})
+	}
+	method, err := single("code_challenge_method", true)
+	if err != nil || method != "S256" {
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_request", Description: "only S256 PKCE is supported", Status: http.StatusBadRequest})
+	}
+	responseScope, err := single("scope", false)
+	if err != nil {
+		return authorizationRequest{}, redirectable(err.(*ProtocolError))
+	}
+	if _, supplied := values["scope"]; supplied && responseScope == "" {
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "scope must be non-empty when supplied", Status: http.StatusBadRequest})
+	}
+	scopes := []string{"read"}
+	if responseScope != "" {
+		scopes, err = NormaliseScopes(strings.Fields(responseScope))
+		if err != nil || len(scopes) == 0 {
+			return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "unsupported action scope", Status: http.StatusBadRequest})
+		}
+		// Duplicate scope tokens are invalid rather than silently normalised.
+		if len(scopes) != len(strings.Fields(responseScope)) {
+			return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "duplicate action scope", Status: http.StatusBadRequest})
+		}
+	}
 	if !scopeSubset(scopes, client.AllowedScopes) ||
 		!s.options.AllowAdminDelegation && slices.Contains(scopes, "settings") {
-		return authorizationRequest{}, &ProtocolError{Code: "invalid_scope", Description: "requested action scope is not allowed for this client", Status: http.StatusBadRequest}
+		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "requested action scope is not allowed for this client", Status: http.StatusBadRequest})
 	}
 	return authorizationRequest{
 		ClientID: clientID, ClientName: client.Name, RedirectURI: redirectURI,
 		State: state, Scopes: scopes, Resource: resource,
 		Challenge: challenge, ChallengeType: "S256",
 	}, nil
+}
+
+// stateFrom extracts the optional state echo for error redirects without
+// requiring it elsewhere; the field is validated separately.
+func stateFrom(values url.Values) string {
+	if state, ok := values["state"]; ok && len(state) == 1 {
+		return state[0]
+	}
+	return ""
+}
+
+// ErrorRedirect reports the RFC 6749 error redirect for an authorisation
+// failure whose redirect URI was exactly validated, if one exists.
+func ErrorRedirect(err error, issuer string) (string, bool) {
+	protocol, ok := err.(*ProtocolError)
+	if !ok || protocol.RedirectURI == "" || protocol.Code == "server_error" {
+		return "", false
+	}
+	redirect, redirectErr := authorizationRedirect(
+		authorizationRequest{RedirectURI: protocol.RedirectURI, State: protocol.State},
+		map[string]string{"error": protocol.Code, "error_description": protocol.Description},
+		issuer,
+	)
+	if redirectErr != nil {
+		return "", false
+	}
+	return redirect, true
 }
 
 func redirectQuerySafe(raw string) bool {
@@ -361,6 +398,9 @@ func (s *Service) CompleteAuthorization(handle, flowCookie, user, session string
 	} else if namespaceMode == "all" {
 		namespaces = nil
 	} else if namespaceMode == "selected" {
+		if len(namespaces) == 0 {
+			return "", invalidRequest("select at least one namespace or explicitly allow all namespaces")
+		}
 		selected, err := validateNamespaceSelection(namespaces, currentNamespaces)
 		if err != nil {
 			return "", err
@@ -412,6 +452,16 @@ func (s *Service) CompleteAuthorization(handle, flowCookie, user, session string
 	}
 	err = s.store.Transaction(ctx, func(tx context.Context) error {
 		state := transactionState(tx)
+		// Consent can wait for another writer. Recheck the registration and
+		// live session here, not only against the earlier display/snapshot.
+		current, exists := state.Clients[client.ID]
+		currentUser, live := s.auth.UserFor(session)
+		if !exists || current.Disabled || !slices.Contains(current.RedirectURIs, pending.request.RedirectURI) ||
+			!scopeSubset(grantedScopes, current.AllowedScopes) ||
+			!live || currentUser != user || !s.auth.UserExists(user) ||
+			!scopeSubset(grantedScopes, s.auth.Prefs(user).Scopes) {
+			return invalidRequest("permissions changed; start a new authorisation request")
+		}
 		state.Grants[grant.ID] = grant
 		state.Families[family.ID] = family
 		info, err := s.manager.GenerateAuthToken(tx, oauth2.Code, tokenGenerate)

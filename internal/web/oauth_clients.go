@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"hmd/internal/auth"
@@ -39,9 +40,21 @@ func (app *App) renderOAuthClients(w http.ResponseWriter, r *http.Request, statu
 		http.Error(w, "could not read OAuth clients", http.StatusInternalServerError)
 		return
 	}
+	disabled := 0
+	for _, client := range clients {
+		if client.Disabled {
+			disabled++
+		}
+	}
+	form := r.PostForm
+	if message == "" {
+		form = nil
+	}
 	app.render(w, r, status, "oauth-clients", TemplateData{
 		Authed: true, Title: "MCP OAuth clients", OAuthClients: clients,
 		OAuthCreatedClient: created, Error: message,
+		OAuthClientForm: form, OAuthClientRead: form == nil || slices.Contains(form["scope"], "read"),
+		OAuthClientWrite: slices.Contains(form["scope"], "write"), OAuthDisabledClients: disabled,
 	})
 }
 

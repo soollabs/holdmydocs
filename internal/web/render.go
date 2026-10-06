@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -148,6 +149,10 @@ type TemplateData struct {
 	OAuthConnections        []oauthserver.Connection
 	OAuthClients            []oauthserver.ClientSummary
 	OAuthCreatedClient      *oauthserver.ProvisionedClient
+	OAuthClientForm         url.Values
+	OAuthClientRead         bool
+	OAuthClientWrite        bool
+	OAuthDisabledClients    int
 	OAuthRedirect           string
 	SetupSiteName           string // portable site-name default for first setup
 	RoutePrefix             string
@@ -212,7 +217,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	// Anonymous error pages deliberately remain byte-identical so private and
 	// missing pages cannot become an existence oracle.
-	if data.Authed || data.NamespacePublic {
+	if data.Authed || data.NamespacePublic || name == "login" {
 		data.CSPNonce = httpmiddleware.CspNonce(r.Context())
 	}
 	// Use the current page's namespace as the default destination.

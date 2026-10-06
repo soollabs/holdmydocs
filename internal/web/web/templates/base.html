@@ -283,6 +283,7 @@
 	<script src="{{.AssetPath}}export.js"></script>
 	{{end}}
 	{{if .Authed}}<script src="{{static "app.js"}}"></script>{{end}}
+	{{if and .Authed .OAuthEnabled}}<script src="{{static "oauth.js"}}"></script>{{end}}
 	{{if .RailWidgets}}<script src="{{if .Static}}{{.AssetPath}}toc.js{{else}}{{static "toc.js"}}{{end}}"></script>{{end}}
 	{{if or .Authed .SidebarTree}}<script src="{{if .Static}}{{.AssetPath}}sidebar.js{{else}}{{static "sidebar.js"}}{{end}}"></script>{{end}}
 </body>

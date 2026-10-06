@@ -585,6 +585,20 @@ func TestConcurrentOAuthCodeRedemptionIssuesAtMostOnce(t *testing.T) {
 	if successes != 1 {
 		t.Fatalf("concurrent code redemptions succeeded %d times", successes)
 	}
+	for _, response := range []*httptest.ResponseRecorder{first, second} {
+		if response.Code != http.StatusOK {
+			continue
+		}
+		var issued struct {
+			Access string `json:"access_token"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &issued); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := service.BearerVerifier().VerifyBearer(t.Context(), issued.Access, mcpResourcePath); ok {
+			t.Fatal("concurrent code replay left the issued access token active")
+		}
+	}
 }
 
 func TestConcurrentRefreshReplayRevokesSurvivingFamily(t *testing.T) {

@@ -1,29 +1,30 @@
 {{define "content"}}
-<div class="content-col">
-	<h2>Connected applications</h2>
-	<p>Disconnecting revokes the application's access and refresh credentials.</p>
+<div class="content-col oauth-page">
+	<div class="breadcrumb"><a href="/_/settings">settings</a><span class="sep">/</span><span class="current">connected applications</span></div>
+	<header class="oauth-heading">
+		<h1 class="page-title">Connected applications</h1>
+		<p>Review what you have shared. Disconnect an application to revoke its tokens and pending uploads immediately.</p>
+	</header>
+	<div class="oauth-client-list">
 	{{range .OAuthConnections}}
-	<section class="page-card">
-		<h3>{{.ClientName}}</h3>
-		<p>Actions: {{range $i, $scope := .Scopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</p>
-		{{if eq .NamespaceMode "all"}}
-		<p>All namespaces, including future namespaces</p>
-		{{else}}
-		<p>Selected namespaces: {{range $i, $namespace := .Namespaces}}{{if $i}}, {{end}}{{$namespace}}{{else}}none{{end}}</p>
+	<article class="oauth-panel oauth-client">
+		<header class="oauth-card-heading"><h2>{{.ClientName}}</h2><span class="oauth-status{{if not (or .Revoked .Expired)}} oauth-status-active{{end}}">{{if .Revoked}}Disconnected{{else if .Expired}}Expired{{else}}Connected{{end}}</span></header>
+		<dl class="oauth-facts">
+			<dt>Approved actions</dt><dd>{{range .Scopes}}<span class="oauth-tag">{{.}}</span> {{end}}</dd>
+			<dt>Namespaces</dt><dd>{{if eq .NamespaceMode "all"}}All namespaces, including future ones{{else}}{{range $i, $namespace := .Namespaces}}{{if $i}}, {{end}}<code>{{$namespace}}</code>{{else}}None{{end}}{{end}}</dd>
+			<dt>Connected</dt><dd>{{.CreatedAt.Format "2 January 2006"}}</dd>
+			<dt>Expires</dt><dd>{{.ExpiresAt.Format "2 January 2006"}}</dd>
+		</dl>
+		{{if not (or .Revoked .Expired)}}
+		<footer class="oauth-card-footer">
+			<span class="oauth-help">Reconnecting will require your approval again.</span>
+			<form method="POST" action="/_/connections/{{.GrantID}}/revoke" data-confirm="Disconnect this application? Its tokens and pending uploads will stop working.">{{template "csrf" $}}<button type="submit" class="ghost-btn oauth-danger" aria-label="Disconnect {{.ClientName}}">Disconnect</button></form>
+		</footer>
 		{{end}}
-		<p>Expires: {{.ExpiresAt.Format "2 January 2006"}}</p>
-		{{if .Revoked}}
-		<p>Disconnected</p>
-		{{else if .Expired}}
-		<p>Expired</p>
-		{{else}}
-		<form method="POST" action="/_/connections/{{.GrantID}}/revoke">{{template "csrf" $}}
-			<button type="submit">Disconnect</button>
-		</form>
-		{{end}}
-	</section>
+	</article>
 	{{else}}
-	<p>No applications are connected.</p>
+	<div class="oauth-empty"><h2>No connected applications</h2><p>Start a connection from your MCP application. After you approve access, it will appear here.</p><a href="/_/settings">Back to settings</a></div>
 	{{end}}
+	</div>
 </div>
 {{end}}
