@@ -103,6 +103,7 @@
 				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
 				<div class="topbar-menu-items">
 					<a href="/_/settings">Settings</a>
+					{{if .OAuthEnabled}}<a href="/_/connections">Connected applications</a>{{end}}
 					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>

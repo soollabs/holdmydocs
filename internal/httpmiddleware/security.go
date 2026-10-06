@@ -108,7 +108,8 @@ func acceptsGzip(header string) bool {
 func Compression(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Accept-Encoding")
-		if r.Method == http.MethodHead || r.Header.Get("Range") != "" || r.URL.Path == "/_/mcp" || !acceptsGzip(r.Header.Get("Accept-Encoding")) {
+		if r.Method == http.MethodHead || r.Header.Get("Range") != "" || r.URL.Path == "/_/mcp" ||
+			strings.HasPrefix(r.URL.Path, "/_/oauth/") || !acceptsGzip(r.Header.Get("Accept-Encoding")) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -199,6 +200,12 @@ func (s Security) Handler(next http.Handler) http.Handler {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions || strings.HasPrefix(r.URL.Path, "/_/api/attachment-uploads/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.URL.Path == "/_/oauth/token" || r.URL.Path == "/_/oauth/revoke" {
+			// Protocol endpoints use OAuth client authentication; browser cookies
+			// are not credentials for these requests.
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -57,6 +57,12 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/auth/oidc/login", app.handleOIDCLogin)
 	mux.HandleFunc("GET /_/auth/oidc/callback", app.handleOIDCCallback)
 	mux.HandleFunc("GET /_/auth/oidc/icon", app.handleOIDCIcon)
+	if app.OAuth != nil {
+		mux.HandleFunc("GET /_/oauth/authorize", app.handleOAuthAuthorizeGet)
+		mux.HandleFunc("POST /_/oauth/authorize", app.handleOAuthAuthorizePost)
+		mux.HandleFunc("GET /_/connections", app.handleConnectionsGet)
+		mux.HandleFunc("POST /_/connections/{id}/revoke", app.handleConnectionRevoke)
+	}
 
 	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)
 	mux.HandleFunc("GET /_/tags/{tag}", app.handleTagPages)

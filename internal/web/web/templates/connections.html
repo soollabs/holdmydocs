@@ -1,0 +1,29 @@
+{{define "content"}}
+<div class="content-col">
+	<h2>Connected applications</h2>
+	<p>Disconnecting revokes the application's access and refresh credentials.</p>
+	{{range .OAuthConnections}}
+	<section class="page-card">
+		<h3>{{.ClientName}}</h3>
+		<p>Actions: {{range $i, $scope := .Scopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</p>
+		{{if eq .NamespaceMode "all"}}
+		<p>All namespaces, including future namespaces</p>
+		{{else}}
+		<p>Selected namespaces: {{range $i, $namespace := .Namespaces}}{{if $i}}, {{end}}{{$namespace}}{{else}}none{{end}}</p>
+		{{end}}
+		<p>Expires: {{.ExpiresAt.Format "2 January 2006"}}</p>
+		{{if .Revoked}}
+		<p>Disconnected</p>
+		{{else if .Expired}}
+		<p>Expired</p>
+		{{else}}
+		<form method="POST" action="/_/connections/{{.GrantID}}/revoke">{{template "csrf" $}}
+			<button type="submit">Disconnect</button>
+		</form>
+		{{end}}
+	</section>
+	{{else}}
+	<p>No applications are connected.</p>
+	{{end}}
+</div>
+{{end}}

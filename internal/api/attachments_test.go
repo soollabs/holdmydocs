@@ -11,6 +11,12 @@ import (
 	"hmd/internal/store"
 )
 
+type uploadAuthorizerFunc func(context.Context, string, string, string, string, []string) bool
+
+func (f uploadAuthorizerFunc) AuthorizeUpload(ctx context.Context, grantID, familyID, user, slug string, scopes []string) bool {
+	return f(ctx, grantID, familyID, user, slug, scopes)
+}
+
 func newAttachmentAPI(t *testing.T) (*API, *store.Store) {
 	t.Helper()
 	st, err := store.Open(store.Options{RepoDir: t.TempDir(), Git: store.GitOptions{User: "tester"}})
@@ -136,5 +142,31 @@ func TestReadAttachmentDeniesNamespace(t *testing.T) {
 	_, err := a.ReadAttachment(ctx, "private/page", "source.txt")
 	if err == nil || CategoryOf(err) != CategoryForbidden {
 		t.Fatalf("ReadAttachment on a denied namespace = %v, want forbidden", err)
+	}
+}
+
+func TestOAuthUploadCapabilityRechecksGrantAtRedemption(t *testing.T) {
+	a := New(nil, nil, nil)
+	called := false
+	a.SetOAuthUploadAuthorizer(uploadAuthorizerFunc(func(_ context.Context, grantID, familyID, user, slug string, scopes []string) bool {
+		called = true
+		if grantID != "grant" || familyID != "family" || user != "tester" ||
+			slug != "notes/page" || len(scopes) != 1 || scopes[0] != "write" {
+			t.Errorf("authorization callback arguments = %q %q %q %q %#v", grantID, familyID, user, slug, scopes)
+		}
+		return false
+	}))
+	ctx := auth.WithTokenPrincipal(context.Background(), auth.TokenPrincipal{
+		User: "tester", Scopes: []string{"write"}, GrantID: "grant", FamilyID: "family",
+	})
+	grant, err := a.IssueUploadCapability(ctx, "notes/page", "file.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.RedeemUploadCapability(context.Background(), grant.Token, "file.txt", []byte("data")); CategoryOf(err) != CategoryNotFound {
+		t.Fatalf("revoked OAuth upload capability = %v, want not found", err)
+	}
+	if !called {
+		t.Fatal("OAuth grant was not checked at redemption")
 	}
 }

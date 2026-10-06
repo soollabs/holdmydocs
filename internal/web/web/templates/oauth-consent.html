@@ -1,0 +1,53 @@
+{{define "content"}}
+<div class="content-col">
+	<h2>Connect an application</h2>
+	<p><strong>{{.OAuthPrompt.ClientName}}</strong> is requesting access to HoldMyDocs.</p>
+	<dl>
+		<dt>Client identifier</dt><dd>{{.OAuthPrompt.ClientID}}</dd>
+		<dt>Redirect host</dt><dd>{{.OAuthPrompt.RedirectHost}}</dd>
+		<dt>Signed-in account</dt><dd>{{.OAuthPrompt.User}}</dd>
+		<dt>Resource</dt><dd>{{.OAuthPrompt.Resource}}</dd>
+	</dl>
+	<p>Requested actions: {{range $i, $scope := .OAuthPrompt.RequestedScopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</p>
+	<form method="POST" action="/_/oauth/authorize">
+		{{template "csrf" .}}
+		<input type="hidden" name="request" value="{{.OAuthPrompt.Handle}}">
+		<fieldset>
+			<legend>Allow actions</legend>
+			{{range .OAuthPrompt.AvailableScopes}}
+			<label class="edit-field">
+				<input type="checkbox" name="scope" value="{{.}}" checked>
+				{{if eq . "read"}}Read pages and namespaces{{else if eq . "write"}}Write, edit, move and delete pages and attachments{{else}}Settings — unrestricted administrator access{{end}}
+			</label>
+			{{end}}
+			{{if not .OAuthPrompt.AvailableScopes}}
+			<p class="error">Your current account permissions do not allow any of the requested actions.</p>
+			{{end}}
+		</fieldset>
+
+		{{if .OAuthPrompt.AdminScopeRequested}}
+		<div class="error">
+			<strong>Administrator access is unrestricted.</strong>
+			It includes all namespaces, including namespaces created in the future.
+		</div>
+		<input type="hidden" name="namespace_mode" value="all">
+		{{else}}
+		<fieldset>
+			<legend>Namespace access</legend>
+			<label><input type="radio" name="namespace_mode" value="selected" checked> Only these selected namespaces</label>
+			<ul>
+				{{range .OAuthPrompt.NamespaceNames}}
+				<li><label><input type="checkbox" name="namespace" value="{{.}}"> {{.}}</label></li>
+				{{else}}
+				<li>No namespaces are currently configured.</li>
+				{{end}}
+			</ul>
+			<label><input type="radio" name="namespace_mode" value="all"> All namespaces, including ones created in the future</label>
+		</fieldset>
+		{{end}}
+
+		<button type="submit" name="decision" value="approve">Approve connection</button>
+		<button type="submit" name="decision" value="deny">Deny</button>
+	</form>
+</div>
+{{end}}

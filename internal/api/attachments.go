@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"hmd/internal/auth"
 	"hmd/internal/search"
 	"hmd/internal/wiki"
 )
@@ -67,7 +68,13 @@ func (a *API) IssueUploadCapability(ctx context.Context, slug, filename string) 
 	actor, _ := Username(ctx)
 	expires := time.Now().Add(UploadCapabilityTTL)
 	tokenString := fmt.Sprintf("%x", token)
-	if err := a.addUploadCapability(tokenString, UploadCapability{Slug: slug, Filename: canonical, User: actor, Expires: expires}); err != nil {
+	capability := UploadCapability{Slug: slug, Filename: canonical, User: actor, Expires: expires}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && principal.GrantID != "" {
+		capability.OAuthGrantID = principal.GrantID
+		capability.OAuthFamilyID = principal.FamilyID
+		capability.OAuthScopes = append([]string(nil), principal.Scopes...)
+	}
+	if err := a.addUploadCapability(tokenString, capability); err != nil {
 		return nil, Busy(err.Error())
 	}
 	return &UploadGrant{Slug: slug, Filename: canonical, Token: tokenString, Expires: expires}, nil
@@ -111,6 +118,11 @@ func (a *API) UploadAttachment(ctx context.Context, in AttachmentUploadInput) (*
 func (a *API) RedeemUploadCapability(ctx context.Context, token, filename string, content []byte) (*AttachmentUpload, error) {
 	capability, ok := a.takeUploadCapability(token)
 	if !ok || time.Now().After(capability.Expires) {
+		return nil, NotFound("upload URL not found or expired")
+	}
+	if capability.OAuthGrantID != "" &&
+		(a.uploadAuthorizer == nil ||
+			!a.uploadAuthorizer.AuthorizeUpload(ctx, capability.OAuthGrantID, capability.OAuthFamilyID, capability.User, capability.Slug, capability.OAuthScopes)) {
 		return nil, NotFound("upload URL not found or expired")
 	}
 	return a.uploadAttachment(ctx, AttachmentUploadInput{

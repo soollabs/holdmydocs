@@ -18,6 +18,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/export"
+	"hmd/internal/oauthserver"
 	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/web"
@@ -227,13 +228,32 @@ func Run() {
 	if !authn.HasUsers() && cfg.OIDC.Issuer == "" {
 		log.Fatal("no users.json: set HMD_ADMIN_USER and HMD_ADMIN_PASSWORD or configure OIDC admission")
 	}
+	var oauthService *oauthserver.Service
+	if cfg.OAuth.Enabled {
+		oauthState, err := oauthserver.OpenStore(cfg.AppDir)
+		if err != nil {
+			log.Fatalf("open OAuth state failed: %v", err)
+		}
+		oauthService, err = oauthserver.NewService(oauthserver.ServerOptions{
+			Issuer: cfg.BaseURL, AllowAdminDelegation: cfg.OAuth.AllowAdminDelegation,
+		}, oauthState, authn)
+		if err != nil {
+			_ = oauthState.Close()
+			log.Fatalf("configure OAuth failed: %v", err)
+		}
+		authn.SetOAuthBearerVerifier(oauthService.BearerVerifier())
+	}
 	finishStage = debugStartupStage("parse templates")
 	templates, err := web.ParseTemplates()
 	if err != nil {
 		log.Fatalf("Parsing templates: %v", err)
 	}
 	finishStage()
-	application := &web.App{API: api.New(content, index, authn), Auth: authn, Render: renderer, Tmpl: templates}
+	apiClient := api.New(content, index, authn)
+	if oauthService != nil {
+		apiClient.SetOAuthUploadAuthorizer(oauthService)
+	}
+	application := &web.App{API: apiClient, Auth: authn, Render: renderer, Tmpl: templates, OAuth: oauthService}
 	application.SetConfig(cfg)
 	application.SetWikiConfig(wikiConfig)
 	application.SetNamespaces(namespaces)
@@ -264,6 +284,11 @@ func Run() {
 		}
 		if err := index.Close(); err != nil {
 			slog.Warn("closing search index", "err", err)
+		}
+		if oauthService != nil {
+			if err := oauthService.Close(); err != nil {
+				slog.Warn("closing OAuth state store", "err", err)
+			}
 		}
 	}()
 	slog.Debug("startup completed; HTTP server listening", "bind", cfg.Bind)

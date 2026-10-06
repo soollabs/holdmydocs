@@ -3,15 +3,17 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"hmd/internal/httpmiddleware"
 )
 
-func (app *App) loginData(errMsg string) TemplateData {
+func (app *App) loginData(errMsg, continuation string) TemplateData {
 	cfg := app.config()
 	return TemplateData{
 		Title:          "Login",
 		Error:          errMsg,
+		OAuthContinue:  continuation,
 		OIDCEnabled:    cfg.OIDC.Issuer != "",
 		OIDCButtonText: cfg.OIDC.ButtonText,
 		OIDCLocalLogin: cfg.OIDC.Issuer == "" || cfg.OIDC.LocalLogin,
@@ -22,7 +24,7 @@ func (app *App) loginData(errMsg string) TemplateData {
 func (app *App) handleLoginGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("rendering login page")
 	w.Header().Set("Cache-Control", "no-store")
-	app.render(w, r, http.StatusOK, "login", app.loginData(""))
+	app.render(w, r, http.StatusOK, "login", app.loginData("", r.URL.Query().Get("continue")))
 }
 
 func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +34,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	token, ok := app.Auth.LoginLimited(r.RemoteAddr, username, r.FormValue("password"))
 	if !ok {
 		slog.Warn("login failed", "username", username)
-		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password"))
+		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password", r.FormValue("oauth_continue")))
 		return
 	}
 
@@ -51,6 +53,17 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
+	if continuation := r.FormValue("oauth_continue"); continuation != "" {
+		flowCookie, _ := r.Cookie("hmd_oauth_flow")
+		if app.OAuth == nil || flowCookie == nil ||
+			app.OAuth.BindAuthorization(continuation, flowCookie.Value, username, token) != nil {
+			app.Auth.Logout(token)
+			http.Error(w, "OAuth login continuation expired; start the connection again", http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, "/_/oauth/authorize?request="+url.QueryEscape(continuation), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, app.landingPath(), http.StatusSeeOther)
 }
 

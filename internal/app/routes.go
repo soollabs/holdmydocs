@@ -33,6 +33,17 @@ func newHandler(application *web.App) http.Handler {
 		mux.Handle("POST /_/mcp", mcpHandler)
 		mux.Handle("DELETE /_/mcp", mcpHandler)
 	}
+	if application.OAuth != nil {
+		oauthHandler := application.OAuth.ProtocolHandler()
+		mux.Handle("GET /.well-known/oauth-authorization-server", oauthHandler)
+		mux.Handle("HEAD /.well-known/oauth-authorization-server", oauthHandler)
+		mux.Handle("GET /.well-known/oauth-protected-resource", oauthHandler)
+		mux.Handle("HEAD /.well-known/oauth-protected-resource", oauthHandler)
+		mux.Handle("GET /.well-known/oauth-protected-resource/_/mcp", oauthHandler)
+		mux.Handle("HEAD /.well-known/oauth-protected-resource/_/mcp", oauthHandler)
+		mux.Handle("POST /_/oauth/token", oauthHandler)
+		mux.Handle("POST /_/oauth/revoke", oauthHandler)
+	}
 	mux.Handle("/", application.Routes())
 
 	security := application.Security()
