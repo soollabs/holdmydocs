@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -79,6 +80,32 @@ func TestDynamicClientUsesNormalAuthorizationFlow(t *testing.T) {
 	code, _, _ := authoriseFixture(t, s, authn, session, id)
 	if code == "" {
 		t.Fatal("dynamic client could not complete consent")
+	}
+}
+
+func TestDynamicRegistrationDefaultsToReadAndWrite(t *testing.T) {
+	s, store, _, _, _ := newOAuthServiceFixture(t)
+	s.options.DynamicRegistration = true
+	w := registerRequest(s, `{"redirect_uris":["https://client.example.test/callback"],"token_endpoint_auth_method":"none"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("registration = %d: %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		ClientID string `json:"client_id"`
+		Scope    string `json:"scope"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Scope != "read write" {
+		t.Fatalf("response scope = %q, want read write", response.Scope)
+	}
+	state, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := state.Clients[response.ClientID].AllowedScopes; !slices.Equal(got, []string{"read", "write"}) {
+		t.Fatalf("client scopes = %v, want [read write]", got)
 	}
 }
 
