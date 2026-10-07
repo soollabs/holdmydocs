@@ -74,7 +74,11 @@ func (s *Service) RegistrationHandler() http.Handler {
 			input.AuthMethod = clientAuthBasic
 		}
 		if input.Scope == "" {
-			input.Scope = "read"
+			// MCP clients such as ChatGPT may omit scope during dynamic client
+			// registration, then request read and write at authorization time.
+			// Both remain subject to explicit user consent; settings is never
+			// available to dynamically registered clients.
+			input.Scope = "read write"
 		}
 		scopes := strings.Fields(input.Scope)
 		if slices.Contains(scopes, "settings") {
