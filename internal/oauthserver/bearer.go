@@ -17,14 +17,14 @@ type bearerVerifier struct {
 
 // NewBearerVerifier builds the optional live OAuth resolver used by HMD auth.
 func NewBearerVerifier(store *Store, authn *auth.Auth, issuer string, allowAdmin bool) auth.OAuthBearerVerifier {
-	return &bearerVerifier{
+ return &bearerVerifier{
 		store: store, auth: authn, issuer: issuer,
 		resource: issuer + mcpResourcePath, allowAdmin: allowAdmin,
 	}
 }
 
 func (v *bearerVerifier) Challenge() string {
-	return `Bearer resource_metadata="` + ResourceMetadataURL(v.issuer) + `", scope="read"`
+ return `Bearer resource_metadata="` + ResourceMetadataURL(v.issuer) + `", scope="read write"`
 }
 
 func (v *bearerVerifier) VerifyBearer(ctx context.Context, raw, path string) (auth.TokenPrincipal, bool) {
