@@ -55,7 +55,7 @@ func MetadataHandler(opts ServerOptions) http.Handler {
 		Resource:               opts.Issuer + mcpResourcePath,
 		AuthorizationServers:   []string{opts.Issuer},
 		BearerMethodsSupported: []string{"header"},
-		ScopesSupported:        []string{"read"},
+  ScopesSupported:        []string{"read", "write"},
 	}
 	write := func(document any) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
