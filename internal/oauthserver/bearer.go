@@ -17,7 +17,7 @@ type bearerVerifier struct {
 
 // NewBearerVerifier builds the optional live OAuth resolver used by HMD auth.
 func NewBearerVerifier(store *Store, authn *auth.Auth, issuer string, allowAdmin bool) auth.OAuthBearerVerifier {
- return &bearerVerifier{
+	return &bearerVerifier{
 		store: store, auth: authn, issuer: issuer,
 		resource: issuer + mcpResourcePath, allowAdmin: allowAdmin,
 	}
