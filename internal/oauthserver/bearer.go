@@ -24,7 +24,7 @@ func NewBearerVerifier(store *Store, authn *auth.Auth, issuer string, allowAdmin
 }
 
 func (v *bearerVerifier) Challenge() string {
-	return `Bearer resource_metadata="` + ResourceMetadataURL(v.issuer) + `", scope="read"`
+	return `Bearer resource_metadata="` + ResourceMetadataURL(v.issuer) + `", scope="read write"`
 }
 
 func (v *bearerVerifier) VerifyBearer(ctx context.Context, raw, path string) (auth.TokenPrincipal, bool) {

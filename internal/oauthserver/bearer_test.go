@@ -2,6 +2,7 @@ package oauthserver
 
 import (
 	"context"
+ 	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,13 @@ func TestOAuthBearerVerifierRechecksGrantAndCurrentPolicy(t *testing.T) {
 	}
 	if _, ok := verifier.VerifyBearer(context.Background(), raw, mcpResourcePath); ok {
 		t.Fatal("token remained valid after current HMD permissions removed read access")
+	}
+}
+
+func TestBearerChallengeAdvertisesReadWrite(t *testing.T) {
+	v := &bearerVerifier{issuer: "https://wiki.example.test"}
+	if got := v.Challenge(); !strings.Contains(got, `scope="read write"`) {
+		t.Fatalf("challenge = %q", got)
 	}
 }
 
