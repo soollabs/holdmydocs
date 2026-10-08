@@ -68,6 +68,13 @@ func TestOAuthBearerVerifierRechecksGrantAndCurrentPolicy(t *testing.T) {
 	}
 }
 
+func TestBearerChallengeAdvertisesReadWrite(t *testing.T) {
+	v := &bearerVerifier{issuer: "https://wiki.example.test"}
+	if got := v.Challenge(); !strings.Contains(got, `scope="read write"`) {
+		t.Fatalf("challenge = %q", got)
+	}
+}
+
 func TestOAuthBearerVerifierRejectsRevokedGrantAndClient(t *testing.T) {
 	appDir := t.TempDir()
 	authn, err := auth.Open(auth.Options{AppDir: appDir, AdminUser: "alice", AdminPass: "a-unique-long-test-password"})
