@@ -347,7 +347,7 @@ func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
 	}
 	outDir := t.TempDir()
 	pages := []Page{{Slug: "docs/page", Title: "Page", Body: "body"}}
-	reg := NamespaceRegistry{"docs": {}}
+	reg := NamespaceRegistry{"docs": {Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/"}}}
 	if err := staticexport.Namespace(staticexport.NamespaceRequest{
 		Pages:      pages,
 		Namespace:  "docs",

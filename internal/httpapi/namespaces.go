@@ -15,20 +15,21 @@ import (
 // submitted settings and the base hash for a checked write; an empty BaseHash
 // creates the namespace.
 type namespaceSaveInput struct {
-	Name        string   `json:"name"`
-	Template    string   `json:"template"`
-	BaseHash    string   `json:"base_hash"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Index       string   `json:"index"`
-	Tree        []string `json:"tree"`
-	Public      bool     `json:"public"`
-	Skin        string   `json:"skin"`
-	Palette     string   `json:"palette"`
-	NewEnabled  bool     `json:"new_enabled"`
-	SlugPreset  string   `json:"slug_preset"`
-	SlugCustom  string   `json:"slug_custom"`
-	Widgets     []string `json:"widgets"`
+	Export      wiki.ExportConfig `json:"export"`
+	Name        string            `json:"name"`
+	Template    string            `json:"template"`
+	BaseHash    string            `json:"base_hash"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Index       string            `json:"index"`
+	Tree        []string          `json:"tree"`
+	Public      bool              `json:"public"`
+	Skin        string            `json:"skin"`
+	Palette     string            `json:"palette"`
+	NewEnabled  bool              `json:"new_enabled"`
+	SlugPreset  string            `json:"slug_preset"`
+	SlugCustom  string            `json:"slug_custom"`
+	Widgets     []string          `json:"widgets"`
 }
 
 // namespaceNameInput names one namespace for a reset or delete.
@@ -46,6 +47,7 @@ type namespaceSaved struct {
 // rejected checked write. The browser uses it to show what it collided with
 // while preserving the user's submitted settings.
 type namespaceConflictConfig struct {
+	Export      wiki.ExportConfig     `json:"export"`
 	Widgets     []string              `json:"widgets,omitempty"`
 	Public      bool                  `json:"public"`
 	Title       string                `json:"title,omitempty"`
@@ -95,6 +97,7 @@ func (h *Handlers) saveNamespace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := wiki.NamespaceConfig{
+		Export:      in.Export,
 		Widgets:     in.Widgets,
 		Public:      in.Public,
 		Title:       in.Title,
@@ -159,6 +162,7 @@ func (h *Handlers) writeNamespaceConflict(w http.ResponseWriter, r *http.Request
 		conflict.Name = detail.Name
 		conflict.CurrentHash = detail.Hash
 		conflict.Config = namespaceConflictConfig{
+			Export:      detail.Config.Export,
 			Widgets:     detail.Config.Widgets,
 			Public:      detail.Config.Public,
 			Title:       detail.Config.Title,

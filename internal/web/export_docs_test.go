@@ -33,7 +33,7 @@ func TestExportDocumentationContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Widgets: []string{"outline"}}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Widgets: []string{"outline"}, Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/"}}}
 	if err := staticexport.Namespace(staticexport.NamespaceRequest{
 		Pages:      pages,
 		Namespace:  "docs",
@@ -99,7 +99,7 @@ func TestExportDocumentationContent(t *testing.T) {
 
 func TestExportRejectsMissingIndex(t *testing.T) {
 	pages := []wiki.Page{{Slug: "docs/guide", Title: "Guide", Body: "Text"}}
-	reg := wiki.NamespaceRegistry{"docs": {Index: "missing"}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "missing", Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/"}}}
 	// Invalid index is rejected before rendering or copying anything.
 	out := filepath.Join(t.TempDir(), "output")
 	err := staticexport.Namespace(staticexport.NamespaceRequest{

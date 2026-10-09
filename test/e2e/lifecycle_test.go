@@ -143,7 +143,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, body := range map[string]string{
-		".namespace.yaml": "title: CLI Test\nindex: home\n",
+		".namespace.yaml": "title: CLI Test\nindex: home\nexport:\n  base_url: https://docs.example.org/\n",
 		"home.md":         "---\ntitle: Exported Home\n---\n\nCLI export acceptance.\n",
 	} {
 		if err := os.WriteFile(filepath.Join(namespaceDir, name), []byte(body), 0o600); err != nil {

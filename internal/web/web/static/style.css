@@ -2406,6 +2406,60 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin-bottom: 1rem;
 }
 
+.export-link-row {
+	display: grid;
+	gap: 0.5rem;
+	margin: 0.75rem 0;
+}
+
+.export-link-row label {
+	display: grid;
+	grid-template-columns: 4rem minmax(0, 1fr);
+	align-items: center;
+	gap: 0.5rem;
+	color: var(--primary);
+}
+
+.export-link-row input,
+.export-link-row select {
+	min-width: 0;
+	width: 100%;
+	background: none;
+	color: var(--fg-strong);
+	font: inherit;
+	border: none;
+	border-bottom: var(--field-border-w) solid var(--border-visible);
+}
+
+.export-link-row .export-link-checkbox {
+	display: flex;
+}
+
+.export-link-checkbox input[type="checkbox"] {
+	width: 1rem;
+	flex: 0 0 auto;
+}
+
+.export-link-remove {
+	justify-self: start;
+}
+
+.namespace-form .settings-actions {
+	flex-wrap: wrap;
+}
+
+.export-bot-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+}
+
+.export-bot-options .scope-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
 .namespace-head {
 	display: flex;
 	align-items: baseline;

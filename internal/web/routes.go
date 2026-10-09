@@ -78,6 +78,8 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/namespaces/new", app.handleNamespaceNewGet)
 	mux.HandleFunc("GET /_/namespaces/{name}/edit", app.handleNamespaceEditGet)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/export", app.handleExportNamespace)
+	mux.HandleFunc("GET /_/settings/namespaces/{name}/preview", app.handlePreviewExportNamespace)
+	mux.HandleFunc("GET /_/export-preview/{id}/{path...}", app.handleExportPreviewFile)
 
 	mux.HandleFunc("GET /_/search", app.handleSearch)
 	if app.apiClient().DocumentsEnabled() {

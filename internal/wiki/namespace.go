@@ -50,6 +50,7 @@ type NamespaceConfig struct {
 	Skin        string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = default skin
 	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
 	New         *NewPageConfig `yaml:"new,omitempty"`
+	Export      ExportConfig   `yaml:"export,omitempty" json:"export,omitempty"`
 
 	// Index names a page in this namespace (one segment), e.g.
 	Index string `yaml:"index,omitempty" json:"index,omitempty"`
@@ -169,6 +170,11 @@ func NormaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 	cfg.Palette = strings.TrimSpace(cfg.Palette)
 	if cfg.Palette != "" && !presentation.ValidPalette(cfg.Palette) {
 		return NamespaceConfig{}, fmt.Errorf("unknown palette %q", cfg.Palette)
+	}
+	var err error
+	cfg.Export, err = NormaliseExportConfig(cfg.Export, false)
+	if err != nil {
+		return NamespaceConfig{}, err
 	}
 	return cfg, nil
 }

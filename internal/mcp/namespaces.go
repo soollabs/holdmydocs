@@ -28,6 +28,7 @@ type mcpNamespacesOut struct {
 }
 
 type mcpNamespaceOut struct {
+	Export      wiki.ExportConfig   `json:"export,omitempty"`
 	Name        string              `json:"name"`
 	Widgets     []string            `json:"widgets"`
 	Public      bool                `json:"public"`
@@ -42,6 +43,7 @@ type mcpNamespaceOut struct {
 }
 
 type mcpSaveNamespaceIn struct {
+	Export      wiki.ExportConfig   `json:"export,omitempty" jsonschema:"static export URL, sitemap, allowed robots and external links; preserve from read_namespace when updating"`
 	Name        string              `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
 	Widgets     []string            `json:"widgets,omitempty" jsonschema:"complete ordered string array of configured widget IDs; preserve from read_namespace when updating"`
 	Public      bool                `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`
@@ -57,7 +59,8 @@ type mcpSaveNamespaceIn struct {
 
 func mcpNamespaceOutput(name string, cfg wiki.NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
-		Name: name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
+		Export: cfg.Export,
+		Name:   name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
 		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, Tree: cfg.Tree, New: cfg.New, Hash: hash,
 	}
 }
@@ -97,7 +100,7 @@ func (s *Server) registerNamespaces(server *sdk.Server) {
 
 	sdk.AddTool(server, &sdk.Tool{
 		Name: "save_namespace",
-		Description: "Create or replace namespace settings (each save is a git commit). Arguments: name (required string), public (required boolean), widgets (optional complete string array), title, description, skin, palette and index (optional strings), tree (optional complete string array), new (optional object with template and slug naming-pattern strings), and basehash (required for updates; omit only on create). " +
+		Description: "Create or replace namespace settings (each save is a git commit). Arguments: name (required string), public (required boolean), widgets (optional complete string array), title, description, skin, palette and index (optional strings), tree (optional complete string array), new (optional object with template and slug naming-pattern strings), export (optional object with base_url, sitemap, robots_allow and links), and basehash (required for updates; omit only on create). " +
 			"Requires settings access. For updates, first call read_namespace and preserve every setting you do not intend to change; omitted optional fields are reset. Allowed widgets: pages, namespaces, pinned, tags, log, health, calendar, writing-stats, page-meta, backlinks, prev-entries. Allowed skins: phosphor, newsprint, journal, soft, bare. Allowed palettes: phosphor, catppuccin, dracula, everforest, gruvbox, monokai, nord, one dark, rosé pine, solarized, tokyo night. Index must be a one-segment page name. On conflict re-read and retry. Creating or updating settings does not delete or change pages.",
 	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpSaveNamespaceIn) (*sdk.CallToolResult, mcpNamespaceOut, error) {
 		if err := s.requireScope(ctx, api.ScopeSettings); err != nil {
@@ -110,6 +113,7 @@ func (s *Server) registerNamespaces(server *sdk.Server) {
 			return nil, mcpNamespaceOut{}, err
 		}
 		cfg := wiki.NamespaceConfig{
+			Export:  in.Export,
 			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
 			Palette: in.Palette, Index: in.Index, Tree: in.Tree, New: in.New,
 		}

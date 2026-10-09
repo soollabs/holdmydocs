@@ -31,6 +31,9 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 	}
 	outDir := t.TempDir()
 	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
+	cfg := reg["docs"]
+	cfg.Export = wiki.ExportConfig{BaseURL: "https://docs.example.org/manual/", RobotsAllow: []string{"Googlebot", "CustomBot"}, Links: []wiki.ExportLink{{Label: "Source & issues", URL: "https://github.com/soollabs/holdmydocs", Icon: "fa-brands fa-github"}}}
+	reg["docs"] = cfg
 	if err := staticexport.Namespace(staticexport.NamespaceRequest{
 		Pages:      pages,
 		Namespace:  "docs",
@@ -67,10 +70,15 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		`aria-label="Page navigation"`,
 		`Skip to content`,
 		`aria-label="Previous and next pages"`,
+		`aria-label="External links"`,
+		`Source &amp; issues`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("export missing %q", want)
 		}
+	}
+	if strings.Contains(page, `class="fa-brands fa-github"`) || strings.Contains(page, "cdnjs.cloudflare.com") {
+		t.Error("text-only sidebar must not render icons or load their CDN stylesheet")
 	}
 	if strings.Contains(page, "/_/static/") {
 		t.Error("export refers to live static assets")
@@ -113,5 +121,19 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 	}
 	if !strings.Contains(string(pageNamedIndex), "This must not") {
 		t.Error("page named index was not exported separately")
+	}
+	sitemap, err := os.ReadFile(filepath.Join(outDir, "sitemap.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sitemap), "<loc>https://docs.example.org/manual/guides/setup/</loc>") || strings.Contains(string(sitemap), "/manual/home/") {
+		t.Errorf("unexpected sitemap: %s", sitemap)
+	}
+	robots, err := os.ReadFile(filepath.Join(outDir, "robots.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(robots), "User-agent: *\nDisallow: /") || !strings.Contains(string(robots), "User-agent: Googlebot\nAllow: /") || !strings.Contains(string(robots), "User-agent: CustomBot\nAllow: /") {
+		t.Errorf("unexpected robots: %s", robots)
 	}
 }
