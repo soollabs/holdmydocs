@@ -11,7 +11,7 @@ import (
 func TestMetadataDocumentsUseConfiguredIssuer(t *testing.T) {
 	const issuer = "https://wiki.example.test"
 	handler := MetadataHandler(ServerOptions{Issuer: issuer})
-	request := httptest.NewRequest(http.MethodGet, authorizationMetadataPath, nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, authorizationMetadataPath, nil)
 	request.Host = "attacker.example"
 	request.Header.Set("X-Forwarded-Host", "also-attacker.example")
 	response := httptest.NewRecorder()
@@ -31,7 +31,7 @@ func TestMetadataDocumentsUseConfiguredIssuer(t *testing.T) {
 		t.Fatal("settings scope advertised when administrator delegation is disabled")
 	}
 
-	request = httptest.NewRequest(http.MethodGet, protectedMetadataPath+mcpResourcePath, nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, protectedMetadataPath+mcpResourcePath, nil)
 	request.Host = "attacker.example"
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -51,7 +51,7 @@ func TestMetadataDocumentsUseConfiguredIssuer(t *testing.T) {
 func TestMetadataAdminScopeOnlyWhenEnabled(t *testing.T) {
 	handler := MetadataHandler(ServerOptions{Issuer: "https://wiki.example.test", AllowAdminDelegation: true})
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, authorizationMetadataPath, nil))
+	handler.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, authorizationMetadataPath, nil))
 	var metadata authorizationServerMetadata
 	if err := json.Unmarshal(response.Body.Bytes(), &metadata); err != nil {
 		t.Fatal(err)
@@ -64,12 +64,12 @@ func TestMetadataAdminScopeOnlyWhenEnabled(t *testing.T) {
 func TestMetadataHeadAndMethodPolicy(t *testing.T) {
 	handler := MetadataHandler(ServerOptions{Issuer: "https://wiki.example.test"})
 	head := httptest.NewRecorder()
-	handler.ServeHTTP(head, httptest.NewRequest(http.MethodHead, authorizationMetadataPath, nil))
+	handler.ServeHTTP(head, httptest.NewRequestWithContext(t.Context(), http.MethodHead, authorizationMetadataPath, nil))
 	if head.Code != http.StatusOK || head.Body.Len() != 0 {
 		t.Fatalf("HEAD response = %d, body length %d", head.Code, head.Body.Len())
 	}
 	post := httptest.NewRecorder()
-	handler.ServeHTTP(post, httptest.NewRequest(http.MethodPost, authorizationMetadataPath, nil))
+	handler.ServeHTTP(post, httptest.NewRequestWithContext(t.Context(), http.MethodPost, authorizationMetadataPath, nil))
 	if post.Code != http.StatusMethodNotAllowed || post.Header().Get("Allow") != "GET, HEAD" {
 		t.Fatalf("POST response = %d, Allow=%q", post.Code, post.Header().Get("Allow"))
 	}

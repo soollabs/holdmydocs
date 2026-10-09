@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/url"
 	"slices"
@@ -79,11 +81,18 @@ func TestTreeIsRequiredBelowAppBar(t *testing.T) {
 	seedPage(t, app, wiki.Page{Slug: testNS + "/guides", Title: "Guides", Body: "overview"})
 	seedPage(t, app, wiki.Page{Slug: testNS + "/guides/setup", Title: "Setup", Body: "steps"})
 
-	resp, err := client.Get(server.URL + "/" + testNS + "/guides")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/guides")
 	if err != nil {
 		t.Fatalf("GET page: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	page := string(body)
 
@@ -116,17 +125,22 @@ func TestStatuslineDataSurvivesWidgetRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp2, err := client.Get(server.URL + "/daily/" + today)
+	resp2, err := testhttp.Get(t, client, server.URL+"/daily/"+today)
 	if err != nil {
 		t.Fatalf("GET daily page: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing daily response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing daily response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp2.Body)
 	if strings.Contains(string(body), ">0 words today<") {
 		t.Error("words-today read 0 with the writing-stats widget unmounted; statusline data must not depend on the widget")

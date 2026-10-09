@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"html"
 	"io"
 	"net/http"
@@ -47,11 +49,18 @@ func TestNewPageSlugRendersFromNow(t *testing.T) {
 
 	seedNewPageTemplate(t, app, `{{.Now.Format "2006-01-02"}}`, `{{.Now.Format "2006-01-02"}}`, "Template content.")
 
-	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (draft rendered inline, no redirect)", resp.StatusCode)
 	}
@@ -90,11 +99,18 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 		Jar:           client.Jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	resp, err := noRedirectClient.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, noRedirectClient, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", resp.StatusCode)
 	}
@@ -102,11 +118,18 @@ func TestNewPageNeverOverwritesExisting(t *testing.T) {
 		t.Errorf("Location = %q, want %q", resp.Header.Get("Location"), want)
 	}
 
-	viewResp, err := client.Get(server.URL + "/" + testNS + "/" + today)
+	viewResp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/"+today)
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, viewResp.Body)
+	{
+		response := viewResp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(viewResp.Body)
 	if !strings.Contains(string(body), "Don&#39;t touch me.") && !strings.Contains(string(body), "Don't touch me.") {
 		t.Errorf("existing page content was overwritten: %s", body)
@@ -131,11 +154,18 @@ func TestNewPageRejectsUnsafeRenderedSlugs(t *testing.T) {
 			defer server.Close()
 			seedNewPageTemplate(t, app, tt.slugTemplate, "Title", "Body.")
 
-			resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+			resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 			if err != nil {
 				t.Fatalf("POST /_/new: %v", err)
 			}
-			defer closeTestBody(t, resp.Body)
+			{
+				response := resp
+				defer func() {
+					if err := response.Body.Close(); err != nil {
+						t.Errorf("closing response body: %v", err)
+					}
+				}()
+			}
 			if resp.StatusCode != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400 for slug template %q", resp.StatusCode, tt.slugTemplate)
 			}
@@ -149,11 +179,18 @@ func TestNewPageRejectsUnsafeTemplatePage(t *testing.T) {
 	seedNewPageTemplate(t, app, "page", "Title", "Body.")
 	app.Namespaces()[testNS].New.Template = "../private"
 
-	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
@@ -169,12 +206,14 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 		t.Error("template page should not be in the search index")
 	}
 
-	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	today := time.Now().Format("2006-01-02")
 	if app.Index.Exists(testNS + "/" + today) {
@@ -187,7 +226,9 @@ func TestNewPageTemplateStaysHiddenFromListingsAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	closeTestBody(t, saveResp.Body)
+	if err := saveResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	if !app.Index.Exists(testNS + "/" + today) {
 		t.Error("entry should be indexed once actually saved")
@@ -201,11 +242,18 @@ func TestNewPageUnknownNamespace404s(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/new?ns=nope")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns=nope")
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("status = %d, want 404 for a namespace with no new: template", resp.StatusCode)
 	}
@@ -220,11 +268,18 @@ func TestNewPageMissingTemplateFallsBack(t *testing.T) {
 		t.Fatalf("writing namespace config: %v", err)
 	}
 
-	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (draft rendered inline, no redirect)", resp.StatusCode)
 	}
@@ -259,12 +314,14 @@ func TestNewPageSubstitutesTitleTagsAndBody(t *testing.T) {
 		t.Fatalf("seeding template page: %v", err)
 	}
 
-	resp, err := client.Get(server.URL + "/_/new?ns=" + testNS)
+	resp, err := testhttp.Get(t, client, server.URL+"/_/new?ns="+testNS)
 	if err != nil {
 		t.Fatalf("POST /_/new: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	now := time.Now()
 	tags := wiki.ParseTags(draftField(draftTagsRe, string(body)))

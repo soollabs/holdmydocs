@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -68,16 +70,11 @@ func newTestApp(t *testing.T) (*httptest.Server, *http.Client) {
 
 func adminLogin(t *testing.T, server *httptest.Server, client *http.Client) {
 	t.Helper()
-	resp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
+	resp, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	closeTestBody(t, resp.Body)
-}
-
-func closeTestBody(t *testing.T, closer io.Closer) {
-	t.Helper()
-	if err := closer.Close(); err != nil {
+	if err := resp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
 	}
 }
@@ -90,7 +87,7 @@ func postJSON(t *testing.T, client *http.Client, url string, body any) (*http.Re
 	if err != nil {
 		t.Fatalf("marshalling JSON body for %s: %v", url, err)
 	}
-	return client.Post(url, "application/json", bytes.NewReader(raw))
+	return testhttp.Post(t, client, url, "application/json", bytes.NewReader(raw))
 }
 
 // postPageSave saves a page through the JSON mutation endpoint, converting the
@@ -248,10 +245,14 @@ func newTestAppFull(t *testing.T) (*testApp, *httptest.Server, *http.Client) {
 		"username": {"admin"},
 		"password": {"password12345"},
 	}
-	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if _, err := client.Do(req); err != nil {
+	response, err := client.Do(req)
+	if err != nil {
 		t.Fatalf("login request failed: %v", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		t.Errorf("closing login response body: %v", err)
 	}
 
 	return env, server, client
@@ -261,15 +262,18 @@ func TestViewHome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/" + testHome)
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
@@ -295,11 +299,18 @@ func TestAttachmentSymlinkIsNotServed(t *testing.T) {
 	if err := os.Symlink(outside, path); err != nil {
 		t.Fatal(err)
 	}
-	resp, err := client.Get(server.URL + "/_/attachments/" + testHome + "/linked.txt")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/attachments/"+testHome+"/linked.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("symlink attachment status = %d, want 404", resp.StatusCode)
 	}
@@ -309,15 +320,18 @@ func TestCreateAffordance(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/" + testNS + "/does-not-exist")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/does-not-exist")
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Status = %d, want 404", resp.StatusCode)
@@ -336,15 +350,18 @@ func TestEditSaveRoundTrip(t *testing.T) {
 
 	slug := testNS + "/test-page"
 
-	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+slug+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing edit response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing edit response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Edit page status = %d, want 200", resp.StatusCode)
@@ -359,25 +376,31 @@ func TestEditSaveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing save response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing save response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Save status = %d, want 200", resp.StatusCode)
 	}
 
-	resp, err = client.Get(server.URL + "/" + slug)
+	resp, err = testhttp.Get(t, client, server.URL+"/"+slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing page response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing page response body: %v", err)
+			}
+		}()
+	}
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("This is a test page.")) {
@@ -406,7 +429,14 @@ func TestCommittedSaveWithIndexWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("save status = %d, want 200 (committed)", resp.StatusCode)
 	}
@@ -430,15 +460,18 @@ func TestOptimisticLockConflict(t *testing.T) {
 
 	slug := testNS + "/lock-test"
 
-	resp, err := client.Get(server.URL + "/" + slug + "?do=edit")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+slug+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing edit response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing edit response body: %v", err)
+			}
+		}()
+	}
 
 	saveForm := url.Values{
 		"title":    {"Version 1"},
@@ -462,11 +495,14 @@ func TestOptimisticLockConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save2 failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing conflict response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing conflict response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("Conflict status = %d, want 409", resp.StatusCode)
@@ -498,11 +534,18 @@ func TestUnauthenticatedAccess(t *testing.T) {
 	}
 
 	t.Run("root redirects to login", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/")
+		resp, err := testhttp.Get(t, client, server.URL+"/")
 		if err != nil {
 			t.Fatalf("GET failed: %v", err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 
 		if resp.StatusCode != http.StatusSeeOther {
 			t.Errorf("status = %d, want 303", resp.StatusCode)
@@ -513,11 +556,18 @@ func TestUnauthenticatedAccess(t *testing.T) {
 	})
 
 	t.Run("private page 404s", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/" + testHome)
+		resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 		if err != nil {
 			t.Fatalf("GET failed: %v", err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("status = %d, want 404", resp.StatusCode)
@@ -553,17 +603,20 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/"+slug, body)
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST upload failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing upload response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing upload response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Upload status = %d, want 200", resp.StatusCode)
@@ -574,15 +627,18 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Errorf("Response should contain attachment URL")
 	}
 
-	resp, err = client.Get(server.URL + "/_/attachments/" + slug + "/test-image.png")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/attachments/"+slug+"/test-image.png")
 	if err != nil {
 		t.Fatalf("GET attachment failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing attachment response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing attachment response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Serve status = %d, want 200", resp.StatusCode)
@@ -610,26 +666,36 @@ func TestAttachmentAcceptsTikaFormats(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/"+slug, body)
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/api/attachments/"+slug, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST attachment failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing rejected attachment response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing rejected attachment response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("upload status = %d, want 200", resp.StatusCode)
 	}
-	resp, err = client.Get(server.URL + "/_/attachments/" + slug + "/virus.exe")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/attachments/"+slug+"/virus.exe")
 	if err != nil {
 		t.Fatalf("GET attachment failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if got := resp.Header.Get("Content-Disposition"); got != "attachment" {
 		t.Errorf("Content-Disposition = %q, want attachment", got)
 	}
@@ -651,7 +717,7 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
-	req, err := http.NewRequest("POST", server.URL+"/_/api/attachments/"+testHome, body)
+	req, err := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/api/attachments/"+testHome, body)
 	if err != nil {
 		t.Fatalf("creating upload request: %v", err)
 	}
@@ -660,7 +726,14 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("posting upload: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want 200", resp.StatusCode)
 	}
@@ -685,11 +758,18 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 		t.Fatalf("latest commit = %+v", commits)
 	}
 
-	resp, err = client.Get(server.URL + "/_/attachments/" + testHome + "/.hmd/extracted/source.txt.txt")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/attachments/"+testHome+"/.hmd/extracted/source.txt.txt")
 	if err != nil {
 		t.Fatalf("getting hidden sidecar: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("hidden sidecar status = %d, want 404", resp.StatusCode)
 	}
@@ -734,7 +814,7 @@ func TestAttachmentRejectsOversizedUpload(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", server.URL+"/_/api/attachments/"+testHome, body)
+	req, err := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/api/attachments/"+testHome, body)
 	if err != nil {
 		t.Fatalf("creating upload request: %v", err)
 	}
@@ -743,7 +823,14 @@ func TestAttachmentRejectsOversizedUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("posting upload: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Errorf("oversized upload status = %d, want %d", resp.StatusCode, http.StatusRequestEntityTooLarge)
 	}
@@ -776,17 +863,20 @@ func TestAttachmentUploadRejectsPathTraversal(t *testing.T) {
 	}
 
 	// Use an encoded dot-segment to bypass ServeMux normalization and test slug validation.
-	req, _ := http.NewRequest("POST", server.URL+"/_/api/attachments/%2e%2e", body)
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/api/attachments/%2e%2e", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST upload failed: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing traversal response body: %v", err)
-		}
-	}()
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing traversal response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Path traversal slug status = %d, want 400", resp.StatusCode)
@@ -807,13 +897,22 @@ func TestSearchPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/_/search?q=uniquewordxyz")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/search?q=uniquewordxyz")
 	if err != nil {
 		t.Fatalf("GET search failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Search status = %d, want 200", resp.StatusCode)
@@ -838,7 +937,9 @@ func TestBacklinksShown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST one failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	saveForm = url.Values{
 		"title":    {"Page Two"},
@@ -849,13 +950,22 @@ func TestBacklinksShown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST two failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/page-two")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/page-two")
 	if err != nil {
 		t.Fatalf("GET page two failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("linked from")) {
@@ -882,7 +992,9 @@ func TestHistoryListAndRevert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	saveForm = url.Values{
 		"title":    {"History Test"},
@@ -893,13 +1005,22 @@ func TestHistoryListAndRevert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v2 failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + slug + "?do=history")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+slug+"?do=history")
 	if err != nil {
 		t.Fatalf("GET history failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("History status = %d, want 200", resp.StatusCode)
@@ -927,13 +1048,22 @@ func TestRevertToOldVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST v1 failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + slug)
+	resp, err = testhttp.Get(t, client, server.URL+"/"+slug)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte("Original content")) {
@@ -946,11 +1076,18 @@ func TestPageChrome(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/" + testHome)
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 
 	for _, want := range []string{
@@ -973,11 +1110,18 @@ func TestPageChrome(t *testing.T) {
 		t.Error("raw hmd:toc token should not appear in rendered HTML")
 	}
 
-	resp, err = client.Get(server.URL + "/" + testHome + "?do=edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testHome+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ = io.ReadAll(resp.Body)
 
 	for _, want := range []string{
@@ -1006,24 +1150,40 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/mermaid-test")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/mermaid-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script missing on page with mermaid content")
 	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/mermaid-test?do=edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/mermaid-test?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ = io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
@@ -1035,14 +1195,21 @@ func TestLoginErrorShown(t *testing.T) {
 	server, _ := newTestApp(t)
 	defer server.Close()
 
-	resp, err := http.PostForm(server.URL+"/_/login", url.Values{
+	resp, err := testhttp.PostForm(t, http.DefaultClient, server.URL+"/_/login", url.Values{
 		"username": {"admin"},
 		"password": {"wrong"},
 	})
 	if err != nil {
 		t.Fatalf("POST login failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Bad login status = %d, want 401", resp.StatusCode)
@@ -1067,23 +1234,39 @@ func TestTagBrowsePages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/_/tags")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/tags")
 	if err != nil {
 		t.Fatalf("tags index request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/_/tags/go"`) {
 		t.Errorf("GET /_/tags should list a link to /_/tags/go, got status %d body:\n%s", resp.StatusCode, body)
 	}
 
-	resp, err = client.Get(server.URL + "/_/tags/go")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/tags/go")
 	if err != nil {
 		t.Fatalf("tag page request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ = io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `href="/`+testNS+`/tagged"`) {
 		t.Errorf("GET /_/tags/go should list a link to /page/tagged, got status %d body:\n%s", resp.StatusCode, body)
@@ -1104,23 +1287,39 @@ func TestTagsOnEditAndView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save request failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/tagged?do=edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/tagged?do=edit")
 	if err != nil {
 		t.Fatalf("edit request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `value="go, wiki"`) {
 		t.Errorf("edit page should show tags input, got:\n%s", body)
 	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/tagged")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/tagged")
 	if err != nil {
 		t.Fatalf("view request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ = io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `href="/_/tags/go"`) || !strings.Contains(string(body), `class="meta-tag"`) {
 		t.Errorf("page view should show a tag chip linking to /_/tags/go, got:\n%s", body)
@@ -1141,13 +1340,22 @@ func TestTitleEscaped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/xss-test")
+	resp, err = testhttp.Get(t, client, server.URL+"/xss-test")
 	if err != nil {
 		t.Fatalf("GET page failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 
 	if bytes.Contains(body, []byte("<script>alert(1)</script>")) {
@@ -1287,11 +1495,18 @@ func TestSettingsGetWithConfigFile(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/admin")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/admin")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
@@ -1329,7 +1544,14 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST settings failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
@@ -1355,7 +1577,14 @@ func TestWikiSettingsPostSavesPortableConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/api/settings/wiki: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -1369,11 +1598,18 @@ func TestWikiSettingsPostSavesPortableConfig(t *testing.T) {
 	if !exists || stored != app.wikiConfig() {
 		t.Errorf("stored wiki config = %#v, exists=%v", stored, exists)
 	}
-	admin, err := client.Get(server.URL + "/_/admin")
+	admin, err := testhttp.Get(t, client, server.URL+"/_/admin")
 	if err != nil {
 		t.Fatalf("GET /_/admin: %v", err)
 	}
-	defer closeTestBody(t, admin.Body)
+	{
+		response := admin
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(admin.Body)
 	if !bytes.Contains(body, []byte(`action="/_/api/settings/wiki"`)) || !bytes.Contains(body, []byte("Travels with the content repository")) {
 		t.Errorf("admin page should distinguish repository settings, body: %s", body)
@@ -1406,7 +1642,14 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST settings failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
@@ -1426,20 +1669,30 @@ func TestSettingsAppearancePostSavesPrefsIndependentlyOfSystemConfig(t *testing.
 	if err != nil {
 		t.Fatalf("POST appearance failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/_/settings")
+	resp2, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing settings response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing settings response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body, []byte(`value="helvetica" selected`)) {
 		t.Errorf("saved UI font should be selected on reload, body: %s", body)
@@ -1458,7 +1711,14 @@ func TestSettingsAppearancePostRejectsUnknownFont(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST appearance failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
@@ -1468,11 +1728,18 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/settings")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if bytes.Contains(body, []byte("Set up wiki")) {
 		t.Errorf("setup modal should not appear before re-run is clicked, body: %s", body)
@@ -1482,24 +1749,30 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/api/settings/setup failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing setup response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing setup response body: %v", err)
+			}
+		}()
+	}
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("re-run setup status = %d, want 200", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/_/settings")
+	resp3, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings after re-run failed: %v", err)
 	}
-	defer func() {
-		if err := resp3.Body.Close(); err != nil {
-			t.Errorf("closing settings response body: %v", err)
-		}
-	}()
+	{
+		response := resp3
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing settings response body: %v", err)
+			}
+		}()
+	}
 	body3, _ := io.ReadAll(resp3.Body)
 	if !bytes.Contains(body3, []byte("Set up wiki")) {
 		t.Errorf("setup modal should appear after re-run setup even though files exist, body: %s", body3)
@@ -1512,21 +1785,27 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /setup skip failed: %v", err)
 	}
-	defer func() {
-		if err := resp4.Body.Close(); err != nil {
-			t.Errorf("closing setup response body: %v", err)
-		}
-	}()
+	{
+		response := resp4
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing setup response body: %v", err)
+			}
+		}()
+	}
 
-	resp5, err := client.Get(server.URL + "/_/settings")
+	resp5, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings after skip failed: %v", err)
 	}
-	defer func() {
-		if err := resp5.Body.Close(); err != nil {
-			t.Errorf("closing settings response body: %v", err)
-		}
-	}()
+	{
+		response := resp5
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing settings response body: %v", err)
+			}
+		}()
+	}
 	body5, _ := io.ReadAll(resp5.Body)
 	if bytes.Contains(body5, []byte("Set up wiki")) {
 		t.Errorf("setup modal should not reappear after skip, body: %s", body5)
@@ -1545,12 +1824,14 @@ func TestSettingsFullFlow(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/admin")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/admin")
 	if err != nil {
 		t.Fatalf("GET /admin failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if !bytes.Contains(body, []byte(":7000")) {
 		t.Errorf("GET should show original bind value")
 	}
@@ -1576,7 +1857,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Errorf("POST Status = %d, want 200", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/_/admin?saved=1")
+	resp3, err := testhttp.Get(t, client, server.URL+"/_/admin?saved=1")
 	if err != nil {
 		t.Fatalf("GET /admin?saved=1 failed: %v", err)
 	}
@@ -1618,7 +1899,14 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/api/settings/export failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
@@ -1753,13 +2041,22 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save alpha failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + testHome)
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`href="/`+testNS+`/alpha"`)) {
@@ -1778,13 +2075,22 @@ func TestTOCRenderedOnHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save toc-test failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	resp, err = client.Get(server.URL + "/" + testNS + "/toc-test")
+	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/toc-test")
 	if err != nil {
 		t.Fatalf("GET /page/toc-test failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ = io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`href="/`+testNS+`/alpha"`)) {
@@ -1796,25 +2102,35 @@ func TestHelpNotInSearchButInPalette(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/search?q=frontmatter")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/search?q=frontmatter")
 	if err != nil {
 		t.Fatalf("GET /search failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if bytes.Contains(body, []byte(`href="/help"`)) {
 		t.Errorf("help should not appear in search results, body: %s", body)
 	}
 
-	resp2, err := client.Get(server.URL + "/_/static/app.js")
+	resp2, err := testhttp.Get(t, client, server.URL+"/_/static/app.js")
 	if err != nil {
 		t.Fatalf("GET /_/static/app.js failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing app.js response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing app.js response body: %v", err)
+			}
+		}()
+	}
 	body2, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body2, []byte(`href="/_/hidden"`)) || !bytes.Contains(body2, []byte(`:hidden:`)) {
 		t.Errorf("app.js should contain a :hidden: palette row linking to /hidden")
@@ -1825,11 +2141,18 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/hidden/help")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/hidden/help")
 	if err != nil {
 		t.Fatalf("GET /_/hidden/help failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
@@ -1838,28 +2161,34 @@ func TestHelpAtHiddenRoute(t *testing.T) {
 		t.Errorf("hidden help page should contain formatting conventions, body: %s", body)
 	}
 
-	resp2, err := client.Get(server.URL + "/help")
+	resp2, err := testhttp.Get(t, client, server.URL+"/help")
 	if err != nil {
 		t.Fatalf("GET /page/help failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing page response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing page response body: %v", err)
+			}
+		}()
+	}
 	if resp2.StatusCode != http.StatusNotFound {
 		t.Errorf("GET /page/help should be 404, got %d", resp2.StatusCode)
 	}
 
-	resp3, err := client.Get(server.URL + "/_/hidden")
+	resp3, err := testhttp.Get(t, client, server.URL+"/_/hidden")
 	if err != nil {
 		t.Fatalf("GET /hidden failed: %v", err)
 	}
-	defer func() {
-		if err := resp3.Body.Close(); err != nil {
-			t.Errorf("closing hidden response body: %v", err)
-		}
-	}()
+	{
+		response := resp3
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing hidden response body: %v", err)
+			}
+		}()
+	}
 	body3, _ := io.ReadAll(resp3.Body)
 	if !bytes.Contains(body3, []byte(`href="/_/hidden/help"`)) {
 		t.Errorf("/_/hidden should list help, body: %s", body3)
@@ -1940,30 +2269,44 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		},
 	}
 	loginForm := url.Values{"username": {"admin"}, "password": {"password12345"}}
-	req, _ := http.NewRequest("POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/login", bytes.NewBufferString(loginForm.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if _, err := client.Do(req); err != nil {
+	response, err := client.Do(req)
+	if err != nil {
 		t.Fatalf("login request failed: %v", err)
 	}
+	if err := response.Body.Close(); err != nil {
+		t.Errorf("closing login response body: %v", err)
+	}
 
-	resp, err := client.Get(server.URL + "/")
+	resp, err := testhttp.Get(t, client, server.URL+"/")
 	if err != nil {
 		t.Fatalf("GET / failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("root should redirect, got status %d", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/" + testHome)
+	resp2, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing home response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing home response body: %v", err)
+			}
+		}()
+	}
 	body2, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body2, []byte("Set up wiki")) {
 		t.Errorf("setup modal should appear when NeedsSetup, body: %s", body2)
@@ -1979,24 +2322,30 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /setup failed: %v", err)
 	}
-	defer func() {
-		if err := resp3.Body.Close(); err != nil {
-			t.Errorf("closing setup response body: %v", err)
-		}
-	}()
+	{
+		response := resp3
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing setup response body: %v", err)
+			}
+		}()
+	}
 	if resp3.StatusCode != http.StatusOK {
 		t.Errorf("setup status = %d, want 200", resp3.StatusCode)
 	}
 
-	resp4, err := client.Get(server.URL + "/" + testHome)
+	resp4, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer func() {
-		if err := resp4.Body.Close(); err != nil {
-			t.Errorf("closing home response body: %v", err)
-		}
-	}()
+	{
+		response := resp4
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing home response body: %v", err)
+			}
+		}()
+	}
 	if resp4.StatusCode != http.StatusOK {
 		t.Errorf("home page status = %d, want 200", resp4.StatusCode)
 	}
@@ -2005,15 +2354,18 @@ func TestSetupInterstitialOnExistingRepo(t *testing.T) {
 		t.Errorf("home page should contain 'Welcome', body: %s", body4)
 	}
 
-	resp5, err := client.Get(server.URL + "/" + testHome)
+	resp5, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme after setup failed: %v", err)
 	}
-	defer func() {
-		if err := resp5.Body.Close(); err != nil {
-			t.Errorf("closing home response body: %v", err)
-		}
-	}()
+	{
+		response := resp5
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing home response body: %v", err)
+			}
+		}()
+	}
 	body5, _ := io.ReadAll(resp5.Body)
 	if bytes.Contains(body5, []byte("setup-modal-backdrop")) {
 		t.Errorf("setup modal should not appear after setup, body: %s", body5)
@@ -2039,12 +2391,14 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 	}
 	app.Store.NeedsSetup.Store(true)
 
-	resp, err := client.Get(server.URL + "/" + testHome)
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET setup page: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	for _, want := range []string{`name="default_namespace"`, `<option value="notes">notes/</option>`, `name="new_namespace"`, `name="site_name"`} {
 		if !bytes.Contains(body, []byte(want)) {
 			t.Errorf("setup should offer %q, body: %s", want, body)
@@ -2060,7 +2414,9 @@ func TestSetupChoosesDetectedNamespaceForWikiConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST setup: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("setup status = %d, want 200", resp.StatusCode)
 	}
@@ -2076,11 +2432,18 @@ func TestNamespaceIndexExcludedFromItsOwnTOC(t *testing.T) {
 
 	savePage(t, app, testNS+"/alpha", "Alpha body")
 
-	resp, err := client.Get(server.URL + "/" + testNS + "/")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/")
 	if err != nil {
 		t.Fatalf("GET /%s/: %v", testNS, err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 
 	if !bytes.Contains(body, []byte(`<a class="wiki" href="/`+testNS+`/alpha"`)) {

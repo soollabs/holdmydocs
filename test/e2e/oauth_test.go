@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"hmd/internal/testhttp"
+
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -34,12 +36,12 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	binary := filepath.Join(t.TempDir(), "hmd")
-	build := exec.Command("go", "build", "-o", binary, "./cmd/hmd")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./cmd/hmd")
 	build.Dir = root
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v: %s", err, output)
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +77,7 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 	if err := state.Close(); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(binary)
+	command := exec.CommandContext(t.Context(), binary)
 	command.Env = append(os.Environ(),
 		"HMD_BIND="+address,
 		"HMD_APP_DIR="+appDir,
@@ -328,9 +330,15 @@ func assertLegacyOAuthMCP(t *testing.T, base, token string) {
 	}
 }
 
-func postMCPRPC(t *testing.T, base, token, version, body string) (*http.Response, string) {
+type rpcResponseMetadata struct {
+	StatusCode int
+	Header     http.Header
+}
+
+// postMCPRPC consumes and closes the body before returning response metadata.
+func postMCPRPC(t *testing.T, base, token, version, body string) (rpcResponseMetadata, string) {
 	t.Helper()
-	request, err := http.NewRequest(http.MethodPost, base+"/_/mcp", strings.NewReader(body))
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +352,15 @@ func postMCPRPC(t *testing.T, base, token, version, body string) (*http.Response
 	if err != nil {
 		t.Fatal(err)
 	}
-	reply := readE2EBody(t, response)
+	replyBytes, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	reply := string(replyBytes)
 	if strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 		var data []string
 		for line := range strings.SplitSeq(reply, "\n") {
@@ -354,7 +370,7 @@ func postMCPRPC(t *testing.T, base, token, version, body string) (*http.Response
 		}
 		reply = strings.Join(data, "\n")
 	}
-	return response, reply
+	return rpcResponseMetadata{StatusCode: response.StatusCode, Header: response.Header}, reply
 }
 
 type e2eBearerTransport struct{ token string }
@@ -368,7 +384,7 @@ func waitReady(t *testing.T, endpoint string) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		response, err := http.Get(endpoint)
+		response, err := testhttp.Get(t, http.DefaultClient, endpoint)
 		if err == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == http.StatusOK {
@@ -382,7 +398,7 @@ func waitReady(t *testing.T, endpoint string) {
 
 func getE2E(t *testing.T, client *http.Client, target string) *http.Response {
 	t.Helper()
-	response, err := client.Get(target)
+	response, err := testhttp.Get(t, client, target)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +407,7 @@ func getE2E(t *testing.T, client *http.Client, target string) *http.Response {
 
 func postOAuthForm(t *testing.T, client *http.Client, target string, form url.Values, csrf string) *http.Response {
 	t.Helper()
-	request, err := http.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}

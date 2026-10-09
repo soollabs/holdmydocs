@@ -185,7 +185,7 @@ func ValidateIconSVG(body []byte) error {
 	for {
 		token, err := decoder.Token()
 		if err != nil {
-			return fmt.Errorf("not valid SVG: %v", err)
+			return fmt.Errorf("not valid SVG: %w", err)
 		}
 		element, ok := token.(xml.StartElement)
 		if !ok {

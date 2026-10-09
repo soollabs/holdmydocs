@@ -1,58 +1,21 @@
 name: Container
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
-    paths:
-      - "**/*.go"
-      - "go.mod"
-      - "go.sum"
-      - "internal/web/web/**"
-      - "Dockerfile"
-      - ".dockerignore"
-      - ".goreleaser.yaml"
-      - ".github/workflows/**"
-  pull_request:
-    paths:
-      - "**/*.go"
-      - "go.mod"
-      - "go.sum"
-      - "internal/web/web/**"
-      - "Dockerfile"
-      - ".dockerignore"
-      - ".goreleaser.yaml"
-      - ".github/workflows/**"
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      publish:
+        description: Publish the built image to GHCR.
+        required: true
+        type: boolean
 
-concurrency:
-  group: container-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+# Inherit the caller's permissions: PR builds are read-only; publication gets packages:write.
 
 env:
   IMAGE_NAME: ghcr.io/soollabs/holdmydocs
 
 jobs:
-  lint:
-    uses: ./.github/workflows/lint.yml
-
-  test:
-    uses: ./.github/workflows/test.yml
-
-  vet:
-    uses: ./.github/workflows/vet.yml
-
   build:
-    needs: [lint, test, vet]
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -70,7 +33,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        if: github.event_name != 'pull_request'
+        if: inputs.publish
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -80,32 +43,9 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ inputs.publish }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           build-args: |
             BUILD_VERSION=${{ steps.metadata.outputs.version }}
             VCS_REF=${{ github.sha }}
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test, vet]
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: go.mod
-      - name: Release binaries
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
-        with:
-          version: v2.18.2
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ github.token }}

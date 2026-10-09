@@ -26,7 +26,7 @@ func TestCodeConsumptionRollsBackLibraryPKCEFailure(t *testing.T) {
 	redirect := "https://client.example.test/callback"
 	ctx := context.WithValue(t.Context(), redirectURIContextKey{}, redirect)
 	request := requestWithTrustedResource(
-		httptest.NewRequest(http.MethodPost, tokenPath, nil),
+		httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil),
 		service.options.Issuer, service.options.Issuer+mcpResourcePath, redirect,
 	)
 	err := store.Transaction(ctx, func(ctx context.Context) error {
@@ -108,7 +108,7 @@ func TestTokenTransactionUsesCurrentPolicy(t *testing.T) {
 				// Deliberately roll back the synthetic competing policy change.
 				return context.Canceled
 			})
-			if err != context.Canceled {
+			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("transaction = %v", err)
 			}
 		})
@@ -200,7 +200,7 @@ func authoriseFixture(t *testing.T, service *Service, authn *auth.Auth, session,
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
 	}
-	request := httptest.NewRequest(http.MethodGet, "/_/oauth/authorize?"+params.Encode(), nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/oauth/authorize?"+params.Encode(), nil)
 	started, err := service.StartAuthorization(request, session, []string{"notes"})
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func s256Challenge(verifier string) (string, error) {
 
 func tokenPost(t *testing.T, handler http.Handler, fields url.Values) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, tokenPath, strings.NewReader(fields.Encode()))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, strings.NewReader(fields.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -302,7 +302,7 @@ func TestOAuthConsentHandleCanCompleteOnlyOnceConcurrently(t *testing.T) {
 		"code_challenge": {challenge}, "code_challenge_method": {"S256"},
 	}
 	started, err := service.StartAuthorization(
-		httptest.NewRequest(http.MethodGet, "/_/oauth/authorize?"+params.Encode(), nil),
+		httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/oauth/authorize?"+params.Encode(), nil),
 		session, []string{"notes"},
 	)
 	if err != nil {
@@ -461,10 +461,10 @@ func TestOAuthClientAuthenticationMethodEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 	basicHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(basicClient.ClientID)+":"+url.QueryEscape(basicClient.Secret)))
-	if _, err := service.authenticateClient(httptest.NewRequest(http.MethodPost, tokenPath, nil).WithContext(t.Context()), url.Values{}); err == nil {
+	if _, err := service.authenticateClient(httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil).WithContext(t.Context()), url.Values{}); err == nil {
 		t.Fatal("empty client credentials were accepted")
 	}
-	request := httptest.NewRequest(http.MethodPost, tokenPath, nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil)
 	request.Header.Set("Authorization", strings.Replace(basicHeader, "Basic ", "basic ", 1))
 	if credentials, err := service.authenticateClient(request, url.Values{}); err != nil || credentials.id != basicClient.ClientID {
 		t.Fatalf("valid client_secret_basic credentials = %#v, %v", credentials, err)
@@ -472,23 +472,23 @@ func TestOAuthClientAuthenticationMethodEnforcement(t *testing.T) {
 	if _, err := service.authenticateClient(request, url.Values{"client_id": {basicClient.ClientID}}); err == nil {
 		t.Fatal("mixed Basic and form client credentials were accepted")
 	}
-	if _, err := service.authenticateClient(httptest.NewRequest(http.MethodPost, tokenPath, nil), url.Values{
+	if _, err := service.authenticateClient(httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil), url.Values{
 		"client_id": {basicClient.ClientID}, "client_secret": {basicClient.Secret},
 	}); err == nil {
 		t.Fatal("client_secret_post was accepted for a Basic client")
 	}
-	if _, err := service.authenticateClient(httptest.NewRequest(http.MethodPost, tokenPath, nil), url.Values{
+	if _, err := service.authenticateClient(httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil), url.Values{
 		"client_id": {postClient.ClientID}, "client_secret": {postClient.Secret},
 	}); err != nil {
 		t.Fatalf("valid client_secret_post credentials: %v", err)
 	}
 	postBasic := "Basic " + base64.StdEncoding.EncodeToString([]byte(url.QueryEscape(postClient.ClientID)+":"+url.QueryEscape(postClient.Secret)))
-	request = httptest.NewRequest(http.MethodPost, tokenPath, nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil)
 	request.Header.Set("Authorization", postBasic)
 	if _, err := service.authenticateClient(request, url.Values{}); err == nil {
 		t.Fatal("client_secret_basic was accepted for a post-authenticated client")
 	}
-	if _, err := service.authenticateClient(httptest.NewRequest(http.MethodPost, tokenPath, nil), url.Values{
+	if _, err := service.authenticateClient(httptest.NewRequestWithContext(t.Context(), http.MethodPost, tokenPath, nil), url.Values{
 		"client_id": {publicID}, "client_secret": {"unexpected"},
 	}); err == nil {
 		t.Fatal("public client unexpectedly accepted a secret")

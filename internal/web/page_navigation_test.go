@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"strings"
@@ -33,12 +35,14 @@ func TestLiveReadingEnhancements(t *testing.T) {
 				{"/docs/guides/start", "/docs/home", "/docs/last"},
 				{"/docs/last", "/docs/guides/start", ""},
 			} {
-				resp, err := tc.client.Get(server.URL + page.path)
+				resp, err := testhttp.Get(t, tc.client, server.URL+page.path)
 				if err != nil {
 					t.Fatal(err)
 				}
 				body, err := io.ReadAll(resp.Body)
-				closeTestBody(t, resp.Body)
+				if err := resp.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
 				if err != nil {
 					t.Fatal(err)
 				}

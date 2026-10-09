@@ -26,7 +26,7 @@ func TestAuthorizationSecurityMatrix(t *testing.T) {
 		t.Run("duplicate "+field, func(t *testing.T) {
 			values := authorizationFields(clientID)
 			values.Add(field, values.Get(field))
-			_, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+			_, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
 			if err == nil {
 				t.Fatalf("duplicate %s was accepted", field)
 			}
@@ -47,7 +47,7 @@ func TestAuthorizationSecurityMatrix(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			values := authorizationFields(clientID)
 			values.Set(tc.field, tc.value)
-			started, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+			started, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
 			if err == nil || started.Handle != "" {
 				t.Fatal("invalid request created a browser flow")
 			}
@@ -55,7 +55,7 @@ func TestAuthorizationSecurityMatrix(t *testing.T) {
 	}
 	for _, suffix := range []string{"&state=%zz", "&redirect_uri=%zz", "&hint=%zz", "&hint=bad;encoding"} {
 		t.Run("malformed "+suffix, func(t *testing.T) {
-			_, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+authorizationFields(clientID).Encode()+suffix, nil), session, []string{"notes"})
+			_, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+authorizationFields(clientID).Encode()+suffix, nil), session, []string{"notes"})
 			if err == nil {
 				t.Fatal("partially parsed authorisation query was accepted")
 			}
@@ -67,7 +67,7 @@ func TestConsentBindingAndPrivilegeBoundaries(t *testing.T) {
 	service, store, _, session, clientID := newOAuthServiceFixture(t)
 	for _, attack := range []string{"flow cookie", "session", "user", "scope", "empty namespaces", "unknown namespace", "implicit all"} {
 		t.Run(attack, func(t *testing.T) {
-			started, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+authorizationFields(clientID).Encode(), nil), session, []string{"notes"})
+			started, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+authorizationFields(clientID).Encode(), nil), session, []string{"notes"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -174,7 +174,7 @@ func TestCodeReplayRevokesOnlyAfterProofOfBinding(t *testing.T) {
 
 func TestClientAuthenticationRejectsRepeatedHeaders(t *testing.T) {
 	service, _, _, _, clientID := newOAuthServiceFixture(t)
-	r := httptest.NewRequest("POST", tokenPath, nil)
+	r := httptest.NewRequestWithContext(t.Context(), "POST", tokenPath, nil)
 	r.Header.Add("Authorization", "Basic first")
 	r.Header.Add("Authorization", "Basic second")
 	if _, err := service.authenticateClient(r, url.Values{"client_id": {clientID}}); err == nil {
@@ -226,7 +226,7 @@ func FuzzOAuthFormSingletons(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, body string) {
-		r := httptest.NewRequest("POST", tokenPath, strings.NewReader(body))
+		r := httptest.NewRequestWithContext(t.Context(), "POST", tokenPath, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		form, err := parseOAuthForm(httptest.NewRecorder(), r)
 		if err != nil {
@@ -250,7 +250,7 @@ func TestAuthorizationErrorsRedirectAfterRedirectValidation(t *testing.T) {
 	} {
 		values := authorizationFields(clientID)
 		values.Set(corrupt.field, corrupt.value)
-		_, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+		_, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
 		if err == nil {
 			t.Fatal("invalid request was accepted")
 		}
@@ -268,7 +268,7 @@ func TestAuthorizationErrorsRedirectAfterRedirectValidation(t *testing.T) {
 		t.Run(corrupt.code, func(t *testing.T) {
 			values := authorizationFields(clientID)
 			values.Set(corrupt.field, corrupt.value)
-			_, err := service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+			_, err := service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
 			if err == nil {
 				t.Fatal("invalid request was accepted")
 			}
@@ -300,7 +300,7 @@ func TestDynamicClientAuthorizationErrorsDoNotRedirect(t *testing.T) {
 	values.Set("redirect_uri", "https://dynamic.example.test/callback")
 	values.Set("scope", "read")
 	values.Set("response_type", "token")
-	_, err = service.StartAuthorization(httptest.NewRequest("GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
+	_, err = service.StartAuthorization(httptest.NewRequestWithContext(t.Context(), "GET", authorizePath+"?"+values.Encode(), nil), session, []string{"notes"})
 	if err == nil {
 		t.Fatal("invalid request was accepted")
 	}

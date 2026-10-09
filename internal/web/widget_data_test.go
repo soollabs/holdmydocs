@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"net/url"
@@ -26,11 +28,18 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	}
 
 	getEdit := func() string {
-		resp, err := client.Get(server.URL + "/" + testNS + "/clip?do=edit")
+		resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/clip?do=edit")
 		if err != nil {
 			t.Fatalf("GET edit: %v", err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -44,7 +53,9 @@ func TestWidgetFrontmatterPreservedAcrossSave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("save status = %d, want 200", resp.StatusCode)
 	}

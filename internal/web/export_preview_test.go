@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -11,18 +13,29 @@ import (
 	"time"
 )
 
-func previewResponse(t *testing.T, client *http.Client, endpoint string) (*http.Response, string) {
+type previewResponseMetadata struct {
+	StatusCode int
+	Header     http.Header
+	URL        *url.URL
+}
+
+// previewResponse consumes and closes the body before returning response metadata.
+func previewResponse(t *testing.T, client *http.Client, endpoint string) (previewResponseMetadata, string) {
 	t.Helper()
-	response, err := client.Get(endpoint)
+	response, err := testhttp.Get(t, client, endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(response.Body)
-	closeTestBody(t, response.Body)
+	if err := response.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	return response, string(body)
+	return previewResponseMetadata{
+		StatusCode: response.StatusCode, Header: response.Header, URL: response.Request.URL,
+	}, string(body)
 }
 
 func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
@@ -38,11 +51,11 @@ func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
 	app.SetNamespaces(reg)
 	endpoint := server.URL + "/_/settings/namespaces/" + testNS + "/preview"
 	response, body := previewResponse(t, client, endpoint)
-	if response.StatusCode != http.StatusOK || !strings.Contains(response.Request.URL.Path, "/_/export-preview/") {
-		t.Fatalf("preview status/path: %d %s %s", response.StatusCode, response.Request.URL.Path, body)
+	if response.StatusCode != http.StatusOK || !strings.Contains(response.URL.Path, "/_/export-preview/") {
+		t.Fatalf("preview status/path: %d %s %s", response.StatusCode, response.URL.Path, body)
 	}
-	previewURL := strings.TrimSuffix(response.Request.URL.String(), "/") + "/"
-	id := strings.Split(strings.Trim(response.Request.URL.Path, "/"), "/")[2]
+	previewURL := strings.TrimSuffix(response.URL.String(), "/") + "/"
+	id := strings.Split(strings.Trim(response.URL.Path, "/"), "/")[2]
 	app.previewMu.Lock()
 	snapshot := app.previews[id]
 	app.previewMu.Unlock()
@@ -101,11 +114,13 @@ func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
 	if err := app.Auth.AddUserWithScopes("other", "password12345", []string{"settings"}); err != nil {
 		t.Fatal(err)
 	}
-	login, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"other"}, "password": {"password12345"}})
+	login, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"other"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	closeTestBody(t, login.Body)
+	if err := login.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	response, _ = previewResponse(t, client, previewURL+"style.css")
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatal("snapshot leaked to another user")
@@ -114,12 +129,12 @@ func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatal("settings-only user cannot generate and view preview")
 	}
-	otherURL := strings.TrimSuffix(response.Request.URL.String(), "/") + "/"
+	otherURL := strings.TrimSuffix(response.URL.String(), "/") + "/"
 	if err := app.Auth.SetScopes("other", []string{"read"}); err != nil {
 		t.Fatal(err)
 	}
 	response, _ = previewResponse(t, client, otherURL+"style.css")
-	if response.StatusCode != http.StatusForbidden && response.Request.URL.Path != "/_/login" {
+	if response.StatusCode != http.StatusForbidden && response.URL.Path != "/_/login" {
 		t.Fatal("revoked settings access still serves assets")
 	}
 	adminLogin(t, server, client)
@@ -137,14 +152,14 @@ func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
 	if _, err := os.Stat(snapshot.dir); !os.IsNotExist(err) {
 		t.Fatal("superseded snapshot directory not removed")
 	}
-	newID := strings.Split(strings.Trim(response.Request.URL.Path, "/"), "/")[2]
+	newID := strings.Split(strings.Trim(response.URL.Path, "/"), "/")[2]
 	app.previewMu.Lock()
 	current := app.previews[newID]
 	current.mu.Lock()
 	current.expires = time.Now().Add(-time.Minute)
 	current.mu.Unlock()
 	app.previewMu.Unlock()
-	response, _ = previewResponse(t, client, response.Request.URL.String())
+	response, _ = previewResponse(t, client, response.URL.String())
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatal("expired snapshot served")
 	}
@@ -176,13 +191,13 @@ func TestExportPreviewMissingURLAndAnonymousAccess(t *testing.T) {
 		t.Fatalf("missing confirmation: %s", body)
 	}
 	response, _ = previewResponse(t, client, server.URL+"/_/settings/namespaces/"+testNS+"/preview?use-main-base-url=1")
-	if !strings.Contains(response.Request.URL.Path, "/_/export-preview/") {
+	if !strings.Contains(response.URL.Path, "/_/export-preview/") {
 		t.Fatal("fallback did not generate preview")
 	}
 	if app.Namespaces()[testNS].Export.BaseURL != "" {
 		t.Fatal("fallback changed saved settings")
 	}
-	previewURL := response.Request.URL.String()
+	previewURL := response.URL.String()
 	reg := app.Namespaces()
 	delete(reg, testNS)
 	app.SetNamespaces(reg)
@@ -196,7 +211,7 @@ func TestExportPreviewMissingURLAndAnonymousAccess(t *testing.T) {
 	}
 	anonymous := &http.Client{Jar: jar}
 	response, body = previewResponse(t, anonymous, previewURL+"style.css")
-	if response.Request.URL.Path != "/_/login" || strings.Contains(body, "body.shell {") {
+	if response.URL.Path != "/_/login" || strings.Contains(body, "body.shell {") {
 		t.Fatal("unauthenticated asset request leaked content")
 	}
 }

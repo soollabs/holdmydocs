@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"net/url"
 	"testing"
 )
@@ -16,14 +18,18 @@ func TestAllSkinsRenderWithoutError(t *testing.T) {
 			if err != nil {
 				t.Fatalf("setting skin: %v", err)
 			}
-			closeTestBody(t, resp.Body)
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
 
 			for _, path := range []string{"/" + testHome, "/" + testHome + "?do=edit", "/_/settings", "/_/inbox", "/_/tags"} {
-				resp, err := client.Get(server.URL + path)
+				resp, err := testhttp.Get(t, client, server.URL+path)
 				if err != nil {
 					t.Fatalf("GET %s: %v", path, err)
 				}
-				closeTestBody(t, resp.Body)
+				if err := resp.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
 				if resp.StatusCode >= 500 {
 					t.Errorf("skin=%s GET %s status = %d, want < 500", p, path, resp.StatusCode)
 				}

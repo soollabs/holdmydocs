@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -284,7 +286,9 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /_/api/namespaces: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	cfg, ok := app.Namespaces()["blog"]
 	if !ok {
@@ -316,12 +320,14 @@ func TestCreateNamespaceFromAdmin(t *testing.T) {
 		t.Errorf("reading seeded template %s: %v", wiki.HiddenFile("blog/"+wiki.DefaultNewPageTemplate), err)
 	}
 
-	newResp, err := client.Get(server.URL + "/_/new?ns=blog")
+	newResp, err := testhttp.Get(t, client, server.URL+"/_/new?ns=blog")
 	if err != nil {
 		t.Fatalf("POST /_/new?ns=blog: %v", err)
 	}
 	body, _ := io.ReadAll(newResp.Body)
-	closeTestBody(t, newResp.Body)
+	if err := newResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	todaySlug := "blog/" + time.Now().Format("2006-01-02")
 	if !strings.Contains(string(body), `data-slug="`+todaySlug+`"`) {
 		t.Errorf("draft response should render the editor for %s: %s", todaySlug, body)
@@ -335,11 +341,13 @@ func TestNamespaceManagement(t *testing.T) {
 
 	adminLogin(t, server, client)
 	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET %s = %d, want 200", path, resp.StatusCode)
 		}
@@ -349,12 +357,14 @@ func TestNamespaceManagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create blog: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("create status = %d, want 200", resp.StatusCode)
 	}
 
-	resp, err = client.Get(server.URL + "/_/namespaces")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces")
 	if err != nil {
 		t.Fatalf("GET namespace directory: %v", err)
 	}
@@ -362,7 +372,9 @@ func TestNamespaceManagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading namespace directory: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	body := string(content)
 	if !strings.Contains(body, "blog") || !strings.Contains(body, "0 pages") {
 		t.Errorf("namespace directory missing blog catalogue row: %s", body)
@@ -371,7 +383,7 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Errorf("namespace directory table is missing its responsive semantic class: %s", body)
 	}
 
-	resp, err = client.Get(server.URL + "/_/namespaces/blog/edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces/blog/edit")
 	if err != nil {
 		t.Fatalf("GET namespace editor: %v", err)
 	}
@@ -379,7 +391,9 @@ func TestNamespaceManagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading namespace editor: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	body = string(content)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/delete-all`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `ON THIS PAGE`) {
 		t.Errorf("namespace editor = %d, body missing focused form: %s", resp.StatusCode, body)
@@ -436,7 +450,9 @@ func TestNamespaceManagementRejectsIndexedPageWithoutMutation(t *testing.T) {
 
 	resp := postNamespaceDelete(t, server, client, "blog")
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("deleting namespace with indexed page = %d, want 400", resp.StatusCode)
 	}
@@ -466,7 +482,9 @@ func TestNamespaceManagementRejectsHiddenFileWithoutMutation(t *testing.T) {
 
 	resp := postNamespaceDelete(t, server, client, "blog")
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("deleting namespace with hidden file = %d, want 400", resp.StatusCode)
 	}
@@ -496,7 +514,9 @@ func TestNamespaceManagementRejectsOtherDirectoryContentWithoutMutation(t *testi
 
 	resp := postNamespaceDelete(t, server, client, "blog")
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("deleting namespace with ordinary content = %d, want 400", resp.StatusCode)
 	}
@@ -551,7 +571,9 @@ func TestNamespaceManagementDeletesGenuinelyEmptyConfiguredNamespace(t *testing.
 	saveConfiguredEmptyNamespace(t, app, "empty")
 
 	resp := postNamespaceDelete(t, server, client, "empty")
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("deleting empty namespace = %d, want 200", resp.StatusCode)
 	}
@@ -590,7 +612,9 @@ func TestNamespaceManagementDeletesAllFiles(t *testing.T) {
 	}
 
 	resp := postNamespaceDeleteAll(t, server, client, "blog")
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("delete all = %d, want 200", resp.StatusCode)
 	}
@@ -617,7 +641,9 @@ func TestNamespaceManagementRejectsRootAndInvalidDeletionNames(t *testing.T) {
 			}
 
 			resp := postNamespaceDelete(t, server, client, name)
-			closeTestBody(t, resp.Body)
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
 			if resp.StatusCode != http.StatusBadRequest {
 				t.Fatalf("deleting %q = %d, want 400", name, resp.StatusCode)
 			}
@@ -655,7 +681,9 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: POST /_/api/namespaces: %v", tc.name, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if _, ok := app.Namespaces()["nope"]; ok {
 			t.Errorf("%s: rejected save must not create the namespace", tc.name)
 		}
@@ -679,7 +707,9 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 		if err != nil {
 			t.Fatalf("creating %s: %v", ns, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 	}
 	if _, err := app.Store.Save(wiki.PageFile("blog/hello"), wiki.Page{Slug: "blog/hello", Title: "Hello"}.Encode(), "Add blog/hello", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("seeding blog/hello: %v", err)
@@ -689,7 +719,9 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resetting blog: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if _, _, err := app.Store.Read(wiki.PageFile("blog/hello")); err != nil {
 		t.Fatalf("reset must preserve indexed pages: %v", err)
 	}
@@ -709,7 +741,9 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconfigure blog: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	for _, ns := range []string{"blog", "empty"} {
 		resp, err := postJSON(t, client, server.URL+"/_/api/namespaces/delete", namespaceActionJSON(url.Values{"name": {ns}}))
@@ -717,7 +751,9 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 			t.Fatalf("deleting %s: %v", ns, err)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("deleting non-empty %s = %d, want 400", ns, resp.StatusCode)
 		}
@@ -785,7 +821,9 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("saving blog: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	cfg := app.Namespaces()["blog"]
 	if cfg.New == nil || cfg.New.Template != "entry" {
@@ -806,7 +844,9 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("disabling new pages: %v", err)
 	}
-	closeTestBody(t, off.Body)
+	if err := off.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	cfg = app.Namespaces()["blog"]
 	if cfg.New != nil {
@@ -830,7 +870,9 @@ func TestSeededTemplateExplainsItself(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating blog: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	content, _, err := app.Store.Read(wiki.HiddenFile("blog/" + wiki.DefaultNewPageTemplate))
 	if err != nil {
@@ -941,7 +983,9 @@ func TestSaveNamespaceRejectsStaleBrowserUpdate(t *testing.T) {
 		t.Fatalf("stale save: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale save = %d, want 409", resp.StatusCode)
 	}
@@ -978,7 +1022,9 @@ func TestSaveNamespaceRejectsSimultaneousCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("simultaneous create: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("simultaneous create = %d, want 409", resp.StatusCode)
 	}
@@ -1007,7 +1053,9 @@ func TestSaveNamespaceCreatesConfigForImplicitNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("configuring implicit namespace: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("configuring implicit namespace = %d, want 200", resp.StatusCode)
 	}
@@ -1020,7 +1068,9 @@ func TestSaveNamespaceCreatesConfigForImplicitNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("simultaneous create: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("simultaneous create = %d, want 409", resp.StatusCode)
 	}

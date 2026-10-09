@@ -18,7 +18,7 @@ func TestLoopbackMCPAllowsOnlyConfiguredProxyHost(t *testing.T) {
 		s := sdk.NewServer(&sdk.Implementation{Name: "test", Version: "test"}, nil)
 		server := httptest.NewServer(newMCPHTTPHandler(base, func(*http.Request) *sdk.Server { return s }))
 		for _, host := range []string{"wiki.example.test", "attacker.example.test", "127.0.0.1"} {
-			req, _ := http.NewRequest("POST", server.URL, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`))
+			req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`))
 			req.Host = host
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json, text/event-stream")

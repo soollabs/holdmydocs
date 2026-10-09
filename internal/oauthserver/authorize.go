@@ -3,6 +3,7 @@ package oauthserver
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -205,7 +206,10 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 	}
 	resource, err := single("resource", true)
 	if err != nil {
-		return authorizationRequest{}, redirectable(err.(*ProtocolError))
+		if protocol, ok := errors.AsType[*ProtocolError](err); ok {
+			return authorizationRequest{}, redirectable(protocol)
+		}
+		return authorizationRequest{}, err
 	}
 	if ValidateResource([]string{resource}, s.options.Issuer+mcpResourcePath, true) != nil {
 		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_target", Description: "unsupported resource", Status: http.StatusBadRequest})
@@ -220,7 +224,10 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 	}
 	responseScope, err := single("scope", false)
 	if err != nil {
-		return authorizationRequest{}, redirectable(err.(*ProtocolError))
+		if protocol, ok := errors.AsType[*ProtocolError](err); ok {
+			return authorizationRequest{}, redirectable(protocol)
+		}
+		return authorizationRequest{}, err
 	}
 	if _, supplied := values["scope"]; supplied && responseScope == "" {
 		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "scope must be non-empty when supplied", Status: http.StatusBadRequest})
@@ -259,7 +266,7 @@ func stateFrom(values url.Values) string {
 // ErrorRedirect reports the RFC 6749 error redirect for an authorisation
 // failure whose redirect URI was exactly validated, if one exists.
 func ErrorRedirect(err error, issuer string) (string, bool) {
-	protocol, ok := err.(*ProtocolError)
+	protocol, ok := errors.AsType[*ProtocolError](err)
 	if !ok || protocol.RedirectURI == "" || protocol.Code == "server_error" {
 		return "", false
 	}

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/url"
 	"strings"
@@ -19,14 +21,23 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 	}
 	get := func() string {
-		resp, err := client.Get(server.URL + "/" + testHome)
+		resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 		if err != nil {
 			t.Fatalf("GET /%s: %v", testHome, err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -77,11 +88,18 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 		}
 	}
 
-	editResp, err := client.Get(server.URL + "/" + testHome + "?do=edit")
+	editResp, err := testhttp.Get(t, client, server.URL+"/"+testHome+"?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}
-	defer closeTestBody(t, editResp.Body)
+	{
+		response := editResp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	editBody, _ := io.ReadAll(editResp.Body)
 	if !strings.Contains(string(editBody), `form="edit-form" class="topbar-action topbar-primary">Save</button>`) {
 		t.Error("edit mode should replace Edit with Save in the top bar")
@@ -99,22 +117,27 @@ func TestStatuslineModeLabelPerSkin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	authorName, authorEmail := app.gitAuthor("admin")
 	if _, err := app.Store.Save("daily/2026-07-25.md", (wiki.Page{Slug: "daily/2026-07-25", Title: "2026-07-25", Body: "x"}).Encode(), "seed", authorName, authorEmail); err != nil {
 		t.Fatalf("seeding: %v", err)
 	}
 
-	editResp, err := client.Get(server.URL + "/daily/2026-07-25?do=edit")
+	editResp, err := testhttp.Get(t, client, server.URL+"/daily/2026-07-25?do=edit")
 	if err != nil {
 		t.Fatalf("GET edit: %v", err)
 	}
-	defer func() {
-		if err := editResp.Body.Close(); err != nil {
-			t.Errorf("closing edit response body: %v", err)
-		}
-	}()
+	{
+		response := editResp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing edit response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(editResp.Body)
 	if !strings.Contains(string(body), `id="status-mode">write<`) {
 		t.Errorf("journal skin in edit mode should show mode label 'write', body snippet not found")

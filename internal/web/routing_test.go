@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"html"
 	"io"
@@ -21,11 +23,13 @@ func TestStaticDirectoriesAreNotListed(t *testing.T) {
 	defer server.Close()
 
 	for _, path := range []string{"/_/static/", "/_/static/fonts/"} {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", path, resp.StatusCode)
 		}
@@ -37,11 +41,13 @@ func TestMalformedPagePathsAreNotInternalErrors(t *testing.T) {
 	defer server.Close()
 
 	for _, path := range []string{"/notes/%00", "/notes/.git/config"} {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", path, resp.StatusCode)
 		}
@@ -52,11 +58,13 @@ func TestSecurityHeadersPresent(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/login")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/login")
 	if err != nil {
 		t.Fatalf("GET /_/login: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	if got := resp.Header.Get("X-Frame-Options"); got != "DENY" {
 		t.Errorf("X-Frame-Options = %q, want DENY", got)
@@ -84,7 +92,7 @@ func TestDoDispatchPerAction(t *testing.T) {
 	}
 
 	get := func(path string) *http.Response {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
@@ -93,14 +101,18 @@ func TestDoDispatchPerAction(t *testing.T) {
 
 	resp := get("/" + testNS + "/routing-target")
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("hello")) {
 		t.Errorf("view: status = %d, body = %s", resp.StatusCode, body)
 	}
 
 	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	basehashRe := regexp.MustCompile(`name="basehash" value="([0-9a-f]*)"`)
 	m := basehashRe.FindStringSubmatch(string(body))
 	if resp.StatusCode != http.StatusOK || m == nil {
@@ -109,7 +121,9 @@ func TestDoDispatchPerAction(t *testing.T) {
 	basehash := ""
 
 	resp = get("/" + testNS + "/routing-target?do=history")
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=history: status = %d", resp.StatusCode)
 	}
@@ -118,14 +132,18 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST tags: %v", err)
 	}
-	closeTestBody(t, tagResp.Body)
+	if err := tagResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if tagResp.StatusCode != http.StatusOK {
 		t.Errorf("tags: status = %d", tagResp.StatusCode)
 	}
 
 	resp = get("/" + testNS + "/routing-target?do=edit")
 	body, _ = io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	m = basehashRe.FindStringSubmatch(string(body))
 	if m == nil {
 		t.Fatalf("?do=edit (2nd fetch): no basehash found in body = %s", body)
@@ -138,14 +156,18 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	closeTestBody(t, saveResp.Body)
+	if err := saveResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if saveResp.StatusCode != http.StatusOK {
 		t.Fatalf("save: status = %d, want 200", saveResp.StatusCode)
 	}
 
 	histResp := get("/" + testNS + "/routing-target?do=history")
 	histBody, _ := io.ReadAll(histResp.Body)
-	closeTestBody(t, histResp.Body)
+	if err := histResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	// history.html renders rev links as ?do=rev&hash=...; html/template escapes
 	// the "&" to "&amp;" as any HTML attribute value would be, so unescape
 	// before matching, same as a browser does before navigating.
@@ -156,13 +178,17 @@ func TestDoDispatchPerAction(t *testing.T) {
 	hashA, hashB := hashes[0][1], hashes[1][1]
 
 	resp = get("/" + testNS + "/routing-target?do=diff&a=" + hashA + "&b=" + hashB)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=diff: status = %d", resp.StatusCode)
 	}
 
 	resp = get("/" + testNS + "/routing-target?do=rev&hash=" + hashA)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("?do=rev: status = %d", resp.StatusCode)
 	}
@@ -171,7 +197,9 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST revert: %v", err)
 	}
-	closeTestBody(t, revertResp.Body)
+	if err := revertResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if revertResp.StatusCode != http.StatusOK {
 		t.Errorf("revert: status = %d, want 200", revertResp.StatusCode)
 	}
@@ -180,7 +208,9 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST rename: %v", err)
 	}
-	closeTestBody(t, renameResp.Body)
+	if err := renameResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if renameResp.StatusCode != http.StatusOK {
 		t.Errorf("rename: status = %d, want 200", renameResp.StatusCode)
 	}
@@ -189,7 +219,9 @@ func TestDoDispatchPerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST delete: %v", err)
 	}
-	closeTestBody(t, deleteResp.Body)
+	if err := deleteResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if deleteResp.StatusCode != http.StatusOK {
 		t.Errorf("delete: status = %d, want 200", deleteResp.StatusCode)
 	}
@@ -197,7 +229,9 @@ func TestDoDispatchPerAction(t *testing.T) {
 		t.Error("delete: page still in search index")
 	}
 	resp = get("/" + testNS + "/routing-target-renamed")
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("view after delete: status = %d, want 404", resp.StatusCode)
 	}
@@ -215,7 +249,9 @@ func TestNewPageCanChooseFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST new page: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("save status = %d, want 200", resp.StatusCode)
 	}
@@ -253,7 +289,8 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 		t.Fatalf("indexing page: %v", err)
 	}
 
-	save := func(newSlug, basehash string) *http.Response {
+	type replyMetadata struct{ StatusCode int }
+	save := func(newSlug, basehash string) replyMetadata {
 		t.Helper()
 		resp, err := postPageSave(t, client, server, testNS+"/mover", url.Values{
 			"new_slug": {newSlug},
@@ -264,8 +301,10 @@ func TestEditMovesPageBetweenNamespaces(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST save: %v", err)
 		}
-		closeTestBody(t, resp.Body)
-		return resp
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+		return replyMetadata{StatusCode: resp.StatusCode}
 	}
 
 	if resp := save("nope/mover", hash); resp.StatusCode != http.StatusBadRequest {
@@ -295,11 +334,18 @@ func TestUnrecognisedDoValue404s(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/" + testHome + "?do=bogus")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testHome+"?do=bogus")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("?do=bogus: status = %d, want 404", resp.StatusCode)
 	}
@@ -310,12 +356,14 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/" + testNS + "/?do=edit")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/?do=edit")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
 	}
@@ -330,12 +378,14 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 	anon := noAuthClient()
 	get := func(path string) string {
 		t.Helper()
-		resp, err := anon.Get(server.URL + path)
+		resp, err := testhttp.Get(t, anon, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
 		b, _ := io.ReadAll(resp.Body)
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("GET %s: status = %d, want 404", path, resp.StatusCode)
 		}
@@ -361,11 +411,18 @@ func TestPageNamedEditIsReachable(t *testing.T) {
 		t.Fatalf("updating index: %v", err)
 	}
 
-	resp, err := client.Get(server.URL + "/" + testNS + "/edit")
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testNS+"/edit")
 	if err != nil {
 		t.Fatalf("GET /%s/edit: %v", testNS, err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("a page named edit")) {
 		t.Errorf("GET /%s/edit: status = %d, body = %s", testNS, resp.StatusCode, body)
@@ -378,11 +435,18 @@ func TestUnderscoreRouteNeverResolvesToContent(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := client.Get(server.URL + "/_/nonexistent-app-route")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/nonexistent-app-route")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", resp.StatusCode)
@@ -412,12 +476,14 @@ func TestNoBrokenLinksSmoke(t *testing.T) {
 
 	seen := make(map[string]bool)
 	for _, p := range pages {
-		resp, err := client.Get(server.URL + p)
+		resp, err := testhttp.Get(t, client, server.URL+p)
 		if err != nil {
 			t.Fatalf("GET %s: %v", p, err)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("GET %s: status = %d", p, resp.StatusCode)
 		}
@@ -435,12 +501,14 @@ func TestNoBrokenLinksSmoke(t *testing.T) {
 			}
 			seen[href] = true
 
-			checkResp, err := client.Get(server.URL + href)
+			checkResp, err := testhttp.Get(t, client, server.URL+href)
 			if err != nil {
 				t.Errorf("GET %s (linked from %s): %v", href, p, err)
 				continue
 			}
-			closeTestBody(t, checkResp.Body)
+			if err := checkResp.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
 			if checkResp.StatusCode == http.StatusNotFound {
 				t.Errorf("GET %s (linked from %s): 404", href, p)
 			}

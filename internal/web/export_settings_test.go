@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"archive/zip"
 	"bytes"
 	"io"
@@ -19,24 +21,28 @@ func TestExportUIAsksBeforeMainURLFallback(t *testing.T) {
 	cfg.BaseURL = "https://live.example.org/"
 	app.SetConfig(cfg)
 	endpoint := server.URL + "/_/settings/namespaces/" + testNS + "/export"
-	resp, err := client.Get(endpoint)
+	resp, err := testhttp.Get(t, client, endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Use main base URL and export") || resp.Header.Get("Content-Type") == "application/zip" {
 		t.Fatalf("did not ask for fallback: %s", body)
 	}
-	resp, err = client.Get(endpoint + "?use-main-base-url=1")
+	resp, err = testhttp.Get(t, client, endpoint+"?use-main-base-url=1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, err = io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +61,11 @@ func TestExportUIAsksBeforeMainURLFallback(t *testing.T) {
 				t.Fatal(err)
 			}
 			data, err := io.ReadAll(f)
-			closeTestBody(t, f)
+			func() {
+				if err := f.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +93,9 @@ func TestNamespaceExportSettingsSaveAndRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("save status %d", resp.StatusCode)
 	}
@@ -93,12 +105,14 @@ func TestNamespaceExportSettingsSaveAndRender(t *testing.T) {
 	if c := app.Namespaces()["docs"].Export.Links[0]; c.Location != "topbar" || !c.IconOnly {
 		t.Fatal("link presentation settings not saved")
 	}
-	resp, err = client.Get(server.URL + "/_/namespaces/docs/edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces/docs/edit")
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

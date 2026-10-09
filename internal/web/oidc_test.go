@@ -154,14 +154,14 @@ func TestOIDCAdmissionDelegatedToIdentityProvider(t *testing.T) {
 func TestOIDCCallbackRejectsBadState(t *testing.T) {
 	app := &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{}}
 
-	r := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=x", nil)
+	r := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=x", nil)
 	w := httptest.NewRecorder()
 	app.handleOIDCCallback(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("missing state cookie: got %d, want 400", w.Code)
 	}
 
-	r = httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=x", nil)
+	r = httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=x", nil)
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "different"})
 	w = httptest.NewRecorder()
 	app.handleOIDCCallback(w, r)
@@ -177,7 +177,7 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 
 func TestOIDCCallbackDisabled(t *testing.T) {
 	app := &App{API: api.New(nil, nil, nil)}
-	r := httptest.NewRequest("GET", "/auth/oidc/callback", nil)
+	r := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback", nil)
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
 	r.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
 	w := httptest.NewRecorder()
@@ -213,7 +213,7 @@ func TestOIDCCallbackFailuresAreGenericAndClearCookies(t *testing.T) {
 				return tc.claims, "https://idp.example.com", tc.authErr
 			}}}
 			app.SetConfig(config.Config{OIDC: config.OIDCConfig{AllowedEmailDomains: []string{"example.com"}, DefaultScopes: []string{"read"}}})
-			request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
 			request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
 			if !tc.withoutPKCE {
 				request.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
@@ -245,7 +245,7 @@ func TestOIDCCallbackSuccess(t *testing.T) {
 	app.SetWikiConfig(wiki.DefaultConfig())
 	app.SetNamespaces(wiki.NamespaceRegistry{})
 
-	request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/auth/oidc/callback?state=state&code=code", nil)
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "state"})
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
 	response := httptest.NewRecorder()
@@ -279,7 +279,7 @@ func TestOIDCCallbackRejectsContinuationBoundToDifferentState(t *testing.T) {
 		}},
 	}
 	app.SetConfig(config.Config{OIDC: config.OIDCConfig{AllowAnyAuthenticated: true, DefaultScopes: []string{"read"}}})
-	request := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/callback?state=expected&code=code", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/auth/oidc/callback?state=expected&code=code", nil)
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_state", Value: "expected"})
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_pkce", Value: "verifier"})
 	request.AddCookie(&http.Cookie{Name: "hmd_oidc_continue", Value: "other-state.hmd_oh_handle"})
@@ -315,7 +315,7 @@ func TestOIDCLoginSetsStateAndRedirects(t *testing.T) {
 		},
 	}}
 
-	r := httptest.NewRequest("GET", "/_/auth/oidc/login", nil)
+	r := httptest.NewRequestWithContext(t.Context(), "GET", "/_/auth/oidc/login", nil)
 	w := httptest.NewRecorder()
 	app.handleOIDCLogin(w, r)
 
@@ -386,7 +386,7 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 
 	app := &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{IconData: icon}}
 	w := httptest.NewRecorder()
-	app.handleOIDCIcon(w, httptest.NewRequest("GET", "/auth/oidc/icon", nil))
+	app.handleOIDCIcon(w, httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/icon", nil))
 	if w.Code != http.StatusOK || w.Body.String() != svg {
 		t.Errorf("icon not served back: code=%d", w.Code)
 	}
@@ -396,7 +396,7 @@ func TestOIDCIconLoadAndServe(t *testing.T) {
 
 	app = &App{API: api.New(nil, nil, nil), OIDC: &OIDCAuth{}}
 	w = httptest.NewRecorder()
-	app.handleOIDCIcon(w, httptest.NewRequest("GET", "/auth/oidc/icon", nil))
+	app.handleOIDCIcon(w, httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/icon", nil))
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unset icon: got %d, want 404", w.Code)
 	}

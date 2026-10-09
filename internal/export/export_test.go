@@ -3,6 +3,7 @@ package export
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -72,7 +73,7 @@ func TestZipRejectsSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(target, filepath.Join(dir, "linked")); err != nil {
-		if os.IsPermission(err) || err == fs.ErrPermission {
+		if os.IsPermission(err) || errors.Is(err, fs.ErrPermission) {
 			t.Skip("symlinks unavailable")
 		}
 		t.Fatal(err)

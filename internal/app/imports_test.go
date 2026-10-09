@@ -39,7 +39,7 @@ func TestImportBoundaries(t *testing.T) {
 	// reach none of the other adapters or the composition root, directly or
 	// transitively.
 	for _, adapter := range adapters {
-		output, err := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}", adapter).CombinedOutput()
+		output, err := exec.CommandContext(t.Context(), "go", "list", "-f", "{{join .Imports \"\\n\"}}", adapter).CombinedOutput()
 		if err != nil {
 			t.Fatalf("go list %s: %v: %s", adapter, err, output)
 		}
@@ -85,7 +85,7 @@ func TestAdapterTestImportBoundaries(t *testing.T) {
 		"hmd/internal/httpapi": {"hmd/internal/app", "hmd/internal/web", "hmd/internal/mcp"},
 		"hmd/internal/mcp":     {"hmd/internal/app", "hmd/internal/web", "hmd/internal/httpapi"},
 	} {
-		output, err := exec.Command("go", "list", "-f", "{{join .TestImports \"\\n\"}}{{\"\\n\"}}{{join .XTestImports \"\\n\"}}", pkg).CombinedOutput()
+		output, err := exec.CommandContext(t.Context(), "go", "list", "-f", "{{join .TestImports \"\\n\"}}{{\"\\n\"}}{{join .XTestImports \"\\n\"}}", pkg).CombinedOutput()
 		if err != nil {
 			t.Fatalf("go list %s: %v: %s", pkg, err, output)
 		}
@@ -113,7 +113,7 @@ func assertNoTransitiveImports(t *testing.T, pkg string, forbidden []string) {
 // listDeps returns pkg and every package it transitively depends on.
 func listDeps(t *testing.T, pkg string) []string {
 	t.Helper()
-	output, err := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", pkg).CombinedOutput()
+	output, err := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", "{{.ImportPath}}", pkg).CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps %s: %v: %s", pkg, err, output)
 	}

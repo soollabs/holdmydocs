@@ -70,13 +70,13 @@ func TestOAuthAuthorizationContinuationSurvivesOIDCLogin(t *testing.T) {
 		"scope": {"read"}, "resource": {"https://wiki.example.test/_/mcp"},
 		"code_challenge": {challenge}, "code_challenge_method": {"S256"},
 	}
-	startRequest := httptest.NewRequest(http.MethodGet, "/_/oauth/authorize?"+authorizeParams.Encode(), nil)
+	startRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/oauth/authorize?"+authorizeParams.Encode(), nil)
 	started, err := service.StartAuthorization(startRequest, "", []string{"notes"})
 	if err != nil || !started.LoginRequired || started.Handle == "" || started.FlowCookie == "" {
 		t.Fatalf("OAuth login start = %#v, %v", started, err)
 	}
 
-	loginRequest := httptest.NewRequest(http.MethodGet, "/_/auth/oidc/login?continue="+url.QueryEscape(started.Handle), nil)
+	loginRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/auth/oidc/login?continue="+url.QueryEscape(started.Handle), nil)
 	loginResponse := httptest.NewRecorder()
 	app.handleOIDCLogin(loginResponse, loginRequest)
 	if loginResponse.Code != http.StatusSeeOther {
@@ -99,7 +99,7 @@ func TestOAuthAuthorizationContinuationSurvivesOIDCLogin(t *testing.T) {
 		t.Fatal("OIDC continuation was not bound to its upstream state")
 	}
 
-	callback := httptest.NewRequest(http.MethodGet,
+	callback := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 		"/_/auth/oidc/callback?state="+url.QueryEscape(providerState)+"&code=upstream-code", nil)
 	for name, value := range cookies {
 		callback.AddCookie(&http.Cookie{Name: name, Value: value})
@@ -123,7 +123,7 @@ func TestOAuthAuthorizationContinuationSurvivesOIDCLogin(t *testing.T) {
 	if user, ok := authn.UserFor(session); !ok || user != "alice" {
 		t.Fatalf("fake-provider login user = %q, valid=%v", user, ok)
 	}
-	resume := httptest.NewRequest(http.MethodGet, callbackResponse.Header().Get("Location"), nil)
+	resume := httptest.NewRequestWithContext(t.Context(), http.MethodGet, callbackResponse.Header().Get("Location"), nil)
 	resume.AddCookie(&http.Cookie{Name: "hmd_oauth_flow", Value: started.FlowCookie})
 	result, err := service.StartAuthorization(resume, session, []string{"notes"})
 	if err != nil || result.Prompt == nil || result.Prompt.User != "alice" {

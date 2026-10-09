@@ -36,7 +36,11 @@ func CheckReadiness() error { return checkReadinessAt("http://127.0.0.1:8080/_/r
 
 func checkReadinessAt(url string) error {
 	client := &http.Client{Timeout: 5 * time.Second}
-	response, err := client.Get(url)
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("creating readiness request: %w", err)
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("checking readiness: %w", err)
 	}

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"io"
 	"mime/multipart"
@@ -80,17 +82,21 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
+	loginResp, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	closeTestBody(t, loginResp.Body)
+	if err := loginResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	viewResp, err := client.Get(server.URL + "/" + testHome)
+	viewResp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET page: %v", err)
 	}
-	closeTestBody(t, viewResp.Body)
+	if err := viewResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if viewResp.StatusCode != http.StatusOK {
 		t.Errorf("read-scoped user GET /page/readme = %d, want 200", viewResp.StatusCode)
 	}
@@ -101,16 +107,20 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST save: %v", err)
 	}
-	closeTestBody(t, saveResp.Body)
+	if err := saveResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if saveResp.StatusCode != http.StatusForbidden {
 		t.Errorf("read-scoped user POST save = %d, want 403", saveResp.StatusCode)
 	}
 
-	settingsResp, err := client.Get(server.URL + "/_/settings")
+	settingsResp, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET settings: %v", err)
 	}
-	closeTestBody(t, settingsResp.Body)
+	if err := settingsResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if settingsResp.StatusCode != http.StatusForbidden {
 		t.Errorf("read-scoped user GET /settings = %d, want 403", settingsResp.StatusCode)
 	}
@@ -126,7 +136,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Fatalf("AddToken(settings-only): %v", err)
 	}
 	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
-		settingsReq, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		settingsReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		if err != nil {
 			t.Fatalf("new settings PAT request: %v", err)
 		}
@@ -135,7 +145,9 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("settings PAT GET %s: %v", path, err)
 		}
-		closeTestBody(t, settingsPATResp.Body)
+		if err := settingsPATResp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if settingsPATResp.StatusCode != http.StatusOK {
 			t.Errorf("settings-only PAT GET %s = %d, want 200", path, settingsPATResp.StatusCode)
 		}
@@ -145,7 +157,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddToken(reader): %v", err)
 	}
-	readerReq, err := http.NewRequest(http.MethodGet, server.URL+"/_/namespaces", nil)
+	readerReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/namespaces", nil)
 	if err != nil {
 		t.Fatalf("new reader PAT request: %v", err)
 	}
@@ -154,29 +166,35 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reader PAT GET /_/namespaces: %v", err)
 	}
-	closeTestBody(t, readerPATResp.Body)
+	if err := readerPATResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if readerPATResp.StatusCode != http.StatusForbidden {
 		t.Errorf("read-only PAT GET /_/namespaces = %d, want 403", readerPATResp.StatusCode)
 	}
 
 	adminLogin(t, server, settingsClient)
 	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
-		resp, err := settingsClient.Get(server.URL + path)
+		resp, err := testhttp.Get(t, settingsClient, server.URL+path)
 		if err != nil {
 			t.Fatalf("settings GET %s: %v", path, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("settings GET %s = %d, want 200", path, resp.StatusCode)
 		}
 	}
 
 	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("reader GET %s: %v", path, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("reader GET %s = %d, want 403", path, resp.StatusCode)
 		}
@@ -230,7 +248,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 
 	do := func(method, path string, body io.Reader) (int, []byte) {
 		t.Helper()
-		req, err := http.NewRequest(method, server.URL+path, body)
+		req, err := http.NewRequestWithContext(t.Context(), method, server.URL+path, body)
 		if err != nil {
 			t.Fatalf("new request %s %s: %v", method, path, err)
 		}
@@ -240,7 +258,9 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 			t.Fatalf("request %s %s: %v", method, path, err)
 		}
 		data, readErr := io.ReadAll(resp.Body)
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if readErr != nil {
 			t.Fatalf("read response %s %s: %v", method, path, readErr)
 		}
@@ -301,7 +321,7 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 		if err := writer.Close(); err != nil {
 			t.Fatalf("close upload: %v", err)
 		}
-		req, err := http.NewRequest(http.MethodPost, server.URL+"/_/api/attachments/"+slug, body)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/api/attachments/"+slug, body)
 		if err != nil {
 			t.Fatalf("new upload request: %v", err)
 		}
@@ -311,7 +331,9 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatalf("upload %s: %v", slug, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		return resp.StatusCode
 	}
 	if got := upload("private/denied"); got != http.StatusForbidden {
@@ -327,11 +349,13 @@ func TestCreateUserViaSettings(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
+	loginResp, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	closeTestBody(t, loginResp.Body)
+	if err := loginResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	createResp, err := postJSON(t, client, server.URL+"/_/api/settings/users", userCreateJSON(url.Values{
 		"name": {"newbie"}, "password": {"password12345"}, "scopes": {"read"},
@@ -339,7 +363,9 @@ func TestCreateUserViaSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/users: %v", err)
 	}
-	closeTestBody(t, createResp.Body)
+	if err := createResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	if !app.Auth.UserExists("newbie") {
 		t.Fatal("newbie should exist after creation")
@@ -357,7 +383,9 @@ func TestCreateUserViaSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/users (empty scopes): %v", err)
 	}
-	closeTestBody(t, emptyResp.Body)
+	if err := emptyResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if app.Auth.UserExists("no-policy") {
 		t.Error("user with no submitted scopes should not have been persisted")
 	}
@@ -368,7 +396,9 @@ func TestCreateUserViaSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/users (dup): %v", err)
 	}
-	closeTestBody(t, dupResp.Body)
+	if err := dupResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if _, ok := app.Auth.Login("newbie", "password12345"); !ok {
 		t.Error("original password should still work after a rejected duplicate create")
 	}
@@ -379,11 +409,13 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
+	loginResp, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"admin"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	closeTestBody(t, loginResp.Body)
+	if err := loginResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/users/scopes", userScopesJSON(url.Values{
 		"name": {"admin"}, "scopes": {"read"},
@@ -391,17 +423,21 @@ func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/users/scopes: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	if got := app.Auth.Prefs("admin").Scopes; len(got) != 3 {
 		t.Errorf("bootstrap admin scopes = %v, want all scopes", got)
 	}
 
-	settingsResp, err := client.Get(server.URL + "/_/settings")
+	settingsResp, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}
-	closeTestBody(t, settingsResp.Body)
+	if err := settingsResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if settingsResp.StatusCode != http.StatusOK {
 		t.Errorf("admin should still have settings access, got %d", settingsResp.StatusCode)
 	}
@@ -419,11 +455,13 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 		t.Fatalf("SetScopes: %v", err)
 	}
 
-	loginResp, err := client.PostForm(server.URL+"/_/login", url.Values{"username": {"mod"}, "password": {"password12345"}})
+	loginResp, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"mod"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	closeTestBody(t, loginResp.Body)
+	if err := loginResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/users/scopes", userScopesJSON(url.Values{
 		"name": {"mod"}, "scopes": {"read"},
@@ -431,17 +469,21 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /settings/users/scopes: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
 	if !app.Auth.Prefs("mod").HasScope(auth.ScopeSettings) {
 		t.Error("mod should still have settings scope after the rejected self-lockout")
 	}
 
-	settingsResp, err := client.Get(server.URL + "/_/settings")
+	settingsResp, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}
-	closeTestBody(t, settingsResp.Body)
+	if err := settingsResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if settingsResp.StatusCode != http.StatusOK {
 		t.Errorf("mod should still have settings access after the rejected self-lockout, got %d", settingsResp.StatusCode)
 	}

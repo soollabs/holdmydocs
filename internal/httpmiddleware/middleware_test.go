@@ -28,7 +28,7 @@ func TestCompression(t *testing.T) {
 		_, _ = io.WriteString(w, body)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -44,7 +44,7 @@ func TestCompression(t *testing.T) {
 		t.Fatalf("decoded response = %q, %v", decoded, err)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Encoding", "gzip;q=0")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -59,7 +59,7 @@ func TestOAuthCredentialResponsesAreNotCompressed(t *testing.T) {
 		_, _ = io.WriteString(w, "synthetic credentials and client-controlled text")
 	}))
 	for _, path := range []string{"/_/oauth/token", "/_/oauth/authorize", "/_/oauth/register", "/_/admin/oauth"} {
-		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, nil)
 		req.Header.Set("Accept-Encoding", "gzip")
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -74,7 +74,7 @@ func TestRecoveryReturnsGenericErrorAndRequestID(t *testing.T) {
 		panic("secret panic")
 	})))
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/?token=secret", nil))
+	handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?token=secret", nil))
 	if rec.Code != http.StatusInternalServerError || strings.TrimSpace(rec.Body.String()) != "internal error" {
 		t.Fatalf("recovery response = %d %q", rec.Code, rec.Body.String())
 	}
@@ -96,7 +96,7 @@ func TestRequestSecurity(t *testing.T) {
 	handler := security.Handler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called++ }))
 
 	request := func(origin, csrf string) *http.Request {
-		r := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+csrf))
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+csrf))
 		r.Host = "wiki.example.com"
 		r.Header.Set("Origin", origin)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -116,7 +116,7 @@ func TestRequestSecurity(t *testing.T) {
 		t.Fatalf("valid CSRF status/calls = %d/%d, want 200/1", rec.Code, called)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://wiki.example.com/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://wiki.example.com/", nil)
 	req.RemoteAddr = "192.0.2.1:1234"
 	req.Header.Set("X-Forwarded-Proto", "https")
 	if IsSecureRequest(req, cfg) {
@@ -163,7 +163,7 @@ func TestRequestSecurityRejectsCrossOriginLogin(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			before := called
-			request := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/_/login", strings.NewReader("username=admin"))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://wiki.example.com/_/login", strings.NewReader("username=admin"))
 			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			if tc.origin != "" {
 				request.Header.Set("Origin", tc.origin)
@@ -197,7 +197,7 @@ func FuzzRequestSecurityOrigin(f *testing.F) {
 		f.Add(origin)
 	}
 	f.Fuzz(func(t *testing.T, origin string) {
-		request := httptest.NewRequest(http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+token))
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://wiki.example.com/notes/page?do=save", strings.NewReader("csrf_token="+token))
 		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		request.Header.Set("Origin", origin)
 		request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})

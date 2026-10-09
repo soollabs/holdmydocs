@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -233,12 +235,6 @@ func newMCPRestrictedTestApp(t *testing.T) (*testEnv, *httptest.Server, string, 
 	return app, server, restricted, settings
 }
 
-func closeTestBody(t *testing.T, closer io.Closer) {
-	t.Helper()
-	if err := closer.Close(); err != nil {
-		t.Errorf("closing response body: %v", err)
-	}
-}
 func connectMCP(t *testing.T, server *httptest.Server, token string) *sdk.ClientSession {
 	t.Helper()
 	client := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "0"}, nil)
@@ -427,11 +423,18 @@ func TestMCPUploadAttachment(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("closing upload: %v", err)
 	}
-	upload, err := http.Post(out.UploadURL, writer.FormDataContentType(), body)
+	upload, err := testhttp.Post(t, http.DefaultClient, out.UploadURL, writer.FormDataContentType(), body)
 	if err != nil {
 		t.Fatalf("posting upload: %v", err)
 	}
-	defer closeTestBody(t, upload.Body)
+	{
+		response := upload
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if upload.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want %d", upload.StatusCode, http.StatusOK)
 	}
@@ -522,13 +525,20 @@ func TestMCPNamespaceTools(t *testing.T) {
 func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 	server, token := newMCPTestApp(t, false)
 
-	req, _ := http.NewRequest("POST", server.URL+"/_/mcp", strings.NewReader("{}"))
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/mcp", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("disabled /mcp: got status %d, want 404", resp.StatusCode)
 	}
@@ -537,11 +547,18 @@ func TestMCPDisabledRouteNotRegistered(t *testing.T) {
 func TestMCPWithoutBearer401JSON(t *testing.T) {
 	server, _ := newMCPTestApp(t, true)
 
-	resp, err := http.Post(server.URL+"/_/mcp", "application/json", strings.NewReader("{}"))
+	resp, err := testhttp.Post(t, http.DefaultClient, server.URL+"/_/mcp", "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("unauthenticated /mcp: got status %d, want 401", resp.StatusCode)
 	}
@@ -553,13 +570,20 @@ func TestMCPWithoutBearer401JSON(t *testing.T) {
 func TestMCPInvalidBearer401(t *testing.T) {
 	server, _ := newMCPTestApp(t, true)
 
-	req, _ := http.NewRequest("POST", server.URL+"/_/mcp", strings.NewReader("{}"))
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/mcp", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer hmd_bogus")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("invalid Bearer: got status %d, want 401", resp.StatusCode)
 	}
@@ -567,7 +591,7 @@ func TestMCPInvalidBearer401(t *testing.T) {
 
 func TestMCPRequiresModernRequestMetadata(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,7 +604,14 @@ func TestMCPRequiresModernRequestMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("missing request metadata: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -600,7 +631,7 @@ func TestMCPRequiresModernRequestMetadata(t *testing.T) {
 func TestMCPRejectsMismatchedProtocolMetadata(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2025-11-25","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +645,14 @@ func TestMCPRejectsMismatchedProtocolMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("mismatched protocol metadata: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -634,7 +672,7 @@ func TestMCPRejectsMismatchedProtocolMetadata(t *testing.T) {
 func TestMCPRejectsUnsupportedInitialise(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -648,7 +686,14 @@ func TestMCPRejectsUnsupportedInitialise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -673,9 +718,10 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 	for _, version := range []string{"2025-03-26", "2025-06-18", "2025-11-25"} {
 		t.Run(version, func(t *testing.T) {
 			server, token := newMCPTestApp(t, true)
-			post := func(body, version string) (*http.Response, []byte) {
+			type replyMetadata struct{ StatusCode int }
+			post := func(body, version string) (replyMetadata, []byte) {
 				t.Helper()
-				req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -689,7 +735,14 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer closeTestBody(t, resp.Body)
+				{
+					response := resp
+					defer func() {
+						if err := response.Body.Close(); err != nil {
+							t.Errorf("closing response body: %v", err)
+						}
+					}()
+				}
 				responseBody, err := io.ReadAll(resp.Body)
 				if err != nil {
 					t.Fatal(err)
@@ -703,7 +756,7 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 					}
 					responseBody = bytes.Join(data, []byte("\n"))
 				}
-				return resp, responseBody
+				return replyMetadata{StatusCode: resp.StatusCode}, responseBody
 			}
 
 			// Legacy Streamable HTTP initialise has no version header and no modern
@@ -749,7 +802,7 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 				t.Fatalf("unsupported version: %d: %s", unsupported.StatusCode, body)
 			}
 			for _, method := range []string{http.MethodGet, http.MethodDelete} {
-				req, err := http.NewRequest(method, server.URL+"/_/mcp", nil)
+				req, err := http.NewRequestWithContext(t.Context(), method, server.URL+"/_/mcp", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -760,7 +813,9 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				closeTestBody(t, resp.Body)
+				if err := resp.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
 				if resp.StatusCode != http.StatusMethodNotAllowed {
 					t.Fatalf("stateless %s: %d, want 405", method, resp.StatusCode)
 				}
@@ -773,7 +828,7 @@ func TestMCPOnlyAllowsPost(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	for _, method := range []string{http.MethodGet, http.MethodDelete, http.MethodPut} {
 		t.Run(method, func(t *testing.T) {
-			req, err := http.NewRequest(method, server.URL+"/_/mcp", nil)
+			req, err := http.NewRequestWithContext(t.Context(), method, server.URL+"/_/mcp", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -784,7 +839,14 @@ func TestMCPOnlyAllowsPost(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer closeTestBody(t, resp.Body)
+			{
+				response := resp
+				defer func() {
+					if err := response.Body.Close(); err != nil {
+						t.Errorf("closing response body: %v", err)
+					}
+				}()
+			}
 			if resp.StatusCode != http.StatusMethodNotAllowed {
 				t.Fatalf("%s /_/mcp: got status %d, want %d", method, resp.StatusCode, http.StatusMethodNotAllowed)
 			}
@@ -799,7 +861,7 @@ func TestMCPOnlyAllowsPost(t *testing.T) {
 func TestMCPRejectsSessionHeader(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -814,7 +876,14 @@ func TestMCPRejectsSessionHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("session header: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -834,7 +903,7 @@ func TestMCPRejectsSessionHeader(t *testing.T) {
 func TestMCPRejectsSessionQuery(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp?sessionId=session", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp?sessionId=session", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -848,7 +917,14 @@ func TestMCPRejectsSessionQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("session query: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -868,7 +944,7 @@ func TestMCPRejectsSessionQuery(t *testing.T) {
 func TestMCPRejectsCrossOriginRequest(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +959,14 @@ func TestMCPRejectsCrossOriginRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("cross-origin MCP request: got status %d, want %d", resp.StatusCode, http.StatusForbidden)
 	}
@@ -942,7 +1025,7 @@ func TestMCPHandlerPropagatesRequestCancellation(t *testing.T) {
 func TestMCPRequiresClientCapabilities(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,7 +1039,14 @@ func TestMCPRequiresClientCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("missing client capabilities: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -976,7 +1066,7 @@ func TestMCPRequiresClientCapabilities(t *testing.T) {
 func TestMCPRequiresClientInfo(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -990,7 +1080,14 @@ func TestMCPRequiresClientInfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("missing client info: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
@@ -1010,7 +1107,7 @@ func TestMCPRequiresClientInfo(t *testing.T) {
 func TestMCPRequiresMetadataProtocolVersion(t *testing.T) {
 	server, token := newMCPTestApp(t, true)
 	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req, err := http.NewRequest(http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/_/mcp", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1024,7 +1121,14 @@ func TestMCPRequiresMetadataProtocolVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("missing metadata protocol version: got status %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
