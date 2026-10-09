@@ -1,0 +1,10 @@
+{{define "content"}}
+<div class="content-col settings-page">
+<h1 class="page-title">{{if .ExportPreview}}Preview static site{{else}}Export static site{{end}}</h1>
+<p>No export URL is set. <a href="/_/namespaces/{{.Namespace}}/edit">Set an export URL</a>{{if .ExportMainBaseURL}} or use the main HMD URL below{{end}}.</p>
+{{if .ExportMainBaseURL}}
+<p>Use <strong>{{.ExportMainBaseURL}}</strong> for this export?</p>
+{{if .ExportPreview}}<a class="ghost-btn" href="/_/settings/namespaces/{{.Namespace}}/preview?use-main-base-url=1">Use main base URL and preview</a>{{else}}<a class="ghost-btn" href="/_/settings/namespaces/{{.Namespace}}/export?use-main-base-url=1">Use main base URL and export</a>{{end}}
+{{else}}<p>The main HMD base URL is also unset.</p>{{end}}
+</div>
+{{end}}

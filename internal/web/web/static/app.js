@@ -1673,7 +1673,19 @@
       new_enabled: fieldOn(form, 'new_enabled'),
       slug_preset: fieldValue(form, 'slug_preset'),
       slug_custom: fieldValue(form, 'slug_custom'),
-      widgets: csvList(fieldValue(form, 'widgets'))
+      widgets: csvList(fieldValue(form, 'widgets')),
+      export: {
+        base_url: fieldValue(form, 'export_base_url'),
+        sitemap: fieldOn(form, 'export_sitemap'),
+        robots_allow: Array.from(form.querySelectorAll('.export-bot:checked')).map(box => box.value).concat(csvList(fieldValue(form, 'export_bots'))),
+        links: Array.from(form.querySelectorAll('.export-link-row')).map(row => ({
+          label: row.querySelector('.export-link-label').value,
+          url: row.querySelector('.export-link-url').value,
+          icon: row.querySelector('.export-link-icon').value,
+          location: row.querySelector('.export-link-location').value,
+          icon_only: row.querySelector('.export-link-icon-only').checked
+        }))
+      }
     };
   }, () => { window.location.href = '/_/namespaces?saved=1'; });
 

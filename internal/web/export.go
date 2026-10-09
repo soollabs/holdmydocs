@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+	"hmd/internal/api"
 	"hmd/internal/auth"
 	staticexport "hmd/internal/export"
 	"hmd/internal/wiki"
@@ -70,6 +71,12 @@ func NewStaticExporter(renderer *wiki.Renderer) StaticExporter {
 func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) ([]staticexport.SearchEntry, error) {
 	nsPages := request.Pages
 	ns, cfg, outDir, title := request.Namespace, request.Config, request.OutDir, request.Title
+	settings, err := wiki.NormaliseExportConfig(cfg.Export, false)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Export = settings
+	sidebarLinks, topbarLinks := splitExportLinks(cfg.Export.Links)
 
 	hrefs := make(map[string]string, len(nsPages))
 	entries := make([]wiki.BacklinkEntry, 0, len(nsPages))
@@ -114,20 +121,24 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 			Title: pageDisplayTitle(p), Href: staticPagePath(rest), Text: exportPlainText(content),
 		})
 		data := TemplateData{
-			SiteName:       title,
-			AssetPath:      staticAssetPrefix(rest),
-			NamespaceHome:  staticAssetHref(rest, "index.html"),
-			Static:         true,
-			MermaidNeeded:  strings.Contains(string(content), `class="mermaid"`),
-			Title:          pageDisplayTitle(p),
-			Slug:           p.Slug,
-			Content:        content,
-			Namespace:      ns,
-			NamespaceTitle: title,
-			Skin:           skinName(cfg.Skin),
-			ThemeStyle:     buildThemeStyle(auth.UserRecord{Palette: palette}),
-			SidebarTree:    renderStaticTree(tree, rest, func(to string) string { return staticPageHref(rest, to) }),
-			RailWidgets:    widgetsForSlot(slotRail, cfg.Widgets),
+			CSPNonce:          request.CSPNonce,
+			ExportLinks:       sidebarLinks,
+			ExportTopbarLinks: topbarLinks,
+			ExportIcons:       hasExportIcons(cfg.Export.Links),
+			SiteName:          title,
+			AssetPath:         staticAssetPrefix(rest),
+			NamespaceHome:     staticAssetHref(rest, "index.html"),
+			Static:            true,
+			MermaidNeeded:     strings.Contains(string(content), `class="mermaid"`),
+			Title:             pageDisplayTitle(p),
+			Slug:              p.Slug,
+			Content:           content,
+			Namespace:         ns,
+			NamespaceTitle:    title,
+			Skin:              skinName(cfg.Skin),
+			ThemeStyle:        buildThemeStyle(auth.UserRecord{Palette: palette}),
+			SidebarTree:       renderStaticTree(tree, rest, func(to string) string { return staticPageHref(rest, to) }),
+			RailWidgets:       widgetsForSlot(slotRail, cfg.Widgets),
 		}
 
 		data.PreviousPage, data.NextPage = pageNeighbours(orderedPages, rest, func(to string) string { return staticPageHref(rest, to) })
@@ -157,6 +168,8 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 	}
 	if indexPage == "" {
 		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: "<p>Select a page from the sidebar.</p>", RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
+		stub.ExportLinks, stub.ExportTopbarLinks, stub.ExportIcons = sidebarLinks, topbarLinks, hasExportIcons(cfg.Export.Links)
+		stub.CSPNonce = request.CSPNonce
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {
 			return nil, err
 		}
@@ -199,8 +212,25 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 }
 
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
+	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
+		http.Error(w, "settings scope required", http.StatusForbidden)
+		return
+	}
 	name := r.PathValue("name")
 	if !app.requireTokenNamespace(w, r, name) {
+		return
+	}
+	cfg, exists := app.Namespaces()[name]
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+	baseURL := cfg.Export.BaseURL
+	if baseURL == "" && r.URL.Query().Get("use-main-base-url") == "1" {
+		baseURL = app.config().BaseURL
+	}
+	if baseURL == "" {
+		app.render(w, r, http.StatusOK, "export-options", TemplateData{Authed: true, Title: "Export static site", Namespace: name, ExportMainBaseURL: app.config().BaseURL})
 		return
 	}
 	select {
@@ -224,7 +254,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if err := app.apiClient().ExportNamespace(r.Context(), name, tmpDir, webFS, "web/static", NewStaticExporter(app.Render)); err != nil {
+	if err := app.apiClient().ExportNamespace(r.Context(), name, tmpDir, webFS, "web/static", NewStaticExporter(app.Render), api.ExportOptions{BaseURL: baseURL}); err != nil {
 		slog.Error("exporting namespace", "namespace", name, "err", err)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
@@ -235,6 +265,26 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	if err := zipDir(w, tmpDir); err != nil {
 		slog.Error("streaming namespace export", "namespace", name, "err", err)
 	}
+}
+
+func hasExportIcons(links []wiki.ExportLink) bool {
+	for _, link := range links {
+		if link.Icon != "" && link.IconOnly {
+			return true
+		}
+	}
+	return false
+}
+
+func splitExportLinks(links []wiki.ExportLink) (sidebar, topbar []wiki.ExportLink) {
+	for _, link := range links {
+		if link.Location == "topbar" {
+			topbar = append(topbar, link)
+		} else {
+			sidebar = append(sidebar, link)
+		}
+	}
+	return sidebar, topbar
 }
 
 func zipDir(w io.Writer, dir string) (err error) {

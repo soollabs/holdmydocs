@@ -10,11 +10,17 @@ import (
 	"hmd/internal/wiki"
 )
 
+// ExportOptions carries download overrides and the preview's script/style nonce.
+type ExportOptions struct {
+	BaseURL  string
+	CSPNonce string
+}
+
 // ExportNamespace writes a static HTML export of one namespace to outDir,
 // reading pages and attachments through the application store and delegating
 // HTML rendering to the supplied presentation renderer. Assets names the
 // browser asset tree copied alongside the HTML.
-func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets fs.FS, assetsRoot string, renderer export.NamespaceRenderer) error {
+func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets fs.FS, assetsRoot string, renderer export.NamespaceRenderer, options ...ExportOptions) error {
 	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
 		return err
 	}
@@ -24,6 +30,9 @@ func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets f
 	cfg, ok := a.Namespaces()[name]
 	if !ok {
 		return InvalidInput(fmt.Sprintf("unknown namespace %q", name), nil)
+	}
+	if len(options) > 0 {
+		cfg.Export.BaseURL = options[0].BaseURL
 	}
 	paths, err := a.store.List()
 	if err != nil {
@@ -42,6 +51,7 @@ func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets f
 		pages = append(pages, wiki.ParsePage(slug, content))
 	}
 	request := export.NamespaceRequest{
+		Context:    ctx,
 		Pages:      pages,
 		Namespace:  name,
 		Config:     cfg,
@@ -49,6 +59,9 @@ func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets f
 		Assets:     assets,
 		AssetsRoot: assetsRoot,
 		Store:      a.store,
+	}
+	if len(options) > 0 {
+		request.CSPNonce = options[0].CSPNonce
 	}
 	if err := export.Namespace(request, renderer); err != nil {
 		return Unavailable("exporting namespace", err)

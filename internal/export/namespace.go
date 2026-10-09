@@ -1,10 +1,12 @@
 package export
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -17,14 +19,17 @@ import (
 // the browser asset tree to copy alongside the HTML; when Assets is nil no
 // assets are copied.
 type NamespaceRequest struct {
-	Pages      []wiki.Page
-	Namespace  string
-	Config     wiki.NamespaceConfig
-	OutDir     string
-	Title      string
-	Assets     fs.FS
-	AssetsRoot string
-	Store      *store.Store
+	Pages         []wiki.Page
+	Namespace     string
+	Config        wiki.NamespaceConfig
+	OutDir        string
+	Title         string
+	Assets        fs.FS
+	AssetsRoot    string
+	Store         *store.Store
+	CSPNonce      string // populated only for an authenticated browser preview
+	Context       context.Context
+	IconTransport http.RoundTripper // nil uses the standard HTTP transport
 }
 
 // SearchEntry is one entry in the exported client-side search index.
@@ -47,6 +52,11 @@ type NamespaceRenderer interface {
 // writes the client-side search index, delegating HTML rendering to the
 // supplied renderer.
 func Namespace(request NamespaceRequest, renderer NamespaceRenderer) error {
+	settings, err := wiki.NormaliseExportConfig(request.Config.Export, true)
+	if err != nil {
+		return err
+	}
+	request.Config.Export = settings
 	nsPages := make([]wiki.Page, 0, len(request.Pages))
 	for _, page := range request.Pages {
 		if ns, _ := wiki.NamespaceFor(page.Slug); ns == request.Namespace {
@@ -58,6 +68,9 @@ func Namespace(request NamespaceRequest, renderer NamespaceRenderer) error {
 	}
 	if len(nsPages) > maxFiles {
 		return fmt.Errorf("export exceeds %d files", maxFiles)
+	}
+	if err := validateCrawlPagePaths(nsPages); err != nil {
+		return err
 	}
 	if request.Config.Index != "" {
 		found := false
@@ -80,6 +93,13 @@ func Namespace(request NamespaceRequest, renderer NamespaceRenderer) error {
 		}
 	}
 	request.Pages = nsPages
+	ctx := request.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := bundleIcons(ctx, settings.Links, request.OutDir, request.IconTransport); err != nil {
+		return err
+	}
 	entries, err := renderer.RenderNamespace(request)
 	if err != nil {
 		return err
@@ -97,6 +117,9 @@ func Namespace(request NamespaceRequest, renderer NamespaceRenderer) error {
 		bytes += int64(len(page.Body))
 	}
 	if err := CopyAttachments(request.Store, request.OutDir, request.Namespace, &files, &bytes); err != nil {
+		return err
+	}
+	if err := writeCrawlFiles(request, nsPages); err != nil {
 		return err
 	}
 	slog.Info("exported namespace", "namespace", request.Namespace, "pages", len(nsPages), "dir", request.OutDir)

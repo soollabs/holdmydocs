@@ -2,6 +2,16 @@
 (function() {
   'use strict';
 
+  var topbar = document.querySelector('.app-topbar-public');
+  if (topbar && topbar.querySelector('.export-topbar-links')) {
+    function syncHeaderHeight() {
+      document.documentElement.style.setProperty('--export-header-height', topbar.getBoundingClientRect().height + 'px');
+    }
+    syncHeaderHeight();
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncHeaderHeight).observe(topbar);
+    else window.addEventListener('resize', syncHeaderHeight);
+  }
+
   var dialog = document.getElementById('export-search');
   var toggle = document.getElementById('export-search-toggle');
   var input = document.getElementById('export-search-input');

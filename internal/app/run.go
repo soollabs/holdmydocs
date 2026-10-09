@@ -43,6 +43,11 @@ func Run() {
 	exportNS := flag.String("export-namespace", "", "export this namespace to static HTML and exit, instead of serving")
 	exportDir := flag.String("export-dir", "", "output directory for -export-namespace")
 	exportTitle := flag.String("export-title", "", "override the configured namespace title in the static export")
+	exportBaseURL := flag.String("export-base-url", "", "published static site URL; overrides namespace export.base_url")
+	exportUseMain := flag.Bool("export-use-main-base-url", false, "explicitly use the main base_url for the static export")
+	exportSitemap := flag.Bool("export-sitemap", true, "generate sitemap.xml; overrides namespace setting when supplied")
+	exportBots := flag.String("export-robots-allow", "", "comma-separated allowed bot names; all other bots are blocked")
+	exportLinks := flag.String("export-links", "", "JSON array of external links with label, url, optional Font Awesome icon, location (sidebar/topbar) and icon_only")
 	healthcheck := flag.Bool("healthcheck", false, "check local readiness and exit")
 	provisionOAuthClient := flag.Bool("oauth-client-add", false, "provision a pre-registered MCP OAuth client and exit")
 	disableOAuthClient := flag.Bool("oauth-client-disable", false, "permanently disable an OAuth client and revoke its grants")
@@ -204,10 +209,21 @@ func Run() {
 		if *exportDir == "" {
 			log.Fatal("-export-namespace requires -export-dir")
 		}
+		exportConfig := namespaces[*exportNS]
+		provided := map[string]bool{}
+		flag.Visit(func(f *flag.Flag) {
+			provided[f.Name] = true
+		})
+		exportConfig.Export, err = resolveExportSettings(exportConfig.Export, cfg.BaseURL, exportCLIOptions{
+			BaseURL: *exportBaseURL, UseMain: *exportUseMain, Sitemap: *exportSitemap, Bots: *exportBots, Links: *exportLinks, Provided: provided,
+		})
+		if err != nil {
+			log.Fatalf("export failed: %v", err)
+		}
 		if err := export.Namespace(export.NamespaceRequest{
 			Pages:      pages,
 			Namespace:  *exportNS,
-			Config:     namespaces[*exportNS],
+			Config:     exportConfig,
 			OutDir:     *exportDir,
 			Title:      *exportTitle,
 			Assets:     web.StaticAssets(),
@@ -280,6 +296,7 @@ func Run() {
 			slog.Error("graceful shutdown failed", "err", err)
 			_ = server.Close()
 		}
+		application.CloseExportPreviews()
 		if err := content.WaitForPushes(shutdown); err != nil {
 			slog.Error("waiting for Git pushes", "err", err)
 		}

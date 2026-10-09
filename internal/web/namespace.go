@@ -155,6 +155,7 @@ func writeTreeNodes(b *strings.Builder, nodes []*navNode, currentPath string, hr
 // NamespaceListEntry is one row of the namespace editor in system configuration: the resolved config of one
 // namespace, as the form fields that POST back to /_/api/namespaces.
 type NamespaceListEntry struct {
+	Export      wiki.ExportConfig
 	Name        string
 	Widgets     []string
 	Public      bool
@@ -188,6 +189,7 @@ func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceList
 	for _, name := range names {
 		cfg := r[name]
 		e := NamespaceListEntry{
+			Export:      cfg.Export,
 			Name:        name,
 			Widgets:     cfg.Widgets,
 			Public:      cfg.Public,
@@ -223,3 +225,5 @@ func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceList
 func (e NamespaceListEntry) TreeCSV() string {
 	return strings.Join(e.Tree, ", ")
 }
+
+func (e NamespaceListEntry) ExportBotsCSV() string { return strings.Join(e.Export.RobotsAllow, ", ") }

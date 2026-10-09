@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"hmd/internal/api"
@@ -28,12 +29,14 @@ var version = config.EnvOr("HMD_VERSION", buildVersion)
 // transport identity primitives (sessions, login, OIDC, CSRF); every
 // application read and write goes through API.
 type App struct {
-	API    *api.API
-	Auth   *auth.Auth
-	Render *wiki.Renderer
-	Tmpl   map[string]*template.Template
-	OIDC   *auth.OIDC // nil when OIDC is disabled
-	OAuth  *oauthserver.Service
+	previewMu sync.Mutex
+	previews  map[string]*exportPreview
+	API       *api.API
+	Auth      *auth.Auth
+	Render    *wiki.Renderer
+	Tmpl      map[string]*template.Template
+	OIDC      *auth.OIDC // nil when OIDC is disabled
+	OAuth     *oauthserver.Service
 }
 
 func (app *App) apiClient() *api.API { return app.API }
@@ -81,6 +84,11 @@ type HistoryEntry struct {
 }
 
 type TemplateData struct {
+	ExportLinks             []wiki.ExportLink
+	ExportTopbarLinks       []wiki.ExportLink
+	ExportIcons             bool
+	ExportMainBaseURL       string
+	ExportPreview           bool
 	PreviousPage            *pageLink
 	NextPage                *pageLink
 	SiteName                string

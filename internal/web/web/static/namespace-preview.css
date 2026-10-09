@@ -1,0 +1,36 @@
+/* Compact layout for the namespace appearance preview, not the live site. */
+html, body { overflow: hidden; }
+body.shell.shell-public {
+  grid-template-columns: 130px minmax(0, 1fr);
+  grid-template-rows: 36px minmax(0, 1fr);
+  grid-template-areas: "topbar topbar" "sidebar main";
+}
+.app-topbar-public { padding: 0 12px; min-width: 0; }
+.preview-site { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.shell.shell-public .sidebar {
+  position: static;
+  inset: auto;
+  transform: none;
+  width: auto;
+  min-width: 0;
+  z-index: auto;
+  padding: 12px;
+  box-shadow: none;
+}
+.sidebar-tree { margin: 0; }
+.sidebar-tree .page-tree { font-size: 11px; }
+.sidebar-tree .page-tree a { padding: 3px 6px; }
+main { min-width: 0; min-height: 0; }
+.page-wrap { max-width: none; min-width: 0; padding-block: 0; }
+.page-wrap .content-col { min-width: 0; padding: 22px 24px; }
+.toc-rail.has-headings { display: block !important; width: 115px; padding: 22px 8px 0 0; }
+.toc-rail .toc-label { font-size: 9px; }
+.toc-rail a { font-size: 10px; }
+.page-title { font-size: 26px; }
+#page-content { overflow-wrap: anywhere; }
+@media (max-width: 500px) {
+  body.shell.shell-public { grid-template-columns: 96px minmax(0, 1fr); }
+  .page-wrap .content-col { padding: 16px 12px; }
+  .toc-rail.has-headings { display: none !important; }
+  .page-title { font-size: 22px; }
+}

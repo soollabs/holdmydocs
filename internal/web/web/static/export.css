@@ -2,6 +2,17 @@
    and palette; these rules add documentation controls, not a new theme. */
 .app-topbar-public .topbar-site { margin-right: auto; min-width: 0; }
 .app-topbar-public { gap: 12px; }
+.export-topbar-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
+.export-external-link { display: inline-flex; align-items: center; gap: 0.4rem; }
+.export-external-link span { overflow-wrap: anywhere; }
+.export-icon-only { min-width: 32px; min-height: 32px; justify-content: center; }
+.export-icon-only i { font-size: 22px; line-height: 1; }
+.export-sidebar-links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; text-align: center; }
+.export-sidebar-links .export-external-link { max-width: 100%; justify-content: center; }
+.export-sidebar-icons { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.app-topbar-public:has(.export-topbar-links) { height: auto; min-height: 56px; flex-wrap: wrap; }
+body.shell.shell-public:has(.export-topbar-links) { grid-template-rows: auto minmax(0, 1fr); }
+.shell-public:has(.export-topbar-links) .sidebar { top: var(--export-header-height, 56px); }
 .shell-public main { min-width: 0; }
 .shell-public .content-col { min-width: 0; }
 .shell-public #page-content { overflow-wrap: anywhere; }

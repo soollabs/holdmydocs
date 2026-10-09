@@ -1047,6 +1047,7 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
+		strings.HasPrefix(r.URL.Path, "/_/export-preview/") ||
 		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
 		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") ||
 		r.URL.Path == "/_/api/settings" || strings.HasPrefix(r.URL.Path, "/_/api/settings/") ||
