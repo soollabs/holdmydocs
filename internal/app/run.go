@@ -123,7 +123,8 @@ func Run() {
 	finishStage = debugStartupStage("open repository", "path", cfg.RepoDir, "remote", cfg.Git.RemoteURL != "")
 	content, err := store.Open(store.Options{
 		RepoDir: cfg.RepoDir, DefaultBranch: cfg.DefaultBranch,
-		Git: store.GitOptions{RemoteURL: cfg.Git.RemoteURL, User: cfg.Git.User, Token: cfg.Git.Token},
+		ReadOnly: cfg.ReadOnly,
+		Git:      store.GitOptions{RemoteURL: cfg.Git.RemoteURL, User: cfg.Git.User, Token: cfg.Git.Token},
 	})
 	if err != nil {
 		log.Fatalf("open store failed: %v", err)
@@ -241,7 +242,7 @@ func Run() {
 		log.Fatalf("open auth failed: %v", err)
 	}
 	finishStage()
-	if !authn.HasUsers() && cfg.OIDC.Issuer == "" {
+	if !authn.HasUsers() && cfg.OIDC.Issuer == "" && !cfg.ReadOnly {
 		log.Fatal("no users.json: set HMD_ADMIN_USER and HMD_ADMIN_PASSWORD or configure OIDC admission")
 	}
 	var oauthService *oauthserver.Service

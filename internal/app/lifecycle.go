@@ -15,7 +15,11 @@ import (
 // reconciliation — to the application api, so every adapter refreshes the same
 // state by the same rules.
 func pollFS(ctx context.Context, client *api.API, hashes map[string]string) {
-	ticker := time.NewTicker(5 * time.Second)
+	interval := 5 * time.Second
+	if cfg := client.Config(); cfg.ReadOnly && cfg.SyncPollMs > 0 {
+		interval = time.Duration(cfg.SyncPollMs) * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	retries := make(map[string]api.IndexRetry)
 	for {
@@ -24,6 +28,7 @@ func pollFS(ctx context.Context, client *api.API, hashes map[string]string) {
 			return
 		case <-ticker.C:
 		}
+		client.RefreshReadOnlyRemote()
 		client.DropExternalHistory()
 		client.ReloadConfiguration()
 		client.ReconcilePages(hashes, retries)

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -54,11 +55,13 @@ type GitOptions struct {
 
 type Options struct {
 	RepoDir       string
+	ReadOnly      bool
 	DefaultBranch string
 	Git           GitOptions
 }
 
 type Store struct {
+	readOnly  bool
 	repo      *git.Repository
 	dir       string
 	remote    string
@@ -150,6 +153,11 @@ func extractedAttachmentPath(path string) string {
 }
 
 func (s *Store) Dir() string { return s.dir }
+
+// ReadOnly reports the immutable repository policy selected at startup.
+func (s *Store) ReadOnly() bool { return s.readOnly }
+
+var ErrReadOnly = errors.New("repository is read-only")
 
 func (s *Store) ReadRepositoryFile(path string) ([]byte, error) {
 	s.mu.RLock()
@@ -405,6 +413,9 @@ each save. Reverting creates a new commit; history is never rewritten.
 const DefaultHelpMD = defaultHelpMD
 
 func seedOrFlagSetup(store *Store) {
+	if store.readOnly {
+		return
+	}
 	_, wikiErr := os.Stat(filepath.Join(store.dir, ".wiki.yaml"))
 	_, helpErr := os.Stat(filepath.Join(store.dir, ".help.md"))
 	if !hasNamespace(store.dir) || wikiErr != nil || helpErr != nil {
@@ -433,6 +444,12 @@ func Open(cfg Options) (*Store, error) {
 	if err == nil {
 		remote := ""
 		if cfg.Git.RemoteURL != "" {
+			if cfg.ReadOnly {
+				origin, remoteErr := repo.Remote("origin")
+				if remoteErr != nil || !slices.Contains(origin.Config().URLs, cfg.Git.RemoteURL) {
+					return nil, fmt.Errorf("%w: configured URL must match the existing origin; use a fresh repo_dir to clone a different repository", ErrReadOnly)
+				}
+			}
 			remote = "origin"
 		}
 
@@ -442,6 +459,7 @@ func Open(cfg Options) (*Store, error) {
 		}
 
 		store := &Store{
+			readOnly:  cfg.ReadOnly,
 			repo:      repo,
 			dir:       cfg.RepoDir,
 			remote:    remote,
@@ -476,6 +494,7 @@ func Open(cfg Options) (*Store, error) {
 		}
 
 		store := &Store{
+			readOnly:  cfg.ReadOnly,
 			repo:      repo,
 			dir:       cfg.RepoDir,
 			remote:    "origin",
@@ -492,6 +511,9 @@ func Open(cfg Options) (*Store, error) {
 	}
 
 init_empty_remote:
+	if cfg.ReadOnly {
+		return nil, fmt.Errorf("%w: provide an existing repository or a non-empty remote", ErrReadOnly)
+	}
 	defaultBranch := cfg.DefaultBranch
 	if defaultBranch == "" {
 		defaultBranch = "main"
@@ -562,6 +584,9 @@ var ErrConflict = errors.New("optimistic lock conflict")
 
 // SaveChecked atomically saves content when expectedHash matches oldPath, optionally moving it to newPath.
 func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+	if s.readOnly {
+		return "", ErrReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -603,6 +628,9 @@ func (s *Store) Save(path string, content []byte, message, authorName, authorEma
 
 // SaveAll writes files in one Git commit.
 func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmail string) (map[string]string, error) {
+	if s.readOnly {
+		return nil, ErrReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -658,6 +686,9 @@ func (s *Store) SaveAll(files map[string][]byte, message, authorName, authorEmai
 }
 
 func (s *Store) saveLocked(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+	if s.readOnly {
+		return "", ErrReadOnly
+	}
 	// Avoid no-op commits when content is unchanged.
 	if existing, readErr := s.readRepositoryFile(path); readErr == nil && string(existing) == string(content) {
 		slog.Debug("save skipped, content unchanged", "path", path)
@@ -721,6 +752,9 @@ var ErrInvalidNamespaceName = errInvalidNamespaceName
 // DeleteNamespace removes a configured namespace only when its configuration is the directory's sole regular
 // entry.
 func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -785,6 +819,9 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 
 // DeleteNamespaceAll removes a configured namespace and every file beneath it in one commit.
 func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -880,6 +917,9 @@ func (s *Store) OpenExtractedAttachment(path string) (*os.File, error) {
 }
 
 func (s *Store) removeLocked(path, message, authorName, authorEmail string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	if _, err := s.readRepositoryFile(path); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {
@@ -965,6 +1005,9 @@ func (s *Store) WaitForPushes(ctx context.Context) error {
 }
 
 func (s *Store) pushOnce() {
+	if s.readOnly {
+		return
+	}
 	s.mu.RLock()
 	repo, auth := s.repo, s.auth
 	s.mu.RUnlock()
@@ -1367,6 +1410,9 @@ func (s *Store) LastSyncUnix() int64 {
 // PushNow performs an immediate synchronous push (the ">sync" palette verb) and returns the resulting sync
 // state.
 func (s *Store) PushNow() (state, detail string) {
+	if s.readOnly {
+		return "read-only", ErrReadOnly.Error()
+	}
 	s.mu.Lock()
 	noRemote := s.remote == ""
 	if !noRemote {
@@ -1388,6 +1434,9 @@ func (s *Store) PushNow() (state, detail string) {
 
 // UpdateRemote reconfigures the store's remote URL and auth credentials on the live repository.
 func (s *Store) UpdateRemote(cfg Options) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1550,6 +1599,18 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	if err != nil {
 		s.failSync("worktree", err)
 		return FetchResult{}, err
+	}
+	if s.readOnly {
+		status, err := wt.Status()
+		if err != nil {
+			s.failSync("worktree-status", err)
+			return FetchResult{}, err
+		}
+		if !status.IsClean() {
+			err := errors.New("read-only refresh refused: worktree has uncommitted changes")
+			s.failSync("worktree-status", err)
+			return FetchResult{}, err
+		}
 	}
 	resetStarted := time.Now()
 	slog.Debug("fetch resetting worktree", "remote", remoteHash.String()[:8])

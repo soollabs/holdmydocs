@@ -210,7 +210,7 @@
         syncText.textContent = 'synced ' + relativeAge(last);
         return;
       }
-      const arrow = bidi ? '⇣⇡' : '⇡';
+      const arrow = window.hmdReadOnly ? '⇣' : (bidi ? '⇣⇡' : '⇡');
       syncText.textContent = arrow + ' ' + state + (last > 0 ? ' · ' + relativeAge(last) : '');
     }
 
@@ -467,6 +467,7 @@
   // neither (settings pages on a wiki with no namespaces) there is nowhere to
   // put a page and the create row stays hidden.
   function createNamespace() {
+    if (window.hmdReadOnly) return '';
     return window.hmdNamespace || window.hmdNewNamespace || '';
   }
 
@@ -517,6 +518,7 @@
     { name: 'pin', desc: 'pin this page', action: 'pin' },
     { name: 'delete', desc: 'delete this page', action: 'delete' },
   ].filter(v => {
+    if (window.hmdReadOnly && ['rename', 'tag', 'new', 'sync', 'pin', 'delete'].includes(v.action)) return false;
     if (v.action === 'new') return window.hmdNewEnabled;
     return !window.hmdNamespaceIndex || !['rename', 'tag', 'hist', 'pin', 'delete'].includes(v.action);
   });
@@ -713,7 +715,7 @@
       // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
       // (javascript:, data:) would execute in the page origin. Percent-encode
       // the slug before it reaches the URL.
-      const target = row.href || '/' + encodeSlugPath(row.slug) + (editMode ? '?do=edit' : '');
+      const target = row.href || '/' + encodeSlugPath(row.slug) + (editMode && !window.hmdReadOnly ? '?do=edit' : '');
       if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
         window.location.href = target;
       }
@@ -766,7 +768,7 @@
       openPalette();
       return;
     }
-    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused) {
+    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly) {
       // A namespace listing has no page behind it — its slug is "ns/", which
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.

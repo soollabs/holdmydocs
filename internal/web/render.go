@@ -168,6 +168,7 @@ type TemplateData struct {
 	IsHidden                bool
 	IsNamespaceIndex        bool
 	CanWrite                bool
+	ReadOnly                bool
 	CanSettings             bool
 	CanEdit                 bool
 	NewPageBase             string
@@ -208,6 +209,7 @@ type LogEntry struct {
 }
 
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
+	data.ReadOnly = app.config().ReadOnly
 	data.OAuthEnabled = app.OAuth != nil
 	if data.SiteName == "" {
 		data.SiteName = app.wikiConfig().SiteName
@@ -295,7 +297,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.StatusVariant = activeSkin.Status
 		nsRegistry := app.Namespaces()
 		target, _ := wiki.NamespaceFor(data.Slug)
-		if cfg, ok := nsRegistry[target]; ok && cfg.New != nil {
+		if cfg, ok := nsRegistry[target]; ok && cfg.New != nil && data.CanWrite {
 			data.NewPageEnabled = true
 			data.NewNamespace = target
 		}

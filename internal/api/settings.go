@@ -21,6 +21,7 @@ import (
 func storeOptions(cfg config.Config) store.Options {
 	return store.Options{
 		RepoDir:       cfg.RepoDir,
+		ReadOnly:      cfg.ReadOnly,
 		DefaultBranch: cfg.DefaultBranch,
 		Git: store.GitOptions{
 			RemoteURL: cfg.Git.RemoteURL,

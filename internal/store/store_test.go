@@ -47,7 +47,7 @@ const (
 )
 
 func storeOptions(cfg Config) storepkg.Options {
-	return storepkg.Options{RepoDir: cfg.RepoDir, DefaultBranch: cfg.DefaultBranch, Git: storepkg.GitOptions{RemoteURL: cfg.Git.RemoteURL, User: cfg.Git.User, Token: cfg.Git.Token}}
+	return storepkg.Options{RepoDir: cfg.RepoDir, ReadOnly: cfg.ReadOnly, DefaultBranch: cfg.DefaultBranch, Git: storepkg.GitOptions{RemoteURL: cfg.Git.RemoteURL, User: cfg.Git.User, Token: cfg.Git.Token}}
 }
 
 func OpenStore(cfg Config) (*storepkg.Store, error) { return storepkg.Open(storeOptions(cfg)) }

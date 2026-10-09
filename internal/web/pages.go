@@ -80,6 +80,10 @@ func isLocalURL(target string) bool {
 }
 
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
+	if !app.apiClient().HasScope(r.Context(), api.ScopeWrite) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	ns := r.URL.Query().Get("ns")
 	if !app.requireTokenNamespace(w, r, ns) {
 		return
@@ -436,6 +440,10 @@ func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
+	if !app.apiClient().HasScope(r.Context(), api.ScopeWrite) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	slug := r.PathValue("slug")
 
 	page := wiki.Page{Slug: slug, Title: slug}
@@ -817,6 +825,10 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
+	if !app.apiClient().HasScope(r.Context(), api.ScopeSettings) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	slug := r.PathValue("slug")
 	if !app.requireTokenSlug(w, r, slug) {
 		return

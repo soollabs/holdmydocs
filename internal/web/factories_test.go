@@ -12,6 +12,7 @@ import (
 func OpenStore(cfg config.Config) (*store.Store, error) {
 	return store.Open(store.Options{
 		RepoDir:       cfg.RepoDir,
+		ReadOnly:      cfg.ReadOnly,
 		DefaultBranch: cfg.DefaultBranch,
 		Git: store.GitOptions{
 			RemoteURL: cfg.Git.RemoteURL,
