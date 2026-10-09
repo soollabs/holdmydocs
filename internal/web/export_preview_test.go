@@ -213,7 +213,7 @@ func TestExportPreviewCapacity(t *testing.T) {
 	app.SetNamespaces(reg)
 	app.previewMu.Lock()
 	app.previews = make(map[string]*exportPreview)
-	for i := 0; i < maxExportPreviews; i++ {
+	for i := range maxExportPreviews {
 		id := strings.Repeat("x", i+1)
 		app.previews[id] = &exportPreview{dir: t.TempDir(), owner: "someone-else", namespace: testNS, expires: time.Now().Add(time.Minute)}
 	}

@@ -497,9 +497,7 @@ init_empty_remote:
 		defaultBranch = "main"
 	}
 	repo, err = git.PlainInitWithOptions(cfg.RepoDir, &git.PlainInitOptions{
-		InitOptions: git.InitOptions{
-			DefaultBranch: plumbing.NewBranchReferenceName(defaultBranch),
-		},
+		DefaultBranch: plumbing.NewBranchReferenceName(defaultBranch),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initializing repo: %w", err)

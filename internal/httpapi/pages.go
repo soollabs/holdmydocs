@@ -95,8 +95,7 @@ func (h *Handlers) previewMarkdown(w http.ResponseWriter, r *http.Request) {
 // parseForm reads an urlencoded form, mapping an oversized body to 413.
 func parseForm(w http.ResponseWriter, r *http.Request) bool {
 	if err := r.ParseForm(); err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 		} else {
 			http.Error(w, "bad request", http.StatusBadRequest)

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -330,8 +331,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.PageFootWidgets = widgetsForSlot(slotPageFoot, nsCfg.Widgets)
 
 		app.populateWidgetData(r.Context(), &data, activeSkin)
-		for i := len(data.NamespaceNav) - 1; i >= 0; i-- {
-			if !auth.TokenAllowsNamespace(r.Context(), data.NamespaceNav[i].Name) {
+		for i, v := range slices.Backward(data.NamespaceNav) {
+			if !auth.TokenAllowsNamespace(r.Context(), v.Name) {
 				data.NamespaceNav = append(data.NamespaceNav[:i], data.NamespaceNav[i+1:]...)
 			}
 		}

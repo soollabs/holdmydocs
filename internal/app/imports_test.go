@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -120,10 +121,5 @@ func listDeps(t *testing.T, pkg string) []string {
 }
 
 func contains(paths []string, want string) bool {
-	for _, path := range paths {
-		if path == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(paths, want)
 }

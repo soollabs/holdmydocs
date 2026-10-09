@@ -60,8 +60,7 @@ func (h *Handlers) upload(w http.ResponseWriter, r *http.Request, slug, token st
 			break
 		}
 		if partErr != nil {
-			var maxBytesErr *http.MaxBytesError
-			if errors.As(partErr, &maxBytesErr) {
+			if _, ok := errors.AsType[*http.MaxBytesError](partErr); ok {
 				http.Error(w, "attachment exceeds maximum upload size", http.StatusRequestEntityTooLarge)
 				return
 			}

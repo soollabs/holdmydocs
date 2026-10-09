@@ -54,7 +54,7 @@ func (s *Store) provisionClient(name string, redirectURIs []string, authMethod s
 		if err := validateRedirectURI(redirect); err != nil {
 			return ProvisionedClient{}, fmt.Errorf("redirect URI %d: %w", i+1, err)
 		}
-		for prior := 0; prior < i; prior++ {
+		for prior := range i {
 			if redirectURIs[prior] == redirect {
 				return ProvisionedClient{}, errors.New("duplicate redirect URI")
 			}

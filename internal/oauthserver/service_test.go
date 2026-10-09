@@ -313,16 +313,14 @@ func TestOAuthConsentHandleCanCompleteOnlyOnceConcurrently(t *testing.T) {
 	results := make(chan error, 2)
 	var workers sync.WaitGroup
 	for range 2 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			<-start
 			_, err := service.CompleteAuthorization(
 				started.Handle, started.FlowCookie, "alice", session,
 				true, "read", "selected", []string{"notes"}, []string{"notes"},
 			)
 			results <- err
-		}()
+		})
 	}
 	close(start)
 	workers.Wait()

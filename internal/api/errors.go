@@ -99,8 +99,7 @@ func Unavailable(message string, cause error) *Error {
 // CategoryOf returns the category of err, defaulting to CategoryUnavailable for
 // an uncategorised error.
 func CategoryOf(err error) Category {
-	var appErr *Error
-	if errors.As(err, &appErr) {
+	if appErr, ok := errors.AsType[*Error](err); ok {
 		return appErr.Category
 	}
 	return CategoryUnavailable

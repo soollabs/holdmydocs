@@ -347,9 +347,9 @@ func postMCPRPC(t *testing.T, base, token, version, body string) (*http.Response
 	reply := readE2EBody(t, response)
 	if strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 		var data []string
-		for _, line := range strings.Split(reply, "\n") {
-			if strings.HasPrefix(line, "data:") {
-				data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		for line := range strings.SplitSeq(reply, "\n") {
+			if after, ok := strings.CutPrefix(line, "data:"); ok {
+				data = append(data, strings.TrimSpace(after))
 			}
 		}
 		reply = strings.Join(data, "\n")
