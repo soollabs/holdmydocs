@@ -154,7 +154,7 @@ func TestDynamicRegistrationRejectsInvalidMetadata(t *testing.T) {
 func TestDynamicRegistrationGlobalBudget(t *testing.T) {
 	s, _, _, _, _ := newOAuthServiceFixture(t)
 	s.options.DynamicRegistration = true
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		registerRequest(s, `{}`)
 	}
 	w := registerRequest(s, `{}`)
@@ -165,7 +165,7 @@ func TestDynamicRegistrationGlobalBudget(t *testing.T) {
 
 func TestDynamicRegistrationReservesManualCapacity(t *testing.T) {
 	s, store, _, _, _ := newOAuthServiceFixture(t)
-	for i := 0; i < 32; i++ {
+	for range 32 {
 		if _, err := store.provisionClient("MCP", []string{"https://client.example/cb"}, "none", []string{"read"}, false, true); err != nil {
 			t.Fatal(err)
 		}

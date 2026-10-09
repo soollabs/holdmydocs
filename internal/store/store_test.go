@@ -55,10 +55,8 @@ func seedOrFlagSetup(content *storepkg.Store)       { storepkg.SeedOrFlagSetup(c
 
 func initBareRepo(dir string) (*git.Repository, error) {
 	return git.PlainInitWithOptions(dir, &git.PlainInitOptions{
-		Bare: true,
-		InitOptions: git.InitOptions{
-			DefaultBranch: plumbing.NewBranchReferenceName("main"),
-		},
+		Bare:          true,
+		DefaultBranch: plumbing.NewBranchReferenceName("main"),
 	})
 }
 

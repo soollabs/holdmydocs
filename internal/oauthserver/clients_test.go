@@ -30,10 +30,10 @@ func TestProvisionClientPersistsSecretDigestOnly(t *testing.T) {
 	if record.SecretDigest == "" || record.SecretDigest == provisioned.Secret {
 		t.Fatal("client secret was not stored as a digest")
 	}
-	if !(confidentialOAuthClient{oauthClient: oauthClient{record: record}}).VerifyPassword(provisioned.Secret) {
+	if !(confidentialOAuthClient{record: record}).VerifyPassword(provisioned.Secret) {
 		t.Fatal("stored secret digest did not verify")
 	}
-	if (confidentialOAuthClient{oauthClient: oauthClient{record: record}}).VerifyPassword("wrong secret") {
+	if (confidentialOAuthClient{record: record}).VerifyPassword("wrong secret") {
 		t.Fatal("incorrect client secret verified")
 	}
 }

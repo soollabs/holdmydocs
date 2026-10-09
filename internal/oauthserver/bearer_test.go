@@ -2,7 +2,7 @@ package oauthserver
 
 import (
 	"context"
- 	"strings"
+	"strings"
 	"testing"
 	"time"
 

@@ -75,8 +75,7 @@ func decodeInput[In any](w http.ResponseWriter, r *http.Request, in *In) error {
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			return api.InvalidInput("request body too large", err)
 		}
 		return api.InvalidInput("invalid JSON request body", err)
@@ -102,7 +101,7 @@ func decodeQuery[In any](r *http.Request, in *In) error {
 		if field.Type.Kind() != reflect.String {
 			continue
 		}
-		name := strings.Split(field.Tag.Get("json"), ",")[0]
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 		if name == "" || name == "-" {
 			name = field.Name
 		}

@@ -50,7 +50,7 @@ type NamespaceConfig struct {
 	Skin        string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = default skin
 	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
 	New         *NewPageConfig `yaml:"new,omitempty"`
-	Export      ExportConfig   `yaml:"export,omitempty" json:"export,omitempty"`
+	Export      ExportConfig   `yaml:"export,omitempty" json:"export"`
 
 	// Index names a page in this namespace (one segment), e.g.
 	Index string `yaml:"index,omitempty" json:"index,omitempty"`

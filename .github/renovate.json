@@ -13,5 +13,12 @@
   ],
   "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{changelogs}}}{{{controls}}}",
   "prConcurrentLimit": 5,
-  "minimumReleaseAge": "3 day"
+  "minimumReleaseAge": "3 day",
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "rangeStrategy": "bump"
+    }
+  ]
 }

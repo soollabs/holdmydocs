@@ -28,7 +28,7 @@ type mcpNamespacesOut struct {
 }
 
 type mcpNamespaceOut struct {
-	Export      wiki.ExportConfig   `json:"export,omitempty"`
+	Export      wiki.ExportConfig   `json:"export"`
 	Name        string              `json:"name"`
 	Widgets     []string            `json:"widgets"`
 	Public      bool                `json:"public"`
@@ -43,7 +43,7 @@ type mcpNamespaceOut struct {
 }
 
 type mcpSaveNamespaceIn struct {
-	Export      wiki.ExportConfig   `json:"export,omitempty" jsonschema:"static export URL, sitemap, allowed robots and external links; preserve from read_namespace when updating"`
+	Export      wiki.ExportConfig   `json:"export,omitzero" jsonschema:"static export URL, sitemap, allowed robots and external links; preserve from read_namespace when updating"`
 	Name        string              `json:"name" jsonschema:"namespace name, e.g. notes; this is a name, not a page slug or path"`
 	Widgets     []string            `json:"widgets,omitempty" jsonschema:"complete ordered string array of configured widget IDs; preserve from read_namespace when updating"`
 	Public      bool                `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`

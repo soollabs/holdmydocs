@@ -43,9 +43,9 @@ func TestMetadataDocumentsUseConfiguredIssuer(t *testing.T) {
 		!reflect.DeepEqual(resource.AuthorizationServers, []string{issuer}) {
 		t.Fatalf("protected resource metadata is wrong: %#v", resource)
 	}
- 	if !reflect.DeepEqual(resource.ScopesSupported, []string{"read", "write"}) {
-  		t.Fatalf("resource scopes = %v", resource.ScopesSupported)
- 	}
+	if !reflect.DeepEqual(resource.ScopesSupported, []string{"read", "write"}) {
+		t.Fatalf("resource scopes = %v", resource.ScopesSupported)
+	}
 }
 
 func TestMetadataAdminScopeOnlyWhenEnabled(t *testing.T) {

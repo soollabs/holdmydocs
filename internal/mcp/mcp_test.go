@@ -696,9 +696,9 @@ func TestMCPStreamableHTTPLegacyLifecycle(t *testing.T) {
 				}
 				if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 					var data [][]byte
-					for _, line := range bytes.Split(responseBody, []byte("\n")) {
-						if bytes.HasPrefix(line, []byte("data:")) {
-							data = append(data, bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:"))))
+					for line := range bytes.SplitSeq(responseBody, []byte("\n")) {
+						if after, ok := bytes.CutPrefix(line, []byte("data:")); ok {
+							data = append(data, bytes.TrimSpace(after))
 						}
 					}
 					responseBody = bytes.Join(data, []byte("\n"))

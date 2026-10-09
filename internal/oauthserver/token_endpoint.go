@@ -159,7 +159,7 @@ func verifyClientSecret(client ClientRecord, secret string) bool {
 	if client.SecretDigest == "" || secret == "" {
 		return false
 	}
-	return (confidentialOAuthClient{oauthClient: oauthClient{record: client}}).VerifyPassword(secret)
+	return (confidentialOAuthClient{record: client}).VerifyPassword(secret)
 }
 
 func (s *Service) exchangeCode(w http.ResponseWriter, r *http.Request, form url.Values, client parsedClientCredentials) {
@@ -645,8 +645,7 @@ func writeTokenResponse(w http.ResponseWriter, info oauth2.TokenInfo) {
 }
 
 func writeProtocolError(w http.ResponseWriter, err error) {
-	var protocol *ProtocolError
-	if errors.As(err, &protocol) {
+	if protocol, ok := errors.AsType[*ProtocolError](err); ok {
 		writeOAuthError(w, protocol.Status, protocol.Code, protocol.Description)
 		return
 	}
