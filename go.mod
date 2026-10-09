@@ -1,6 +1,6 @@
 module hmd
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.1
