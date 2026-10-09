@@ -20,13 +20,6 @@ import (
 	"github.com/blevesearch/bleve/v2/search"
 )
 
-func closeTestBody(t *testing.T, closer io.Closer) {
-	t.Helper()
-	if err := closer.Close(); err != nil {
-		t.Errorf("close: %v", err)
-	}
-}
-
 func TestChunkTextNormalisesAndOverlaps(t *testing.T) {
 	words := make([]string, 200)
 	for i := range words {
@@ -208,7 +201,11 @@ func TestOpenIndexRebuildsPageMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openIndexAt: %v", err)
 	}
-	defer closeTestBody(t, ix.bleve)
+	defer func() {
+		if err := ix.bleve.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 
 	if slug, ok := ix.ResolveLink("Home", "notes"); !ok || slug != page.Slug {
 		t.Fatalf("ResolveLink after open = %q, %v", slug, ok)
@@ -259,7 +256,11 @@ func TestReplaceAttachmentPersistsAndRemovesVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, idx)
+	defer func() {
+		if err := idx.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 	ix := newIndex(idx)
 	ix.manifest = newSearchManifest("test")
 	ix.manifestPath = filepath.Join(t.TempDir(), "search.manifest.json")
@@ -338,7 +339,11 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, reopened.bleve)
+	defer func() {
+		if err := reopened.bleve.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 	if embedder.calls != 0 {
 		t.Fatalf("reopening re-embedded %d times", embedder.calls)
 	}
@@ -360,7 +365,11 @@ func TestInvalidManifestSchemaRebuilds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, ix.bleve)
+	defer func() {
+		if err := ix.bleve.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 	if ix.manifest.SchemaVersion != documentIndexSchemaVersion {
 		t.Fatalf("schema version = %d, want %d", ix.manifest.SchemaVersion, documentIndexSchemaVersion)
 	}
@@ -381,7 +390,11 @@ func TestCorruptIndexRebuilds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTestBody(t, ix.bleve)
+	defer func() {
+		if err := ix.bleve.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 	if !ix.Ready() {
 		t.Fatal("rebuilt index is not ready")
 	}
@@ -397,7 +410,11 @@ func TestSearchAttachmentsDisabledBusyAndEmptyQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	ix := newIndex(blevIdx)
-	defer closeTestBody(t, blevIdx)
+	defer func() {
+		if err := blevIdx.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+	}()
 
 	if _, err := ix.SearchAttachments(context.Background(), "query", 20); !errors.Is(err, errDocumentSearchDisabled) {
 		t.Fatalf("disabled search error = %v, want errDocumentSearchDisabled", err)

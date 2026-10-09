@@ -20,7 +20,7 @@ func TestMCPDiagnosticsAreOptInAndExcludeSecrets(t *testing.T) {
 		}
 		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: level})))
 		for _, method := range []string{"server/discover", "private-method-secret"} {
-			r := httptest.NewRequest("POST", "/_/mcp", strings.NewReader(
+			r := httptest.NewRequestWithContext(t.Context(), "POST", "/_/mcp", strings.NewReader(
 				`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":{"secret":"private-body-secret"}}`))
 			r.Header.Set("Authorization", "Bearer private-token-secret")
 			r.Header.Set("Cookie", "hmd_session=private-cookie-secret")

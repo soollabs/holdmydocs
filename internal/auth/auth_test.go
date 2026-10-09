@@ -94,7 +94,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	})
 	handler := authn.Middleware(next)
 
-	request := httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/_/mcp", nil)
 	request.Header.Set("Authorization", "Bearer hmd_oa_valid")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -102,7 +102,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 		t.Fatalf("valid OAuth request = %d %q", response.Code, response.Body.String())
 	}
 
-	request = httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/_/mcp", nil)
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusUnauthorized || response.Header().Get("WWW-Authenticate") != (testOAuthVerifier{}).Challenge() {
@@ -113,7 +113,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	if !ok {
 		t.Fatal("could not create test browser session")
 	}
-	request = httptest.NewRequest(http.MethodGet, "/_/settings", nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/settings", nil)
 	request.Header.Set("Authorization", "Bearer hmd_oa_invalid")
 	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
 	response = httptest.NewRecorder()
@@ -121,7 +121,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	if response.Code != http.StatusSeeOther {
 		t.Fatalf("invalid OAuth path fell back to a cookie: %d", response.Code)
 	}
-	request = httptest.NewRequest(http.MethodGet, "/_/connections", nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/connections", nil)
 	request.Header.Set("Authorization", "Bearer hmd_oa_invalid")
 	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
 	response = httptest.NewRecorder()
@@ -129,7 +129,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("invalid Bearer credential fell back to the connections cookie: %d", response.Code)
 	}
-	request = httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/_/mcp", nil)
 	request.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
 	response = httptest.NewRecorder()
@@ -247,19 +247,19 @@ func TestMiddleware(t *testing.T) {
 	protected := auth.Middleware(successHandler)
 
 	t.Run("unauthenticated redirect", func(t *testing.T) {
-		_, _ = http.NewRequest("GET", "/page/index", nil)
+		_, _ = http.NewRequestWithContext(t.Context(), "GET", "/page/index", nil)
 
 	})
 
 	t.Run("static allowed without auth", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/static/style.css", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), "GET", "/static/style.css", nil)
 		_ = protected
 		_ = req
 
 	})
 
 	t.Run("login allowed without auth", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/login", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), "GET", "/login", nil)
 		_ = protected
 		_ = req
 
@@ -555,7 +555,7 @@ func TestBearerScopesUseCurrentUserScopes(t *testing.T) {
 	}))
 
 	request := func() *httptest.ResponseRecorder {
-		r := httptest.NewRequest(http.MethodPost, "/readme", nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/readme", nil)
 		r.Header.Set("Authorization", "Bearer "+token)
 		rr := httptest.NewRecorder()
 		protected.ServeHTTP(rr, r)
@@ -605,7 +605,7 @@ func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
-	r := httptest.NewRequest(http.MethodGet, "/notes/page", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes/page", nil)
 	r.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	protected.ServeHTTP(rr, r)

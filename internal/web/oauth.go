@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -127,7 +128,7 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 
 func writeOAuthWebError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
-	if protocol, ok := err.(*oauthserver.ProtocolError); ok {
+	if protocol, ok := errors.AsType[*oauthserver.ProtocolError](err); ok {
 		status = protocol.Status
 	}
 	http.Error(w, err.Error(), status)

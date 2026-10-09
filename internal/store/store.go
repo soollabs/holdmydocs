@@ -469,7 +469,7 @@ func Open(cfg Options) (*Store, error) {
 		repo, err := git.PlainCloneContext(cloneCtx, cfg.RepoDir, false, cloneOpts)
 		cloneCancel()
 		if err != nil {
-			if err == transport.ErrEmptyRemoteRepository {
+			if errors.Is(err, transport.ErrEmptyRemoteRepository) {
 				goto init_empty_remote
 			}
 			return nil, fmt.Errorf("cloning repo: %w", err)
@@ -767,7 +767,7 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 	}
 	if err := s.removeLocked(configPath, message, authorName, authorEmail); err != nil {
 		if restoreErr := restore(); restoreErr != nil {
-			return fmt.Errorf("failed to remove namespace config: %w (restoring namespace config: %v)", err, restoreErr)
+			return fmt.Errorf("failed to remove namespace config: %w (restoring namespace config: %w)", err, restoreErr)
 		}
 		return fmt.Errorf("failed to remove namespace config: %w", err)
 	}
@@ -776,7 +776,7 @@ func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) e
 		// directory, but restore the config if an external filesystem change
 		// made the final directory removal fail.
 		if restoreErr := restore(); restoreErr != nil {
-			return fmt.Errorf("failed to remove namespace directory: %w (restoring namespace config: %v)", err, restoreErr)
+			return fmt.Errorf("failed to remove namespace directory: %w (restoring namespace config: %w)", err, restoreErr)
 		}
 		return fmt.Errorf("failed to remove namespace directory: %w", err)
 	}
@@ -979,7 +979,7 @@ func (s *Store) pushOnce() {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err == git.NoErrAlreadyUpToDate || err == nil {
+	if errors.Is(err, git.NoErrAlreadyUpToDate) || err == nil {
 		s.syncState = "ok"
 		s.syncErr = ""
 		s.lastSuccessUnix.Store(time.Now().Unix())
@@ -1476,7 +1476,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	})
 	slog.Debug("remote fetch completed", "duration", time.Since(fetchStarted), "err", err)
 	s.lastFetchNano.Store(time.Now().UnixNano())
-	if err != nil && err != git.NoErrAlreadyUpToDate {
+	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 		s.mu.Lock()
 		s.failSync("fetch", err)
 		s.mu.Unlock()

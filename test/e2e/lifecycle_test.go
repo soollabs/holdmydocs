@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"hmd/internal/testhttp"
+
 	"encoding/json"
 	"net"
 	"net/http"
@@ -24,13 +26,13 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	binary := filepath.Join(t.TempDir(), "hmd")
-	build := exec.Command("go", "build", "-o", binary, "./cmd/hmd")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./cmd/hmd")
 	build.Dir = root
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v: %s", err, output)
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +59,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 	if err := oauthState.Close(); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(binary)
+	command := exec.CommandContext(t.Context(), binary)
 	command.Env = append(os.Environ(),
 		"HMD_BIND="+address,
 		"HMD_APP_DIR="+appDir,
@@ -82,7 +84,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		response, requestErr := http.Get(ready)
+		response, requestErr := testhttp.Get(t, http.DefaultClient, ready)
 		if requestErr == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == http.StatusOK {
@@ -95,7 +97,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		<-ticker.C
 	}
 	metadataURL := "http://" + address + "/.well-known/oauth-authorization-server"
-	metadataRequest, _ := http.NewRequest(http.MethodGet, metadataURL, nil)
+	metadataRequest, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, metadataURL, nil)
 	metadataRequest.Host = "untrusted.example"
 	metadataResponse, err := http.DefaultClient.Do(metadataRequest)
 	if err != nil {
@@ -112,7 +114,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 	if metadataResponse.StatusCode != http.StatusOK || metadata.Issuer != "http://"+address {
 		t.Fatalf("OAuth metadata = %d issuer %q", metadataResponse.StatusCode, metadata.Issuer)
 	}
-	mcpRequest, _ := http.NewRequest(http.MethodPost, "http://"+address+"/_/mcp", nil)
+	mcpRequest, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+address+"/_/mcp", nil)
 	mcpResponse, err := http.DefaultClient.Do(mcpRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +153,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 		}
 	}
 	outDir := filepath.Join(data, "export")
-	export := exec.Command(binary, "-export-namespace", "notes", "-export-dir", outDir)
+	export := exec.CommandContext(t.Context(), binary, "-export-namespace", "notes", "-export-dir", outDir)
 	export.Env = command.Env
 	if output, err := export.CombinedOutput(); err != nil {
 		t.Fatalf("CLI export: %v: %s", err, output)

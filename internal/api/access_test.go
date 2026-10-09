@@ -182,7 +182,7 @@ func TestSessionAndSettingsPrincipalOperations(t *testing.T) {
 	if !ok {
 		t.Fatal("creating session")
 	}
-	request := httptest.NewRequest(http.MethodPost, "/_/mcp", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/_/mcp", nil)
 	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: token})
 	called := false
 	authn.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

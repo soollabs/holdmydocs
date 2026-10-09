@@ -172,12 +172,12 @@ func (h *Handlers) serveAttachment(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	i := strings.LastIndex(path, "/")
-	if i < 0 {
+	before, after, ok := strings.CutLast(path, "/")
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	slug, file := path[:i], path[i+1:]
+	slug, file := before, after
 
 	attachment, err := h.api.OpenAttachmentForRead(r.Context(), slug, file)
 	if err != nil {

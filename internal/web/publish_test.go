@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"os"
@@ -66,11 +68,18 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	}
 	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public **content**."})
 
-	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
+	resp, err := testhttp.Get(t, noAuthClient(), server.URL+"/blog/hello")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -106,7 +115,7 @@ func TestAnonymousHeadMatchesPublicGetAccess(t *testing.T) {
 	setNamespacePublic(t, app, "blog", true)
 	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
 
-	req, err := http.NewRequest(http.MethodHead, server.URL+"/blog/hello", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, server.URL+"/blog/hello", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +123,14 @@ func TestAnonymousHeadMatchesPublicGetAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HEAD: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("HEAD public page = %d, want 200", resp.StatusCode)
 	}
@@ -129,11 +145,18 @@ func TestAnonymousPublicNamespaceSkinUsesDefaultPalette(t *testing.T) {
 	}
 	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "Public content."})
 
-	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
+	resp, err := testhttp.Get(t, noAuthClient(), server.URL+"/blog/hello")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	for _, want := range []string{`data-skin="newsprint"`, `--bg:#002b36;`} {
 		if !strings.Contains(string(body), want) {
@@ -149,11 +172,18 @@ func TestAnonymousPublicPageGetsOutlineRail(t *testing.T) {
 	setNamespacePublic(t, app, "blog", true)
 	seedPage(t, app, wiki.Page{Slug: "blog/hello", Title: "Hello", Body: "## One\ntext\n\n## Two\nmore text"})
 
-	resp, err := noAuthClient().Get(server.URL + "/blog/hello")
+	resp, err := testhttp.Get(t, noAuthClient(), server.URL+"/blog/hello")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 
 	body, _ := io.ReadAll(resp.Body)
 	s := string(body)
@@ -180,18 +210,32 @@ func TestAnonymousPrivateAndNonexistentPagesByteIdentical404(t *testing.T) {
 
 	client := noAuthClient()
 
-	respPrivate, err := client.Get(server.URL + "/blog/private")
+	respPrivate, err := testhttp.Get(t, client, server.URL+"/blog/private")
 	if err != nil {
 		t.Fatalf("GET private: %v", err)
 	}
-	defer closeTestBody(t, respPrivate.Body)
+	{
+		response := respPrivate
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	bodyPrivate, _ := io.ReadAll(respPrivate.Body)
 
-	respMissing, err := client.Get(server.URL + "/blog/does-not-exist")
+	respMissing, err := testhttp.Get(t, client, server.URL+"/blog/does-not-exist")
 	if err != nil {
 		t.Fatalf("GET missing: %v", err)
 	}
-	defer closeTestBody(t, respMissing.Body)
+	{
+		response := respMissing
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	bodyMissing, _ := io.ReadAll(respMissing.Body)
 
 	if respPrivate.StatusCode != http.StatusNotFound || respMissing.StatusCode != http.StatusNotFound {
@@ -210,11 +254,18 @@ func TestAnonymousWikiLinkToPrivatePageUnwraps(t *testing.T) {
 	seedPage(t, app, wiki.Page{Slug: "secret", Title: "Secret"})
 	seedPage(t, app, wiki.Page{Slug: "blog/post", Title: "Post", Body: "See [[Secret]] and [[Nowhere]]."})
 
-	resp, err := noAuthClient().Get(server.URL + "/blog/post")
+	resp, err := testhttp.Get(t, noAuthClient(), server.URL+"/blog/post")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	s := string(body)
 
@@ -237,11 +288,18 @@ func TestAnonymousTocNotExpanded(t *testing.T) {
 	seedPage(t, app, wiki.Page{Slug: "secret", Title: "Secret Title"})
 	seedPage(t, app, wiki.Page{Slug: "blog/index", Title: "Index", Body: "<!-- hmd:toc -->"})
 
-	resp, err := noAuthClient().Get(server.URL + "/blog/index")
+	resp, err := testhttp.Get(t, noAuthClient(), server.URL+"/blog/index")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	s := string(body)
 
@@ -268,20 +326,34 @@ func TestAnonymousAttachment(t *testing.T) {
 
 	client := noAuthClient()
 
-	resp, err := client.Get(server.URL + "/_/attachments/blog/post/pic.png")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/attachments/blog/post/pic.png")
 	if err != nil {
 		t.Fatalf("GET public attachment: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("public-namespace attachment status = %d, want 200", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/_/attachments/secret/pic.png")
+	resp2, err := testhttp.Get(t, client, server.URL+"/_/attachments/secret/pic.png")
 	if err != nil {
 		t.Fatalf("GET private attachment: %v", err)
 	}
-	defer closeTestBody(t, resp2.Body)
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp2.StatusCode != http.StatusNotFound {
 		t.Errorf("private-namespace attachment status = %d, want 404", resp2.StatusCode)
 	}
@@ -299,11 +371,18 @@ func TestAnonymousDoActionsStayBehindAuth(t *testing.T) {
 			return http.ErrUseLastResponse
 		},
 	}
-	resp, err := client.Get(server.URL + "/blog/post?do=edit")
+	resp, err := testhttp.Get(t, client, server.URL+"/blog/post?do=edit")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("?do=edit on a public page, anonymous, status = %d, want 303 (login redirect)", resp.StatusCode)
 	}

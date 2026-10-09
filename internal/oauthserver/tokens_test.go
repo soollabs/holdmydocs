@@ -2,6 +2,7 @@ package oauthserver
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -116,7 +117,7 @@ func TestOAuthTokenStoreMutationsRequireTransaction(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 	err = (tokenStore{store: store}).Create(t.Context(), models.NewToken())
-	if err != errOAuthTransactionRequired {
+	if !errors.Is(err, errOAuthTransactionRequired) {
 		t.Fatalf("Create outside transaction = %v", err)
 	}
 }

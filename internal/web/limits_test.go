@@ -17,7 +17,7 @@ func TestRequestSecurityRejectsOversizedForm(t *testing.T) {
 	h := security.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
-	req := httptest.NewRequest(http.MethodPost, "/_/login", strings.NewReader(strings.Repeat("x", httpmiddleware.MaxFormBytes+1)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/_/login", strings.NewReader(strings.Repeat("x", httpmiddleware.MaxFormBytes+1)))
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, req)
 	if res.Code != http.StatusRequestEntityTooLarge {

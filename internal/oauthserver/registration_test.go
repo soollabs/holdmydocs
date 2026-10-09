@@ -1,6 +1,7 @@
 package oauthserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 )
 
 func registerRequest(s *Service, body string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(http.MethodPost, registerPath, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, registerPath, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.RegistrationHandler().ServeHTTP(w, r)
@@ -28,7 +29,7 @@ func TestDynamicRegistrationIsOptIn(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		w := httptest.NewRecorder()
 		MetadataHandler(ServerOptions{Issuer: s.options.Issuer, DynamicRegistration: enabled}).
-			ServeHTTP(w, httptest.NewRequest("GET", authorizationMetadataPath, nil))
+			ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "GET", authorizationMetadataPath, nil))
 		if strings.Contains(w.Body.String(), `"registration_endpoint"`) != enabled {
 			t.Fatalf("registration discovery = %s", w.Body.String())
 		}
@@ -116,7 +117,7 @@ func TestRegistrationThroughAuthenticationAndSecurity(t *testing.T) {
 		return config.Config{BaseURL: s.options.Issuer}
 	}}
 	handler := authn.Middleware(security.Handler(s.ProtocolHandler()))
-	r := httptest.NewRequest("POST", registerPath, strings.NewReader(`{"redirect_uris":["https://client.example/cb"],"token_endpoint_auth_method":"none"}`))
+	r := httptest.NewRequestWithContext(t.Context(), "POST", registerPath, strings.NewReader(`{"redirect_uris":["https://client.example/cb"],"token_endpoint_auth_method":"none"}`))
 	r.Header.Set("Content-Type", "application/json")
 	// Cookies neither authorise registration nor require browser CSRF.
 	r.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})

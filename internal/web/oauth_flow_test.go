@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"html"
 	"io"
 	"net/http"
@@ -53,7 +55,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		Transport:     csrfTestTransport{base: http.DefaultTransport, jar: jar, auth: app.Auth},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	response, err := browser.Get(server.URL + "/_/oauth/authorize?" + params.Encode())
+	response, err := testhttp.Get(t, browser, server.URL+"/_/oauth/authorize?"+params.Encode())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +67,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if !strings.HasPrefix(loginURL, "/_/login?continue=") {
 		t.Fatalf("login continuation redirect = %q", loginURL)
 	}
-	response, err = browser.Get(server.URL + loginURL)
+	response, err = testhttp.Get(t, browser, server.URL+loginURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +87,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		"username": {"admin"}, "password": {"password12345"},
 		"oauth_continue": {loginQuery.Query().Get("continue")},
 	}
-	response, err = browser.PostForm(server.URL+"/_/login", loginValues)
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/login", loginValues)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	}
 	authorizeURL := response.Header.Get("Location")
 	_ = response.Body.Close()
-	response, err = browser.Get(server.URL + authorizeURL)
+	response, err = testhttp.Get(t, browser, server.URL+authorizeURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +126,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		"decision": {"approve"}, "scope": {"read"},
 		"namespace_mode": {"selected"}, "namespace": {"notes"},
 	}
-	response, err = browser.PostForm(server.URL+"/_/oauth/authorize", consentValues)
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/oauth/authorize", consentValues)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +147,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		callback.Query().Get("code") == "" {
 		t.Fatalf("consent approval callback = %d %q", response.StatusCode, callback)
 	}
-	response, err = browser.Get(server.URL + "/_/connections")
+	response, err = testhttp.Get(t, browser, server.URL+"/_/connections")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +160,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if err != nil || len(connections) != 1 {
 		t.Fatalf("listed connections = %#v, %v", connections, err)
 	}
-	response, err = browser.PostForm(server.URL+"/_/connections/"+connections[0].GrantID+"/revoke", url.Values{})
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/connections/"+connections[0].GrantID+"/revoke", url.Values{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +205,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	invalidScope := base
 	invalidScope["scope"] = []string{"settings"}
 	invalidScope["resource"] = []string{"https://wiki.example.test/_/mcp"}
-	response, err := browser.Get(server.URL + "/_/oauth/authorize?" + invalidScope.Encode())
+	response, err := testhttp.Get(t, browser, server.URL+"/_/oauth/authorize?"+invalidScope.Encode())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +227,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	wrongRedirect := base
 	wrongRedirect["redirect_uri"] = []string{"https://attacker.example.test/callback"}
 	wrongRedirect["resource"] = []string{"https://wiki.example.test/_/mcp"}
-	response, err = browser.Get(server.URL + "/_/oauth/authorize?" + wrongRedirect.Encode())
+	response, err = testhttp.Get(t, browser, server.URL+"/_/oauth/authorize?"+wrongRedirect.Encode())
 	if err != nil {
 		t.Fatal(err)
 	}

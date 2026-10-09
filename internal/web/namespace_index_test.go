@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -26,11 +28,18 @@ func TestNamespaceIndex(t *testing.T) {
 	}
 
 	body := func(c *http.Client, path string) (int, string) {
-		resp, err := c.Get(server.URL + path)
+		resp, err := testhttp.Get(t, c, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		b, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, string(b)
 	}
@@ -94,11 +103,18 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 	}
 
 	get := func(client *http.Client) string {
-		resp, err := client.Get(server.URL + "/empty/")
+		resp, err := testhttp.Get(t, client, server.URL+"/empty/")
 		if err != nil {
 			t.Fatalf("GET empty namespace: %v", err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -120,11 +136,13 @@ func TestNamespaceIndexEmptyStateAndCreateScope(t *testing.T) {
 		t.Fatalf("cookie jar: %v", err)
 	}
 	reader := &http.Client{Jar: jar}
-	resp, err := reader.PostForm(server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
+	resp, err := testhttp.PostForm(t, reader, server.URL+"/_/login", url.Values{"username": {"reader"}, "password": {"password12345"}})
 	if err != nil {
 		t.Fatalf("reader login: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if got := get(reader); strings.Contains(got, `id="new-page"`) {
 		t.Fatal("read-scoped user can see the +new button")
 	}
@@ -139,11 +157,18 @@ func TestNamespaceIndexCustomPage(t *testing.T) {
 	savePage(t, app, "docs/other", "Another page")
 
 	get := func(path string) (int, string) {
-		resp, err := client.Get(server.URL + path)
+		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		b, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, string(b)
 	}
@@ -184,11 +209,18 @@ func TestNamespaceWikiLinkResolvesWithinNamespace(t *testing.T) {
 		}
 	}
 
-	resp, err := client.Get(server.URL + "/health/plan")
+	resp, err := testhttp.Get(t, client, server.URL+"/health/plan")
 	if err != nil {
 		t.Fatalf("GET /health/plan: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	b, _ := io.ReadAll(resp.Body)
 	body := string(b)
 
@@ -222,7 +254,9 @@ func TestRenameWithinNamespace(t *testing.T) {
 		t.Fatalf("POST rename: %v", err)
 	}
 	b, _ := io.ReadAll(resp.Body)
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("rename: status = %d, body = %s", resp.StatusCode, b)
 	}

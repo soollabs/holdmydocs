@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"encoding/json"
 	"io"
 	"net/http"
@@ -24,7 +26,14 @@ func createTokenViaUI(t *testing.T, server *httptest.Server, client *http.Client
 	if err != nil {
 		t.Fatalf("POST /_/api/settings/tokens: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("token creation status = %d, want 200", resp.StatusCode)
 	}
@@ -63,24 +72,28 @@ func TestTokenSettingsUI(t *testing.T) {
 	token := createTokenViaUI(t, server, client, "laptop", "30d", []string{"read"}, []string{"notes"})
 	privateToken := createTokenViaUI(t, server, client, "private-pages", "30d", []string{"read"}, []string{"private"})
 
-	req, _ := http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/_/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Bearer request failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Bearer /api/search: got %d, want 200", resp.StatusCode)
 	}
 
-	pageReq, _ := http.NewRequest(http.MethodGet, server.URL+"/notes/allowed", nil)
+	pageReq, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/notes/allowed", nil)
 	pageReq.Header.Set("Authorization", "Bearer "+token)
 	pageResp, err := http.DefaultClient.Do(pageReq)
 	if err != nil {
 		t.Fatalf("selected namespace request failed: %v", err)
 	}
-	closeTestBody(t, pageResp.Body)
+	if err := pageResp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if pageResp.StatusCode != http.StatusOK {
 		t.Fatalf("selected namespace request = %d, want 200", pageResp.StatusCode)
 	}
@@ -91,13 +104,15 @@ func TestTokenSettingsUI(t *testing.T) {
 		{"/private/denied", http.StatusOK},
 		{"/notes/allowed", http.StatusForbidden},
 	} {
-		req, _ := http.NewRequest(http.MethodGet, server.URL+tc.path, nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+tc.path, nil)
 		req.Header.Set("Authorization", "Bearer "+privateToken)
 		privateResp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("private-only request %s failed: %v", tc.path, err)
 		}
-		closeTestBody(t, privateResp.Body)
+		if err := privateResp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if privateResp.StatusCode != tc.want {
 			t.Errorf("private-only request %s = %d, want %d", tc.path, privateResp.StatusCode, tc.want)
 		}
@@ -105,7 +120,7 @@ func TestTokenSettingsUI(t *testing.T) {
 
 	allNamespacesToken := createTokenViaUI(t, server, client, "all-pages", "30d", []string{"read"}, nil)
 	adminToken := createTokenViaUI(t, server, client, "administrator", "30d", []string{"settings"}, []string{"notes"})
-	settingsRequest, _ := http.NewRequest(http.MethodGet, server.URL+"/_/settings", nil)
+	settingsRequest, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/settings", nil)
 	for _, cookie := range client.Jar.Cookies(settingsRequest.URL) {
 		settingsRequest.AddCookie(cookie)
 	}
@@ -151,13 +166,15 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	for _, path := range []string{"/" + testHome, "/private/denied"} {
-		req, _ := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		req.Header.Set("Authorization", "Bearer "+allNamespacesToken)
 		allResp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("all-namespaces request %s failed: %v", path, err)
 		}
-		closeTestBody(t, allResp.Body)
+		if err := allResp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if allResp.StatusCode != http.StatusOK {
 			t.Errorf("all-namespaces request %s = %d, want 200", path, allResp.StatusCode)
 		}
@@ -169,7 +186,14 @@ func TestTokenSettingsUI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST invalid token: %v", err)
 		}
-		defer closeTestBody(t, invalidResp.Body)
+		{
+			response := invalidResp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, err := io.ReadAll(invalidResp.Body)
 		if err != nil {
 			t.Fatalf("read invalid token response: %v", err)
@@ -201,13 +225,15 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	for _, path := range []string{"/" + testHome, "/private/denied"} {
-		req, _ := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		adminResp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("administrator request %s failed: %v", path, err)
 		}
-		closeTestBody(t, adminResp.Body)
+		if err := adminResp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if adminResp.StatusCode != http.StatusOK {
 			t.Errorf("administrator request %s = %d, want 200", path, adminResp.StatusCode)
 		}
@@ -225,7 +251,7 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Error("duplicate label accepted, want error")
 	}
 
-	settingsResp, _ := client.Get(server.URL + "/_/settings")
+	settingsResp, _ := testhttp.Get(t, client, server.URL+"/_/settings")
 	pageBody, _ := io.ReadAll(settingsResp.Body)
 	if err := settingsResp.Body.Close(); err != nil {
 		t.Fatalf("closing settings response body: %v", err)
@@ -248,13 +274,15 @@ func TestTokenSettingsUI(t *testing.T) {
 		t.Fatalf("closing revoke response body: %v", err)
 	}
 
-	req, _ = http.NewRequest("GET", server.URL+"/_/api/search?q=readme", nil)
+	req, _ = http.NewRequestWithContext(t.Context(), "GET", server.URL+"/_/api/search?q=readme", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Bearer request failed: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("revoked Bearer: got %d, want 401", resp.StatusCode)
 	}

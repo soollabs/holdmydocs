@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"io"
 	"net/http"
 	"net/url"
@@ -23,11 +25,13 @@ func TestLandingRoute(t *testing.T) {
 	}
 
 	get := func() string {
-		resp, err := noRedirectClient.Get(server.URL + "/")
+		resp, err := testhttp.Get(t, noRedirectClient, server.URL+"/")
 		if err != nil {
 			t.Fatalf("GET /: %v", err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 		if resp.StatusCode != http.StatusSeeOther {
 			t.Fatalf("status = %d, want 303", resp.StatusCode)
 		}
@@ -51,11 +55,18 @@ func TestNewPageJSGlobals(t *testing.T) {
 	defer server.Close()
 
 	get := func() string {
-		resp, err := client.Get(server.URL + "/" + testHome)
+		resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 		if err != nil {
 			t.Fatalf("GET /%s: %v", testHome, err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -73,7 +84,9 @@ func TestNewPageJSGlobals(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setting skin %s: %v", name, err)
 		}
-		closeTestBody(t, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
 	}
 	for _, s := range skinNames {
 		setSkin(s)
@@ -102,11 +115,18 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 	}
 
 	pageBody := func(slug string) string {
-		resp, err := client.Get(server.URL + "/" + slug)
+		resp, err := testhttp.Get(t, client, server.URL+"/"+slug)
 		if err != nil {
 			t.Fatalf("GET /%s: %v", slug, err)
 		}
-		defer closeTestBody(t, resp.Body)
+		{
+			response := resp
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response body: %v", err)
+				}
+			}()
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return string(body)
 	}
@@ -130,11 +150,18 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 		t.Error("New does not create beside the current nested page")
 	}
 
-	resp, err := client.Get(server.URL + "/_/static/app.js")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/static/app.js")
 	if err != nil {
 		t.Fatalf("GET app.js: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	asset, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(asset), "new page in the ${window.hmdNewNamespace || 'current'} namespace") {
 		t.Errorf("new verb description does not name its target namespace")

@@ -22,7 +22,7 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 	t.Run("slow headers", func(t *testing.T) {
 		server := newHTTPServer("127.0.0.1:0", http.NotFoundHandler())
 		server.ReadHeaderTimeout = 25 * time.Millisecond
-		listener, err := net.Listen("tcp", server.Addr)
+		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", server.Addr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -33,7 +33,7 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 			<-done
 		}()
 
-		connection, err := net.Dial("tcp", listener.Addr().String())
+		connection, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", listener.Addr().String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,8 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 		if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := http.ReadResponse(bufio.NewReader(connection), nil); err == nil {
+		if response, err := http.ReadResponse(bufio.NewReader(connection), nil); err == nil {
+			_ = response.Body.Close()
 			t.Fatal("incomplete headers produced a normal response")
 		}
 		_ = connection.Close()
@@ -51,7 +52,7 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 
 	t.Run("oversized headers", func(t *testing.T) {
 		server := newHTTPServer("127.0.0.1:0", http.NotFoundHandler())
-		listener, err := net.Listen("tcp", server.Addr)
+		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", server.Addr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +63,7 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 			<-done
 		}()
 
-		connection, err := net.Dial("tcp", listener.Addr().String())
+		connection, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", listener.Addr().String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,11 +75,14 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
-			if err := response.Body.Close(); err != nil {
-				t.Errorf("closing response: %v", err)
-			}
-		}()
+		{
+			response := response
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Errorf("closing response: %v", err)
+				}
+			}()
+		}
 		if response.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
 			t.Fatalf("oversized header status = %d, want 431", response.StatusCode)
 		}

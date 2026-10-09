@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,30 +15,41 @@ import (
 	"hmd/internal/wiki"
 )
 
-// postMutation sends a JSON mutation body and returns the response. It mirrors
-// the browser JavaScript calling the httpapi mutation surface.
-func postMutation(t *testing.T, client *http.Client, url string, body any) *http.Response {
+type mutationResponse struct {
+	StatusCode int
+	Body       []byte
+}
+
+// postMutation sends a JSON mutation and returns its status and body after closing the response.
+func postMutation(t *testing.T, client *http.Client, url string, body any) mutationResponse {
 	t.Helper()
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshalling %s body: %v", url, err)
 	}
-	resp, err := client.Post(url, "application/json", bytes.NewReader(raw))
+	resp, err := testhttp.Post(t, client, url, "application/json", bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("POST %s: %v", url, err)
 	}
-	return resp
+	responseBody, readErr := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
+	if readErr != nil {
+		t.Fatalf("reading POST %s: %v", url, readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("closing POST %s: %v", url, closeErr)
+	}
+	return mutationResponse{StatusCode: resp.StatusCode, Body: responseBody}
 }
 
 // decodeMutation decodes a successful mutation result.
-func decodeMutation(t *testing.T, resp *http.Response) pageMutation {
+func decodeMutation(t *testing.T, resp mutationResponse) pageMutation {
 	t.Helper()
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	var out pageMutation
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&out); err != nil {
 		t.Fatalf("decoding mutation result: %v", err)
 	}
 	return out
@@ -112,12 +126,11 @@ func TestSavePageConflictCarriesCurrentRevision(t *testing.T) {
 	resp := postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
 		"title": "Conflict Page", "body": "my draft", "base_hash": "deadbeef",
 	})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale save status = %d, want 409", resp.StatusCode)
 	}
 	var conflict conflictResponse
-	if err := json.NewDecoder(resp.Body).Decode(&conflict); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&conflict); err != nil {
 		t.Fatalf("decoding conflict JSON: %v", err)
 	}
 	if conflict.Conflict.CurrentHash != created.BlobHash {
@@ -154,12 +167,11 @@ func TestSavePageConflictPreservesDraftContext(t *testing.T) {
 	resp := postMutation(t, client, env.server.URL+"/_/api/pages/"+slug, map[string]any{
 		"title": "My Draft", "body": "my unsaved draft", "base_hash": "deadbeef",
 	})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale save status = %d, want 409", resp.StatusCode)
 	}
 	var conflict conflictResponse
-	if err := json.NewDecoder(resp.Body).Decode(&conflict); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&conflict); err != nil {
 		t.Fatalf("decoding conflict JSON: %v", err)
 	}
 
@@ -233,12 +245,11 @@ func TestRenameRepairsBacklinks(t *testing.T) {
 	env.seedPage(t, wiki.Page{Slug: testNS + "/source", Title: "Source", Body: "see [[Old Name]]"})
 
 	resp := postMutation(t, client, env.server.URL+"/_/api/pages/rename/"+testNS+"/old-name", map[string]any{"title": "New Name"})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("rename status = %d, want 200", resp.StatusCode)
 	}
 	var result pageRenameResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&result); err != nil {
 		t.Fatalf("decoding rename result: %v", err)
 	}
 	if result.Slug != testNS+"/new-name" {

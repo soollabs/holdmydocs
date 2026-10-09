@@ -1,6 +1,8 @@
 package web
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"io"
 	"net/http"
@@ -48,7 +50,7 @@ func TestSkinsKeepOutlineRail(t *testing.T) {
 		}
 	}
 
-	for _, widgets := range [][]string{nil, []string{"outline"}} {
+	for _, widgets := range [][]string{nil, {"outline"}} {
 		rail := widgetsForSlot(slotRail, widgets)
 		if len(rail) != 1 || rail[0].ID != "outline" {
 			t.Errorf("outline rail not fixed for widgets %v", widgets)
@@ -73,14 +75,18 @@ func TestSettingsLinkAlwaysRendered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting skin: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 
-	rendered, err := client.Get(server.URL + "/_/settings")
+	rendered, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings: %v", err)
 	}
 	body, err := io.ReadAll(rendered.Body)
-	closeTestBody(t, rendered.Body)
+	if err := rendered.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("reading settings response: %v", err)
 	}
@@ -120,7 +126,7 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 func TestServiceWorkerCarriesContentHash(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	server.Close()
-	req := httptest.NewRequest(http.MethodGet, "/_/static/sw.js", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/static/sw.js", nil)
 	rec := httptest.NewRecorder()
 	app.Routes().ServeHTTP(rec, req)
 
@@ -145,7 +151,7 @@ func TestServiceWorkerCarriesContentHash(t *testing.T) {
 func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	server.Close()
-	req := httptest.NewRequest(http.MethodGet, "/_/static/style.css?v=3", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/static/style.css?v=3", nil)
 	rec := httptest.NewRecorder()
 	app.Routes().ServeHTTP(rec, req)
 
@@ -157,7 +163,7 @@ func TestStaticAssetsAllowBrowserCaching(t *testing.T) {
 func TestStyleSheetCarriesContentHashForFonts(t *testing.T) {
 	app, server, _ := newTestAppFull(t)
 	server.Close()
-	req := httptest.NewRequest(http.MethodGet, "/_/static/style.css?v="+StaticVersion(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/static/style.css?v="+StaticVersion(), nil)
 	rec := httptest.NewRecorder()
 	app.Routes().ServeHTTP(rec, req)
 
@@ -336,20 +342,30 @@ func TestSkinRejectsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST appearance failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status = %d, want 400", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/_/settings")
+	resp2, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing settings response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing settings response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp2.Body)
 	if bytes.Contains(body, []byte(`value="nope" selected`)) {
 		t.Error("rejected skin should not have been persisted")
@@ -365,20 +381,30 @@ func TestSkinPersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST appearance failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Status = %d, want 200", resp.StatusCode)
 	}
 
-	resp2, err := client.Get(server.URL + "/" + testHome)
+	resp2, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer func() {
-		if err := resp2.Body.Close(); err != nil {
-			t.Errorf("closing page response body: %v", err)
-		}
-	}()
+	{
+		response := resp2
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing page response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp2.Body)
 	if !bytes.Contains(body, []byte(`data-skin="soft"`)) {
 		t.Errorf("expected data-skin=\"soft\" on rendered page, body: %s", body)
@@ -394,11 +420,18 @@ func TestUnknownStoredSkinFallsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := client.Get(server.URL + "/" + testHome)
+	resp, err := testhttp.Get(t, client, server.URL+"/"+testHome)
 	if err != nil {
 		t.Fatalf("GET /page/readme failed: %v", err)
 	}
-	defer closeTestBody(t, resp.Body)
+	{
+		response := resp
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("closing response body: %v", err)
+			}
+		}()
+	}
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(body, []byte(`data-skin="`+defaultSkin+`"`)) {
 		t.Errorf("unknown stored skin should render the default skin, body: %s", body)
@@ -416,7 +449,9 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setting palette: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if got := app.Auth.Prefs("admin").Palette; got != "dracula" {
 		t.Fatalf("palette = %q, want dracula", got)
 	}
@@ -433,7 +468,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if got := app.Auth.Prefs("admin").Palette; got != skins["newsprint"].Palette {
 		t.Errorf("palette after skin switch = %q, want %q", got, skins["newsprint"].Palette)
 	}
-	rendered, err := client.Get(server.URL + "/_/settings")
+	rendered, err := testhttp.Get(t, client, server.URL+"/_/settings")
 	if err != nil {
 		t.Fatalf("rendering switched skin: %v", err)
 	}
@@ -473,7 +508,9 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switching skin with explicit palette: %v", err)
 	}
-	closeTestBody(t, resp.Body)
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
 		t.Errorf("palette = %q, want gruvbox chosen after the skin", got)
 	}

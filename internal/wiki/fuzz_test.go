@@ -6,7 +6,7 @@ func FuzzParsePage(f *testing.F) {
 	for _, seed := range [][]byte{
 		[]byte("---\ntitle: Test\ntags: one, two\n---\nBody"),
 		[]byte("---\r\ntitle: <script>\r\n---\r\n[[../../secret]]"),
-		[]byte{0xff, 0xfe, 0xfd},
+		{0xff, 0xfe, 0xfd},
 	} {
 		f.Add(seed)
 	}

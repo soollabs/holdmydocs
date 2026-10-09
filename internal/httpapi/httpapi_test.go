@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"hmd/internal/testhttp"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -162,7 +164,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 
 	post := func(body string) *http.Response {
 		t.Helper()
-		resp, err := http.Post(server.URL+"/_/api/test", "application/json", strings.NewReader(body))
+		resp, err := testhttp.Post(t, http.DefaultClient, server.URL+"/_/api/test", "application/json", strings.NewReader(body))
 		if err != nil {
 			t.Fatalf("POST: %v", err)
 		}
@@ -220,7 +222,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	}
 
 	// A bodyless GET decodes its input from the query string.
-	resp, err := http.Get(server.URL + "/_/api/test?name=query")
+	resp, err := testhttp.Get(t, http.DefaultClient, server.URL+"/_/api/test?name=query")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -233,7 +235,7 @@ func TestRegisterJSONCentralisesDecodingAndEncoding(t *testing.T) {
 	}
 
 	// A POST with no body decodes to the zero input rather than failing.
-	resp, err = http.Post(server.URL+"/_/api/test-empty", "", nil)
+	resp, err = testhttp.Post(t, http.DefaultClient, server.URL+"/_/api/test-empty", "", nil)
 	if err != nil {
 		t.Fatalf("POST empty: %v", err)
 	}
@@ -253,7 +255,7 @@ func TestSearchEndpoint(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	env.seedPage(t, wiki.Page{Slug: testNS + "/api-search", Title: "API Search", Body: "This contains uniquetestword for API search."})
 
-	resp, err := client.Get(env.server.URL + "/_/api/search?q=uniquetestword")
+	resp, err := testhttp.Get(t, client, env.server.URL+"/_/api/search?q=uniquetestword")
 	if err != nil {
 		t.Fatalf("GET api/search: %v", err)
 	}
@@ -277,7 +279,7 @@ func TestHealthEndpoint(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	env.seedPage(t, wiki.Page{Slug: testNS + "/dangling", Title: "Dangling", Body: "see [[nowhere]]"})
 
-	resp, err := client.Get(env.server.URL + "/_/api/health")
+	resp, err := testhttp.Get(t, client, env.server.URL+"/_/api/health")
 	if err != nil {
 		t.Fatalf("GET api/health: %v", err)
 	}
@@ -296,7 +298,7 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Errorf("stale = %+v, want an empty list for freshly saved pages", report.Stale)
 	}
 
-	resp, err = client.Get(env.server.URL + "/_/api/health?namespace=" + testNS)
+	resp, err = testhttp.Get(t, client, env.server.URL+"/_/api/health?namespace="+testNS)
 	if err != nil {
 		t.Fatalf("GET scoped api/health: %v", err)
 	}
@@ -308,7 +310,7 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Errorf("scoped missing = %+v, want one entry", report.Missing)
 	}
 
-	resp, err = client.Get(env.server.URL + "/_/api/health?namespace=bad%2Fname")
+	resp, err = testhttp.Get(t, client, env.server.URL+"/_/api/health?namespace=bad%2Fname")
 	if err != nil {
 		t.Fatalf("GET invalid namespace health: %v", err)
 	}
@@ -321,7 +323,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestSyncEndpoint(t *testing.T) {
 	env, client := newTestEnv(t, false)
 
-	resp, err := client.Get(env.server.URL + "/_/api/sync")
+	resp, err := testhttp.Get(t, client, env.server.URL+"/_/api/sync")
 	if err != nil {
 		t.Fatalf("GET api/sync: %v", err)
 	}
@@ -342,7 +344,7 @@ func TestPreviewEndpoints(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	env.seedPage(t, wiki.Page{Slug: testNS + "/preview-source", Title: "Preview Source", Body: "alpha beta gamma"})
 
-	resp, err := client.Get(env.server.URL + "/_/api/preview/" + testNS + "/preview-source")
+	resp, err := testhttp.Get(t, client, env.server.URL+"/_/api/preview/"+testNS+"/preview-source")
 	if err != nil {
 		t.Fatalf("GET preview: %v", err)
 	}
@@ -364,7 +366,7 @@ func TestPreviewEndpoints(t *testing.T) {
 	}
 
 	form := strings.NewReader("body=**bold**")
-	req, _ := http.NewRequest(http.MethodPost, env.server.URL+"/_/api/preview?slug="+testNS+"/preview-source", form)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, env.server.URL+"/_/api/preview?slug="+testNS+"/preview-source", form)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err = client.Do(req)
 	if err != nil {
@@ -391,7 +393,7 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Fatalf("closing multipart writer: %v", err)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, env.server.URL+"/_/api/attachments/"+testNS+"/attachment-page", body)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, env.server.URL+"/_/api/attachments/"+testNS+"/attachment-page", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
@@ -406,7 +408,7 @@ func TestAttachmentUploadAndServe(t *testing.T) {
 		t.Errorf("upload response = %q, want attachment URL", respBody)
 	}
 
-	resp, err = client.Get(env.server.URL + "/_/attachments/" + testNS + "/attachment-page/test-image.png")
+	resp, err = testhttp.Get(t, client, env.server.URL+"/_/attachments/"+testNS+"/attachment-page/test-image.png")
 	if err != nil {
 		t.Fatalf("GET attachment: %v", err)
 	}
@@ -432,7 +434,7 @@ func TestAPIsRejectRootPageSlugs(t *testing.T) {
 		{http.MethodPost, "/_/api/attachments/readme", http.StatusBadRequest},
 		{http.MethodGet, "/_/attachments/readme/file.png", http.StatusNotFound},
 	} {
-		req, err := http.NewRequest(tc.method, env.server.URL+tc.path, nil)
+		req, err := http.NewRequestWithContext(t.Context(), tc.method, env.server.URL+tc.path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -464,7 +466,7 @@ func TestRestrictedTokenNamespaceDeniedJSON(t *testing.T) {
 		},
 	}
 
-	resp, err := client.Get(env.server.URL + "/_/api/preview/private/denied")
+	resp, err := testhttp.Get(t, client, env.server.URL+"/_/api/preview/private/denied")
 	if err != nil {
 		t.Fatalf("GET denied preview: %v", err)
 	}

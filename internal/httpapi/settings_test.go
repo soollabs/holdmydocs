@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -9,14 +10,13 @@ import (
 )
 
 // decodeOK asserts a 200 JSON body and decodes it into out (when non-nil).
-func decodeOK(t *testing.T, resp *http.Response, out any) {
+func decodeOK(t *testing.T, resp mutationResponse, out any) {
 	t.Helper()
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	if out != nil {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(out); err != nil {
 			t.Fatalf("decoding result: %v", err)
 		}
 	}
@@ -32,7 +32,6 @@ func TestSaveServerSettingsRejectsEmptyBind(t *testing.T) {
 		"sync_poll_ms":     1000,
 		"sync_mode":        "push",
 	})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
@@ -51,7 +50,6 @@ func TestSetAppearancePersistsForCaller(t *testing.T) {
 func TestSetAppearanceRejectsUnknownSkin(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	resp := postMutation(t, client, env.server.URL+"/_/api/settings/appearance", map[string]any{"skin": "nope"})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
@@ -87,12 +85,11 @@ func TestSaveNamespaceThenConflictCarriesCurrentHash(t *testing.T) {
 
 	// A second create with no base hash collides with the freshly written config.
 	resp := postMutation(t, client, url, map[string]any{"name": "blog", "widgets": []string{"tags"}})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", resp.StatusCode)
 	}
 	var conflict namespaceConflictResponse
-	if err := json.NewDecoder(resp.Body).Decode(&conflict); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&conflict); err != nil {
 		t.Fatalf("decoding conflict: %v", err)
 	}
 	if conflict.Conflict.CurrentHash == "" {
@@ -138,12 +135,11 @@ func TestNamespaceStaleBaseHashConflicts(t *testing.T) {
 	resp := postMutation(t, client, url, map[string]any{
 		"name": "blog", "base_hash": "deadbeef", "widgets": []string{"tags"},
 	})
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", resp.StatusCode)
 	}
 	var conflict namespaceConflictResponse
-	if err := json.NewDecoder(resp.Body).Decode(&conflict); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(resp.Body)).Decode(&conflict); err != nil {
 		t.Fatalf("decoding conflict: %v", err)
 	}
 	if conflict.Conflict.CurrentHash == "" {
