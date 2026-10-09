@@ -116,6 +116,9 @@ func (a *API) UploadAttachment(ctx context.Context, in AttachmentUploadInput) (*
 // the filename. Its stored owner, filename and actor are authoritative; the
 // unauthenticated transport cannot manufacture a principal or widen the grant.
 func (a *API) RedeemUploadCapability(ctx context.Context, token, filename string, content []byte) (*AttachmentUpload, error) {
+	if a.readOnly() {
+		return nil, Forbidden("instance is read-only")
+	}
 	capability, ok := a.takeUploadCapability(token)
 	if !ok || time.Now().After(capability.Expires) {
 		return nil, NotFound("upload URL not found or expired")

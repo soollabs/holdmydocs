@@ -326,10 +326,9 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) NamespaceManagementData {
 	user := app.currentUser(r)
-	prefs := app.Auth.Prefs(user)
 	data := NamespaceManagementData{
-		CanWrite:     prefs.HasScope(auth.ScopeWrite),
-		CanSettings:  prefs.HasScope(auth.ScopeSettings),
+		CanWrite:     app.apiClient().HasScope(r.Context(), api.ScopeWrite),
+		CanSettings:  app.apiClient().HasScope(r.Context(), api.ScopeSettings),
 		Rows:         app.apiClient().ListNamespaces(r.Context()),
 		WidgetGroups: widgetSlotGroups(),
 		SlugPresets:  slugPresetViews(user),

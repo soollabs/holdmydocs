@@ -12,6 +12,7 @@ Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown
 ## Features
 
 - **Git is the source of truth.** Every save is a commit; optionally push to and pull from a remote.
+- **Read-only browsing.** Clone a public documentation repository without a Git token, browse locally and pull updates without editing or pushing.
 - **Namespaces** for per-area visibility, navigation, appearance, and page-creation defaults.
 - **A real editing experience.** Split-pane Markdown editor with live preview, wiki-links, backlinks, full-text search, Mermaid diagrams, attachments, history, and revert.
 - **Documents, not just text.** With an operator-supplied Apache Tika Server, PDF and Office attachments get local hybrid keyword and semantic search.

@@ -35,7 +35,7 @@ func (a *API) Sync(ctx context.Context) (SyncStatus, error) {
 	cfg := a.Config()
 	state, detail := a.store.SyncState()
 	status := SyncStatus{State: state, Detail: detail, LastSuccessUnix: a.store.LastSyncUnix()}
-	if cfg.SyncMode != "bidirectional" || cfg.Git.RemoteURL == "" {
+	if (cfg.SyncMode != "bidirectional" && !a.readOnly()) || cfg.Git.RemoteURL == "" {
 		return status, nil
 	}
 	result, err := a.store.FetchAndFF()
@@ -51,6 +51,14 @@ func (a *API) Sync(ctx context.Context) (SyncStatus, error) {
 		})
 	}
 	return status, nil
+}
+
+// RefreshReadOnlyRemote keeps a browsing snapshot current without requiring a
+// logged-in visitor or granting anonymous repository-wide API access.
+func (a *API) RefreshReadOnlyRemote() {
+	if a.readOnly() && a.Config().Git.RemoteURL != "" {
+		_, _ = a.store.FetchAndFF()
+	}
 }
 
 // SyncState reports the current synchronisation state without performing a

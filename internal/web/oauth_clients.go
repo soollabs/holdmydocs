@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"hmd/internal/auth"
+	"hmd/internal/api"
 	"hmd/internal/oauthserver"
 )
 
@@ -21,8 +21,8 @@ func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 		http.Error(w, "administrator browser session required", http.StatusUnauthorized)
 		return false
 	}
-	user, ok := app.Auth.UserFor(cookie.Value)
-	if !ok || !app.Auth.Prefs(user).HasScope(auth.ScopeSettings) {
+	_, ok := app.Auth.UserFor(cookie.Value)
+	if !ok || !app.apiClient().HasScope(r.Context(), api.ScopeSettings) {
 		http.Error(w, "administrator access required", http.StatusForbidden)
 		return false
 	}

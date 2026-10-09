@@ -45,6 +45,9 @@ func AllowSlug(ctx context.Context, slug string) bool {
 // scopes come from the token principal; session scopes come from the user
 // record. Direct calls are checked here, not left to HTTP middleware.
 func (a *API) HasScope(ctx context.Context, scope Scope) bool {
+	if a.readOnly() && (scope == ScopeWrite || scope == ScopeSettings) {
+		return false
+	}
 	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok {
 		return principal.User != "" && principal.HasScope(scope)
 	}
@@ -97,6 +100,9 @@ func (a *API) requireGlobalScope(ctx context.Context, scope Scope) error {
 // RequireScope returns an unauthenticated or forbidden error unless the caller
 // holds the required scope.
 func (a *API) RequireScope(ctx context.Context, scope Scope) error {
+	if a.readOnly() && (scope == ScopeWrite || scope == ScopeSettings) {
+		return Forbidden("instance is read-only")
+	}
 	if a.HasScope(ctx, scope) {
 		return nil
 	}
@@ -104,4 +110,8 @@ func (a *API) RequireScope(ctx context.Context, scope Scope) error {
 		return Unauthenticated("authentication required")
 	}
 	return Forbidden("insufficient scope")
+}
+
+func (a *API) readOnly() bool {
+	return a.Config().ReadOnly || (a.store != nil && a.store.ReadOnly())
 }

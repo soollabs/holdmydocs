@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hmd/internal/auth"
+	"hmd/internal/config"
 	"hmd/internal/wiki"
 )
 
@@ -94,6 +95,15 @@ func TestOperationScopeGates(t *testing.T) {
 		{"export namespace", "settings", func(ctx context.Context) error { return a.ExportNamespace(ctx, "notes", "", nil, "", nil) }},
 	}
 	for _, op := range operations {
+		if op.scope != "read" {
+			t.Run(op.name+"/read-only", func(t *testing.T) {
+				a.SetConfig(config.Config{ReadOnly: true})
+				defer a.SetConfig(config.Config{})
+				if err := op.call(principal("settings")); CategoryOf(err) != CategoryForbidden {
+					t.Fatalf("read-only administrator: %v", err)
+				}
+			})
+		}
 		t.Run(op.name, func(t *testing.T) {
 			if err := op.call(context.Background()); CategoryOf(err) != CategoryUnauthenticated {
 				t.Fatalf("anonymous: %v", err)

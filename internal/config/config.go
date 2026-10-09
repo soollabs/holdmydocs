@@ -93,6 +93,7 @@ type Config struct {
 
 	Bind           string
 	RepoDir        string
+	ReadOnly       bool
 	MaxUploadBytes int64
 	SyncPollMs     int
 	SyncMode       string
@@ -113,6 +114,7 @@ type Config struct {
 type fileConfig struct {
 	Bind           string   `yaml:"bind"`
 	RepoDir        string   `yaml:"repo_dir"`
+	ReadOnly       bool     `yaml:"read_only"`
 	MaxUploadBytes *int64   `yaml:"max_upload_bytes"`
 	SyncPollMs     *int     `yaml:"sync_poll_ms"`
 	SyncMode       string   `yaml:"sync_mode"`
@@ -265,6 +267,7 @@ func LoadConfig() (Config, error) {
 
 		Bind:           or(file.Bind, ":8080"),
 		RepoDir:        or(file.RepoDir, "/data/repo"),
+		ReadOnly:       file.ReadOnly,
 		MaxUploadBytes: orInt64(file.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:     orInt(file.SyncPollMs, 10000),
 		SyncMode:       or(file.SyncMode, "push"),
@@ -398,6 +401,7 @@ func (c Config) toFileConfig() fileConfig {
 	return fileConfig{
 		Bind:           c.Bind,
 		RepoDir:        c.RepoDir,
+		ReadOnly:       c.ReadOnly,
 		MaxUploadBytes: new(c.MaxUploadBytes),
 		SyncPollMs:     new(c.SyncPollMs),
 		SyncMode:       c.SyncMode,
