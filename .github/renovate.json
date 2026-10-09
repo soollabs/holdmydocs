@@ -17,8 +17,14 @@
   "packageRules": [
     {
       "matchManagers": ["gomod"],
-      "matchDepNames": ["go"],
-      "rangeStrategy": "bump"
+      "matchDepNames": ["go", "toolchain"],
+      "rangeStrategy": "bump",
+      "minimumReleaseAge": "0 days"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["golang"],
+      "minimumReleaseAge": "0 days"
     }
   ]
 }
