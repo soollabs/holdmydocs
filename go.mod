@@ -9,7 +9,7 @@ require (
 	github.com/go-oauth2/oauth2/v4 v4.6.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.1
-	github.com/knights-analytics/hugot v0.7.8
+	github.com/knights-analytics/hugot v0.8.2
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/yuin/goldmark/v2 v2.1.6
@@ -55,13 +55,13 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/gomlx/compute v0.1.6 // indirect
-	github.com/gomlx/compute-onnx v0.1.5 // indirect
+	github.com/gomlx/compute v0.1.14 // indirect
+	github.com/gomlx/compute-onnx v0.1.13 // indirect
 	github.com/gomlx/exceptions v0.0.3 // indirect
-	github.com/gomlx/go-huggingface v0.4.3 // indirect
-	github.com/gomlx/go-xla v0.4.5 // indirect
-	github.com/gomlx/gomlx v0.28.8 // indirect
-	github.com/gomlx/onnx-gomlx v0.5.5 // indirect
+	github.com/gomlx/go-huggingface v0.4.13 // indirect
+	github.com/gomlx/go-xla v0.4.13 // indirect
+	github.com/gomlx/gomlx v0.28.16 // indirect
+	github.com/gomlx/onnx-gomlx v0.5.13 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
@@ -69,7 +69,8 @@ require (
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/knights-analytics/ortgenai v0.3.2 // indirect
+	github.com/knights-analytics/ortgenai v0.3.3 // indirect
+	github.com/microsoft/onnxruntime/go v0.0.0-20261006105309-99433be6709e // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -81,8 +82,8 @@ require (
 	github.com/yalue/onnxruntime_go v1.35.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
-	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
-	golang.org/x/image v0.45.0 // indirect
+	golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 // indirect
+	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
