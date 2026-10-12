@@ -1,0 +1,64 @@
+/* Shared template components (internal/web/web/templates/components/).
+   Each component has exactly one definition here, built only from skin and palette
+   tokens (style.css :root, skins.css), so every skin and palette applies to it.
+   Field and table layouts reuse their existing .settings-row, .oauth-field and
+   .settings-table definitions rather than restating them; screen-specific
+   treatments stay with their screen in style.css.
+   Rules are wrapped in :where() so a screen's own established rule always wins;
+   buttons use :is(button, a):where() to outrank only the bare global button rule. */
+
+/* Buttons */
+:is(button, a):where(.ui-button) { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; gap:var(--pad-tight); max-width:100%; padding:var(--control-pad-y) var(--control-pad-x); border:var(--field-border-w) var(--rule-style) var(--border-visible); border-radius:var(--radius); background:none; color:var(--fg-muted); font:inherit; text-align:center; text-decoration:none; white-space:nowrap; cursor:pointer; }
+:is(button, a):where(.ui-button--compact) { padding-inline:var(--control-pad-x-compact); }
+:is(button, a):where(.ui-button--icon) { padding-inline:var(--control-pad-y); }
+:is(button, a):where(.ui-button--primary, .ui-button[aria-pressed="true"]) { background:var(--primary); color:var(--accent-fg); border-color:var(--primary); }
+:is(button, a):where(.ui-button--danger) { color:var(--danger); border-color:var(--danger-muted); }
+:is(button, a):where(.ui-button--secondary, .ui-button--danger):hover:not(:disabled):not([aria-disabled="true"]) { background:var(--surface-raised); text-decoration:none; }
+:is(button, a):where(.ui-button--primary):hover:not(:disabled):not([aria-disabled="true"]) { filter:brightness(1.1); text-decoration:none; }
+:is(button, a):where(.ui-button:disabled, .ui-button[aria-disabled="true"]) { opacity:.55; cursor:not-allowed; filter:none; }
+
+/* Fields: row → .settings-row, stacked → .oauth-field, bare → no box of its own. */
+:where(.ui-field--bare) { display:contents; }
+:where(.ui-field[hidden]) { display:none; }
+:where(.ui-field textarea) { box-sizing:border-box; width:100%; }
+:where(.ui-field) :where(input, select, textarea):user-invalid { border-color:var(--danger); }
+
+/* Choices: slots only wrap an existing label, so they add no box. */
+:where(.ui-choice) { display:contents; }
+:where(.ui-choice:has(> input)) { display:inline-flex; align-items:center; gap:var(--pad-tight); }
+:where(.ui-choice > input) { accent-color:var(--primary); }
+:where(.ui-choice[hidden]) { display:none; }
+
+/* Structural wrappers: no appearance unless a screen gives them one. */
+:where(.ui-panel, .ui-empty) { display:block; min-width:0; }
+:where(.ui-panel[hidden]) { display:none; }
+:where(.ui-panel__title, .ui-empty__title) { margin:0 0 var(--pad-tight); font-size:1em; color:var(--fg-strong); }
+:where(.ui-empty) { color:var(--fg-muted); }
+:where(.ui-disclosure > summary, .ui-menu > summary) { cursor:pointer; }
+:where(.ui-menu__items) { display:grid; gap:var(--pad-tight); }
+:where(.ui-table-wrap) { max-width:100%; overflow-x:auto; }
+
+/* Notices */
+:where(.ui-notice) { padding:var(--control-pad-y) var(--control-pad-x); margin-bottom:var(--pad); border-radius:var(--radius-lg); overflow-wrap:anywhere; }
+:where(.ui-notice[hidden]) { display:none; }
+:where(.ui-notice--info) { border-left:var(--field-border-w) var(--rule-style) var(--primary); background:var(--surface); }
+:where(.ui-notice--success) { background:var(--surface); color:var(--primary); }
+:where(.ui-notice--warning) { border-left:var(--field-border-w) var(--rule-style) var(--warning); background:var(--warning-bg); color:var(--fg-strong); }
+:where(.ui-notice--danger) { background:var(--danger-bg); color:var(--danger); }
+:where(.ui-notice__title) { display:block; color:var(--fg-strong); }
+/* A notice wrapping an element that already has its own treatment adds nothing. */
+:where(.ui-notice:has(> .old-version, > .health-hint, > .index-warning)) { display:contents; }
+
+/* Dialogs */
+:where(.ui-dialog) { max-width:min(42rem,calc(100vw - 2rem)); max-height:calc(100vh - 2rem); padding:0; border:var(--border-w) var(--rule-style) var(--border-visible); border-radius:var(--radius-lg); background:var(--bg); color:var(--fg); }
+:where(.ui-dialog)::backdrop { background:color-mix(in srgb,var(--fg-strong) 48%,transparent); }
+:where(.ui-dialog__surface) { padding:var(--pad); }
+:where(.ui-dialog__surface h2) { margin-top:0; }
+
+:where(.ui-button, .ui-field input, .ui-field select, .ui-field textarea, .ui-choice input, .ui-menu summary, .ui-disclosure summary):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* Touch: the app's 44px small-screen tap target. */
+@media (max-width: 899px) {
+  :is(button, a):where(.ui-button) { min-height:44px; min-width:44px; }
+}
+@media (prefers-reduced-motion:reduce) { :where(.ui-button, .ui-dialog) { scroll-behavior:auto; transition:none; } }

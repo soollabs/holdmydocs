@@ -1,9 +1,10 @@
 {{define "content"}}
 <div class="content-col">
 <div class="create-page">
-	<h1>Page not found</h1>
-	<p>This page does not exist yet.</p>
-	<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="create-button">Create this page</a>
+	{{$notFound := component "panel" "variant" "default"}}{{template "ui-panel-start" $notFound}}
+	<h1>Page not found</h1><p>This page does not exist yet.</p>
+	{{template "ui-button" (button "Create this page" "primary" "href" (printf "%s/%s?do=edit" .RoutePrefix .Slug))}}
+	{{template "ui-panel-end" $notFound}}
 </div>
 </div>
 {{end}}

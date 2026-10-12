@@ -1,36 +1,22 @@
 {{define "content"}}
 <div class="content-col">
-<div class="breadcrumb">
-	<a href="/" class="breadcrumb-site">{{.SiteName}}</a>
-	<span class="sep">/</span>
-	<span class="current">settings</span>
-</div>
-<h1 class="page-title"><span class="h"></span>settings</h1>
+{{template "settings-breadcrumb" .}}
+<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "git-author"}}git author{{else if eq .SettingsPanel "access-tokens"}}access tokens{{else}}appearance{{end}}</h1>
 
 {{if .Settings}}
-	{{if .Settings.Flash}}
-	<div class="settings-flash">{{.Settings.Flash}}</div>
-	{{end}}
-
-	<p class="settings-zone-desc"><a href="/_/admin">system configuration &amp; users &rarr;</a></p>
+	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
 
 <section class="settings-zone">
 	<h2 class="settings-zone-title"><span class="h"></span>your account</h2>
 	<p class="settings-zone-desc">Personal to you &mdash; stored against your user, no effect on anyone else.</p>
 
-	<div class="settings-tabs">
-		<button type="button" class="settings-tab" data-tab="appearance">appearance</button>
-		<button type="button" class="settings-tab" data-tab="git-author">git author</button>
-		<button type="button" class="settings-tab" data-tab="access-tokens">access tokens</button>
-	</div>
-
-	<form method="POST" action="/_/api/settings/appearance" id="appearance-form" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
+	<form method="POST" action="/_/api/settings/appearance" id="appearance-form" class="settings-form"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>{{template "csrf" .}}{{template "json-required" .}}
 		<input type="hidden" name="palette_explicit" id="palette-explicit">
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>fonts &amp; layout</legend>
-			<div class="settings-row">
-				<label for="font_ui">ui font</label>
+			<div class="settings-row">{{$fieldSlot1 := component "field" "id" "font-ui" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot1}}
+				{{$fontUI := component "field" "id" "font_ui" "label" "ui font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}
 				<select id="font_ui" name="font_ui">
 					<option value="">(default — jetbrains mono)</option>
 					<optgroup label="sans serif">
@@ -42,10 +28,10 @@
 					<optgroup label="monospace">
 						{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-				</select>
-			</div>
-			<div class="settings-row">
-				<label for="font_mono">code &amp; editor font</label>
+				</select>{{template "ui-field-end" $fontUI}}
+			{{template "ui-field-end" $fieldSlot1}}</div>
+			<div class="settings-row">{{$fieldSlot2 := component "field" "id" "font-mono" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot2}}
+				{{$fontMono := component "field" "id" "font_mono" "label" "code & editor font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}
 				<select id="font_mono" name="font_mono">
 					<option value="">(default — jetbrains mono)</option>
 					<optgroup label="sans serif">
@@ -57,13 +43,13 @@
 					<optgroup label="monospace">
 						{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-				</select>
-			</div>
+				</select>{{template "ui-field-end" $fontMono}}
+			{{template "ui-field-end" $fieldSlot2}}</div>
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>skin</legend>
-			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace (system configuration &rarr; namespaces); the "/" landing page is set in the repository's wiki configuration. The same repository works under any skin.</p>
+			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace; the "/" landing page is set in the repository's wiki configuration. The same repository works under any skin.</p>
 			<div class="skin-picker">
 				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
@@ -93,82 +79,79 @@
 
 	</form>
 
-	<div class="settings-actions settings-actions-sticky">
-		<button type="submit" form="appearance-form" class="primary">save appearance</button>
-		<a href="/index" class="ghost-btn">cancel</a>
+	<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
+		{{template "ui-button" (button "Save appearance" "primary" "type" "submit" "form" "appearance-form")}}
+		{{template "ui-button" (button "Cancel" "secondary" "href" "/index")}}
 	</div>
 
-	<fieldset class="settings-section settings-panel" data-panel="git-author">
+	<fieldset class="settings-section settings-panel" data-panel="git-author"{{if ne .SettingsPanel "git-author"}} hidden{{end}}>
 		<legend>your git author</legend>
 		<form method="POST" action="/_/api/settings/author" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
-			<div class="settings-row">
-				<label for="user_git_author">git author</label>
-				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}"
-					placeholder="Name &lt;email@example.com&gt; (blank = use default)">
-			</div>
+			<div class="settings-row">{{$fieldSlot3 := component "field" "id" "user-git-author" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot3}}
+				{{$authorField := component "field" "id" "user_git_author" "label" "git author" "layout" "bare"}}{{template "ui-field-start" $authorField}}
+				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}" placeholder="Name &lt;email@example.com&gt; (blank = use default)">{{template "ui-field-end" $authorField}}
+			{{template "ui-field-end" $fieldSlot3}}</div>
 			<div class="settings-actions">
-				<button type="submit" class="primary">save author</button>
+				{{template "ui-button" (button "Save author" "primary" "type" "submit")}}
 			</div>
 		</form>
 	</fieldset>
 
-	<fieldset class="settings-section settings-panel" data-panel="access-tokens">
+	<fieldset class="settings-section settings-panel" data-panel="access-tokens"{{if ne .SettingsPanel "access-tokens"}} hidden{{end}}>
 		<legend>access tokens</legend>
 		<div class="settings-row" id="new-token-slot" hidden>
-			<label>new token</label>
-			<input type="text" id="new-token-value" value="" readonly onclick="this.select()">
+			{{$newTokenField := component "field" "id" "new-token-value" "label" "new token" "layout" "bare"}}{{template "ui-field-start" $newTokenField}}
+			<input type="text" id="new-token-value" value="" readonly onclick="this.select()">{{template "ui-field-end" $newTokenField}}
 		</div>
 		<p class="settings-note" id="new-token-hint" hidden>Copy it now — it will not be shown again.</p>
 		{{if .Settings.NewToken}}
-		<div class="settings-row">
-			<label>new token</label>
-			<input type="text" value="{{.Settings.NewToken}}" readonly onclick="this.select()">
-		</div>
+		<div class="settings-row">{{$fieldSlot4 := component "field" "id" "new-token-created" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot4}}
+			{{$tokenValue := component "field" "id" "new-token-created" "label" "new token" "layout" "bare"}}{{template "ui-field-start" $tokenValue}}
+			<input type="text" id="new-token-created" value="{{.Settings.NewToken}}" readonly onclick="this.select()">{{template "ui-field-end" $tokenValue}}
+		{{template "ui-field-end" $fieldSlot4}}</div>
 		<p class="settings-note">Copy it now — it will not be shown again.</p>
 		{{end}}
-		{{if .Settings.TokenError}}
-		<p class="settings-error">{{.Settings.TokenError}}</p>
-		{{end}}
+		{{if .Settings.TokenError}}{{$tokenError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $tokenError}}{{.Settings.TokenError}}{{template "ui-notice-end" $tokenError}}{{end}}
 		{{range .Settings.Tokens}}
 		<div class="settings-row">
 			<label>{{.Name}}</label>
 			<span class="token-meta">{{.ScopeLabel}} &middot; {{.NamespaceLabel}}</span>
 			<span class="token-meta">created {{.Created}} &middot; expires {{.Expires}}</span>
-			<form method="POST" action="/_/api/settings/tokens/revoke" class="js-token-revoke" style="display:contents">{{template "csrf" $}}{{template "json-required" $}}
+			<form method="POST" action="/_/api/settings/tokens/revoke" class="settings-inline-form js-token-revoke">{{template "csrf" $}}{{template "json-required" $}}
 				<input type="hidden" name="label" value="{{.Name}}">
-				<button type="submit" class="ghost-btn">revoke</button>
+				{{template "ui-button" (button "Revoke" "danger" "type" "submit")}}
 			</form>
 		</div>
 		{{end}}
 		<form method="POST" action="/_/api/settings/tokens" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
-			<div class="settings-row">
-				<label for="token_label">new token name</label>
-				<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">
-				<select name="expiry">
+			<div class="settings-row">{{$fieldSlot6 := component "field" "id" "token-label" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot6}}
+				{{$tokenLabel := component "field" "id" "token_label" "label" "new token name" "layout" "bare"}}{{template "ui-field-start" $tokenLabel}}
+				<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">{{template "ui-field-end" $tokenLabel}}
+				{{$expiryField := component "field" "id" "token-expiry" "label" "expiry" "type" "select" "layout" "bare"}}{{template "ui-field-start" $expiryField}}<select id="token-expiry" name="expiry">
 					<option value="1d">1 day</option>
 					<option value="7d">7 days</option>
 					<option value="30d" selected>30 days</option>
 					<option value="1y">1 year</option>
 					<option value="never">never</option>
-				</select>
-			</div>
-			<div class="settings-row">
+				</select>{{template "ui-field-end" $expiryField}}
+			{{template "ui-field-end" $fieldSlot6}}</div>
+			<div class="settings-row">{{$fieldSlot7 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
 				<label>scopes</label>
 				<span class="scope-checks">
-					{{range .Settings.AllScopes}}
-					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>
+					{{range .Settings.AllScopes}}{{$scopeChoice := component "choice" "id" (printf "token-scope-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $scopeChoice}}
+					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $scopeChoice}}
 					{{end}}
 				</span>
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot7}}</div>
+			<div class="settings-row">{{$fieldSlot8 := component "field" "id" "namespaces" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot8}}
 				<label>namespace access</label>
 				<span class="scope-checks">
-					{{range .Settings.TokenNamespaces}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{end}}
+					{{range .Settings.TokenNamespaces}}{{$namespaceChoice := component "choice" "id" (printf "token-namespace-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $namespaceChoice}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $namespaceChoice}}{{end}}
 				</span>
-			</div>
+			{{template "ui-field-end" $fieldSlot8}}</div>
 			<p class="settings-note">Select one or more scopes. Check namespaces to restrict access, or leave every box unchecked for all namespaces. <code>settings</code> grants Administrator access to every namespace.</p>
 			<div class="settings-actions">
-				<button type="submit" class="primary">create token</button>
+				{{template "ui-button" (button "Create token" "primary" "type" "submit")}}
 			</div>
 		</form>
 		<p class="settings-note">Bearer tokens for the API and the MCP endpoint (<code>Authorization: Bearer hmd_...</code>).</p>
@@ -181,30 +164,8 @@
 	var fontStacks = {{.Settings.FontStacks}};
 	var root = document.documentElement;
 
-	// Hide inactive panels once JavaScript is available.
-	document.querySelectorAll('.settings-zone').forEach(function (zone) {
-		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
-		if (!tabs.length) return;
-		function activate(id) {
-			tabs.forEach(function (t) {
-				t.classList.toggle('active', t.dataset.tab === id);
-			});
-			zone.querySelectorAll('.settings-panel').forEach(function (p) {
-				p.hidden = p.dataset.panel !== id;
-			});
-		}
-		tabs.forEach(function (t) {
-			t.addEventListener('click', function () {
-				activate(t.dataset.tab);
-				history.replaceState(null, '', '#' + t.dataset.tab);
-			});
-		});
-		var hashId = location.hash.slice(1);
-		var defaultTab = {{if or .Settings.NewToken .Settings.TokenError}}"access-tokens"{{else}}tabs[0].dataset.tab{{end}};
-		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : defaultTab);
-	});
-
-	[['font_ui', '--font-ui'], ['font_mono', '--font-mono']].forEach(function (pair) {
+	var fontFields = [['font_ui', '--font-ui'], ['font_mono', '--font-mono']];
+	fontFields.forEach(function (pair) {
 		var sel = document.getElementById(pair[0]);
 		if (!sel) return;
 		sel.addEventListener('change', function () {
@@ -213,6 +174,22 @@
 			else root.style.removeProperty(pair[1]);
 		});
 	});
+
+	// Name the active skin's own font in each "(default — …)" option. skins.css
+	// stays the only source: briefly drop any previewed override to read it.
+	function syncFontDefaults() {
+		fontFields.forEach(function (pair) {
+			var sel = document.getElementById(pair[0]);
+			var option = sel && sel.querySelector('option[value=""]');
+			if (!option) return;
+			var override = root.style.getPropertyValue(pair[1]);
+			root.style.removeProperty(pair[1]);
+			var first = getComputedStyle(root).getPropertyValue(pair[1]).split(',')[0].trim().replace(/^["']|["']$/g, '');
+			if (override) root.style.setProperty(pair[1], override);
+			if (first) option.textContent = '(default — ' + first.toLowerCase() + ')';
+		});
+	}
+	syncFontDefaults();
 
 	var palettes = {{.Settings.Palettes}};
 	var swatchVars = ['bg', 'surface', 'fg', 'primary', 'accent', 'warning', 'danger'];
@@ -269,6 +246,7 @@
 			paletteExplicit.value = '';
 			syncCards('skin');
 			root.setAttribute('data-skin', input.value);
+			syncFontDefaults();
 
 			var palette = document.querySelector('input[name="palette"][value="' + skinPalettes[input.value] + '"]');
 			if (palette) {

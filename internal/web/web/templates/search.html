@@ -4,33 +4,33 @@
 	<div class="search-header">
 		<form action="/_/search" method="GET" class="search-query-form">
 			<span class="search-query-prompt" aria-hidden="true"></span>
-			<input class="page-title" type="search" id="search-query" name="q" value="{{.Query}}" placeholder="search" autocomplete="off" aria-label="Search">
+			{{$queryField := component "field" "id" "search-query" "layout" "bare"}}{{template "ui-field-slot-start" $queryField}}<input class="page-title" type="search" id="search-query" name="q" value="{{.Query}}" placeholder="search" autocomplete="off" aria-label="Search">{{template "ui-field-end" $queryField}}
 		</form>
 		{{if .Query}}<div class="search-stats">{{.SearchHits}} page match{{if ne .SearchHits 1}}es{{end}}{{if .AttachmentSearchEnabled}} &middot; {{.AttachmentHits}} attachment match{{if ne .AttachmentHits 1}}es{{end}}{{end}} &middot; {{.SearchElapsed}}</div>{{end}}
 	</div>
 	{{if .SearchResults}}
 		{{range .SearchResults}}
-		<div class="search-hit">
+		{{$resultPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $resultPanel}}<div class="search-hit">
 			<a href="/{{.Slug}}" class="hit-title">{{.Title}}</a>
 			{{if .Tags}}<span class="hit-tags">{{range .Tags}}<span class="hit-tag">{{.}}</span> {{end}}</span>{{end}}
 			{{if .Snippet}}<div class="hit-snippet">{{.Snippet}}</div>{{end}}
-		</div>
+		</div>{{template "ui-panel-end" $resultPanel}}
 		{{end}}
 	{{else if .Query}}
-		{{if not .AttachmentResults}}<p>No results found.</p>{{end}}
+		{{if not .AttachmentResults}}{{$empty := component "empty" "label" "No results found"}}{{template "ui-empty-start" $empty}}<p>No pages matched your search.</p>{{template "ui-empty-end" $empty}}{{end}}
 	{{end}}
 	{{if .AttachmentSearchEnabled}}
 	<section class="attachment-search-results">
 		<h2>Attachments</h2>
 		{{if .AttachmentResults}}
 			{{range .AttachmentResults}}
-			<div class="search-hit attachment-hit">
+			{{$attachmentPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $attachmentPanel}}<div class="search-hit attachment-hit">
 				<a href="{{.URL}}" class="hit-title">{{.Filename}}</a>
 				<span class="hit-tags">{{.OwnerSlug}}</span>
 				{{if .Excerpt}}<div class="hit-snippet">{{.Excerpt}}</div>{{end}}
-			</div>
+			</div>{{template "ui-panel-end" $attachmentPanel}}
 			{{end}}
-		{{else if .Query}}<p>No attachment results.</p>{{end}}
+		{{else if .Query}}{{$empty := component "empty" "label" "No attachment results"}}{{template "ui-empty-start" $empty}}<p>No attachments matched your search.</p>{{template "ui-empty-end" $empty}}{{end}}
 	</section>
 	{{end}}
 </div>

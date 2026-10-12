@@ -15,6 +15,7 @@
   const tocRail = $('#toc-rail');
   const tocInline = $('#toc-inline');
   const tocListInline = $('#toc-list-inline');
+  if (tocInline && window.HMDComponents) window.HMDComponents.enhanceDisclosure(tocInline);
   if (!(tocList && tocRail && pageContent)) return;
 
   const headings = $$('h2, h3', pageContent);

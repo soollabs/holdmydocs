@@ -258,14 +258,11 @@ or out of this set.
 
 ## Settings
 
-Two pages, both behind the "settings" scope. ` + "`/_/settings`" + ` is personal:
-skin, palette, fonts, your git author and your access tokens.
-` + "`/_/admin`" + ` manages the instance: git remote, behaviour like upload
-limits and users. Its separate wiki configuration section edits the repository's
-` + "`.wiki.yaml`" + ` (site name and landing page). "Re-run setup" on ` + "`/_/admin`" + ` reopens the
-first-namespace setup prompt if you ever need it again.
+Settings live under ` + "`/_/settings/<section>`" + `. Appearance, git author and access tokens are personal. Server, git remote, behaviour, users and namespace administration require the "settings" scope.
 
-Namespace management has its own settings page at ` + "`/_/namespaces`" + `.
+` + "`/_/settings/behaviour`" + ` also edits the repository's ` + "`.wiki.yaml`" + ` (site name and landing page). "Re-run setup" reopens the first-namespace setup prompt if you ever need it again.
+
+Manage namespaces at ` + "`/_/settings/namespaces`" + `. Connected applications appear under ` + "`/_/settings/connections`" + ` when OAuth is enabled.
 
 Everything else the app owns lives under ` + "`/_/`" + ` too — no page can ever
 take those URLs.
@@ -381,7 +378,7 @@ The same fields name the page itself, via the namespace's slug pattern. The
 seeded template documents all of this in its own body — read it, then delete
 it and write yours.
 
-Manage namespaces at ` + "`/_/namespaces`" + `. Saving a new name creates its
+Manage namespaces at ` + "`/_/settings/namespaces`" + `. Saving a new name creates its
 configuration. **Reset namespace settings** removes only ` + "`.namespace.yaml`" + `;
 it keeps every page and hidden template. True deletion is available only when
 there are no pages or hidden files, so move or remove those first. Writing

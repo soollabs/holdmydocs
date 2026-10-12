@@ -1,0 +1,4 @@
+{{/* row and stacked reuse the established settings-row and oauth-field styles; bare leaves layout to the surrounding form. */}}
+{{define "ui-field-slot-start"}}<div class="ui-field ui-field--{{.Layout}}{{if eq .Layout "row"}} settings-row{{else if eq .Layout "stacked"}} oauth-field{{end}}"{{if .Hidden}} hidden{{end}}>{{end}}
+{{define "ui-field-start"}}{{template "ui-field-slot-start" .}}<label class="ui-field__label" for="{{.ID}}">{{.Label}}</label>{{end}}
+{{define "ui-field-end"}}</div>{{end}}

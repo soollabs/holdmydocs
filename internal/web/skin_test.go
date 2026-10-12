@@ -102,7 +102,7 @@ func TestStaticAssetsUseNetworkFirstCache(t *testing.T) {
 	}
 	body := string(script)
 	// Every precache URL is derived from the build content hash at serve time.
-	for _, file := range []string{"style.css", "skins.css", "app.js", "page.js", "editor.js", "toc.js", "sidebar.js", "manifest.json", "fonts/JetBrainsMono-Regular.woff2", "fonts/JetBrainsMono-Bold.woff2"} {
+	for _, file := range []string{"style.css", "skins.css", "components.css", "components.js", "app.js", "page.js", "editor.js", "toc.js", "sidebar.js", "manifest.json", "fonts/JetBrainsMono-Regular.woff2", "fonts/JetBrainsMono-Bold.woff2"} {
 		if !strings.Contains(body, "'"+file+"'") {
 			t.Errorf("service worker does not precache %s", file)
 		}
@@ -208,7 +208,7 @@ func TestStaticAssetURLsUseContentHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading base.html: %v", err)
 	}
-	for _, name := range []string{"style.css", "skins.css", "app.js", "page.js", "toc.js", "sidebar.js", "manifest.json", "mermaid.min.js", "sw.js"} {
+	for _, name := range []string{"style.css", "skins.css", "components.css", "components.js", "app.js", "page.js", "toc.js", "sidebar.js", "manifest.json", "mermaid.min.js", "sw.js"} {
 		if !bytes.Contains(base, []byte(`{{static "`+name+`"}}`)) {
 			t.Errorf("base.html does not version %s through static", name)
 		}

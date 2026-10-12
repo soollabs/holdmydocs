@@ -1,0 +1,4 @@
+{{define "ui-disclosure-slot-start"}}<details class="ui-disclosure"{{if .ID}} id="{{.ID}}"{{end}}{{if .Hidden}} hidden{{end}}{{if .Open}} open{{end}}>{{end}}
+{{define "ui-disclosure-slot-end"}}</details>{{end}}
+{{define "ui-disclosure-start"}}{{template "ui-disclosure-slot-start" .}}<summary>{{.Label}}</summary><div class="ui-disclosure__content">{{end}}
+{{define "ui-disclosure-end"}}</div>{{template "ui-disclosure-slot-end" .}}{{end}}

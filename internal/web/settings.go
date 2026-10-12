@@ -302,7 +302,40 @@ func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd Settin
 	app.render(w, r, http.StatusOK, tmpl, data)
 }
 
-func (app *App) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
+// settingsPanel describes one /_/settings/<name> page. Template is the page
+// that renders it when served by handleSettingsPanelGet; sections with their
+// own routes leave it empty.
+type settingsPanel struct {
+	Label, Template string
+}
+
+var settingsPanels = map[string]settingsPanel{
+	"appearance":      {"Appearance", "settings"},
+	"git-author":      {"Git author", "settings"},
+	"access-tokens":   {"Access tokens", "settings"},
+	"server":          {"Server", "admin"},
+	"git-remote":      {"Git remote", "admin"},
+	"behaviour":       {"Behaviour", "admin"},
+	"users":           {"Users", "admin"},
+	"advanced-config": {"config.yaml", "admin"},
+	"advanced":        {"Environment overrides", "admin"},
+	"namespaces":      {"Namespaces", ""},
+	"connections":     {"Connected applications", ""},
+	"oauth-clients":   {"MCP OAuth clients", ""},
+}
+
+func (app *App) handleSettingsPanelGet(w http.ResponseWriter, r *http.Request) {
+	switch settingsPanels[r.PathValue("panel")].Template {
+	case "admin":
+		app.handleAdminGet(w, r)
+	case "settings":
+		app.handleAccountSettingsGet(w, r)
+	default:
+		app.notFound(w, r)
+	}
+}
+
+func (app *App) handleAccountSettingsGet(w http.ResponseWriter, r *http.Request) {
 	sd := app.settingsData(r)
 	if q := r.URL.Query().Get("saved"); q == "1" {
 		sd.Flash = "Settings saved"

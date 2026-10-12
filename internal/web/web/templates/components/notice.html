@@ -1,0 +1,2 @@
+{{define "ui-notice-start"}}<div class="ui-notice ui-notice--{{.Variant}}" role="{{.Role}}"{{if .ID}} id="{{.ID}}"{{end}}{{if .Hidden}} hidden{{end}}>{{if .Label}}<strong class="ui-notice__title">{{.Label}}</strong>{{end}}{{end}}
+{{define "ui-notice-end"}}</div>{{end}}

@@ -1,33 +1,31 @@
 {{define "content"}}
 <div class="login-card">
+	{{$loginPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $loginPanel}}
 	<div class="login-intro">
 		hold my docs (hmd) {{.Version}} &middot; homelab wiki
 		{{if .RemoteHost}}<br>git remote: {{.RemoteHost}}{{end}}
 	</div>
-	{{if .Error}}
-		<div class="error">{{.Error}}</div>
-	{{end}}
+	{{if .Error}}{{$loginError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $loginError}}{{.Error}}{{template "ui-notice-end" $loginError}}{{end}}
 	{{if .OIDCLocalLogin}}
 	<form method="POST" action="/_/login" class="login-form">{{template "csrf" .}}
 		{{if .OAuthContinue}}<input type="hidden" name="oauth_continue" value="{{.OAuthContinue}}">{{end}}
 		<div class="edit-field">
-			<label for="username">login:</label>
-			<input type="text" id="username" name="username" required autofocus>
+			{{$usernameField := component "field" "id" "username" "layout" "bare" "label" "login:"}}{{template "ui-field-start" $usernameField}}<input type="text" id="username" name="username" required autofocus>{{template "ui-field-end" $usernameField}}
 		</div>
 		<div class="edit-field">
-			<label for="password">password:</label>
-			<input type="password" id="password" name="password" required>
+			{{$passwordField := component "field" "id" "password" "layout" "bare" "label" "password:" "type" "password"}}{{template "ui-field-start" $passwordField}}<input type="password" id="password" name="password" required>{{template "ui-field-end" $passwordField}}
 		</div>
 		<div class="edit-field">
-			<label for="remember"><input type="checkbox" id="remember" name="remember" value="1"> remember me</label>
+			{{$rememberChoice := component "choice" "id" "remember" "type" "checkbox"}}{{template "ui-choice-slot-start" $rememberChoice}}<label for="remember"><input type="checkbox" id="remember" name="remember" value="1"> remember me</label>{{template "ui-choice-end" $rememberChoice}}
 		</div>
-		<button type="submit">login &crarr;</button>
+		{{template "ui-button" (button "login ↵" "primary" "type" "submit")}}
 	</form>
 	{{end}}
 	{{if .OIDCEnabled}}
 		<div class="login-form">
-			<a href="/_/auth/oidc/login{{if .OAuthContinue}}?continue={{.OAuthContinue}}{{end}}"><button type="button">{{if .OIDCIcon}}<img class="sso-icon" src="/_/auth/oidc/icon" alt="">{{end}}{{.OIDCButtonText}}</button></a>
+			<a class="ui-button ui-button--secondary" href="/_/auth/oidc/login{{if .OAuthContinue}}?continue={{.OAuthContinue}}{{end}}">{{if .OIDCIcon}}<img class="sso-icon" src="/_/auth/oidc/icon" alt="">{{end}}{{.OIDCButtonText}}</a>
 		</div>
 	{{end}}
+{{template "ui-panel-end" $loginPanel}}
 </div>
 {{end}}

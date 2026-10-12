@@ -5,21 +5,20 @@
 		<h1 class="page-title">Connect to HoldMyDocs</h1>
 		<p><strong>{{.OAuthPrompt.ClientName}}</strong> wants to use your account.</p>
 	</header>
-	<section class="oauth-panel" aria-label="Connection details">
+	{{$connectionPanel := component "panel" "variant" "raised"}}{{template "ui-panel-start" $connectionPanel}}<section class="oauth-panel" aria-label="Connection details">
 		<dl class="oauth-facts">
 			<dt>Signed in as</dt><dd>{{.OAuthPrompt.User}}</dd>
 			<dt>Returning to</dt><dd><code>{{.OAuthPrompt.RedirectHost}}</code></dd>
 		</dl>
 		<p class="oauth-help">Only continue if you started this connection and trust the application. Its name is supplied by the client, not verified by HoldMyDocs.</p>
-		<details class="oauth-details">
-			<summary>Technical details</summary>
+		{{$technicalDisclosure := component "disclosure" "label" "Technical details"}}{{template "ui-disclosure-start" $technicalDisclosure}}
 			<dl class="oauth-facts">
 				<dt>Client ID</dt><dd><code>{{.OAuthPrompt.ClientID}}</code></dd>
 				<dt>Resource</dt><dd><code>{{.OAuthPrompt.Resource}}</code></dd>
 				<dt>Requested actions</dt><dd>{{range $i, $scope := .OAuthPrompt.RequestedScopes}}{{if $i}}, {{end}}{{$scope}}{{end}}</dd>
 			</dl>
-		</details>
-	</section>
+		{{template "ui-disclosure-end" $technicalDisclosure}}
+	</section>{{template "ui-panel-end" $connectionPanel}}
 	<form method="POST" action="/_/oauth/authorize" id="oauth-consent-form">
 		{{template "csrf" .}}
 		<input type="hidden" name="request" value="{{.OAuthPrompt.Handle}}">
@@ -27,42 +26,43 @@
 			<legend>1. Choose actions</legend>
 			<p class="oauth-help">Allow only what this application needs.</p>
 			{{range .OAuthPrompt.AvailableScopes}}
-			<label class="oauth-choice">
+			{{$choiceSlot4 := component "choice" "id" "oauth-consent-choice-4" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot4}}<label class="oauth-choice">
 				<input type="checkbox" name="scope" value="{{.}}"{{if ne . "settings"}} checked{{end}}>
 				<span>{{if eq . "read"}}<strong>Read</strong><small>View and search pages, namespaces and attachments.</small>{{else if eq . "write"}}<strong>Write</strong><small>Create, edit, move and delete content. Does not include read access.</small>{{else}}<strong>Administrator access</strong><small>Manage settings and access every namespace, including future ones. Cannot be restricted.</small>{{end}}</span>
-			</label>
+			</label>{{template "ui-choice-end" $choiceSlot4}}
 			{{else}}
-			<p class="oauth-notice oauth-warning" role="alert">Your account cannot allow any of the requested actions. Deny this request and check your permissions.</p>
+			{{$permissionNotice := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $permissionNotice}}Your account cannot allow any of the requested actions. Deny this request and check your permissions.{{template "ui-notice-end" $permissionNotice}}
 			{{end}}
 		</fieldset>
 		{{if .OAuthPrompt.AdminScopeRequested}}
-		<p id="oauth-admin-warning" class="oauth-notice oauth-warning" hidden><strong>Unrestricted administrator access.</strong> Namespace restrictions below do not apply while this action is selected.</p>
+		{{$adminNotice := component "notice" "variant" "warning" "role" "status" "hidden" "true" "id" "oauth-admin-warning"}}{{template "ui-notice-start" $adminNotice}}<strong>Unrestricted administrator access.</strong> Namespace restrictions below do not apply while this action is selected.{{template "ui-notice-end" $adminNotice}}
 		{{end}}
 		<fieldset class="oauth-fieldset" id="oauth-namespace-access">
 			<legend>2. Choose namespaces</legend>
-			<label class="oauth-choice">
+			{{$choiceSlot3 := component "choice" "id" "oauth-consent-choice-3" "type" "radio"}}{{template "ui-choice-slot-start" $choiceSlot3}}<label class="oauth-choice">
 				<input type="radio" name="namespace_mode" value="selected" checked>
 				<span><strong>Selected namespaces</strong><small>Limit access to the namespaces you choose below.</small></span>
-			</label>
+			</label>{{template "ui-choice-end" $choiceSlot3}}
 			<div class="oauth-namespaces" id="oauth-namespace-list">
 				{{range .OAuthPrompt.NamespaceNames}}
-				<label class="oauth-namespace"><input type="checkbox" name="namespace" value="{{.}}"><span>{{.}}</span></label>
+				{{$choiceSlot2 := component "choice" "id" "oauth-consent-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="oauth-namespace"><input type="checkbox" name="namespace" value="{{.}}"><span>{{.}}</span></label>{{template "ui-choice-end" $choiceSlot2}}
 				{{else}}
 				<p class="oauth-help">No namespaces are configured yet.</p>
 				{{end}}
 			</div>
-			<label class="oauth-choice">
+			{{$choiceSlot1 := component "choice" "id" "oauth-consent-choice-1" "type" "radio"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="oauth-choice">
 				<input type="radio" name="namespace_mode" value="all">
 				<span><strong>All namespaces</strong><small>Includes namespaces created in the future.</small></span>
-			</label>
+			</label>{{template "ui-choice-end" $choiceSlot1}}
 		</fieldset>
 		<footer class="oauth-consent-footer">
-			<p class="oauth-help">You can revoke access at any time in <a href="/_/connections" target="_blank" rel="noopener">Connected applications</a>.</p>
+			<p class="oauth-help">You can revoke access at any time.</p>
+			{{template "ui-button" (button "Connected applications" "secondary" "href" "/_/settings/connections" "new-tab" "true")}}
 			<p id="oauth-consent-validation" class="oauth-validation" role="status" aria-live="polite">Select namespace access to continue.</p>
 			<noscript><p class="oauth-notice">JavaScript is needed to approve this connection. You can still deny it.</p></noscript>
 			<div class="oauth-actions">
-				<button type="submit" name="decision" value="approve" disabled class="oauth-primary" aria-describedby="oauth-consent-validation">Approve connection</button>
-				<button type="submit" name="decision" value="deny" class="ghost-btn" formnovalidate>Deny</button>
+				{{template "ui-button" (button "Approve connection" "primary" "type" "submit" "name" "decision" "value" "approve" "disabled" "true" "aria-describedby" "oauth-consent-validation")}}
+				{{template "ui-button" (button "Deny" "secondary" "type" "submit" "name" "decision" "value" "deny" "formnovalidate" "true")}}
 			</div>
 		</footer>
 	</form>

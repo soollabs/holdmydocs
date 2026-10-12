@@ -2,6 +2,11 @@
 // needs its own controls. The authenticated drawer remains owned by app.js.
 (function() {
   var sidebar = document.getElementById('sidebar');
+  if (window.HMDComponents) {
+    Array.prototype.forEach.call(document.querySelectorAll('#sidebar details'), function(details) {
+      window.HMDComponents.enhanceDisclosure(details);
+    });
+  }
   var toggle = document.getElementById('public-sidebar-toggle');
   if (sidebar && toggle) {
     var mobile = window.matchMedia('(max-width: 899px)');

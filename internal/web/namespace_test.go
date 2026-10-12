@@ -340,7 +340,7 @@ func TestNamespaceManagement(t *testing.T) {
 	defer server.Close()
 
 	adminLogin(t, server, client)
-	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+	for _, path := range []string{"/_/settings/namespaces", "/_/settings/namespaces/new"} {
 		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
@@ -364,7 +364,7 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Errorf("create status = %d, want 200", resp.StatusCode)
 	}
 
-	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/settings/namespaces")
 	if err != nil {
 		t.Fatalf("GET namespace directory: %v", err)
 	}
@@ -379,11 +379,11 @@ func TestNamespaceManagement(t *testing.T) {
 	if !strings.Contains(body, "blog") || !strings.Contains(body, "0 pages") {
 		t.Errorf("namespace directory missing blog catalogue row: %s", body)
 	}
-	if !strings.Contains(body, `class="table-wrap namespace-table"`) {
-		t.Errorf("namespace directory table is missing its responsive semantic class: %s", body)
+	if !strings.Contains(body, `class="ui-table-wrap"`) || !strings.Contains(body, `id="namespace-table"`) || !strings.Contains(body, `<table class="ui-table settings-table">`) || !strings.Contains(body, `<th scope="col">Name</th>`) || !strings.Contains(body, `<th scope="row"><a href="/blog/">blog/</a></th>`) {
+		t.Errorf("namespace directory table is missing shared responsive/semantic structure: %s", body)
 	}
 
-	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces/blog/edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/settings/namespaces/blog/edit")
 	if err != nil {
 		t.Fatalf("GET namespace editor: %v", err)
 	}

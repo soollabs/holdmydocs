@@ -9,7 +9,7 @@
 	{{end}}
 </ul>
 {{else}}
-<p>No pages with this tag.</p>
+{{$empty := component "empty" "label" "No pages with this tag"}}{{template "ui-empty-start" $empty}}<p>Pages carrying this tag will appear here.</p>{{template "ui-empty-end" $empty}}
 {{end}}
 {{else}}
 <h1 class="page-title"><span class="h"></span>Tags</h1>
@@ -20,7 +20,7 @@
 	{{end}}
 </ul>
 {{else}}
-<p>No tags yet.</p>
+{{$empty := component "empty" "label" "No tags yet"}}{{template "ui-empty-start" $empty}}<p>Tags appear when pages are assigned them.</p>{{template "ui-empty-end" $empty}}
 {{end}}
 {{end}}
 </div>

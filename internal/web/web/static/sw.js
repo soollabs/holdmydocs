@@ -3,7 +3,7 @@
 // URL, so a new build installs a fresh cache and old entries are dropped.
 const VERSION = '__ASSET_VERSION__';
 const CACHE = 'hmd-static-' + VERSION;
-const FILES = ['style.css', 'skins.css', 'app.js', 'page.js', 'editor.js', 'toc.js', 'sidebar.js', 'manifest.json', 'fonts/JetBrainsMono-Regular.woff2', 'fonts/JetBrainsMono-Bold.woff2'];
+const FILES = ['style.css', 'skins.css', 'components.css', 'components.js', 'app.js', 'page.js', 'editor.js', 'toc.js', 'sidebar.js', 'manifest.json', 'fonts/JetBrainsMono-Regular.woff2', 'fonts/JetBrainsMono-Bold.woff2'];
 const ASSETS = FILES.map(name => '/_/static/' + name + '?v=' + VERSION);
 
 self.addEventListener('install', e => {

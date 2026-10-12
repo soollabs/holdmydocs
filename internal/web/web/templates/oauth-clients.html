@@ -1,52 +1,52 @@
 {{define "content"}}
 <div class="content-col oauth-page">
-	<div class="breadcrumb"><a href="/_/admin">admin</a><span class="sep">/</span><span class="current">MCP OAuth clients</span></div>
+	{{template "settings-breadcrumb" .}}
 	<header class="oauth-heading">
 		<h1 class="page-title">MCP OAuth clients</h1>
 		<p>Register applications that can request access to HoldMyDocs. Each user still chooses what to share.</p>
 	</header>
-	{{if .Error}}<p class="oauth-notice oauth-warning" role="alert">{{.Error}}</p>{{end}}
+	{{if .Error}}{{$errorNotice := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $errorNotice}}{{.Error}}{{template "ui-notice-end" $errorNotice}}{{end}}
 	{{with .OAuthCreatedClient}}
-	<section class="oauth-panel oauth-created" aria-labelledby="oauth-created-title">
+	{{$createdPanel := component "panel" "variant" "raised"}}{{template "ui-panel-start" $createdPanel}}<section class="oauth-panel oauth-created" aria-labelledby="oauth-created-title">
 		<p class="oauth-eyebrow">Registration complete</p>
 		<h2 id="oauth-created-title">Save your client credentials</h2>
 		<p>{{if .Secret}}The secret is shown only once. Copy it into your application's secure OAuth settings before leaving this page.{{else}}This is a public client. Use the client ID below; no secret is needed.{{end}}</p>
-		<div class="oauth-field"><label for="oauth-created-id">Client ID</label><div class="oauth-copy-field"><input id="oauth-created-id" value="{{.ClientID}}" readonly spellcheck="false" autocomplete="off"><button type="button" class="ghost-btn" data-oauth-copy="oauth-created-id" hidden>Copy ID</button></div></div>
-		{{if .Secret}}<div class="oauth-field"><label for="oauth-created-secret">Client secret</label><div class="oauth-copy-field"><input id="oauth-created-secret" value="{{.Secret}}" readonly spellcheck="false" autocomplete="off"><button type="button" class="ghost-btn" data-oauth-copy="oauth-created-secret" hidden>Copy secret</button></div></div>{{end}}
+		<div class="oauth-field">{{$oauthField1 := component "field" "id" "oauth-created-id" "layout" "bare"}}{{template "ui-field-slot-start" $oauthField1}}<label for="oauth-created-id">Client ID</label><div class="oauth-copy-field"><input id="oauth-created-id" value="{{.ClientID}}" readonly spellcheck="false" autocomplete="off">{{template "ui-button" (button "Copy ID" "secondary" "copy" "oauth-created-id" "hidden" "true")}}</div>{{template "ui-field-end" $oauthField1}}</div>
+		{{if .Secret}}<div class="oauth-field">{{$oauthField2 := component "field" "id" "oauth-created-secret" "layout" "bare"}}{{template "ui-field-slot-start" $oauthField2}}<label for="oauth-created-secret">Client secret</label><div class="oauth-copy-field"><input id="oauth-created-secret" value="{{.Secret}}" readonly spellcheck="false" autocomplete="off">{{template "ui-button" (button "Copy secret" "secondary" "copy" "oauth-created-secret" "hidden" "true")}}</div>{{template "ui-field-end" $oauthField2}}</div>{{end}}
 		<p class="oauth-help" data-oauth-copy-status role="status" aria-live="polite">Do not refresh or resubmit this page.</p>
-		<a href="/_/admin/oauth">Done — return to client list</a>
-	</section>
+		{{template "ui-button" (button "Done" "secondary" "href" "/_/settings/oauth-clients")}}
+	</section>{{template "ui-panel-end" $createdPanel}}
 	{{end}}
-	<details class="oauth-panel oauth-register" id="oauth-register"{{if or .Error (not .OAuthClients)}} open{{end}}>
+	{{$registerOpen := "false"}}{{if or .Error (not .OAuthClients)}}{{$registerOpen = "true"}}{{end}}{{$registerDisclosure := component "disclosure" "id" "oauth-register" "label" "Register a client" "open" $registerOpen}}{{template "ui-disclosure-slot-start" $registerDisclosure}}
 		<summary>Register a client <span class="oauth-help">Manual registration</span></summary>
-		<form method="POST" action="/_/admin/oauth" class="oauth-form">
+		<form method="POST" action="/_/settings/oauth-clients" class="oauth-form">
 			{{template "csrf" .}}
-			<div class="oauth-field"><label for="client-name">Application name</label><input id="client-name" name="name" required maxlength="120" value="{{.OAuthClientForm.Get "name"}}" placeholder="e.g. Documentation assistant" autocomplete="off"></div>
-			<div class="oauth-field"><label for="client-redirects">Callback URLs</label><textarea id="client-redirects" name="redirect_uris" required rows="3" spellcheck="false" aria-describedby="oauth-callback-help" placeholder="https://client.example/callback">{{.OAuthClientForm.Get "redirect_uris"}}</textarea><p id="oauth-callback-help" class="oauth-help">One exact URL per line. HTTPS required, except HTTP loopback callbacks. No wildcards.</p></div>
-			<div class="oauth-field"><label for="client-method">Client authentication</label><select id="client-method" name="auth_method" aria-describedby="oauth-method-help">
+			<div class="oauth-field">{{$oauthField3 := component "field" "id" "client-name" "layout" "bare"}}{{template "ui-field-slot-start" $oauthField3}}<label for="client-name">Application name</label><input id="client-name" name="name" required maxlength="120" value="{{.OAuthClientForm.Get "name"}}" placeholder="e.g. Documentation assistant" autocomplete="off">{{template "ui-field-end" $oauthField3}}</div>
+			<div class="oauth-field">{{$oauthField4 := component "field" "id" "client-redirects" "layout" "bare"}}{{template "ui-field-slot-start" $oauthField4}}<label for="client-redirects">Callback URLs</label><textarea id="client-redirects" name="redirect_uris" required rows="3" spellcheck="false" aria-describedby="oauth-callback-help" placeholder="https://client.example/callback">{{.OAuthClientForm.Get "redirect_uris"}}</textarea><p id="oauth-callback-help" class="oauth-help">One exact URL per line. HTTPS required, except HTTP loopback callbacks. No wildcards.</p>{{template "ui-field-end" $oauthField4}}</div>
+			<div class="oauth-field">{{$oauthField5 := component "field" "id" "client-method" "layout" "bare"}}{{template "ui-field-slot-start" $oauthField5}}<label for="client-method">Client authentication</label><select id="client-method" name="auth_method" aria-describedby="oauth-method-help">
 				<option value="client_secret_post"{{if eq (.OAuthClientForm.Get "auth_method") "client_secret_post"}} selected{{end}}>Secret in request body (client_secret_post)</option>
 				<option value="client_secret_basic"{{if eq (.OAuthClientForm.Get "auth_method") "client_secret_basic"}} selected{{end}}>HTTP Basic (client_secret_basic)</option>
 				<option value="none"{{if eq (.OAuthClientForm.Get "auth_method") "none"}} selected{{end}}>Public client — no secret (none)</option>
-			</select><p id="oauth-method-help" class="oauth-help">Match your application's OAuth settings. Public clients cannot keep a secret. Every client must use S256 PKCE.</p></div>
+			</select><p id="oauth-method-help" class="oauth-help">Match your application's OAuth settings. Public clients cannot keep a secret. Every client must use S256 PKCE.</p>{{template "ui-field-end" $oauthField5}}</div>
 			<fieldset class="oauth-fieldset">
 				<legend>Allowed actions</legend>
 				<p class="oauth-help">These are maximum permissions, not automatic access. Write does not include read.</p>
 				<div class="oauth-scope-options">
-					<label class="oauth-namespace"><input type="checkbox" name="scope" value="read"{{if .OAuthClientRead}} checked{{end}}> Read</label>
-					<label class="oauth-namespace"><input type="checkbox" name="scope" value="write"{{if .OAuthClientWrite}} checked{{end}}> Write</label>
+					{{$choiceSlot2 := component "choice" "id" "oauth-clients-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="oauth-namespace"><input type="checkbox" name="scope" value="read"{{if .OAuthClientRead}} checked{{end}}> Read</label>{{template "ui-choice-end" $choiceSlot2}}
+					{{$choiceSlot1 := component "choice" "id" "oauth-clients-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="oauth-namespace"><input type="checkbox" name="scope" value="write"{{if .OAuthClientWrite}} checked{{end}}> Write</label>{{template "ui-choice-end" $choiceSlot1}}
 				</div>
 			</fieldset>
-			<div class="oauth-actions"><button type="submit" class="oauth-primary">Register client</button><span class="oauth-help">Confidential secrets are shown once.</span></div>
+			<div class="oauth-actions">{{template "ui-button" (button "Register client" "primary" "type" "submit")}}<span class="oauth-help">Confidential secrets are shown once.</span></div>
 		</form>
-	</details>
+	{{template "ui-disclosure-slot-end" $registerDisclosure}}
 	<section aria-labelledby="oauth-clients-title">
 		<div class="oauth-section-heading">
 			<h2 id="oauth-clients-title">Registered clients <span class="oauth-count">{{len .OAuthClients}}</span></h2>
-			{{if .OAuthDisabledClients}}<form method="POST" action="/_/admin/oauth/delete-disabled" data-confirm="Permanently delete all disabled clients and their connection history? Active clients will not be changed.">{{template "csrf" .}}<button type="submit" class="ghost-btn oauth-danger">Delete all disabled ({{.OAuthDisabledClients}})</button></form>{{end}}
+			{{if .OAuthDisabledClients}}<form method="POST" action="/_/settings/oauth-clients/delete-disabled" data-confirm="Permanently delete all disabled clients and their connection history? Active clients will not be changed.">{{template "csrf" .}}{{template "ui-button" (button (printf "Delete all disabled (%d)" .OAuthDisabledClients) "danger" "type" "submit")}}</form>{{end}}
 		</div>
 		<div class="oauth-client-list">
 		{{range .OAuthClients}}
-		<article class="oauth-panel oauth-client">
+		{{$clientPanel := component "panel" "variant" "raised"}}{{template "ui-panel-start" $clientPanel}}<article class="oauth-panel oauth-client">
 			<header class="oauth-card-heading"><h3>{{.Name}}</h3><span class="oauth-status{{if not .Disabled}} oauth-status-active{{end}}">{{if .Disabled}}Disabled{{else}}Active{{end}}</span></header>
 			<p class="oauth-help">{{if .Dynamic}}Dynamically registered{{else}}Registered by an administrator{{end}} · {{.CreatedAt.Format "2 January 2006"}}</p>
 			<dl class="oauth-facts">
@@ -54,19 +54,19 @@
 				<dt>Authentication</dt><dd><code>{{.AuthMethod}}</code></dd>
 				<dt>Allowed actions</dt><dd>{{range .AllowedScopes}}<span class="oauth-tag">{{.}}</span> {{end}}</dd>
 			</dl>
-			<details class="oauth-details"><summary>Callback URLs ({{len .RedirectURIs}})</summary><ul class="oauth-callbacks">{{range .RedirectURIs}}<li><code>{{.}}</code></li>{{end}}</ul></details>
+			{{$callbackDisclosure := component "disclosure" "label" (printf "Callback URLs (%d)" (len .RedirectURIs))}}{{template "ui-disclosure-start" $callbackDisclosure}}<ul class="oauth-callbacks">{{range .RedirectURIs}}<li><code>{{.}}</code></li>{{end}}</ul>{{template "ui-disclosure-end" $callbackDisclosure}}
 			<footer class="oauth-card-footer">
 				{{if .Disabled}}
 				<span class="oauth-help">Access revoked. This registration cannot be re-enabled.</span>
-				<form method="POST" action="/_/admin/oauth/{{.ID}}/delete" data-confirm="Permanently delete this disabled client and its connection history?">{{template "csrf" $}}<button type="submit" class="ghost-btn oauth-danger" aria-label="Delete {{.Name}}">Delete client</button></form>
+				<form method="POST" action="/_/settings/oauth-clients/{{.ID}}/delete" data-confirm="Permanently delete this disabled client and its connection history?">{{template "csrf" $}}{{template "ui-button" (button "Delete client" "danger" "type" "submit" "aria-label" (printf "Delete %s" .Name))}}</form>
 				{{else}}
 				<span class="oauth-help">Disabling is permanent and revokes access for every user.</span>
-				<form method="POST" action="/_/admin/oauth/{{.ID}}/disable" data-confirm="Permanently disable this client and revoke access for every connected user?">{{template "csrf" $}}<button type="submit" class="ghost-btn oauth-danger" aria-label="Disable {{.Name}} and revoke all access">Disable client</button></form>
+				<form method="POST" action="/_/settings/oauth-clients/{{.ID}}/disable" data-confirm="Permanently disable this client and revoke access for every connected user?">{{template "csrf" $}}{{template "ui-button" (button "Disable client" "danger" "type" "submit" "aria-label" (printf "Disable %s and revoke all access" .Name))}}</form>
 				{{end}}
 			</footer>
-		</article>
+		</article>{{template "ui-panel-end" $clientPanel}}
 		{{else}}
-		<div class="oauth-empty"><h3>No clients registered</h3><p>Register your first application above, then connect it using its client ID and callback URL.</p></div>
+		{{$empty := component "empty" "label" "No clients registered"}}{{template "ui-empty-start" $empty}}<p>Register your first application above, then connect it using its client ID and callback URL.</p>{{template "ui-empty-end" $empty}}
 		{{end}}
 		</div>
 	</section>

@@ -121,7 +121,7 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	if response.Code != http.StatusSeeOther {
 		t.Fatalf("invalid OAuth path fell back to a cookie: %d", response.Code)
 	}
-	request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/connections", nil)
+	request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/settings/connections", nil)
 	request.Header.Set("Authorization", "Bearer hmd_oa_invalid")
 	request.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
 	response = httptest.NewRecorder()
@@ -136,6 +136,43 @@ func TestOAuthBearerVerifierIsMCPOnlyAndChallenges(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("unsupported Authorization scheme fell back to a browser cookie: %d", response.Code)
+	}
+}
+
+func TestUnifiedSettingsConnectionScopeBoundary(t *testing.T) {
+	authn, err := Open(Options{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "password12345"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authn.AddUserWithScopes("reader", "password12345", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	session, ok := authn.Login("reader", "password12345")
+	if !ok {
+		t.Fatal("reader login failed")
+	}
+	handler := authn.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for _, tc := range []struct {
+		method, path string
+		status       int
+	}{
+		{http.MethodGet, "/connections", http.StatusNoContent},
+		{http.MethodGet, "/users", http.StatusForbidden},
+		{http.MethodGet, "/namespaces", http.StatusForbidden},
+		{http.MethodGet, "/oauth-clients", http.StatusForbidden},
+		{http.MethodGet, "/connections/extra", http.StatusForbidden},
+		{http.MethodPost, "/connections/hmd_g_invalid/revoke", http.StatusForbidden},
+		{http.MethodPost, "/connections/hmd_g_01234567890123456789012345678901/revoke", http.StatusNoContent},
+	} {
+		r := httptest.NewRequestWithContext(t.Context(), tc.method, "/_/settings"+tc.path, nil)
+		r.AddCookie(&http.Cookie{Name: "hmd_session", Value: session})
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Errorf("%s %s = %d, want %d", tc.method, tc.path, w.Code, tc.status)
+		}
 	}
 }
 

@@ -1,100 +1,81 @@
 {{define "content"}}
 <div class="content-col">
-<div class="breadcrumb">
-	<a href="/" class="breadcrumb-site">{{.SiteName}}</a>
-	<span class="sep">/</span>
-	<span class="current">admin</span>
-</div>
-<h1 class="page-title"><span class="h"></span>admin settings</h1>
-{{if .OAuthEnabled}}<p><a href="/_/admin/oauth">Manage MCP OAuth clients</a></p>{{end}}
+{{template "settings-breadcrumb" .}}
+<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "git-remote"}}git remote{{else if eq .SettingsPanel "behaviour"}}behaviour{{else if eq .SettingsPanel "users"}}users{{else if eq .SettingsPanel "advanced-config"}}config.yaml{{else if eq .SettingsPanel "advanced"}}environment overrides{{else}}server{{end}}</h1>
 
 {{if .Settings}}
-	{{if .Settings.Flash}}
-	<div class="settings-flash">{{.Settings.Flash}}</div>
-	{{end}}
+	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
 
-	{{if .Settings.HelpDrifted}}
-	<div class="settings-banner">
-		<code>.help.md</code> differs from hmd's built-in help text for this version.
-		It may have been edited locally.
-		<form method="POST" action="/_/api/settings/help/reset" style="display:contents">{{template "csrf" .}}{{template "json-required" .}}
-			<button type="submit" class="ghost-btn">Reset to built-in</button>
-		</form>
-	</div>
+	{{if .Settings.HelpDrifted}}{{$helpNotice := component "notice" "variant" "warning" "role" "status"}}{{template "ui-notice-start" $helpNotice}}
+		<code>.help.md</code> differs from hmd's built-in help text for this version. It may have been edited locally.
+		<form method="POST" action="/_/api/settings/help/reset" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
+			{{template "ui-button" (button "Reset to built-in" "secondary" "type" "submit")}}
+		</form>{{template "ui-notice-end" $helpNotice}}
 	{{end}}
 
 <section class="settings-zone">
 	<h2 class="settings-zone-title"><span class="h"></span>system configuration</h2>
-	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>. <a href="/_/namespaces">Manage namespaces</a>.</p>
+	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>.</p>
 
-	<div class="settings-tabs">
-		<button type="button" class="settings-tab" data-tab="server">server</button>
-		<button type="button" class="settings-tab" data-tab="git-remote">git remote</button>
-		<button type="button" class="settings-tab" data-tab="behaviour">behaviour</button>
-		<button type="button" class="settings-tab" data-tab="advanced-config">config.yaml</button>
-		<button type="button" class="settings-tab" data-tab="users">users</button>
-		{{if .Settings.HasEnvOverrides}}<button type="button" class="settings-tab" data-tab="advanced">environment overrides</button>{{end}}
-	</div>
+	<form method="POST" action="/_/api/settings/server" class="settings-form"{{if or (eq .SettingsPanel "users") (eq .SettingsPanel "advanced")}} hidden{{end}}>{{template "csrf" .}}{{template "json-required" .}}
 
-	<form method="POST" action="/_/api/settings/server" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
-
-		<fieldset class="settings-section settings-panel" data-panel="server">
+		<fieldset class="settings-section settings-panel" data-panel="server"{{if ne .SettingsPanel "server"}} hidden{{end}}>
 			<legend>server</legend>
-			<div class="settings-row">
+			<div class="settings-row">{{$fieldSlot1 := component "field" "id" "bind" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot1}}
 				<label for="bind">bind</label>
 				<input type="text" id="bind" name="bind" value="{{.Settings.Fields.Bind.Value}}"
 					{{if not .Settings.Fields.Bind.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.Bind.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Bind.EnvVar}}</span>{{end}}
 				{{if .Settings.Fields.Bind.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot1}}</div>
+			<div class="settings-row">{{$fieldSlot2 := component "field" "id" "repo-dir" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot2}}
 				<label for="repo_dir">repo dir</label>
 				<input type="text" id="repo_dir" name="repo_dir" value="{{.Settings.Fields.RepoDir.Value}}"
 					{{if not .Settings.Fields.RepoDir.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.RepoDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RepoDir.EnvVar}}</span>{{end}}
 				{{if .Settings.Fields.RepoDir.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot2}}</div>
+			<div class="settings-row">{{$fieldSlot3 := component "field" "id" "app-dir" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot3}}
 				<label for="app_dir">app dir</label>
 				<input type="text" id="app_dir" value="{{.Settings.Fields.AppDir.Value}}" readonly>
 				{{if .Settings.Fields.AppDir.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.AppDir.EnvVar}}</span>{{else}}<span class="badge-bootstrap">bootstrap only</span>{{end}}
 				<span class="badge-restart">restart reqd</span>
-			</div>
+			{{template "ui-field-end" $fieldSlot3}}</div>
 		</fieldset>
 
-		<fieldset class="settings-section settings-panel" data-panel="git-remote">
+		<fieldset class="settings-section settings-panel" data-panel="git-remote"{{if ne .SettingsPanel "git-remote"}} hidden{{end}}>
 			<legend>git remote</legend>
-			<div class="settings-row">
+			<div class="settings-row">{{$fieldSlot4 := component "field" "id" "remote-url" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot4}}
 				<label for="remote_url">remote url</label>
 				<input type="text" id="remote_url" name="remote_url" value="{{.Settings.Fields.RemoteURL.Value}}"
 					placeholder="https://example.com/repo.git"
 					{{if not .Settings.Fields.RemoteURL.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.RemoteURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.RemoteURL.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot4}}</div>
+			<div class="settings-row">{{$fieldSlot5 := component "field" "id" "git-user" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot5}}
 				<label for="git_user">git user</label>
 				<input type="text" id="git_user" name="git_user" value="{{.Settings.Fields.GitUser.Value}}"
 					{{if not .Settings.Fields.GitUser.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.GitUser.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitUser.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot5}}</div>
+			<div class="settings-row">{{$fieldSlot6 := component "field" "id" "git-author" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot6}}
 				<label for="git_author">git author (default)</label>
 				<input type="text" id="git_author" name="git_author" value="{{.Settings.Fields.GitAuthor.Value}}"
 					placeholder="Name &lt;email@example.com&gt;"
 					{{if not .Settings.Fields.GitAuthor.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.GitAuthor.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitAuthor.EnvVar}}</span>{{end}}
-			</div>
-			<p class="settings-note">Fallback author for anyone without their own override under &ldquo;your account&rdquo; on the main <a href="/_/settings">settings</a> page.</p>
-		<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot6}}</div>
+			<p class="settings-note">Used when a user has not set a personal Git author.</p>
+		<div class="settings-row">{{$fieldSlot7 := component "field" "id" "git-token" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
 			<label for="git_token">git token</label>
 			<input type="password" id="git_token" name="git_token"
 				placeholder="{{if eq .Settings.Fields.GitToken.Value "set"}}&bull;&bull;&bull;&bull; set{{else}}not set{{end}}"
 				{{if not .Settings.Fields.GitToken.Editable}}readonly{{end}}>
-			<label class="scope-check"><input type="checkbox" name="store_git_token" value="on" {{if not .Settings.Fields.GitToken.Editable}}disabled{{end}}> store in config file</label>
+			{{$choiceSlot3 := component "choice" "id" "admin-choice-3" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot3}}<label class="scope-check"><input type="checkbox" name="store_git_token" value="on" {{if not .Settings.Fields.GitToken.Editable}}disabled{{end}}> store in config file</label>{{template "ui-choice-end" $choiceSlot3}}
 			{{if .Settings.Fields.GitToken.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.GitToken.EnvVar}}</span>{{end}}
-		</div>
+		{{template "ui-field-end" $fieldSlot7}}</div>
 		<p class="settings-note">Prefer <code>HMD_GIT_TOKEN_FILE</code>. Checking this stores the supplied token in the local config file.</p>
-		<div class="settings-row">
+		<div class="settings-row">{{$fieldSlot8 := component "field" "id" "sync-mode" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot8}}
 			<label for="sync_mode">sync mode</label>
 			{{if .Settings.Fields.SyncMode.Editable}}
 			<select id="sync_mode" name="sync_mode">
@@ -105,84 +86,82 @@
 			<input type="text" id="sync_mode" name="sync_mode" value="{{.Settings.SyncMode}}" readonly>
 			{{end}}
 			{{if .Settings.Fields.SyncMode.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncMode.EnvVar}}</span>{{end}}
-		</div>
+		{{template "ui-field-end" $fieldSlot8}}</div>
 		<div class="settings-status" id="sync-status">
 			last push: <span class="state-{{.SyncState}}">{{if eq .SyncState "no remote"}}n/a{{else}}{{.SyncState}}{{end}}</span> · {{.SyncAge}} · last fetch: {{if eq .SyncMode "bidirectional"}}{{.SyncAge}}{{else}}n/a (push mode){{end}}
 		</div>
 		</fieldset>
 
-		<fieldset class="settings-section settings-panel" data-panel="behaviour">
+		<fieldset class="settings-section settings-panel" data-panel="behaviour"{{if ne .SettingsPanel "behaviour"}} hidden{{end}}>
 			<legend>behaviour</legend>
-			<div class="settings-row">
+			<div class="settings-row">{{$fieldSlot9 := component "field" "id" "max-upload-bytes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot9}}
 				<label for="max_upload_bytes">max upload (bytes)</label>
 				<input type="number" id="max_upload_bytes" name="max_upload_bytes" value="{{.Settings.MaxUploadBytes}}" min="1" {{if not .Settings.Fields.MaxUploadBytes.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.MaxUploadBytes.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.MaxUploadBytes.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot9}}</div>
+			<div class="settings-row">{{$fieldSlot10 := component "field" "id" "sync-poll-ms" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot10}}
 				<label for="sync_poll_ms">sync poll (ms)</label>
 				<input type="number" id="sync_poll_ms" name="sync_poll_ms" value="{{.Settings.SyncPollMs}}" min="100" {{if not .Settings.Fields.SyncPollMs.Editable}}readonly{{end}}>
 				{{if .Settings.Fields.SyncPollMs.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.SyncPollMs.EnvVar}}</span>{{end}}
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot10}}</div>
+			<div class="settings-row">{{$fieldSlot11 := component "field" "id" "tika-url" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot11}}
 				<label for="tika_url">document extraction</label>
 				<input type="text" id="tika_url" value="{{.Settings.Fields.TikaURL.Value}}" readonly>
 				{{if .Settings.Fields.TikaURL.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.TikaURL.EnvVar}}</span>{{end}}
 				<span class="badge-restart">restart reqd</span>
-			</div>
+			{{template "ui-field-end" $fieldSlot11}}</div>
 			<p class="settings-note">Set <code>HMD_TIKA_URL</code> to enable PDF and Office extraction. The endpoint is local deployment configuration and is not saved in the repository.</p>
 		</fieldset>
 
-		<fieldset class="settings-section settings-panel" data-panel="advanced-config">
+		<fieldset class="settings-section settings-panel" data-panel="advanced-config"{{if ne .SettingsPanel "advanced-config"}} hidden{{end}}>
 			<legend>advanced configuration</legend>
 			<p class="settings-note">Instance settings not covered above. Comma-separated fields accept one value per line too. A disabled control is overridden by its displayed <code>HMD_*</code> environment variable; change or remove that deployment variable before the config-file value can take effect. Changes marked restart reqd take effect after restarting hmd.</p>
-			<div class="settings-row"><label for="default_branch">default branch</label><input id="default_branch" name="default_branch" value="{{.Settings.Fields.DefaultBranch.Value}}" {{if not .Settings.Fields.DefaultBranch.Editable}}readonly{{end}}>{{if .Settings.Fields.DefaultBranch.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}</div>
-			<div class="settings-row"><label for="skin">default skin</label><select id="skin" name="skin">{{range .Settings.SkinNames}}<option value="{{.}}" {{if eq . $.Settings.Fields.Skin.Value}}selected{{end}}>{{.}}</option>{{end}}</select></div>
-			<div class="settings-row"><label for="debug">debug logging</label><input type="checkbox" id="debug" name="debug" {{if eq .Settings.Fields.Debug.Value "true"}}checked{{end}} {{if not .Settings.Fields.Debug.Editable}}disabled{{end}}>{{if .Settings.Fields.Debug.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Debug.EnvVar}}</span>{{end}}<span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="base_url">base URL</label><input id="base_url" name="base_url" value="{{.Settings.Fields.BaseURL.Value}}" {{if not .Settings.Fields.BaseURL.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="trusted_proxies">trusted proxies</label><input id="trusted_proxies" name="trusted_proxies" value="{{.Settings.Fields.TrustedProxies.Value}}" {{if not .Settings.Fields.TrustedProxies.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="git_token_file">git token file</label><input id="git_token_file" name="git_token_file" value="{{.Settings.Fields.GitTokenFile.Value}}" {{if not .Settings.Fields.GitTokenFile.Editable}}readonly{{end}}></div>
-			<div class="settings-row"><label for="mcp_enabled">enable MCP</label><input type="checkbox" id="mcp_enabled" name="mcp_enabled" {{if eq .Settings.Fields.MCPEnabled.Value "true"}}checked{{end}} {{if not .Settings.Fields.MCPEnabled.Editable}}disabled{{end}}>{{if .Settings.Fields.MCPEnabled.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.MCPEnabled.EnvVar}}</span>{{end}}<span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="document_model">search model</label><input id="document_model" name="document_model" value="{{.Settings.Fields.DocumentModel.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="document_model_dir">model directory</label><input id="document_model_dir" name="document_model_dir" value="{{.Settings.Fields.DocumentModelDir.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="document_index_dir">search index directory</label><input id="document_index_dir" name="document_index_dir" value="{{.Settings.Fields.DocumentIndexDir.Value}}"><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row">{{$fieldSlot12 := component "field" "id" "default-branch" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot12}}<label for="default_branch">default branch</label><input id="default_branch" name="default_branch" value="{{.Settings.Fields.DefaultBranch.Value}}" {{if not .Settings.Fields.DefaultBranch.Editable}}readonly{{end}}>{{if .Settings.Fields.DefaultBranch.RestartRequired}}<span class="badge-restart">restart reqd</span>{{end}}{{template "ui-field-end" $fieldSlot12}}</div>
+			<div class="settings-row">{{$fieldSlot13 := component "field" "id" "skin" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot13}}<label for="skin">default skin</label><select id="skin" name="skin">{{range .Settings.SkinNames}}<option value="{{.}}" {{if eq . $.Settings.Fields.Skin.Value}}selected{{end}}>{{.}}</option>{{end}}</select>{{template "ui-field-end" $fieldSlot13}}</div>
+			<div class="settings-row">{{$fieldSlot14 := component "field" "id" "debug" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot14}}{{$adminCheck1 := component "choice" "id" "debug" "type" "checkbox"}}{{template "ui-choice-slot-start" $adminCheck1}}<label for="debug">debug logging</label><input type="checkbox" id="debug" name="debug" {{if eq .Settings.Fields.Debug.Value "true"}}checked{{end}} {{if not .Settings.Fields.Debug.Editable}}disabled{{end}}>{{template "ui-choice-end" $adminCheck1}}{{if .Settings.Fields.Debug.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.Debug.EnvVar}}</span>{{end}}<span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot14}}</div>
+			<div class="settings-row">{{$fieldSlot15 := component "field" "id" "base-url" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot15}}<label for="base_url">base URL</label><input id="base_url" name="base_url" value="{{.Settings.Fields.BaseURL.Value}}" {{if not .Settings.Fields.BaseURL.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot15}}</div>
+			<div class="settings-row">{{$fieldSlot16 := component "field" "id" "trusted-proxies" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot16}}<label for="trusted_proxies">trusted proxies</label><input id="trusted_proxies" name="trusted_proxies" value="{{.Settings.Fields.TrustedProxies.Value}}" {{if not .Settings.Fields.TrustedProxies.Editable}}readonly{{end}}><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot16}}</div>
+			<div class="settings-row">{{$fieldSlot17 := component "field" "id" "git-token-file" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot17}}<label for="git_token_file">git token file</label><input id="git_token_file" name="git_token_file" value="{{.Settings.Fields.GitTokenFile.Value}}" {{if not .Settings.Fields.GitTokenFile.Editable}}readonly{{end}}>{{template "ui-field-end" $fieldSlot17}}</div>
+			<div class="settings-row">{{$fieldSlot18 := component "field" "id" "mcp-enabled" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot18}}{{$adminCheck2 := component "choice" "id" "mcp_enabled" "type" "checkbox"}}{{template "ui-choice-slot-start" $adminCheck2}}<label for="mcp_enabled">enable MCP</label><input type="checkbox" id="mcp_enabled" name="mcp_enabled" {{if eq .Settings.Fields.MCPEnabled.Value "true"}}checked{{end}} {{if not .Settings.Fields.MCPEnabled.Editable}}disabled{{end}}>{{template "ui-choice-end" $adminCheck2}}{{if .Settings.Fields.MCPEnabled.EnvVar}}<span class="badge-env">set via {{.Settings.Fields.MCPEnabled.EnvVar}}</span>{{end}}<span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot18}}</div>
+			<div class="settings-row">{{$fieldSlot19 := component "field" "id" "document-model" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot19}}<label for="document_model">search model</label><input id="document_model" name="document_model" value="{{.Settings.Fields.DocumentModel.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot19}}</div>
+			<div class="settings-row">{{$fieldSlot20 := component "field" "id" "document-model-dir" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot20}}<label for="document_model_dir">model directory</label><input id="document_model_dir" name="document_model_dir" value="{{.Settings.Fields.DocumentModelDir.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot20}}</div>
+			<div class="settings-row">{{$fieldSlot21 := component "field" "id" "document-index-dir" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot21}}<label for="document_index_dir">search index directory</label><input id="document_index_dir" name="document_index_dir" value="{{.Settings.Fields.DocumentIndexDir.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot21}}</div>
 			<h3>OIDC single sign-on</h3>
-			<div class="settings-row"><label for="oidc_issuer">issuer</label><input id="oidc_issuer" name="oidc_issuer" value="{{.Settings.Fields.OIDCIssuer.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_client_id">client ID</label><input id="oidc_client_id" name="oidc_client_id" value="{{.Settings.Fields.OIDCClientID.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_client_secret">client secret</label><input type="password" id="oidc_client_secret" name="oidc_client_secret" placeholder="{{.Settings.Fields.OIDCClientSecret.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_client_secret_file">client secret file</label><input id="oidc_client_secret_file" name="oidc_client_secret_file" value="{{.Settings.Fields.OIDCClientSecretFile.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_local_login">allow local login</label><input type="checkbox" id="oidc_local_login" name="oidc_local_login" {{if eq .Settings.Fields.OIDCLocalLogin.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_button_text">button text</label><input id="oidc_button_text" name="oidc_button_text" value="{{.Settings.Fields.OIDCButtonText.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_icon">icon</label><input id="oidc_icon" name="oidc_icon" value="{{.Settings.Fields.OIDCIcon.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_default_scopes">default scopes</label><input id="oidc_default_scopes" name="oidc_default_scopes" value="{{.Settings.Fields.OIDCDefaultScopes.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_allowed_subjects">allowed subjects</label><input id="oidc_allowed_subjects" name="oidc_allowed_subjects" value="{{.Settings.Fields.OIDCAllowedSubjects.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_allowed_email_domains">allowed email domains</label><input id="oidc_allowed_email_domains" name="oidc_allowed_email_domains" value="{{.Settings.Fields.OIDCAllowedEmailDomains.Value}}"><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_allow_any_authenticated">allow any authenticated identity</label><input type="checkbox" id="oidc_allow_any_authenticated" name="oidc_allow_any_authenticated" {{if eq .Settings.Fields.OIDCAllowAnyAuthenticated.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
-			<div class="settings-row"><label for="oidc_allow_insecure_loopback">allow insecure loopback</label><input type="checkbox" id="oidc_allow_insecure_loopback" name="oidc_allow_insecure_loopback" {{if eq .Settings.Fields.OIDCAllowInsecureLoopback.Value "true"}}checked{{end}}><span class="badge-restart">restart reqd</span></div>
+			<div class="settings-row">{{$fieldSlot22 := component "field" "id" "oidc-issuer" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot22}}<label for="oidc_issuer">issuer</label><input id="oidc_issuer" name="oidc_issuer" value="{{.Settings.Fields.OIDCIssuer.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot22}}</div>
+			<div class="settings-row">{{$fieldSlot23 := component "field" "id" "oidc-client-id" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot23}}<label for="oidc_client_id">client ID</label><input id="oidc_client_id" name="oidc_client_id" value="{{.Settings.Fields.OIDCClientID.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot23}}</div>
+			<div class="settings-row">{{$fieldSlot24 := component "field" "id" "oidc-client-secret" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot24}}<label for="oidc_client_secret">client secret</label><input type="password" id="oidc_client_secret" name="oidc_client_secret" placeholder="{{.Settings.Fields.OIDCClientSecret.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot24}}</div>
+			<div class="settings-row">{{$fieldSlot25 := component "field" "id" "oidc-client-secret-file" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot25}}<label for="oidc_client_secret_file">client secret file</label><input id="oidc_client_secret_file" name="oidc_client_secret_file" value="{{.Settings.Fields.OIDCClientSecretFile.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot25}}</div>
+			<div class="settings-row">{{$fieldSlot26 := component "field" "id" "oidc-local-login" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot26}}{{$adminCheck3 := component "choice" "id" "oidc_local_login" "type" "checkbox"}}{{template "ui-choice-slot-start" $adminCheck3}}<label for="oidc_local_login">allow local login</label><input type="checkbox" id="oidc_local_login" name="oidc_local_login" {{if eq .Settings.Fields.OIDCLocalLogin.Value "true"}}checked{{end}}>{{template "ui-choice-end" $adminCheck3}}<span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot26}}</div>
+			<div class="settings-row">{{$fieldSlot27 := component "field" "id" "oidc-button-text" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot27}}<label for="oidc_button_text">button text</label><input id="oidc_button_text" name="oidc_button_text" value="{{.Settings.Fields.OIDCButtonText.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot27}}</div>
+			<div class="settings-row">{{$fieldSlot28 := component "field" "id" "oidc-icon" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot28}}<label for="oidc_icon">icon</label><input id="oidc_icon" name="oidc_icon" value="{{.Settings.Fields.OIDCIcon.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot28}}</div>
+			<div class="settings-row">{{$fieldSlot29 := component "field" "id" "oidc-default-scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot29}}<label for="oidc_default_scopes">default scopes</label><input id="oidc_default_scopes" name="oidc_default_scopes" value="{{.Settings.Fields.OIDCDefaultScopes.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot29}}</div>
+			<div class="settings-row">{{$fieldSlot30 := component "field" "id" "oidc-allowed-subjects" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot30}}<label for="oidc_allowed_subjects">allowed subjects</label><input id="oidc_allowed_subjects" name="oidc_allowed_subjects" value="{{.Settings.Fields.OIDCAllowedSubjects.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot30}}</div>
+			<div class="settings-row">{{$fieldSlot31 := component "field" "id" "oidc-allowed-email-domains" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot31}}<label for="oidc_allowed_email_domains">allowed email domains</label><input id="oidc_allowed_email_domains" name="oidc_allowed_email_domains" value="{{.Settings.Fields.OIDCAllowedEmailDomains.Value}}"><span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot31}}</div>
+			<div class="settings-row">{{$fieldSlot32 := component "field" "id" "oidc-allow-any-authenticated" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot32}}{{$adminCheck4 := component "choice" "id" "oidc_allow_any_authenticated" "type" "checkbox"}}{{template "ui-choice-slot-start" $adminCheck4}}<label for="oidc_allow_any_authenticated">allow any authenticated identity</label><input type="checkbox" id="oidc_allow_any_authenticated" name="oidc_allow_any_authenticated" {{if eq .Settings.Fields.OIDCAllowAnyAuthenticated.Value "true"}}checked{{end}}>{{template "ui-choice-end" $adminCheck4}}<span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot32}}</div>
+			<div class="settings-row">{{$fieldSlot33 := component "field" "id" "oidc-allow-insecure-loopback" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot33}}{{$adminCheck5 := component "choice" "id" "oidc_allow_insecure_loopback" "type" "checkbox"}}{{template "ui-choice-slot-start" $adminCheck5}}<label for="oidc_allow_insecure_loopback">allow insecure loopback</label><input type="checkbox" id="oidc_allow_insecure_loopback" name="oidc_allow_insecure_loopback" {{if eq .Settings.Fields.OIDCAllowInsecureLoopback.Value "true"}}checked{{end}}>{{template "ui-choice-end" $adminCheck5}}<span class="badge-restart">restart reqd</span>{{template "ui-field-end" $fieldSlot33}}</div>
 		</fieldset>
 
 		<div class="settings-actions settings-actions-sticky">
-			<button type="submit" class="primary">save system config</button>
-			<a href="/index" class="ghost-btn">cancel</a>
+			{{template "ui-button" (button "Save system config" "primary" "type" "submit")}}
+			{{template "ui-button" (button "Cancel" "secondary" "href" "/index")}}
 		</div>
 
 	</form>
 
-	<fieldset class="settings-section settings-panel" data-panel="users">
+	<fieldset class="settings-section settings-panel" data-panel="users"{{if ne .SettingsPanel "users"}} hidden{{end}}>
 		<legend>users</legend>
-		<div class="settings-row">
+		<div class="settings-row">{{$fieldSlot34 := component "field" "id" "row-34" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot34}}
 			<label>admin user</label>
 			<input type="text" value="{{.Settings.Fields.AdminUser.Value}}" readonly>
 			<span class="badge-bootstrap">bootstrap only &mdash; set via HMD_ADMIN_USER/HMD_ADMIN_PASSWORD</span>
-		</div>
-		<div class="settings-row">
+		{{template "ui-field-end" $fieldSlot34}}</div>
+		<div class="settings-row">{{$fieldSlot35 := component "field" "id" "row-35" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot35}}
 			<label>admin pass</label>
 			<input type="password" value="&bull;&bull;&bull;&bull;" readonly>
 			<span class="badge-bootstrap">bootstrap only</span>
-		</div>
+		{{template "ui-field-end" $fieldSlot35}}</div>
 
-		{{if .Settings.UserError}}
-		<p class="settings-error">{{.Settings.UserError}}</p>
-		{{end}}
+		{{if .Settings.UserError}}{{$userError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $userError}}{{.Settings.UserError}}{{template "ui-notice-end" $userError}}{{end}}
 
 		<p class="settings-note">The bootstrap admin above always has full access &mdash; create another user below to grant restricted access instead.</p>
 
@@ -194,37 +173,38 @@
 			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
 			<span class="scope-checks">
 				{{range $.Settings.AllScopes}}
-				<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>
+				{{$choiceSlot2 := component "choice" "id" "admin-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>{{template "ui-choice-end" $choiceSlot2}}
 				{{end}}
 			</span>
-			<button type="submit" class="ghost-btn">save</button>
+			{{template "ui-button" (button "Save" "secondary" "type" "submit")}}
 		</form>
 		{{end}}
 		{{end}}
 
 		<form method="POST" action="/_/api/settings/users" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
-			<div class="settings-row">
+			<div class="settings-row">{{$fieldSlot36 := component "field" "id" "new-user-name" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot36}}
 				<label for="new_user_name">new user</label>
 				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
 				<input type="password" name="password" placeholder="password" autocomplete="new-password">
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot36}}</div>
+			<div class="settings-row">{{$fieldSlot37 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot37}}
 				<label>scopes</label>
 				<span class="scope-checks">
 					{{range .Settings.AllScopes}}
-					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>
+					{{$choiceSlot1 := component "choice" "id" "admin-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $choiceSlot1}}
 					{{end}}
 				</span>
-			</div>
+			{{template "ui-field-end" $fieldSlot37}}</div>
 			<p class="settings-note">Leave every scope unchecked for full access.</p>
 			<div class="settings-actions">
-				<button type="submit" class="primary">create user</button>
+				{{template "ui-button" (button "Create user" "primary" "type" "submit")}}
 			</div>
 		</form>
 	</fieldset>
 
+	{{if and (eq .SettingsPanel "advanced") (not .Settings.HasEnvOverrides)}}<p class="settings-note">No settings are overridden by environment variables.</p>{{end}}
 	{{if .Settings.HasEnvOverrides}}
-	<fieldset class="settings-section settings-panel" data-panel="advanced">
+	<fieldset class="settings-section settings-panel" data-panel="advanced"{{if ne .SettingsPanel "advanced"}} hidden{{end}}>
 		<legend>environment overrides</legend>
 		<p class="settings-note">
 			Some settings above are set via <code>HMD_*</code> environment variables (marked
@@ -234,7 +214,7 @@
 			everything from this page afterwards.
 		</p>
 		{{if .Settings.ExportSecretVars}}
-		<div class="settings-banner">
+		{{$secretWarning := component "notice" "variant" "warning" "role" "alert"}}{{template "ui-notice-start" $secretWarning}}
 			&#9888; Exporting writes the following secret{{if gt (len .Settings.ExportSecretVars) 1}}s{{end}}
 			into <code>{{.Settings.ConfigPath}}</code> in <strong>plaintext</strong>:
 			<ul>
@@ -242,11 +222,11 @@
 			</ul>
 			Make sure that file's permissions and backups are treated accordingly, or skip
 			exporting and keep the secret in the environment.
-		</div>
+		{{template "ui-notice-end" $secretWarning}}
 		{{end}}
 		<form method="POST" action="/_/api/settings/export" id="export-config-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-actions">
-				<button type="submit" class="ghost-btn" id="export-config-btn">export current config to file</button>
+				{{template "ui-button" (button "Export current config to file" "secondary" "type" "submit" "id" "export-config-btn")}}
 			</div>
 		</form>
 	</fieldset>
@@ -254,25 +234,25 @@
 
 </section>
 
-<section class="settings-zone">
+<section class="settings-zone"{{if ne .SettingsPanel "behaviour"}} hidden{{end}}>
 	<h2 class="settings-zone-title"><span class="h"></span>wiki configuration</h2>
 	<p class="settings-zone-desc">Travels with the content repository. Saved in <code>{{.Settings.WikiConfigPath}}</code>, committed to git and available to every hmd instance using this repo; it is not part of <code>{{.Settings.ConfigPath}}</code>.</p>
 
 	<form method="POST" action="/_/api/settings/wiki" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 		<fieldset class="settings-section">
 			<legend>{{.Settings.WikiConfigPath}}</legend>
-			<div class="settings-row">
+			<div class="settings-row">{{$fieldSlot38 := component "field" "id" "wiki-site-name" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot38}}
 				<label for="wiki_site_name">site name</label>
 				<input type="text" id="wiki_site_name" name="site_name" value="{{.Settings.WikiSiteName}}">
-			</div>
-			<div class="settings-row">
+			{{template "ui-field-end" $fieldSlot38}}</div>
+			<div class="settings-row">{{$fieldSlot39 := component "field" "id" "landing" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot39}}
 				<label for="landing">landing page</label>
 				<input type="text" id="landing" name="landing" value="{{.Settings.WikiLanding}}" placeholder="notes/">
-			</div>
+			{{template "ui-field-end" $fieldSlot39}}</div>
 			<p class="settings-note">The site name appears in the shell prompt, masthead and breadcrumbs. Landing accepts a namespace index such as <code>notes/</code>, a page such as <code>notes/inbox</code>, or nothing to use the first namespace.</p>
 		</fieldset>
 		<div class="settings-actions">
-			<button type="submit" class="primary">save wiki configuration</button>
+			{{template "ui-button" (button "Save wiki configuration" "primary" "type" "submit")}}
 		</div>
 	</form>
 
@@ -280,8 +260,8 @@
 		<legend>wiki setup</legend>
 		<div class="settings-row">
 			<label>re-seed setup</label>
-			<form method="POST" action="/_/api/settings/setup" style="display:contents">{{template "csrf" .}}{{template "json-required" .}}
-				<button type="submit" class="ghost-btn">Re-run setup</button>
+			<form method="POST" action="/_/api/settings/setup" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
+				{{template "ui-button" (button "Re-run setup" "secondary" "type" "submit")}}
 			</form>
 		</div>
 	</fieldset>
@@ -290,30 +270,6 @@
 </div>
 <script nonce="{{.CSPNonce}}">
 (function () {
-	// Settings tabs: one independent tab strip per zone. Panels default to
-	// visible (so the page still works with JS disabled); this only hides
-	// the inactive ones once it runs.
-	document.querySelectorAll('.settings-zone').forEach(function (zone) {
-		var tabs = Array.prototype.slice.call(zone.querySelectorAll('.settings-tab'));
-		if (!tabs.length) return;
-		function activate(id) {
-			tabs.forEach(function (t) {
-				t.classList.toggle('active', t.dataset.tab === id);
-			});
-			zone.querySelectorAll('.settings-panel').forEach(function (p) {
-				p.hidden = p.dataset.panel !== id;
-			});
-		}
-		tabs.forEach(function (t) {
-			t.addEventListener('click', function () {
-				activate(t.dataset.tab);
-				history.replaceState(null, '', '#' + t.dataset.tab);
-			});
-		});
-		var hashId = location.hash.slice(1);
-		activate(tabs.some(function (t) { return t.dataset.tab === hashId; }) ? hashId : tabs[0].dataset.tab);
-	});
-
 	var exportForm = document.getElementById('export-config-form');
 	if (exportForm) {
 		exportForm.addEventListener('submit', function (e) {

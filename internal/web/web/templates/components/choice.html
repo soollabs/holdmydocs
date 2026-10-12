@@ -1,0 +1,3 @@
+{{define "ui-choice-slot-start"}}<div class="ui-choice"{{if .Hidden}} hidden{{end}}>{{end}}
+{{define "ui-choice-start"}}{{template "ui-choice-slot-start" .}}<input id="{{.ID}}" type="{{.Type}}" name="{{.Name}}" value="{{.Value}}"{{if .Required}} required{{end}}{{if .Disabled}} disabled{{end}}{{if .Checked}} checked{{end}}><label for="{{.ID}}">{{.Label}}</label>{{end}}
+{{define "ui-choice-end"}}</div>{{end}}

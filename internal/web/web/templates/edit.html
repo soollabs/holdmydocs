@@ -5,52 +5,48 @@
 	<span class="sep">/</span>
 	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
 </div>
-<div id="remote-changed-banner" class="remote-changed-banner" hidden>
-	Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.
-</div>
-<div id="save-error" class="remote-changed-banner" role="alert" hidden></div>
-<div id="conflict-banner" class="remote-changed-banner" hidden>
+{{$remoteNotice := component "notice" "variant" "warning" "role" "status" "hidden" "true" "id" "remote-changed-banner"}}{{template "ui-notice-start" $remoteNotice}}Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.{{template "ui-notice-end" $remoteNotice}}
+{{$saveError := component "notice" "variant" "danger" "role" "alert" "hidden" "true" "id" "save-error"}}{{template "ui-notice-start" $saveError}}{{template "ui-notice-end" $saveError}}
+{{$conflictNotice := component "notice" "variant" "danger" "role" "alert" "hidden" "true" "id" "conflict-banner"}}{{template "ui-notice-start" $conflictNotice}}
 	<span id="conflict-text">This page changed while you were editing. Your draft is preserved.</span>
-	<button type="button" id="conflict-overwrite" class="btn-danger">overwrite with mine</button>
-</div>
+	{{template "ui-button" (button "overwrite with mine" "danger" "size" "compact" "id" "conflict-overwrite")}}
+{{template "ui-notice-end" $conflictNotice}}
 <form method="GET" action="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
 	<div class="edit-topbar">
 		<div class="edit-field">
-			<label for="new-slug">path:</label>
+			{{$slugField := component "field" "id" "new-slug" "layout" "bare" "label" "path:"}}{{template "ui-field-start" $slugField}}
 			<input type="text" id="new-slug" name="new_slug" value="{{.Slug}}" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]*" list="namespace-list" title="namespace/filename — changing the namespace moves the page">
-			<datalist id="namespace-list">{{range .NamespaceNames}}<option value="{{.}}/"></option>{{end}}</datalist>
+			<datalist id="namespace-list">{{range .NamespaceNames}}<option value="{{.}}/"></option>{{end}}</datalist>{{template "ui-field-end" $slugField}}
 		</div>
 		<div class="edit-field">
-			<label for="title">title:</label>
-			<input type="text" id="title" name="title" value="{{.Title}}" required>
+			{{$titleField := component "field" "id" "title" "layout" "bare" "label" "title:"}}{{template "ui-field-start" $titleField}}<input type="text" id="title" name="title" value="{{.Title}}" required>{{template "ui-field-end" $titleField}}
 		</div>
 		<div class="edit-field tags">
-			<label for="tags">tags:</label>
-			<input type="text" id="tags" name="tags" value="{{.TagsInput}}">
+			{{$tagsField := component "field" "id" "tags" "layout" "bare" "label" "tags:"}}{{template "ui-field-start" $tagsField}}<input type="text" id="tags" name="tags" value="{{.TagsInput}}">{{template "ui-field-end" $tagsField}}
 		</div>
-		<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
+		{{$choiceSlot1 := component "choice" "id" "edit-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
 			<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
-		</label>
+		</label>{{template "ui-choice-end" $choiceSlot1}}
 		<a href="{{.RoutePrefix}}/{{.Slug}}" class="cancel-link">cancel</a>
-		{{if ne .BaseHash ""}}<button type="submit" form="delete-form" class="ghost-btn danger-btn">delete</button>{{end}}
+		{{if ne .BaseHash ""}}{{template "ui-button" (button "delete" "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
 	</div>
 
 	<div class="toolbar" role="toolbar" aria-label="Formatting">
-		<button type="button" class="ghost-btn" data-action="bold" title="Bold (Ctrl/Cmd+B)"><strong>B</strong></button>
-		<button type="button" class="ghost-btn" data-action="italic" title="Italic (Ctrl/Cmd+I)"><em>I</em></button>
-		<button type="button" class="ghost-btn" data-action="header" title="Header">H</button>
-		<button type="button" class="ghost-btn" data-action="link" title="Link (Ctrl/Cmd+Shift+K)">[[link]]</button>
-		<button type="button" class="ghost-btn" data-action="code" title="Code">`code`</button>
-		<button type="button" class="ghost-btn" data-action="table" title="Table">table</button>
-		<button type="button" class="ghost-btn" data-action="image" title="Image">img</button>
-		<button type="button" class="ghost-btn" data-action="attachment" title="Upload attachment">attach</button>
-		<button type="button" class="ghost-btn" data-action="toc" title="Table of contents">toc</button>
-		<button type="button" class="ghost-btn" id="toggle-preview-btn" title="Hide preview for more writing space">preview</button>
-		<button type="button" class="ghost-btn" id="toggle-wrap-btn" title="Toggle word wrap">wrap</button>
+		{{$bold := button "Bold (Ctrl/Cmd+B)" "secondary" "size" "compact" "data-action" "bold" "title" "Bold (Ctrl/Cmd+B)"}}{{template "ui-button-start" $bold}}<strong>B</strong>{{template "ui-button-end" $bold}}
+		{{$italic := button "Italic (Ctrl/Cmd+I)" "secondary" "size" "compact" "data-action" "italic" "title" "Italic (Ctrl/Cmd+I)"}}{{template "ui-button-start" $italic}}<em>I</em>{{template "ui-button-end" $italic}}
+		{{template "ui-button" (button "H" "secondary" "size" "compact" "data-action" "header" "title" "Header")}}
+		{{template "ui-button" (button "[[link]]" "secondary" "size" "compact" "data-action" "link" "title" "Link (Ctrl/Cmd+Shift+K)")}}
+		{{template "ui-button" (button "`code`" "secondary" "size" "compact" "data-action" "code" "title" "Code")}}
+		{{template "ui-button" (button "table" "secondary" "size" "compact" "data-action" "table" "title" "Table")}}
+		{{template "ui-button" (button "img" "secondary" "size" "compact" "data-action" "image" "title" "Image")}}
+		{{template "ui-button" (button "attach" "secondary" "size" "compact" "data-action" "attachment" "title" "Upload attachment")}}
+		{{template "ui-button" (button "toc" "secondary" "size" "compact" "data-action" "toc" "title" "Table of contents")}}
+		{{template "ui-button" (button "preview" "secondary" "size" "compact" "id" "toggle-preview-btn" "title" "Hide preview for more writing space")}}
+		{{template "ui-button" (button "wrap" "secondary" "size" "compact" "id" "toggle-wrap-btn" "title" "Toggle word wrap")}}
 		<div class="zen-toolbar">
-			<button type="button" data-zen="manuscript" title="Full screen (Ctrl+Shift+F)">Full</button>
-			<button type="button" data-zen="typewriter" title="Typewriter scroll (Ctrl+Shift+T)">Type</button>
-			<button type="button" data-zen="focus" title="Focus mode (Ctrl+Shift+D)">Focus</button>
+			{{template "ui-button" (button "Full" "secondary" "size" "compact" "data-zen" "manuscript" "title" "Full screen (Ctrl+Shift+F)")}}
+			{{template "ui-button" (button "Type" "secondary" "size" "compact" "data-zen" "typewriter" "title" "Typewriter scroll (Ctrl+Shift+T)")}}
+			{{template "ui-button" (button "Focus" "secondary" "size" "compact" "data-zen" "focus" "title" "Focus mode (Ctrl+Shift+D)")}}
 		</div>
 	</div>
 
@@ -68,7 +64,7 @@
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>
-	<button type="button" class="zen-exit" id="zen-exit" title="Exit full screen (Esc)">Exit</button>
+	{{template "ui-button" (button "Exit" "secondary" "size" "compact" "id" "zen-exit" "hook" "zen-exit" "title" "Exit full screen (Esc)")}}
 </div>
 
 <noscript>

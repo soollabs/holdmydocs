@@ -223,7 +223,7 @@ test('namespace conflict preserves submitted settings and retries with the curre
   assert.equal(f.calls[1].payload.base_hash, 'fresh-hash');
   assert.equal(f.calls[1].payload.title, 'Draft namespace');
   assert.deepEqual(f.calls[1].payload.tree, ['home', 'folder']);
-  assert.equal(f.location.href, '/_/namespaces?saved=1');
+  assert.equal(f.location.href, '/_/settings/namespaces?saved=1');
 });
 
 test('namespace validation failure stays inline without replacing fields', async () => {

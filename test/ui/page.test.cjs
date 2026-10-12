@@ -6,6 +6,7 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/page.js'), 'utf8');
+const components = require('../../internal/web/web/static/components.js');
 
 function fixture(clipboard) {
   const copied = [], selected = [], timers = [], rendered = [];
@@ -28,13 +29,14 @@ function fixture(clipboard) {
   const initial = page('printf "<hello> & goodbye"\n');
   const context = {
     console,
+    HMDComponents: components,
     navigator: { clipboard: clipboard === 'denied' ? { writeText: async () => { throw Error('denied'); } } :
       clipboard === 'absent' ? undefined : { writeText: async text => { copied.push(text); } } },
     document: {
       getElementById() { return initial; },
       createElement() {
         return {
-          attributes: {}, handlers: {},
+          attributes: {}, handlers: {}, classList: { add() {} },
           setAttribute(name, value) { this.attributes[name] = value; },
           addEventListener(name, callback) { this.handlers[name] = callback; }
         };

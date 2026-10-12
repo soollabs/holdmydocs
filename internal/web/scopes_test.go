@@ -135,7 +135,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddToken(settings-only): %v", err)
 	}
-	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+	for _, path := range []string{"/_/settings/namespaces", "/_/settings/namespaces/new"} {
 		settingsReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		if err != nil {
 			t.Fatalf("new settings PAT request: %v", err)
@@ -157,24 +157,24 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddToken(reader): %v", err)
 	}
-	readerReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/namespaces", nil)
+	readerReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/settings/namespaces", nil)
 	if err != nil {
 		t.Fatalf("new reader PAT request: %v", err)
 	}
 	readerReq.Header.Set("Authorization", "Bearer "+readerToken)
 	readerPATResp, err := http.DefaultClient.Do(readerReq)
 	if err != nil {
-		t.Fatalf("reader PAT GET /_/namespaces: %v", err)
+		t.Fatalf("reader PAT GET namespace settings: %v", err)
 	}
 	if err := readerPATResp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
 	}
 	if readerPATResp.StatusCode != http.StatusForbidden {
-		t.Errorf("read-only PAT GET /_/namespaces = %d, want 403", readerPATResp.StatusCode)
+		t.Errorf("read-only PAT GET namespace settings = %d, want 403", readerPATResp.StatusCode)
 	}
 
 	adminLogin(t, server, settingsClient)
-	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+	for _, path := range []string{"/_/settings/namespaces", "/_/settings/namespaces/new"} {
 		resp, err := testhttp.Get(t, settingsClient, server.URL+path)
 		if err != nil {
 			t.Fatalf("settings GET %s: %v", path, err)
@@ -187,7 +187,7 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		}
 	}
 
-	for _, path := range []string{"/_/namespaces", "/_/namespaces/new"} {
+	for _, path := range []string{"/_/settings/namespaces", "/_/settings/namespaces/new"} {
 		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatalf("reader GET %s: %v", path, err)
@@ -289,10 +289,10 @@ func TestRestrictedTokenHTTP(t *testing.T) {
 		"/_/tags/shared",
 		"/_/health-report",
 		"/_/hidden",
-		"/_/namespaces",
+		"/_/settings/namespaces",
 	} {
 		status, body := do(http.MethodGet, path, nil)
-		if path != "/_/namespaces" && status != http.StatusOK {
+		if path != "/_/settings/namespaces" && status != http.StatusOK {
 			t.Errorf("GET %s = %d, want 200", path, status)
 		}
 		if strings.Contains(string(body), "private/denied") || strings.Contains(string(body), "private") {

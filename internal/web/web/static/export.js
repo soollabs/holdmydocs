@@ -27,11 +27,18 @@
     });
   });
   toggle.hidden = false;
-  toggle.addEventListener('click', function() {
-    dialog.showModal();
+  var closeSearchDialog = null;
+  function openSearchDialog() {
+    if (!dialog.open && window.HMDComponents) closeSearchDialog = window.HMDComponents.openDialog(dialog, toggle);
+    else if (!dialog.open) dialog.showModal();
     input.focus();
+  }
+  toggle.addEventListener('click', openSearchDialog);
+  document.getElementById('export-search-close').addEventListener('click', function() {
+    if (closeSearchDialog) closeSearchDialog();
+    else dialog.close();
+    closeSearchDialog = null;
   });
-  document.getElementById('export-search-close').addEventListener('click', function() { dialog.close(); });
   dialog.addEventListener('click', function(event) {
     var rect = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right ||
@@ -40,8 +47,7 @@
   document.addEventListener('keydown', function(event) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
-      if (!dialog.open) dialog.showModal();
-      input.focus();
+      openSearchDialog();
     }
   });
 
