@@ -19,8 +19,8 @@ func tagKeys(t reflect.Type, tag, prefix string) []string {
 		t = t.Elem()
 	}
 	var keys []string
-	for i := 0; i < t.NumField(); i++ {
-		name, _, _ := strings.Cut(t.Field(i).Tag.Get(tag), ",")
+	for field := range t.Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get(tag), ",")
 		if name == "" || name == "-" {
 			continue
 		}
@@ -28,7 +28,7 @@ func tagKeys(t reflect.Type, tag, prefix string) []string {
 		if prefix != "" {
 			key = prefix + "." + name
 		}
-		ft := t.Field(i).Type
+		ft := field.Type
 		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
@@ -51,13 +51,13 @@ func schemaKeys(store string) []string {
 }
 
 func TestWikiSchemaMatchesWikiConfig(t *testing.T) {
-	if got, want := schemaKeys(config.StoreWiki), tagKeys(reflect.TypeOf(wiki.WikiConfig{}), "yaml", ""); !slices.Equal(got, want) {
+	if got, want := schemaKeys(config.StoreWiki), tagKeys(reflect.TypeFor[wiki.WikiConfig](), "yaml", ""); !slices.Equal(got, want) {
 		t.Errorf("wiki schema keys = %v, want %v", got, want)
 	}
 }
 
 func TestNamespaceSchemaMatchesNamespaceConfig(t *testing.T) {
-	if got, want := schemaKeys(config.StoreNamespace), tagKeys(reflect.TypeOf(wiki.NamespaceConfig{}), "yaml", ""); !slices.Equal(got, want) {
+	if got, want := schemaKeys(config.StoreNamespace), tagKeys(reflect.TypeFor[wiki.NamespaceConfig](), "yaml", ""); !slices.Equal(got, want) {
 		t.Errorf("namespace schema keys = %v, want %v", got, want)
 	}
 }
@@ -69,7 +69,7 @@ func TestNamespaceSchemaMatchesNamespaceConfig(t *testing.T) {
 func TestPreferencesSchemaMatchesUserRecord(t *testing.T) {
 	account := []string{"hash", "oidc.issuer", "oidc.subject", "tokens", "scopes"}
 	var want []string
-	for _, key := range tagKeys(reflect.TypeOf(auth.UserRecord{}), "json", "") {
+	for _, key := range tagKeys(reflect.TypeFor[auth.UserRecord](), "json", "") {
 		if !slices.Contains(account, key) {
 			want = append(want, key)
 		}

@@ -11,8 +11,7 @@ import (
 
 // fileConfigLeaves walks the yaml-tagged fields of a config struct and records every leaf by dotted key.
 func fileConfigLeaves(t reflect.Type, prefix string, out map[string]reflect.StructField) {
-	for i := 0; i < t.NumField(); i++ {
-		sf := t.Field(i)
+	for sf := range t.Fields() {
 		tag, _, _ := strings.Cut(sf.Tag.Get("yaml"), ",")
 		if tag == "" || tag == "-" {
 			continue
@@ -31,7 +30,7 @@ func fileConfigLeaves(t reflect.Type, prefix string, out map[string]reflect.Stru
 
 func TestSettingsSchemaMatchesFileConfig(t *testing.T) {
 	fields := make(map[string]reflect.StructField)
-	fileConfigLeaves(reflect.TypeOf(fileConfig{}), "", fields)
+	fileConfigLeaves(reflect.TypeFor[fileConfig](), "", fields)
 
 	schemaKeys := make(map[string]Setting)
 	for _, s := range Settings() {
@@ -58,7 +57,7 @@ func TestSettingsSchemaMatchesFileConfig(t *testing.T) {
 
 func TestSettingsSchemaEnvNames(t *testing.T) {
 	fields := make(map[string]reflect.StructField)
-	fileConfigLeaves(reflect.TypeOf(fileConfig{}), "", fields)
+	fileConfigLeaves(reflect.TypeFor[fileConfig](), "", fields)
 
 	for key, sf := range fields {
 		s, ok := Lookup(key)

@@ -41,8 +41,8 @@ func serverSettingsJSON(form url.Values) map[string]any {
 		key := name
 		if k, ok := legacy[name]; ok {
 			key = k
-		} else if strings.HasPrefix(name, "oidc_") {
-			key = "oidc." + strings.TrimPrefix(name, "oidc_")
+		} else if after, ok := strings.CutPrefix(name, "oidc_"); ok {
+			key = "oidc." + after
 		}
 		s, ok := config.Lookup(key)
 		if !ok {
