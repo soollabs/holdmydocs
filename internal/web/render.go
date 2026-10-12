@@ -136,6 +136,7 @@ type TemplateData struct {
 	SettingsSection         string // highlights the current page in the shared settings navigation; empty hides it
 	SettingsPanel           string // URL-addressable account or system panel
 	SettingsLabel           string // current section shown by the mobile selector
+	SettingsHeading         string // page heading: the schema section title, or the lower-case label
 	SettingsSubpage         string // namespace editor or export step in breadcrumbs
 	SearchElapsed           string // search timing, e.g. "3ms"
 	SearchHits              int    // match count, for search stats
@@ -222,6 +223,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SettingsSection = "namespaces"
 		if data.NamespaceManagement != nil && data.NamespaceManagement.Form.Name != "" {
 			data.SettingsSubpage = "Edit " + data.NamespaceManagement.Form.Name
+			if s, ok := namespaceSectionByKey(data.NamespaceManagement.Section); ok && s.Key != "general" {
+				data.SettingsSubpage += ": " + s.Label
+			}
 		} else {
 			data.SettingsSubpage = "New namespace"
 		}
@@ -247,6 +251,16 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			key = data.SettingsPanel
 		}
 		data.SettingsLabel = settingsPanels[key].Label
+		if nm := data.NamespaceManagement; nm != nil && nm.Form.Name != "" && len(nm.Sections) > 0 {
+			// The mobile section selector names the namespace page being edited.
+			if s, ok := namespaceSectionByKey(nm.Section); ok {
+				data.SettingsLabel = nm.Form.Name + ": " + s.Label
+			}
+		}
+		data.SettingsHeading = strings.ToLower(data.SettingsLabel)
+		if section, ok := config.Layout(key); ok {
+			data.SettingsHeading = section.Title
+		}
 		data.Title = data.SettingsLabel
 		if data.SettingsSubpage != "" {
 			data.Title = data.SettingsSubpage

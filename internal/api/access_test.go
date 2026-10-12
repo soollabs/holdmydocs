@@ -91,7 +91,6 @@ func TestOperationScopeGates(t *testing.T) {
 		}},
 		{"reset namespace", "settings", func(ctx context.Context) error { return a.ResetNamespace(ctx, "notes") }},
 		{"delete namespace", "settings", func(ctx context.Context) error { return a.DeleteNamespace(ctx, "notes") }},
-		{"delete namespace all", "settings", func(ctx context.Context) error { return a.DeleteNamespaceAll(ctx, "notes") }},
 		{"export namespace", "settings", func(ctx context.Context) error { return a.ExportNamespace(ctx, "notes", "", nil, "", nil) }},
 	}
 	for _, op := range operations {

@@ -57,7 +57,7 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := fmt.Sprintf(
-		"base_url: %q\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n",
+		"server:\n  base_url: %q\nmcp:\n  enabled: true\n  oauth:\n    enabled: true\n    allow_insecure_loopback: true\n",
 		baseURL,
 	)
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
@@ -79,9 +79,9 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 	}
 	command := exec.CommandContext(t.Context(), binary)
 	command.Env = append(os.Environ(),
-		"HMD_BIND="+address,
+		"HMD_SERVER_BIND="+address,
 		"HMD_APP_DIR="+appDir,
-		"HMD_REPO_DIR="+filepath.Join(data, "repo"),
+		"HMD_SERVER_REPO_DIR="+filepath.Join(data, "repo"),
 		"HMD_CONFIG_FILE="+configPath,
 		"HMD_ADMIN_USER=admin",
 		"HMD_ADMIN_PASSWORD=password12345",

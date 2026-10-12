@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HMD namespace settings",
+  "description": "Settings in <namespace>/.namespace.yaml. They are committed to Git with the namespace's pages.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Name readers see for the namespace, including as the static site title. Defaults to the namespace name."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Short summary shown in namespace lists, at most 255 characters."
+    },
+    "public": {
+      "type": "boolean",
+      "default": false,
+      "description": "Let anyone read every page and attachment in the namespace without signing in. Public never means editable by everyone."
+    },
+    "index": {
+      "type": "string",
+      "description": "One-segment page name that opens at /<namespace>/ and is the static site's homepage."
+    },
+    "tree": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Order of pages and folders in the sidebar and static export. Drag to reorder; folders start collapsed and the index page stays first."
+    },
+    "skin": {
+      "type": "string",
+      "enum": [
+        "phosphor",
+        "newsprint",
+        "journal",
+        "soft",
+        "bare"
+      ],
+      "description": "Skin shown to anonymous readers and in the static export. Signed-in users see their own skin."
+    },
+    "palette": {
+      "type": "string",
+      "description": "Colour palette shown to anonymous readers and in the static export. Empty uses the skin's own palette."
+    },
+    "widgets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "pages",
+        "namespaces",
+        "tags",
+        "log",
+        "page-meta",
+        "backlinks"
+      ],
+      "description": "Sidebar widgets, in order. Leave empty for the built-in set."
+    },
+    "new": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "type": "string",
+          "default": "template",
+          "description": "Hidden page whose body every quick-created page starts from."
+        },
+        "slug": {
+          "type": "string",
+          "description": "Go template that names a quick-created page, such as {{.Now.Format \"2006-01-02\"}} for a daily journal. Enables Ctrl+J."
+        }
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "Absolute URL where the static site will be published, including any path prefix. Used to build sitemap.xml."
+        },
+        "sitemap": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include sitemap.xml in the static export."
+        },
+        "robots_allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "description": "Search and AI bots allowed to crawl the static site. Every other bot is blocked in robots.txt."
+        },
+        "links": {
+          "type": "array",
+          "maxItems": 32,
+          "description": "External links in the static site's sidebar or top bar. Labels are link text, or tooltips for icon-only links; icons use Font Awesome classes such as fa-brands fa-github."
+        }
+      }
+    }
+  }
+}

@@ -12,58 +12,59 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+
+	"hmd/internal/presentation"
 )
 
 const (
-	defaultSkin       = "phosphor"
+	defaultSkin       = presentation.DefaultSkin
 	semanticModelName = "BAAI/bge-small-en-v1.5"
 )
 
-var skinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
+var skinNames = presentation.SkinNames
 
 // GitConfig contains Git remote settings.
 type GitConfig struct {
-	RemoteURL string `yaml:"remote_url"`
-	User      string `yaml:"user"`
-	Token     string `yaml:"token"`
-	TokenFile string `yaml:"token_file"`
-	Author    string `yaml:"author"`
+	RemoteURL string `yaml:"remote_url,omitempty"`
+	User      string `yaml:"user,omitempty"`
+	Token     string `yaml:"token,omitempty"`
+	TokenFile string `yaml:"token_file,omitempty"`
+	Author    string `yaml:"author,omitempty"`
 }
 
 // MCPConfig contains MCP server settings.
 type MCPConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled bool `yaml:"enabled,omitempty"`
 }
 
 // OAuthConfig contains opt-in MCP OAuth policy. Client registrations and
 // credentials live separately in private AppDir state.
 type OAuthConfig struct {
-	Enabled               bool `yaml:"enabled"`
-	DynamicRegistration   bool `yaml:"dynamic_registration"`
-	AllowInsecureLoopback bool `yaml:"allow_insecure_loopback"`
-	AllowAdminDelegation  bool `yaml:"allow_admin_delegation"`
+	Enabled               bool `yaml:"enabled,omitempty"`
+	DynamicRegistration   bool `yaml:"dynamic_registration,omitempty"`
+	AllowInsecureLoopback bool `yaml:"allow_insecure_loopback,omitempty"`
+	AllowAdminDelegation  bool `yaml:"allow_admin_delegation,omitempty"`
 }
 
 // DocumentSearchConfig contains local model and index settings.
 type DocumentSearchConfig struct {
-	Model    string `yaml:"model"`
-	ModelDir string `yaml:"model_dir"`
-	IndexDir string `yaml:"index_dir"`
+	Model    string `yaml:"model,omitempty"`
+	ModelDir string `yaml:"model_dir,omitempty"`
+	IndexDir string `yaml:"index_dir,omitempty"`
 }
 
 type oidcFileConfig struct {
-	Issuer                string   `yaml:"issuer"`
-	ClientID              string   `yaml:"client_id"`
-	ClientSecret          string   `yaml:"client_secret"`
-	ClientSecretFile      string   `yaml:"client_secret_file"`
-	LocalLogin            *bool    `yaml:"local_login"`
-	ButtonText            string   `yaml:"button_text"`
-	Icon                  string   `yaml:"icon"`
-	DefaultScopes         []string `yaml:"default_scopes"`
-	AllowedSubjects       []string `yaml:"allowed_subjects"`
-	AllowedEmailDomains   []string `yaml:"allowed_email_domains"`
-	AllowAnyAuthenticated bool     `yaml:"allow_any_authenticated"`
-	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback"`
+	Issuer                string   `yaml:"issuer,omitempty"`
+	ClientID              string   `yaml:"client_id,omitempty"`
+	ClientSecretFile      string   `yaml:"client_secret_file,omitempty"`
+	LocalLogin            *bool    `yaml:"local_login,omitempty"`
+	ButtonText            string   `yaml:"button_text,omitempty"`
+	Icon                  string   `yaml:"icon,omitempty"`
+	DefaultScopes         []string `yaml:"default_scopes,omitempty"`
+	AllowedSubjects       []string `yaml:"allowed_subjects,omitempty"`
+	AllowedEmailDomains   []string `yaml:"allowed_email_domains,omitempty"`
+	AllowAnyAuthenticated bool     `yaml:"allow_any_authenticated,omitempty"`
+	AllowInsecureLoopback bool     `yaml:"allow_insecure_loopback,omitempty"`
 }
 
 // OIDCConfig contains resolved OIDC settings.
@@ -111,24 +112,48 @@ type Config struct {
 	TikaURL        string
 }
 
+// fileConfig is config.yaml. Each top-level section is one settings page and
+// each nested object a group on it; a key's environment variable is HMD_ plus
+// its upper-case dotted path (server.bind is HMD_SERVER_BIND).
 type fileConfig struct {
-	Bind           string   `yaml:"bind"`
-	RepoDir        string   `yaml:"repo_dir"`
-	ReadOnly       bool     `yaml:"read_only"`
-	MaxUploadBytes *int64   `yaml:"max_upload_bytes"`
-	SyncPollMs     *int     `yaml:"sync_poll_ms"`
-	SyncMode       string   `yaml:"sync_mode"`
-	DefaultBranch  string   `yaml:"default_branch"`
-	Skin           string   `yaml:"skin"`
-	Debug          bool     `yaml:"debug"`
-	BaseURL        string   `yaml:"base_url"`
-	TrustedProxies []string `yaml:"trusted_proxies"`
+	Server         serverFileConfig         `yaml:"server,omitempty"`
+	Git            gitFileConfig            `yaml:"git,omitempty"`
+	MCP            mcpFileConfig            `yaml:"mcp,omitempty"`
+	OIDC           oidcFileConfig           `yaml:"oidc,omitempty"`
+	DocumentSearch documentSearchFileConfig `yaml:"document_search,omitempty"`
+}
 
-	Git            GitConfig            `yaml:"git"`
-	MCP            MCPConfig            `yaml:"mcp"`
-	OAuth          OAuthConfig          `yaml:"oauth"`
-	OIDC           oidcFileConfig       `yaml:"oidc"`
-	DocumentSearch DocumentSearchConfig `yaml:"document_search"`
+type serverFileConfig struct {
+	Bind           string   `yaml:"bind,omitempty"`
+	RepoDir        string   `yaml:"repo_dir,omitempty"`
+	BaseURL        string   `yaml:"base_url,omitempty"`
+	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
+	ReadOnly       bool     `yaml:"read_only,omitempty"`
+	Debug          bool     `yaml:"debug,omitempty"`
+	MaxUploadBytes *int64   `yaml:"max_upload_bytes,omitempty"`
+	Skin           string   `yaml:"skin,omitempty"`
+}
+
+type gitFileConfig struct {
+	RemoteURL  string `yaml:"remote_url,omitempty"`
+	User       string `yaml:"user,omitempty"`
+	Author     string `yaml:"author,omitempty"`
+	TokenFile  string `yaml:"token_file,omitempty"`
+	Branch     string `yaml:"branch,omitempty"`
+	SyncMode   string `yaml:"sync_mode,omitempty"`
+	SyncPollMs *int   `yaml:"sync_poll_ms,omitempty"`
+}
+
+type mcpFileConfig struct {
+	Enabled bool        `yaml:"enabled,omitempty"`
+	OAuth   OAuthConfig `yaml:"oauth,omitempty"`
+}
+
+type documentSearchFileConfig struct {
+	TikaURL  string `yaml:"tika_url,omitempty"`
+	Model    string `yaml:"model,omitempty"`
+	ModelDir string `yaml:"model_dir,omitempty"`
+	IndexDir string `yaml:"index_dir,omitempty"`
 }
 
 func EnvOr(key, def string) string {
@@ -142,14 +167,14 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
-		tag := sf.Tag.Get("yaml")
+		tag, _, _ := strings.Cut(sf.Tag.Get("yaml"), ",")
 		if tag == "" || tag == "-" {
 			continue
 		}
 		envKey := envPrefix + "_" + strings.ToUpper(tag)
-		path := sf.Name
+		path := tag // EnvOverrides is keyed by the schema key, e.g. git.remote_url
 		if pathPrefix != "" {
-			path = pathPrefix + "." + sf.Name
+			path = pathPrefix + "." + tag
 		}
 		fv := v.Field(i)
 		if fv.Kind() == reflect.Struct {
@@ -207,26 +232,28 @@ func ConfigFilePath() string {
 
 // LoadConfig loads configuration from the YAML file and environment variables.
 func LoadConfig() (Config, error) {
-	path := ConfigFilePath()
-	file, err := LoadFileConfig(path)
+	file, err := LoadFileConfig(ConfigFilePath())
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return Config{}, err
 		}
 		file = fileConfig{}
 	}
+	return Resolve(file)
+}
+
+// Resolve applies environment overrides and defaults to a config.yaml and
+// runs every check LoadConfig does. The settings screen resolves a candidate
+// before writing it, so a saved file always loads.
+func Resolve(file fileConfig) (Config, error) {
+	path := ConfigFilePath()
 	envOverrides := make(map[string]string)
 	if err := applyEnvOverrides(reflect.ValueOf(&file).Elem(), "HMD", "", envOverrides); err != nil {
 		return Config{}, err
 	}
-	tikaURL := strings.TrimSpace(os.Getenv("HMD_TIKA_URL"))
+	tikaURL := strings.TrimSpace(file.DocumentSearch.TikaURL)
 	if tikaURL != "" {
 		tikaURL = strings.TrimRight(tikaURL, "/")
-		u, parseErr := url.Parse(tikaURL)
-		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-			return Config{}, fmt.Errorf("HMD_TIKA_URL must be an http or https URL with a host and no user-info")
-		}
-		envOverrides["TikaURL"] = "HMD_TIKA_URL"
 	}
 	modelDir := file.DocumentSearch.ModelDir
 	if modelDir == "" {
@@ -265,31 +292,31 @@ func LoadConfig() (Config, error) {
 		AdminUser:    os.Getenv("HMD_ADMIN_USER"),
 		AdminPass:    os.Getenv("HMD_ADMIN_PASSWORD"),
 
-		Bind:           or(file.Bind, ":8080"),
-		RepoDir:        or(file.RepoDir, "/data/repo"),
-		ReadOnly:       file.ReadOnly,
-		MaxUploadBytes: orInt64(file.MaxUploadBytes, 10*1024*1024),
-		SyncPollMs:     orInt(file.SyncPollMs, 10000),
-		SyncMode:       or(file.SyncMode, "push"),
-		DefaultBranch:  or(file.DefaultBranch, "main"),
-		Skin:           or(file.Skin, defaultSkin),
-		Debug:          file.Debug,
-		BaseURL:        strings.TrimRight(file.BaseURL, "/"),
-		TrustedProxies: append([]string(nil), file.TrustedProxies...),
+		Bind:           or(file.Server.Bind, ":8080"),
+		RepoDir:        or(file.Server.RepoDir, "/data/repo"),
+		ReadOnly:       file.Server.ReadOnly,
+		MaxUploadBytes: orInt64(file.Server.MaxUploadBytes, 10*1024*1024),
+		SyncPollMs:     orInt(file.Git.SyncPollMs, 10000),
+		SyncMode:       or(file.Git.SyncMode, "push"),
+		DefaultBranch:  or(file.Git.Branch, "main"),
+		Skin:           or(file.Server.Skin, defaultSkin),
+		Debug:          file.Server.Debug,
+		BaseURL:        strings.TrimRight(file.Server.BaseURL, "/"),
+		TrustedProxies: append([]string(nil), file.Server.TrustedProxies...),
 
 		Git: GitConfig{
 			RemoteURL: file.Git.RemoteURL,
 			User:      or(file.Git.User, "hmd"),
-			Token:     file.Git.Token,
+			Token:     os.Getenv("HMD_GIT_TOKEN"),
 			TokenFile: file.Git.TokenFile,
 			Author:    file.Git.Author,
 		},
-		MCP:   file.MCP,
-		OAuth: file.OAuth,
+		MCP:   MCPConfig{Enabled: file.MCP.Enabled},
+		OAuth: file.MCP.OAuth,
 		OIDC: OIDCConfig{
 			Issuer:                file.OIDC.Issuer,
 			ClientID:              file.OIDC.ClientID,
-			ClientSecret:          file.OIDC.ClientSecret,
+			ClientSecret:          os.Getenv("HMD_OIDC_CLIENT_SECRET"),
 			ClientSecretFile:      file.OIDC.ClientSecretFile,
 			LocalLogin:            orBool(file.OIDC.LocalLogin, true),
 			ButtonText:            or(file.OIDC.ButtonText, "Sign in with SSO"),
@@ -309,10 +336,10 @@ func LoadConfig() (Config, error) {
 	}
 
 	if cfg.Git.Token != "" && cfg.Git.TokenFile != "" {
-		return Config{}, fmt.Errorf("git.token and git.token_file are mutually exclusive")
+		return Config{}, fmt.Errorf("HMD_GIT_TOKEN and git.token_file are mutually exclusive")
 	}
 	if cfg.OIDC.ClientSecret != "" && cfg.OIDC.ClientSecretFile != "" {
-		return Config{}, fmt.Errorf("oidc.client_secret and oidc.client_secret_file are mutually exclusive")
+		return Config{}, fmt.Errorf("HMD_OIDC_CLIENT_SECRET and oidc.client_secret_file are mutually exclusive")
 	}
 	if f := cfg.Git.TokenFile; f != "" {
 		secret, err := readSecretFile(f)
@@ -329,32 +356,18 @@ func LoadConfig() (Config, error) {
 		cfg.OIDC.ClientSecret = secret
 	}
 
-	if cfg.SyncMode != "push" && cfg.SyncMode != "bidirectional" {
-		return Config{}, fmt.Errorf("invalid sync_mode %q: must be push or bidirectional", cfg.SyncMode)
-	}
-
-	if !slices.Contains(skinNames, cfg.Skin) {
-		return Config{}, fmt.Errorf("invalid skin %q: must be one of %v", cfg.Skin, skinNames)
-	}
-	if cfg.BaseURL != "" {
-		if err := validateExternalURL("base_url", cfg.BaseURL); err != nil {
-			return Config{}, err
-		}
-	}
-	for _, cidr := range cfg.TrustedProxies {
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return Config{}, fmt.Errorf("invalid trusted_proxies entry %q", cidr)
-		}
+	if err := ValidateFile(cfg.toFileConfig()); err != nil {
+		return Config{}, err
 	}
 	if cfg.MCP.Enabled && cfg.BaseURL == "" {
-		return Config{}, fmt.Errorf("base_url must be set when mcp.enabled is true")
+		return Config{}, fmt.Errorf("server.base_url must be set when mcp.enabled is true")
 	}
 	if cfg.OAuth.Enabled {
 		if !cfg.MCP.Enabled {
-			return Config{}, fmt.Errorf("mcp.enabled must be true when oauth.enabled is true")
+			return Config{}, fmt.Errorf("mcp.enabled must be true when mcp.oauth.enabled is true")
 		}
 		if cfg.BaseURL == "" {
-			return Config{}, fmt.Errorf("base_url must be set when oauth.enabled is true")
+			return Config{}, fmt.Errorf("server.base_url must be set when mcp.oauth.enabled is true")
 		}
 		if err := validateOAuthOrigin(cfg.BaseURL, cfg.OAuth.AllowInsecureLoopback); err != nil {
 			return Config{}, err
@@ -363,10 +376,10 @@ func LoadConfig() (Config, error) {
 
 	if cfg.OIDC.Issuer != "" {
 		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" {
-			return Config{}, fmt.Errorf("oidc.client_id/oidc.client_secret must be set when oidc.issuer is set")
+			return Config{}, fmt.Errorf("oidc.client_id and HMD_OIDC_CLIENT_SECRET (or oidc.client_secret_file) must be set when oidc.issuer is set")
 		}
 		if cfg.BaseURL == "" {
-			return Config{}, fmt.Errorf("base_url must be set when oidc.issuer is set (needed for the redirect URI)")
+			return Config{}, fmt.Errorf("server.base_url must be set when oidc.issuer is set (needed for the redirect URI)")
 		}
 		if err := validateOIDCURL("oidc.issuer", cfg.OIDC.Issuer, cfg.OIDC.AllowInsecureLoopback); err != nil {
 			return Config{}, err
@@ -382,11 +395,6 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("invalid oidc.default_scopes")
 		}
 		cfg.OIDC.DefaultScopes = scopes
-		for _, domain := range cfg.OIDC.AllowedEmailDomains {
-			if strings.TrimSpace(domain) == "" || strings.ContainsAny(domain, "@/ ") {
-				return Config{}, fmt.Errorf("invalid oidc.allowed_email_domains entry %q", domain)
-			}
-		}
 	}
 
 	if err := validateConfig(cfg); err != nil {
@@ -396,23 +404,27 @@ func LoadConfig() (Config, error) {
 }
 
 func (c Config) toFileConfig() fileConfig {
-	git := c.Git
-	git.Token = ""
 	return fileConfig{
-		Bind:           c.Bind,
-		RepoDir:        c.RepoDir,
-		ReadOnly:       c.ReadOnly,
-		MaxUploadBytes: new(c.MaxUploadBytes),
-		SyncPollMs:     new(c.SyncPollMs),
-		SyncMode:       c.SyncMode,
-		DefaultBranch:  c.DefaultBranch,
-		Skin:           c.Skin,
-		Debug:          c.Debug,
-		BaseURL:        c.BaseURL,
-		TrustedProxies: append([]string(nil), c.TrustedProxies...),
-		Git:            git,
-		MCP:            c.MCP,
-		OAuth:          c.OAuth,
+		Server: serverFileConfig{
+			Bind:           c.Bind,
+			RepoDir:        c.RepoDir,
+			BaseURL:        c.BaseURL,
+			TrustedProxies: append([]string(nil), c.TrustedProxies...),
+			ReadOnly:       c.ReadOnly,
+			Debug:          c.Debug,
+			MaxUploadBytes: new(c.MaxUploadBytes),
+			Skin:           c.Skin,
+		},
+		Git: gitFileConfig{
+			RemoteURL:  c.Git.RemoteURL,
+			User:       c.Git.User,
+			Author:     c.Git.Author,
+			TokenFile:  c.Git.TokenFile,
+			Branch:     c.DefaultBranch,
+			SyncMode:   c.SyncMode,
+			SyncPollMs: new(c.SyncPollMs),
+		},
+		MCP: mcpFileConfig{Enabled: c.MCP.Enabled, OAuth: c.OAuth},
 		OIDC: oidcFileConfig{
 			Issuer:                c.OIDC.Issuer,
 			ClientID:              c.OIDC.ClientID,
@@ -426,7 +438,12 @@ func (c Config) toFileConfig() fileConfig {
 			AllowAnyAuthenticated: c.OIDC.AllowAnyAuthenticated,
 			AllowInsecureLoopback: c.OIDC.AllowInsecureLoopback,
 		},
-		DocumentSearch: c.DocumentSearch,
+		DocumentSearch: documentSearchFileConfig{
+			TikaURL:  c.TikaURL,
+			Model:    c.DocumentSearch.Model,
+			ModelDir: c.DocumentSearch.ModelDir,
+			IndexDir: c.DocumentSearch.IndexDir,
+		},
 	}
 }
 
@@ -437,7 +454,7 @@ func validateOAuthOrigin(raw string, allowInsecureLoopback bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil ||
 		u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
-		return fmt.Errorf("base_url must be an origin without path, query, fragment or user-info when OAuth is enabled")
+		return fmt.Errorf("server.base_url must be an origin without path, query, fragment or user-info when OAuth is enabled")
 	}
 	if u.Scheme == "https" {
 		return nil
@@ -445,7 +462,7 @@ func validateOAuthOrigin(raw string, allowInsecureLoopback bool) error {
 	if u.Scheme == "http" && allowInsecureLoopback && isLoopbackHost(u.Hostname()) {
 		return nil
 	}
-	return fmt.Errorf("OAuth requires an https base_url (http is allowed only for loopback with oauth.allow_insecure_loopback)")
+	return fmt.Errorf("OAuth requires an https server.base_url (http is allowed only for loopback with mcp.oauth.allow_insecure_loopback)")
 }
 
 func validateOIDCURL(field, raw string, allowInsecureLoopback bool) error {
@@ -460,14 +477,6 @@ func validateOIDCURL(field, raw string, allowInsecureLoopback bool) error {
 		return nil
 	}
 	return fmt.Errorf("%s must use https (http is allowed only for loopback with oidc.allow_insecure_loopback)", field)
-}
-
-func validateExternalURL(field, raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || !u.IsAbs() || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return fmt.Errorf("%s must be an http or https origin without a path, query, fragment or user-info", field)
-	}
-	return nil
 }
 
 func isLoopbackHost(host string) bool {
@@ -528,11 +537,7 @@ func SaveFileConfig(path string, fc fileConfig) error {
 	return nil
 }
 
-const (
-	maxUploadBytes = 1 << 30
-	minSyncPollMs  = 100
-	maxSecretBytes = 64 << 10
-)
+const maxSecretBytes = 64 << 10
 
 func readSecretFile(path string) (string, error) {
 	info, err := os.Lstat(path)
@@ -594,19 +599,10 @@ func normaliseTokenScopes(scopes []string) ([]string, error) {
 }
 
 func validateConfig(cfg Config) error {
-	if _, port, err := net.SplitHostPort(cfg.Bind); err != nil || port == "" {
-		return fmt.Errorf("bind must be a host:port address")
-	} else if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-		return fmt.Errorf("bind must use a port from 1 to 65535")
-	}
-	if cfg.MaxUploadBytes < 1 || cfg.MaxUploadBytes > maxUploadBytes {
-		return fmt.Errorf("max_upload_bytes must be from 1 to %d", maxUploadBytes)
-	}
-	if cfg.SyncPollMs < minSyncPollMs {
-		return fmt.Errorf("sync_poll_ms must be at least %d", minSyncPollMs)
-	}
-	if !validBranchName(cfg.DefaultBranch) {
-		return fmt.Errorf("invalid default_branch %q", cfg.DefaultBranch)
+	// Per-value rules (formats, ranges, enums) live in the schema; the checks
+	// below are the cross-field and filesystem rules a schema cannot express.
+	if err := ValidateFile(cfg.toFileConfig()); err != nil {
+		return err
 	}
 	app, err := filepath.Abs(cfg.AppDir)
 	if err != nil {

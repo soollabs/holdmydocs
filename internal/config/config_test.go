@@ -28,8 +28,8 @@ func TestLoadConfig(t *testing.T) {
 		{
 			name: "all env set",
 			setupEnv: func(t *testing.T) {
-				t.Setenv("HMD_BIND", ":9000")
-				t.Setenv("HMD_REPO_DIR", "/custom/repo")
+				t.Setenv("HMD_SERVER_BIND", ":9000")
+				t.Setenv("HMD_SERVER_REPO_DIR", "/custom/repo")
 				t.Setenv("HMD_APP_DIR", "/custom/app")
 				t.Setenv("HMD_GIT_USER", "alice")
 				t.Setenv("HMD_GIT_TOKEN", "env-token")
@@ -76,7 +76,7 @@ func runLoadConfigCase(t *testing.T, wantBind, wantRepo, wantApp, wantGitUser, w
 func TestLoadConfigYAMLFile(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yaml := "bind: \":7000\"\nrepo_dir: /yaml/repo\ngit:\n  user: yaml-user\n"
+	yaml := "server:\n  bind: \":7000\"\n  repo_dir: /yaml/repo\ngit:\n  user: yaml-user\n"
 	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestLoadConfigYAMLFile(t *testing.T) {
 	})
 
 	t.Run("environment overrides file", func(t *testing.T) {
-		t.Setenv("HMD_BIND", ":9999")
+		t.Setenv("HMD_SERVER_BIND", ":9999")
 		cfg, err := LoadConfig()
 		if err != nil {
 			t.Fatalf("LoadConfig failed: %v", err)
@@ -143,21 +143,21 @@ func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
 	}{
 		{
 			name:      "requires MCP",
-			yaml:      "base_url: https://wiki.example.test\noauth:\n  enabled: true\n",
+			yaml:      "server:\n  base_url: https://wiki.example.test\nmcp:\n  oauth:\n    enabled: true\n",
 			wantError: "mcp.enabled",
 		},
 		{
 			name:      "requires TLS",
-			yaml:      "base_url: http://wiki.example.test\nmcp:\n  enabled: true\noauth:\n  enabled: true\n",
+			yaml:      "server:\n  base_url: http://wiki.example.test\nmcp:\n  enabled: true\n  oauth:\n    enabled: true\n",
 			wantError: "https",
 		},
 		{
 			name: "loopback development allowed explicitly",
-			yaml: "base_url: http://localhost:8080\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  dynamic_registration: true\n  allow_insecure_loopback: true\n  allow_admin_delegation: true\n",
+			yaml: "server:\n  base_url: http://localhost:8080\nmcp:\n  enabled: true\n  oauth:\n    enabled: true\n    dynamic_registration: true\n    allow_insecure_loopback: true\n    allow_admin_delegation: true\n",
 		},
 		{
 			name:      "remote HTTP rejected even with loopback option",
-			yaml:      "base_url: http://wiki.example.test\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n",
+			yaml:      "server:\n  base_url: http://wiki.example.test\nmcp:\n  enabled: true\n  oauth:\n    enabled: true\n    allow_insecure_loopback: true\n",
 			wantError: "https",
 		},
 	}
@@ -189,8 +189,8 @@ func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
 			if err := SaveFileConfig(path, exported); err != nil {
 				t.Fatal(err)
 			}
-			if reloaded.OAuth != exported.OAuth {
-				t.Fatalf("exported OAuth config = %#v, want %#v", exported.OAuth, reloaded.OAuth)
+			if reloaded.MCP.OAuth != exported.MCP.OAuth {
+				t.Fatalf("exported OAuth config = %#v, want %#v", exported.MCP.OAuth, reloaded.MCP.OAuth)
 			}
 		})
 	}
@@ -199,7 +199,7 @@ func TestOAuthConfigValidationAndRoundTrip(t *testing.T) {
 func TestLoadConfigRejectsNonPositiveLimits(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yaml := "sync_poll_ms: 0\nmax_upload_bytes: 0\n"
+	yaml := "git:\n  sync_poll_ms: 0\nserver:\n  max_upload_bytes: 0\n"
 	if err := os.WriteFile(cfgFile, []byte(yaml), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestLoadConfigRejectsNonPositiveLimits(t *testing.T) {
 }
 
 func TestConfigSecurityValidation(t *testing.T) {
-	for _, env := range []string{"HMD_DEBUG=not-a-bool", "HMD_MAX_UPLOAD_BYTES=oops", "HMD_SYNC_POLL_MS=oops"} {
+	for _, env := range []string{"HMD_SERVER_DEBUG=not-a-bool", "HMD_SERVER_MAX_UPLOAD_BYTES=oops", "HMD_GIT_SYNC_POLL_MS=oops"} {
 		name, value, _ := strings.Cut(env, "=")
 		t.Run(name, func(t *testing.T) {
 			t.Setenv(name, value)
@@ -253,7 +253,7 @@ func TestConfigSecurityValidation(t *testing.T) {
 	})
 
 	t.Run("path and bind validation", func(t *testing.T) {
-		t.Setenv("HMD_BIND", "invalid")
+		t.Setenv("HMD_SERVER_BIND", "invalid")
 		if _, err := LoadConfig(); err == nil {
 			t.Fatal("LoadConfig accepted invalid bind")
 		}
@@ -284,12 +284,12 @@ func TestConfigExportOmitsSecretsAndUsesPrivateMode(t *testing.T) {
 func TestLoadConfigEnvConflictWarning(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "bind: \":7000\"\ngit:\n  user: yaml-user\n"
+	yamlContent := "server:\n  bind: \":7000\"\ngit:\n  user: yaml-user\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 	t.Setenv("HMD_CONFIG_FILE", cfgFile)
-	t.Setenv("HMD_BIND", ":9999")
+	t.Setenv("HMD_SERVER_BIND", ":9999")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -308,12 +308,10 @@ func TestSaveAndLoadFileConfig(t *testing.T) {
 	path := dir + "/config.yaml"
 
 	fc := fileConfig{
-		Bind:    ":7000",
-		RepoDir: "/custom/repo",
-		Git: GitConfig{
+		Server: serverFileConfig{Bind: ":7000", RepoDir: "/custom/repo"},
+		Git: gitFileConfig{
 			RemoteURL: "https://example.com/repo.git",
 			User:      "alice",
-			Token:     "secret-token",
 		},
 	}
 
@@ -326,17 +324,14 @@ func TestSaveAndLoadFileConfig(t *testing.T) {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
 
-	if loaded.Bind != fc.Bind {
-		t.Errorf("Bind = %q, want %q", loaded.Bind, fc.Bind)
+	if loaded.Server.Bind != fc.Server.Bind {
+		t.Errorf("Bind = %q, want %q", loaded.Server.Bind, fc.Server.Bind)
 	}
-	if loaded.RepoDir != fc.RepoDir {
-		t.Errorf("RepoDir = %q, want %q", loaded.RepoDir, fc.RepoDir)
+	if loaded.Server.RepoDir != fc.Server.RepoDir {
+		t.Errorf("RepoDir = %q, want %q", loaded.Server.RepoDir, fc.Server.RepoDir)
 	}
 	if loaded.Git.RemoteURL != fc.Git.RemoteURL {
 		t.Errorf("Git.RemoteURL = %q, want %q", loaded.Git.RemoteURL, fc.Git.RemoteURL)
-	}
-	if loaded.Git.Token != fc.Git.Token {
-		t.Errorf("Git.Token = %q, want %q", loaded.Git.Token, fc.Git.Token)
 	}
 	if loaded.Git.TokenFile != "" {
 		t.Errorf("Git.TokenFile = %q, want empty", loaded.Git.TokenFile)
@@ -354,12 +349,12 @@ func TestSaveFileConfigOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/config.yaml"
 
-	fc1 := fileConfig{Bind: ":7000"}
+	fc1 := fileConfig{Server: serverFileConfig{Bind: ":7000"}}
 	if err := SaveFileConfig(path, fc1); err != nil {
 		t.Fatalf("first SaveFileConfig failed: %v", err)
 	}
 
-	fc2 := fileConfig{Bind: ":8000"}
+	fc2 := fileConfig{Server: serverFileConfig{Bind: ":8000"}}
 	if err := SaveFileConfig(path, fc2); err != nil {
 		t.Fatalf("second SaveFileConfig failed: %v", err)
 	}
@@ -368,8 +363,8 @@ func TestSaveFileConfigOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
-	if loaded.Bind != ":8000" {
-		t.Errorf("Bind = %q, want %q", loaded.Bind, ":8000")
+	if loaded.Server.Bind != ":8000" {
+		t.Errorf("Bind = %q, want %q", loaded.Server.Bind, ":8000")
 	}
 }
 
@@ -384,7 +379,7 @@ func TestSyncModeDefault(t *testing.T) {
 }
 
 func TestSyncModeEnv(t *testing.T) {
-	t.Setenv("HMD_SYNC_MODE", "bidirectional")
+	t.Setenv("HMD_GIT_SYNC_MODE", "bidirectional")
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
@@ -395,7 +390,7 @@ func TestSyncModeEnv(t *testing.T) {
 }
 
 func TestSyncModeInvalid(t *testing.T) {
-	t.Setenv("HMD_SYNC_MODE", "bogus")
+	t.Setenv("HMD_GIT_SYNC_MODE", "bogus")
 	_, err := LoadConfig()
 	if err == nil {
 		t.Fatal("LoadConfig should reject invalid sync_mode")
@@ -413,7 +408,7 @@ func TestSkinDefault(t *testing.T) {
 }
 
 func TestSkinInvalid(t *testing.T) {
-	t.Setenv("HMD_SKIN", "bogus")
+	t.Setenv("HMD_SERVER_SKIN", "bogus")
 	_, err := LoadConfig()
 	if err == nil {
 		t.Fatal("LoadConfig should reject invalid skin")
@@ -426,11 +421,11 @@ func TestOIDCConfigValidation(t *testing.T) {
 		yaml string
 		ok   bool
 	}{
-		{"valid", "base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n", true},
-		{"identity provider admission", "base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  allow_any_authenticated: true\n", true},
-		{"missing admission", "base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  client_secret: secret\n", false},
-		{"http public", "base_url: https://wiki.example.com\noidc:\n  issuer: http://idp.example.com\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n", false},
-		{"http loopback opted in", "base_url: http://localhost:8080\noidc:\n  issuer: http://127.0.0.1:5556\n  client_id: hmd\n  client_secret: secret\n  allowed_subjects: [alice]\n  allow_insecure_loopback: true\n", true},
+		{"valid", "server:\n  base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  allowed_subjects: [alice]\n", true},
+		{"identity provider admission", "server:\n  base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n  allow_any_authenticated: true\n", true},
+		{"missing admission", "server:\n  base_url: https://wiki.example.com\noidc:\n  issuer: https://idp.example.com\n  client_id: hmd\n", false},
+		{"http public", "server:\n  base_url: https://wiki.example.com\noidc:\n  issuer: http://idp.example.com\n  client_id: hmd\n  allowed_subjects: [alice]\n", false},
+		{"http loopback opted in", "server:\n  base_url: http://localhost:8080\noidc:\n  issuer: http://127.0.0.1:5556\n  client_id: hmd\n  allowed_subjects: [alice]\n  allow_insecure_loopback: true\n", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -439,6 +434,7 @@ func TestOIDCConfigValidation(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Setenv("HMD_CONFIG_FILE", path)
+			t.Setenv("HMD_OIDC_CLIENT_SECRET", "secret")
 			cfg, err := LoadConfig()
 			if tt.ok && err != nil {
 				t.Fatalf("LoadConfig: %v", err)
@@ -459,10 +455,10 @@ func TestProxyConfigValidation(t *testing.T) {
 		yaml string
 		ok   bool
 	}{
-		{"valid", "base_url: https://wiki.example.com\ntrusted_proxies: [10.0.0.0/8]\nmcp:\n  enabled: true\n", true},
+		{"valid", "server:\n  base_url: https://wiki.example.com\n  trusted_proxies: [10.0.0.0/8]\nmcp:\n  enabled: true\n", true},
 		{"mcp needs base URL", "mcp:\n  enabled: true\n", false},
-		{"base URL path", "base_url: https://wiki.example.com/hmd\n", false},
-		{"bad proxy CIDR", "trusted_proxies: [not-a-cidr]\n", false},
+		{"base URL path", "server:\n  base_url: https://wiki.example.com/hmd\n", false},
+		{"bad proxy CIDR", "server:\n  trusted_proxies: [not-a-cidr]\n", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

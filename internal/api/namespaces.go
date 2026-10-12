@@ -252,6 +252,7 @@ type NamespaceDetail struct {
 	Name   string
 	Config wiki.NamespaceConfig
 	Hash   string
+	Files  int // files besides the config, all removed by DeleteNamespace
 }
 
 // ReadNamespace reads one namespace's settings and current config hash. The
@@ -274,7 +275,11 @@ func (a *API) ReadNamespace(ctx context.Context, name string) (*NamespaceDetail,
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, Unavailable("reading namespace", err)
 	}
-	return &NamespaceDetail{Name: name, Config: cfg, Hash: hash}, nil
+	files, err := a.store.NamespaceFileCount(name)
+	if err != nil {
+		return nil, Unavailable("reading namespace", err)
+	}
+	return &NamespaceDetail{Name: name, Config: cfg, Hash: hash, Files: files}, nil
 }
 
 // SaveNamespaceInput is a full namespace configuration replacement. The
@@ -377,9 +382,8 @@ func (a *API) ResetNamespace(ctx context.Context, name string) error {
 	return nil
 }
 
-// DeleteNamespace removes a configured namespace's configuration only. It
-// refuses when the namespace still contains content; that is a caller-fixable
-// rejection, not an internal failure.
+// DeleteNamespace removes a configured namespace and every file beneath it,
+// then prunes the derived index and refreshes the registry.
 func (a *API) DeleteNamespace(ctx context.Context, name string) error {
 	if !wiki.ValidNamespaceName(name) {
 		return InvalidInput("invalid namespace", nil)
@@ -391,29 +395,7 @@ func (a *API) DeleteNamespace(ctx context.Context, name string) error {
 		return Forbidden("namespace access denied")
 	}
 	authorName, authorEmail := a.Author(ctx)
-	path := wiki.NamespaceConfigPath(name)
-	if err := a.store.DeleteNamespace(name, "Remove namespace config "+path, authorName, authorEmail); err != nil {
-		return InvalidInput(err.Error(), err)
-	}
-	a.refreshNamespaces()
-	slog.Info("namespace config removed", "namespace", name, "by", authorName)
-	return nil
-}
-
-// DeleteNamespaceAll removes a configured namespace and every file beneath it,
-// then prunes the derived index and refreshes the registry.
-func (a *API) DeleteNamespaceAll(ctx context.Context, name string) error {
-	if !wiki.ValidNamespaceName(name) {
-		return InvalidInput("invalid namespace", nil)
-	}
-	if err := a.RequireScope(ctx, auth.ScopeSettings); err != nil {
-		return err
-	}
-	if !AllowNamespace(ctx, name) {
-		return Forbidden("namespace access denied")
-	}
-	authorName, authorEmail := a.Author(ctx)
-	if err := a.store.DeleteNamespaceAll(name, "Delete namespace "+name, authorName, authorEmail); err != nil {
+	if err := a.store.DeleteNamespace(name, "Delete namespace "+name, authorName, authorEmail); err != nil {
 		return InvalidInput(err.Error(), err)
 	}
 	if a.index != nil {

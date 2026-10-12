@@ -107,8 +107,6 @@ func traceSlowLockWait(operation string) func() {
 	}
 }
 
-func namespaceConfigPath(namespace string) string { return namespace + "/" + namespaceConfigFile }
-
 func validNamespaceName(name string) bool {
 	return name != "" && name != "_" && name != attachmentsDir &&
 		!strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".") && !strings.HasPrefix(name, "_")
@@ -746,76 +744,33 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 var errInvalidNamespaceName = errors.New("invalid namespace name")
 var ErrInvalidNamespaceName = errInvalidNamespaceName
 
-// DeleteNamespace removes a configured namespace only when its configuration is the directory's sole regular
-// entry.
-func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
-	if s.readOnly {
-		return ErrReadOnly
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// NamespaceFileCount counts the files beneath a namespace other than its
+// configuration, i.e. what DeleteNamespace would remove besides the config.
+func (s *Store) NamespaceFileCount(name string) (int, error) {
 	if !validNamespaceName(name) {
-		return errInvalidNamespaceName
+		return 0, errInvalidNamespaceName
 	}
-
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	namespaceDir := filepath.Join(s.dir, name)
-	info, err := os.Lstat(namespaceDir)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("unable to inspect namespace contents; deletion was not performed")
-	}
-	entries, err := os.ReadDir(namespaceDir)
-	if err != nil {
-		return errors.New("unable to inspect namespace contents; deletion was not performed")
-	}
-
-	configPath := namespaceConfigPath(name)
-	configFound := false
-	for _, entry := range entries {
-		if entry.Name() == namespaceConfigFile {
-			if !entry.Type().IsRegular() {
-				return errors.New("the namespace configuration is not a regular file; deletion was not performed")
-			}
-			configFound = true
-			continue
+	count := 0
+	err := filepath.WalkDir(namespaceDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if strings.HasSuffix(entry.Name(), ".md") {
-			return errors.New("this namespace still contains indexed pages; deletion was not performed")
+		if !d.IsDir() && path != filepath.Join(namespaceDir, namespaceConfigFile) {
+			count++
 		}
-		return errors.New("this namespace still contains directory content; deletion was not performed")
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
 	}
-	if !configFound {
-		return errors.New("this namespace has no configuration to delete")
-	}
-
-	config, err := s.readRepositoryFile(configPath)
-	if err != nil {
-		return errors.New("unable to read namespace configuration; deletion was not performed")
-	}
-	restore := func() error {
-		_, restoreErr := s.saveLocked(configPath, config, "Restore namespace config "+configPath, authorName, authorEmail)
-		return restoreErr
-	}
-	if err := s.removeLocked(configPath, message, authorName, authorEmail); err != nil {
-		if restoreErr := restore(); restoreErr != nil {
-			return fmt.Errorf("failed to remove namespace config: %w (restoring namespace config: %w)", err, restoreErr)
-		}
-		return fmt.Errorf("failed to remove namespace config: %w", err)
-	}
-	if err := os.Remove(namespaceDir); err != nil && !os.IsNotExist(err) {
-		// The Store lock prevents another Store operation from changing the
-		// directory, but restore the config if an external filesystem change
-		// made the final directory removal fail.
-		if restoreErr := restore(); restoreErr != nil {
-			return fmt.Errorf("failed to remove namespace directory: %w (restoring namespace config: %w)", err, restoreErr)
-		}
-		return fmt.Errorf("failed to remove namespace directory: %w", err)
-	}
-	return nil
+	return count, err
 }
 
-// DeleteNamespaceAll removes a configured namespace and every file beneath it in one commit.
-func (s *Store) DeleteNamespaceAll(name, message, authorName, authorEmail string) error {
+// DeleteNamespace removes a configured namespace and every file beneath it in one commit.
+func (s *Store) DeleteNamespace(name, message, authorName, authorEmail string) error {
 	if s.readOnly {
 		return ErrReadOnly
 	}

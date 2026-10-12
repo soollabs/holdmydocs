@@ -18,7 +18,7 @@ func TestButtonComponentContract(t *testing.T) {
 	}{
 		{"Save", "primary", []string{"type", "submit", "form", "appearance-form"}, []string{`<button class="ui-button ui-button--primary"`, `type="submit" form="appearance-form"`, `>Save</button>`}},
 		{"Cancel", "secondary", []string{"href", "/_/settings/namespaces", "new-tab", "true"}, []string{`<a class="ui-button ui-button--secondary"`, `href="/_/settings/namespaces"`, `target="_blank" rel="noopener noreferrer"`}},
-		{"Delete", "danger", []string{"type", "submit", "formaction", "/_/api/namespaces/delete-all", "confirm", "Delete everything?", "aria-label", "Delete notes"}, []string{`ui-button--danger`, `formaction="/_/api/namespaces/delete-all"`, `data-confirm="Delete everything?"`, `aria-label="Delete notes"`}},
+		{"Delete", "danger", []string{"type", "submit", "formaction", "/_/api/namespaces/delete", "confirm", "Delete everything?", "aria-label", "Delete notes"}, []string{`ui-button--danger`, `formaction="/_/api/namespaces/delete"`, `data-confirm="Delete everything?"`, `aria-label="Delete notes"`}},
 		{"Approve", "primary", []string{"type", "submit", "name", "decision", "value", "approve", "disabled", "true"}, []string{`name="decision" value="approve" disabled`}},
 		{"Deny", "secondary", []string{"type", "submit", "formnovalidate", "true"}, []string{`formnovalidate>Deny`}},
 		{"Copy", "secondary", []string{"copy", "client-id", "hidden", "true"}, []string{`data-oauth-copy="client-id" hidden`, `type="button"`}},
@@ -66,7 +66,7 @@ func TestConsumerTemplatesUseSharedPrimitivesAcrossScreenFamilies(t *testing.T) 
 		"settings":              {`ui-field-start`, `ui-field-slot-start`, `ui-choice-slot-start`, `ui-notice-start`},
 		"admin":                 {`ui-field-slot-start`, `ui-choice-slot-start`, `ui-notice-start`},
 		"namespace-edit":        {`ui-field-slot-start`, `ui-choice-slot-start`, `ui-panel-start`, `export-link-row-template`},
-		"namespaces":            {`ui-table-start`, `ui-empty-start`},
+		"namespaces":            {`ui-button`, `ui-empty-start`},
 		"oauth-consent":         {`ui-choice-slot-start`, `ui-disclosure-start`, `ui-panel-start`, `ui-notice-start`},
 		"oauth-clients":         {`ui-field-slot-start`, `ui-choice-slot-start`, `ui-disclosure-slot-start`, `ui-panel-start`, `ui-empty-start`},
 		"connections":           {`ui-panel-start`, `ui-empty-start`},
@@ -307,9 +307,15 @@ func TestSettingsScreensUseSharedButtonComponent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, obsolete := range []string{"<button", "ghost-btn", "oauth-primary", "oauth-danger", "danger-btn", `class="primary"`, `<a href="/_/settings`, `style=`} {
+		for _, obsolete := range []string{"<button", "ghost-btn", "oauth-primary", "oauth-danger", "danger-btn", `class="primary"`, `style=`} {
 			if strings.Contains(string(source), obsolete) {
 				t.Errorf("%s bypasses shared buttons with %q", name, obsolete)
+			}
+		}
+		// A settings link standing alone is a button; one inside a note's prose is text.
+		for line := range strings.SplitSeq(string(source), "\n") {
+			if strings.Contains(line, `<a href="/_/settings`) && !strings.Contains(line, `class="settings-note"`) {
+				t.Errorf("%s bypasses shared buttons with a bare settings link: %s", name, strings.TrimSpace(line))
 			}
 		}
 		if !strings.Contains(string(source), `template "ui-button"`) {

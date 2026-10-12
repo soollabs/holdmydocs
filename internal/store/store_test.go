@@ -1254,3 +1254,27 @@ func TestHistoryColdLookupCachesEveryPath(t *testing.T) {
 		t.Fatalf("cold lookup did not cache renamed.md history: %d", length)
 	}
 }
+
+func TestNamespaceFileCountExcludesConfig(t *testing.T) {
+	s, err := storepkg.Open(storepkg.Options{RepoDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Save("blog/.namespace.yaml", []byte("public: true\n"), "configure", "tester", "tester@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.NamespaceFileCount("blog"); err != nil || n != 0 {
+		t.Fatalf("config-only namespace count = %d, %v; want 0", n, err)
+	}
+	for _, path := range []string{"blog/post.md", "blog/assets/photo.png"} {
+		if _, err := s.Save(path, []byte("x"), "add", "tester", "tester@hmd.local"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := s.NamespaceFileCount("blog"); err != nil || n != 2 {
+		t.Fatalf("namespace count = %d, %v; want 2", n, err)
+	}
+	if n, err := s.NamespaceFileCount("missing"); err != nil || n != 0 {
+		t.Fatalf("missing namespace count = %d, %v; want 0", n, err)
+	}
+}

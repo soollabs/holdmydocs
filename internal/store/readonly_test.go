@@ -45,10 +45,9 @@ func TestReadOnlyLocalRepository(t *testing.T) {
 			_, err := reader.SaveAll(map[string][]byte{"notes/page.md": []byte("changed")}, "edit", "tester", "tester@hmd.local")
 			return err
 		},
-		"remove":        func() error { return reader.Remove("notes/page.md", "delete", "tester", "tester@hmd.local") },
-		"namespace":     func() error { return reader.DeleteNamespace("notes", "delete", "tester", "tester@hmd.local") },
-		"namespace all": func() error { return reader.DeleteNamespaceAll("notes", "delete", "tester", "tester@hmd.local") },
-		"remote":        func() error { return reader.UpdateRemote(storepkg.Options{}) },
+		"remove":    func() error { return reader.Remove("notes/page.md", "delete", "tester", "tester@hmd.local") },
+		"namespace": func() error { return reader.DeleteNamespace("notes", "delete", "tester", "tester@hmd.local") },
+		"remote":    func() error { return reader.UpdateRemote(storepkg.Options{}) },
 	}
 	for name, operation := range operations {
 		t.Run(name, func(t *testing.T) {

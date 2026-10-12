@@ -5,15 +5,16 @@
 	<p class="settings-zone-desc">Manage the top-level areas of your wiki. Each namespace can have its own visibility, page defaults and new-page behaviour.</p>
 	{{with .NamespaceManagement}}
 		{{if .Flash}}{{$namespaceFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $namespaceFlash}}{{.Flash}}{{template "ui-notice-end" $namespaceFlash}}{{end}}
-		<div class="settings-actions">{{template "ui-button" (button "New namespace" "primary" "href" "/_/settings/namespaces/new")}}</div>
-		<section class="settings-zone" aria-labelledby="namespace-catalogue">
-			<h2 class="settings-zone-title" id="namespace-catalogue"><span class="h"></span>catalogue</h2>
-			{{if .Rows}}
-			<div class="table-wrap namespace-table">{{$namespaceTable := component "table" "id" "namespace-table"}}{{template "ui-table-start" $namespaceTable}}<thead><tr><th scope="col">Name</th><th scope="col">Pages</th><th scope="col">Visibility</th><th scope="col">Actions</th></tr></thead><tbody>
-			{{range .Rows}}<tr><th scope="row"><a href="/{{.Name}}/">{{.Name}}/</a></th><td>{{.Count}} pages</td><td>{{if .Config.Public}}public{{else}}private{{end}}</td><td><div class="ui-actions">{{template "ui-button" (button "Edit" "secondary" "href" (printf "/_/settings/namespaces/%s/edit" .Name))}}{{if .Config.Public}}{{template "ui-button" (button "Public index" "secondary" "href" (printf "/%s/" .Name))}}{{end}}{{if .Count}}{{template "ui-button" (button "Preview static site" "secondary" "href" (printf "/_/settings/namespaces/%s/preview" .Name) "new-tab" "true")}}{{template "ui-button" (button "Export static site" "secondary" "href" (printf "/_/settings/namespaces/%s/export" .Name))}}{{end}}</div></td></tr>{{end}}
-			</tbody>{{template "ui-table-end" $namespaceTable}}</div>
+		<fieldset class="settings-section settings-panel" id="namespace-list"><legend>namespaces</legend>
+			{{range .Rows}}
+			<div class="settings-row namespace-row">
+				<a class="settings-row-label" href="/{{.Name}}/">{{.Name}}/</a>
+				<span class="token-meta">{{.Count}} pages &middot; {{if .Config.Public}}public{{else}}private{{end}}</span>
+				<div class="ui-actions">{{template "ui-button" (button "Edit" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/edit" .Name))}}{{if .Count}}{{template "ui-button" (button "Preview static site" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/preview" .Name) "new-tab" "true")}}{{template "ui-button" (button "Export static site" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/export" .Name))}}{{end}}</div>
+			</div>
 			{{else}}{{$empty := component "empty" "label" "No namespaces yet"}}{{template "ui-empty-start" $empty}}<p>Create one when you need a separate area for pages.</p>{{template "ui-empty-end" $empty}}{{end}}
-			</section>
+			<div class="settings-actions">{{template "ui-button" (button "New namespace" "primary" "href" "/_/settings/namespaces/new")}}</div>
+		</fieldset>
 	{{end}}
 </div>
 {{end}}

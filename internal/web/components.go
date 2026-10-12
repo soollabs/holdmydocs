@@ -18,7 +18,7 @@ type buttonProps struct {
 
 // optionToken matches behavioural hook values such as data-action names and
 // element IDs. html/template escapes every value; this only keeps them tidy.
-var optionToken = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+var optionToken = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 var boolValues = []string{"true", "false"}
 

@@ -16,7 +16,7 @@
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>fonts &amp; layout</legend>
 			<div class="settings-row">{{$fieldSlot1 := component "field" "id" "font-ui" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot1}}
-				{{$fontUI := component "field" "id" "font_ui" "label" "ui font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}
+				{{$fontUI := component "field" "id" "font_ui" "label" "ui font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}{{template "ui-setting-info" (settinginfo "preferences" "font_ui")}}
 				<select id="font_ui" name="font_ui">
 					<option value="">(default — jetbrains mono)</option>
 					<optgroup label="sans serif">
@@ -31,7 +31,7 @@
 				</select>{{template "ui-field-end" $fontUI}}
 			{{template "ui-field-end" $fieldSlot1}}</div>
 			<div class="settings-row">{{$fieldSlot2 := component "field" "id" "font-mono" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot2}}
-				{{$fontMono := component "field" "id" "font_mono" "label" "code & editor font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}
+				{{$fontMono := component "field" "id" "font_mono" "label" "code & editor font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}{{template "ui-setting-info" (settinginfo "preferences" "font_mono")}}
 				<select id="font_mono" name="font_mono">
 					<option value="">(default — jetbrains mono)</option>
 					<optgroup label="sans serif">
@@ -48,8 +48,7 @@
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
-			<legend>skin</legend>
-			<p class="settings-note">Skins control typography, spacing, markers and statusline segments only. Widget composition and publishing are set per namespace; the "/" landing page is set in the repository's wiki configuration. The same repository works under any skin.</p>
+			<legend>skin{{template "ui-setting-info" (settinginfo "preferences" "skin")}}</legend>
 			<div class="skin-picker">
 				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
@@ -62,8 +61,7 @@
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
-			<legend>palette</legend>
-			<p class="settings-note">Colour only, orthogonal to the skin. Swatches show the current light/dark mode.</p>
+			<legend>palette{{template "ui-setting-info" (settinginfo "preferences" "palette")}}</legend>
 			<div class="palette-picker">
 				{{range .Settings.PaletteNames}}
 				<label class="palette-card{{if eq . $.Settings.Palette}} selected{{end}}" data-palette="{{.}}">
@@ -88,7 +86,7 @@
 		<legend>your git author</legend>
 		<form method="POST" action="/_/api/settings/author" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">{{$fieldSlot3 := component "field" "id" "user-git-author" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot3}}
-				{{$authorField := component "field" "id" "user_git_author" "label" "git author" "layout" "bare"}}{{template "ui-field-start" $authorField}}
+				{{$authorField := component "field" "id" "user_git_author" "label" "git author" "layout" "bare"}}{{template "ui-field-start" $authorField}}{{template "ui-setting-info" (settinginfo "preferences" "git_author")}}
 				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}" placeholder="Name &lt;email@example.com&gt; (blank = use default)">{{template "ui-field-end" $authorField}}
 			{{template "ui-field-end" $fieldSlot3}}</div>
 			<div class="settings-actions">
@@ -127,6 +125,8 @@
 			<div class="settings-row">{{$fieldSlot6 := component "field" "id" "token-label" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot6}}
 				{{$tokenLabel := component "field" "id" "token_label" "label" "new token name" "layout" "bare"}}{{template "ui-field-start" $tokenLabel}}
 				<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">{{template "ui-field-end" $tokenLabel}}
+			{{template "ui-field-end" $fieldSlot6}}</div>
+			<div class="settings-row">{{$expirySlot := component "field" "id" "token-expiry-row" "layout" "bare"}}{{template "ui-field-slot-start" $expirySlot}}
 				{{$expiryField := component "field" "id" "token-expiry" "label" "expiry" "type" "select" "layout" "bare"}}{{template "ui-field-start" $expiryField}}<select id="token-expiry" name="expiry">
 					<option value="1d">1 day</option>
 					<option value="7d">7 days</option>
@@ -134,7 +134,7 @@
 					<option value="1y">1 year</option>
 					<option value="never">never</option>
 				</select>{{template "ui-field-end" $expiryField}}
-			{{template "ui-field-end" $fieldSlot6}}</div>
+			{{template "ui-field-end" $expirySlot}}</div>
 			<div class="settings-row">{{$fieldSlot7 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
 				<label>scopes</label>
 				<span class="scope-checks">

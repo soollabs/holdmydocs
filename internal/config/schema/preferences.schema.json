@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HMD personal preferences",
+  "description": "Per-user preferences stored against the account in users.json. They affect only the signed-in user.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "skin": {
+      "type": "string",
+      "enum": [
+        "phosphor",
+        "newsprint",
+        "journal",
+        "soft",
+        "bare"
+      ],
+      "description": "Typography, spacing, markers and statusline. Widgets and publishing are set per namespace; the same repository works under any skin."
+    },
+    "palette": {
+      "type": "string",
+      "description": "Colours only, independent of the skin. Swatches follow the current light or dark mode, chosen from the top bar."
+    },
+    "font_ui": {
+      "type": "string",
+      "description": "Typeface for interface text and page prose."
+    },
+    "font_mono": {
+      "type": "string",
+      "description": "Typeface for code blocks, the editor and other monospaced text."
+    },
+    "git_author": {
+      "type": "string",
+      "description": "Your commit identity, as Name <email>. Overrides the instance default author for your saves."
+    }
+  }
+}

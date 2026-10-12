@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HMD wiki settings",
+  "description": "Settings in .wiki.yaml at the root of the content repository. They are committed to Git and travel with the repository to every HMD instance that serves it.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "site_name": {
+      "type": "string",
+      "description": "Name shown in the top bar, shell prompt, masthead and breadcrumbs."
+    },
+    "landing": {
+      "type": "string",
+      "description": "Where / opens: a namespace index such as notes/, a page such as notes/inbox, or empty for the first namespace."
+    }
+  }
+}

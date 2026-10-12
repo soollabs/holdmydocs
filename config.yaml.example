@@ -1,86 +1,78 @@
 # hmd install-wide configuration file.
 #
-# hmd creates <HMD_APP_DIR>/config.yaml when you first save /settings.
-# This example is reference-only. Copy or adapt it only after replacing or
-# commenting out unsuitable placeholders, including the remote and token settings.
+# hmd creates <HMD_APP_DIR>/config.yaml when you first save /settings, and
+# writes only the values you change there. This example is reference-only.
+# Copy or adapt it only after replacing or commenting out unsuitable
+# placeholders, including the remote and token settings.
 # Set HMD_CONFIG_FILE to use another path.
 #
-# Scalar keys here also have a HMD_<KEY, upper-cased> env var equivalent, with
-# nested keys folding their section into the name (e.g. repo_dir <->
-# HMD_REPO_DIR, git.remote_url <-> HMD_GIT_REMOTE_URL, oidc.client_id <->
-# HMD_OIDC_CLIENT_ID). Lists remain YAML-only. Environment values override this
-# file, useful for Docker/k8s deployments. Unknown keys are rejected at startup.
+# Each top-level section is one settings page. Every scalar key has an
+# environment variable: HMD_ plus its upper-case dotted path with underscores
+# (server.bind <-> HMD_SERVER_BIND, git.remote_url <-> HMD_GIT_REMOTE_URL,
+# mcp.oauth.enabled <-> HMD_MCP_OAUTH_ENABLED). Lists are YAML-only.
+# Environment values override this file, useful for Docker/k8s deployments.
+# Unknown keys are rejected at startup.
 #
 # All keys are optional; omit anything you want left at its default. Wiki
 # identity and landing settings are stored separately in <repo_dir>/.wiki.yaml.
-#
-# Skin, palette and fonts are per-user preferences, set from /settings —
-# not in this file.
+# Palette and fonts are per-user preferences, set from /settings.
 
-# --- Server ---
-bind: ":8080"
-repo_dir: /data/repo
-# Canonical public origin. Required when MCP or OIDC is enabled; also enables
-# strict browser Origin checks and Secure cookies behind a TLS-terminating proxy.
-# base_url: https://wiki.example.com
-# Only peers in these CIDRs may supply X-Forwarded-Proto.
-# trusted_proxies: ["172.16.0.0/12"]
+server:
+  bind: ":8080"
+  repo_dir: /data/repo
+  # Canonical public origin. Required when MCP or OIDC is enabled; also enables
+  # strict browser Origin checks and Secure cookies behind a TLS-terminating proxy.
+  # base_url: https://wiki.example.com
+  # Only peers in these CIDRs may supply X-Forwarded-Proto.
+  # trusted_proxies: ["172.16.0.0/12"]
+  # read_only: false
+  # debug: false
+  max_upload_bytes: 10485760   # 10 MiB
+  # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
+  # Users can override it from /settings.
+  # skin: phosphor
 
-# --- Git remote ---
 git:
-  # HTTPS only (git@ SSH remotes are not yet supported).
+  # HTTPS only (git@ SSH remotes are not supported).
   remote_url: https://git.example.com/you/wiki.git
   user: you
-
-  # Prefer token_file over token — it keeps the PAT out of this file and
-  # out of `docker inspect`/process listings. Pick one, not both.
+  # The token is never stored here: point token_file at a private file, or
+  # set HMD_GIT_TOKEN in the environment. Pick one, not both.
   token_file: /run/secrets/git_token
-  # token: pat_xyz
-
   # Global commit author in "Name <email>" form. Commits use the per-user
   # author, then this global author, then the logged-in username if neither is
   # set.
   # author: hmd <hmd@example.com>
+  # branch: main   # branch name used when initialising a fresh local repo
+  # sync_mode: push (default, local → remote only) or bidirectional
+  # (fetch + fast-forward pull on every sync poll and before each save,
+  # so changes pushed by other writers appear in the UI automatically)
+  # sync_mode: bidirectional
+  sync_poll_ms: 10000
 
 # --- Bootstrap admin user ---
 # Set via HMD_ADMIN_USER / HMD_ADMIN_PASSWORD env vars only (first run).
-# Manage users afterwards at `/_/admin`.
+# Manage users afterwards at /_/settings/users.
 
-# --- Behaviour ---
-max_upload_bytes: 10485760   # 10 MiB
-sync_poll_ms: 10000
-# sync_mode: push (default, local → remote only) or bidirectional
-# (fetch + fast-forward pull on every sync poll and before each save,
-# so changes pushed by other writers appear in the UI automatically)
-# sync_mode: bidirectional
-# default_branch: main   # branch name used when initialising a fresh local repo
-# Install-wide default skin: phosphor | newsprint | journal | bare.
-# A skin controls presentation, not widget composition or storage. Users can
-# override it from /settings.
-# skin: phosphor
+# mcp:
+#   # Expose the wiki to AI agents over MCP (streamable HTTP at /_/mcp).
+#   # Requires server.base_url and a personal access token. Restart required.
+#   enabled: true
+#   oauth:
+#     # Requires MCP and an HTTPS server.base_url. Restart after changes.
+#     # Manage MCP clients at /_/settings/oauth-clients.
+#     enabled: true
+#     dynamic_registration: false  # opt-in public RFC 7591 registration
+#     allow_admin_delegation: false
 
-# --- Document extraction and semantic search ---
-# HMD_TIKA_URL is environment-only. When set, startup verifies the Apache Tika
-# Server and enables attachment extraction/search; when absent, attachments are
-# still stored but are not extracted or indexed.
-# HMD_TIKA_URL: http://tika:9998
-# document_search:
-#   # Defaults to BAAI/bge-small-en-v1.5. Override with
-#   # HMD_DOCUMENT_SEARCH_MODEL; models need Hugot-compatible ONNX files and
-#   # 384-dimensional output.
-#   model: BAAI/bge-small-en-v1.5
-#   # Defaults to <HMD_APP_DIR>/models. HMD downloads the
-#   # pinned, checksum-verified BGE Small ONNX model there on first use.
-#   index_dir: ""                 # defaults to <HMD_APP_DIR>/search.bleve
-
-# --- OIDC single sign-on ---
-# Optional. Setting oidc.issuer enables SSO and requires a restart. Register
-# hmd as a confidential client with your provider and use
-# <base_url>/_/auth/oidc/callback as the redirect URI.
 # oidc:
+#   # Optional. Setting oidc.issuer enables SSO and requires a restart. Register
+#   # hmd as a confidential client with your provider and use
+#   # <server.base_url>/_/auth/oidc/callback as the redirect URI.
 #   issuer: https://auth.example.com
 #   client_id: hmd
-#   # Prefer HMD_OIDC_CLIENT_SECRET_FILE over putting the secret in this file.
+#   # The secret is never stored here: use client_secret_file or set
+#   # HMD_OIDC_CLIENT_SECRET in the environment.
 #   client_secret_file: /run/secrets/oidc_client_secret
 #   # Choose HMD admission or explicitly delegate it to the identity provider.
 #   # Identities use the immutable issuer/subject pair; display names and email
@@ -100,23 +92,21 @@ sync_poll_ms: 10000
 #   icon: authelia
 #   # icon: /etc/hmd/sso-icon.svg
 
+# document_search:
+#   # A private Apache Tika Server. When set, startup verifies it and enables
+#   # attachment extraction/search; when empty, attachments are still stored
+#   # but are not extracted or indexed.
+#   tika_url: http://tika:9998
+#   # Defaults to BAAI/bge-small-en-v1.5; models need Hugot-compatible ONNX
+#   # files and 384-dimensional output.
+#   model: BAAI/bge-small-en-v1.5
+#   # Defaults to <HMD_APP_DIR>/models. HMD downloads the pinned,
+#   # checksum-verified BGE Small ONNX model there on first use.
+#   index_dir: ""                 # defaults to <HMD_APP_DIR>/search.bleve
+
 # --- Publishing ---
 # Publishing is a namespace property, not a config-file setting: set
 # `public: true` in a namespace's .namespace.yaml (e.g. blog/.namespace.yaml)
 # to serve every page in that namespace read-only and unauthenticated at its
-# normal URL. See .namespace.yaml docs. Note: markdown bodies may contain raw
-# HTML, so publishing a page publishes its raw HTML too.
-
-# --- MCP server ---
-# Expose the wiki to AI agents over MCP (streamable HTTP at /_/mcp).
-# Requires a personal access token from /settings. Restart required.
-# mcp:
-#   enabled: true
-
-# --- MCP OAuth ---
-# Requires MCP and a canonical HTTPS base_url. Restart after configuration
-# changes. Manage MCP clients at /_/admin/oauth.
-# oauth:
-#   enabled: true
-#   dynamic_registration: false  # opt-in public RFC 7591 registration
-#   allow_admin_delegation: false
+# normal URL. Note: markdown bodies may contain raw HTML, so publishing a page
+# publishes its raw HTML too.

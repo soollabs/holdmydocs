@@ -194,17 +194,9 @@ func (h *Handlers) resetNamespace(ctx context.Context, in namespaceNameInput) (o
 	return okResult{OK: true}, nil
 }
 
-// deleteNamespace removes a configured namespace's configuration only.
+// deleteNamespace removes a configured namespace and every file beneath it.
 func (h *Handlers) deleteNamespace(ctx context.Context, in namespaceNameInput) (okResult, error) {
 	if err := h.api.DeleteNamespace(ctx, strings.TrimSpace(in.Name)); err != nil {
-		return okResult{}, err
-	}
-	return okResult{OK: true}, nil
-}
-
-// deleteNamespaceAll removes a configured namespace and every file beneath it.
-func (h *Handlers) deleteNamespaceAll(ctx context.Context, in namespaceNameInput) (okResult, error) {
-	if err := h.api.DeleteNamespaceAll(ctx, strings.TrimSpace(in.Name)); err != nil {
 		return okResult{}, err
 	}
 	return okResult{OK: true}, nil
@@ -215,5 +207,4 @@ func (h *Handlers) registerNamespaces(mux *http.ServeMux) {
 	mux.HandleFunc("POST /_/api/namespaces", h.saveNamespace)
 	h.registerJSON(mux, "POST /_/api/namespaces/reset", h.resetNamespace)
 	h.registerJSON(mux, "POST /_/api/namespaces/delete", h.deleteNamespace)
-	h.registerJSON(mux, "POST /_/api/namespaces/delete-all", h.deleteNamespaceAll)
 }

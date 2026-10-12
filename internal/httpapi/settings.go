@@ -13,89 +13,15 @@ type okResult struct {
 	OK bool `json:"ok"`
 }
 
-// serverSettingsInput is the JSON body of the install-wide configuration form.
-// It mirrors the settings screen's field names so the browser posts the typed
-// values directly; secrets are accepted only to persist them and are never
-// echoed back.
+// serverSettingsInput is the JSON body of the install-wide configuration form:
+// values keyed by config.yaml setting key; null resets a key to its default.
 type serverSettingsInput struct {
-	Bind           string   `json:"bind"`
-	RepoDir        string   `json:"repo_dir"`
-	MaxUploadBytes int64    `json:"max_upload_bytes"`
-	SyncPollMs     int      `json:"sync_poll_ms"`
-	SyncMode       string   `json:"sync_mode"`
-	DefaultBranch  string   `json:"default_branch"`
-	Skin           string   `json:"skin"`
-	Debug          bool     `json:"debug"`
-	BaseURL        string   `json:"base_url"`
-	TrustedProxies []string `json:"trusted_proxies"`
-
-	RemoteURL     string `json:"remote_url"`
-	GitUser       string `json:"git_user"`
-	GitAuthor     string `json:"git_author"`
-	GitToken      string `json:"git_token"`
-	StoreGitToken bool   `json:"store_git_token"`
-	GitTokenFile  string `json:"git_token_file"`
-
-	MCPEnabled bool `json:"mcp_enabled"`
-
-	DocumentModel    string `json:"document_model"`
-	DocumentModelDir string `json:"document_model_dir"`
-	DocumentIndexDir string `json:"document_index_dir"`
-
-	OIDCIssuer                string   `json:"oidc_issuer"`
-	OIDCClientID              string   `json:"oidc_client_id"`
-	OIDCClientSecret          string   `json:"oidc_client_secret"`
-	OIDCClientSecretFile      string   `json:"oidc_client_secret_file"`
-	OIDCLocalLogin            bool     `json:"oidc_local_login"`
-	OIDCButtonText            string   `json:"oidc_button_text"`
-	OIDCIcon                  string   `json:"oidc_icon"`
-	OIDCDefaultScopes         []string `json:"oidc_default_scopes"`
-	OIDCAllowedSubjects       []string `json:"oidc_allowed_subjects"`
-	OIDCAllowedEmailDomains   []string `json:"oidc_allowed_email_domains"`
-	OIDCAllowAnyAuthenticated bool     `json:"oidc_allow_any_authenticated"`
-	OIDCAllowInsecureLoopback bool     `json:"oidc_allow_insecure_loopback"`
+	Settings map[string]any `json:"settings"`
 }
 
 // saveServerSettings persists the install-wide configuration.
 func (h *Handlers) saveServerSettings(ctx context.Context, in serverSettingsInput) (okResult, error) {
-	if err := h.api.SaveServerSettings(ctx, api.ServerSettingsInput{
-		Bind:           in.Bind,
-		RepoDir:        in.RepoDir,
-		MaxUploadBytes: in.MaxUploadBytes,
-		SyncPollMs:     in.SyncPollMs,
-		SyncMode:       in.SyncMode,
-		DefaultBranch:  in.DefaultBranch,
-		Skin:           in.Skin,
-		Debug:          in.Debug,
-		BaseURL:        in.BaseURL,
-		TrustedProxies: in.TrustedProxies,
-
-		RemoteURL:     in.RemoteURL,
-		GitUser:       in.GitUser,
-		GitAuthor:     in.GitAuthor,
-		GitToken:      in.GitToken,
-		StoreGitToken: in.StoreGitToken,
-		GitTokenFile:  in.GitTokenFile,
-
-		MCPEnabled: in.MCPEnabled,
-
-		DocumentModel:    in.DocumentModel,
-		DocumentModelDir: in.DocumentModelDir,
-		DocumentIndexDir: in.DocumentIndexDir,
-
-		OIDCIssuer:                in.OIDCIssuer,
-		OIDCClientID:              in.OIDCClientID,
-		OIDCClientSecret:          in.OIDCClientSecret,
-		OIDCClientSecretFile:      in.OIDCClientSecretFile,
-		OIDCLocalLogin:            in.OIDCLocalLogin,
-		OIDCButtonText:            in.OIDCButtonText,
-		OIDCIcon:                  in.OIDCIcon,
-		OIDCDefaultScopes:         in.OIDCDefaultScopes,
-		OIDCAllowedSubjects:       in.OIDCAllowedSubjects,
-		OIDCAllowedEmailDomains:   in.OIDCAllowedEmailDomains,
-		OIDCAllowAnyAuthenticated: in.OIDCAllowAnyAuthenticated,
-		OIDCAllowInsecureLoopback: in.OIDCAllowInsecureLoopback,
-	}); err != nil {
+	if err := h.api.SaveServerSettings(ctx, api.ServerSettingsInput{Values: in.Settings}); err != nil {
 		return okResult{}, err
 	}
 	return okResult{OK: true}, nil

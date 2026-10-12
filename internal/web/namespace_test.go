@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"hmd/internal/api"
-	"hmd/internal/config"
 	"hmd/internal/presentation"
 	"hmd/internal/wiki"
 )
@@ -379,8 +378,8 @@ func TestNamespaceManagement(t *testing.T) {
 	if !strings.Contains(body, "blog") || !strings.Contains(body, "0 pages") {
 		t.Errorf("namespace directory missing blog catalogue row: %s", body)
 	}
-	if !strings.Contains(body, `class="ui-table-wrap"`) || !strings.Contains(body, `id="namespace-table"`) || !strings.Contains(body, `<table class="ui-table settings-table">`) || !strings.Contains(body, `<th scope="col">Name</th>`) || !strings.Contains(body, `<th scope="row"><a href="/blog/">blog/</a></th>`) {
-		t.Errorf("namespace directory table is missing shared responsive/semantic structure: %s", body)
+	if !strings.Contains(body, `<div class="settings-row namespace-row">`) || !strings.Contains(body, `<a class="settings-row-label" href="/blog/">blog/</a>`) || !strings.Contains(body, `href="/_/settings/namespaces/blog/edit"`) {
+		t.Errorf("namespace list is missing its settings rows: %s", body)
 	}
 
 	resp, err = testhttp.Get(t, client, server.URL+"/_/settings/namespaces/blog/edit")
@@ -395,7 +394,7 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Errorf("closing response body: %v", err)
 	}
 	body = string(content)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/delete-all`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `ON THIS PAGE`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/_/api/namespaces/delete`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `ON THIS PAGE`) {
 		t.Errorf("namespace editor = %d, body missing focused form: %s", resp.StatusCode, body)
 	}
 
@@ -423,145 +422,6 @@ func postNamespaceDelete(t *testing.T, server *httptest.Server, client *http.Cli
 		t.Fatalf("deleting %q: %v", name, err)
 	}
 	return resp
-}
-
-func postNamespaceDeleteAll(t *testing.T, server *httptest.Server, client *http.Client, name string) *http.Response {
-	t.Helper()
-	resp, err := postJSON(t, client, server.URL+"/_/api/namespaces/delete-all", namespaceActionJSON(url.Values{"name": {name}}))
-	if err != nil {
-		t.Fatalf("deleting all of %q: %v", name, err)
-	}
-	return resp
-}
-
-func TestNamespaceManagementRejectsIndexedPageWithoutMutation(t *testing.T) {
-	app, server, client := newTestAppFull(t)
-	defer server.Close()
-	adminLogin(t, server, client)
-
-	config := saveConfiguredEmptyNamespace(t, app, "blog")
-	page := wiki.Page{Slug: "blog/post", Title: "Post", Body: "content"}
-	if _, err := app.Store.Save(wiki.PageFile(page.Slug), page.Encode(), "Add blog/post", "test", "test@hmd.local"); err != nil {
-		t.Fatalf("saving indexed page: %v", err)
-	}
-	if err := app.Index.Update(page); err != nil {
-		t.Fatalf("indexing page: %v", err)
-	}
-
-	resp := postNamespaceDelete(t, server, client, "blog")
-	body, _ := io.ReadAll(resp.Body)
-	if err := resp.Body.Close(); err != nil {
-		t.Errorf("closing response body: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("deleting namespace with indexed page = %d, want 400", resp.StatusCode)
-	}
-	if !strings.Contains(string(body), "\"error\"") {
-		t.Errorf("rejection should report a JSON error: %s", body)
-	}
-
-	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
-	if err != nil || string(got) != string(config) {
-		t.Fatalf("config after rejected indexed-page deletion = %q, %v; want %q", got, err, config)
-	}
-	if _, _, err := app.Store.Read(wiki.PageFile(page.Slug)); err != nil {
-		t.Fatalf("indexed page after rejected deletion: %v", err)
-	}
-}
-
-func TestNamespaceManagementRejectsHiddenFileWithoutMutation(t *testing.T) {
-	app, server, client := newTestAppFull(t)
-	defer server.Close()
-	adminLogin(t, server, client)
-
-	config := saveConfiguredEmptyNamespace(t, app, "blog")
-	hidden := wiki.Page{Slug: "blog/template", Title: "Template", Body: "hidden"}
-	if _, err := app.Store.Save(wiki.HiddenFile(hidden.Slug), hidden.Encode(), "Add hidden template", "test", "test@hmd.local"); err != nil {
-		t.Fatalf("saving hidden template: %v", err)
-	}
-
-	resp := postNamespaceDelete(t, server, client, "blog")
-	body, _ := io.ReadAll(resp.Body)
-	if err := resp.Body.Close(); err != nil {
-		t.Errorf("closing response body: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("deleting namespace with hidden file = %d, want 400", resp.StatusCode)
-	}
-	if !strings.Contains(string(body), "\"error\"") {
-		t.Errorf("rejection should report a JSON error: %s", body)
-	}
-
-	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
-	if err != nil || string(got) != string(config) {
-		t.Fatalf("config after rejected hidden-file deletion = %q, %v; want %q", got, err, config)
-	}
-	if _, _, err := app.Store.Read(wiki.HiddenFile(hidden.Slug)); err != nil {
-		t.Fatalf("hidden file after rejected deletion: %v", err)
-	}
-}
-
-func TestNamespaceManagementRejectsOtherDirectoryContentWithoutMutation(t *testing.T) {
-	app, server, client := newTestAppFull(t)
-	defer server.Close()
-	adminLogin(t, server, client)
-
-	config := saveConfiguredEmptyNamespace(t, app, "blog")
-	extra := filepath.Join(app.config().RepoDir, "blog", "metadata.json")
-	if err := os.WriteFile(extra, []byte("keep me"), 0644); err != nil {
-		t.Fatalf("saving ordinary namespace content: %v", err)
-	}
-
-	resp := postNamespaceDelete(t, server, client, "blog")
-	body, _ := io.ReadAll(resp.Body)
-	if err := resp.Body.Close(); err != nil {
-		t.Errorf("closing response body: %v", err)
-	}
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("deleting namespace with ordinary content = %d, want 400", resp.StatusCode)
-	}
-	if !strings.Contains(string(body), "\"error\"") {
-		t.Errorf("rejection should report a JSON error: %s", body)
-	}
-
-	got, _, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
-	if err != nil || string(got) != string(config) {
-		t.Fatalf("config after rejected ordinary-content deletion = %q, %v; want %q", got, err, config)
-	}
-	if content, err := os.ReadFile(extra); err != nil || string(content) != "keep me" {
-		t.Fatalf("ordinary content after rejected deletion = %q, %v", content, err)
-	}
-}
-
-func TestStoreDeleteNamespaceRejectsContentWithoutMutation(t *testing.T) {
-	tmpDir := t.TempDir()
-	store, err := OpenStore(config.Config{
-		RepoDir: tmpDir,
-		AppDir:  t.TempDir(),
-		Git:     config.GitConfig{User: "test"},
-	})
-	if err != nil {
-		t.Fatalf("OpenStore: %v", err)
-	}
-
-	config := []byte("public: true\n")
-	page := []byte("keep me\n")
-	if _, err := store.Save(wiki.NamespaceConfigPath("blog"), config, "configure blog", "test", "test@hmd.local"); err != nil {
-		t.Fatalf("saving namespace config: %v", err)
-	}
-	if _, err := store.Save(wiki.PageFile("blog/post"), page, "add blog/post", "test", "test@hmd.local"); err != nil {
-		t.Fatalf("saving namespace page: %v", err)
-	}
-
-	if err := store.DeleteNamespace("blog", "delete blog", "test", "test@hmd.local"); err == nil {
-		t.Fatal("deleting namespace with a page should be rejected")
-	}
-	if got, _, err := store.Read(wiki.NamespaceConfigPath("blog")); err != nil || string(got) != string(config) {
-		t.Fatalf("config after rejected deletion = %q, %v; want %q", got, err, config)
-	}
-	if got, _, err := store.Read(wiki.PageFile("blog/post")); err != nil || string(got) != string(page) {
-		t.Fatalf("page after rejected deletion = %q, %v; want %q", got, err, page)
-	}
 }
 
 func TestNamespaceManagementDeletesGenuinelyEmptyConfiguredNamespace(t *testing.T) {
@@ -611,7 +471,7 @@ func TestNamespaceManagementDeletesAllFiles(t *testing.T) {
 		t.Fatalf("saving untracked namespace file: %v", err)
 	}
 
-	resp := postNamespaceDeleteAll(t, server, client, "blog")
+	resp := postNamespaceDelete(t, server, client, "blog")
 	if err := resp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
 	}
@@ -694,7 +554,7 @@ func TestSaveNamespaceRejectsBadInput(t *testing.T) {
 }
 
 // TestDeleteNamespaceKeepsPages tests that resetting configuration preserves pages.
-func TestDeleteNamespaceKeepsPages(t *testing.T) {
+func TestResetNamespaceKeepsPages(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 
@@ -743,38 +603,6 @@ func TestDeleteNamespaceKeepsPages(t *testing.T) {
 	}
 	if err := resp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
-	}
-
-	for _, ns := range []string{"blog", "empty"} {
-		resp, err := postJSON(t, client, server.URL+"/_/api/namespaces/delete", namespaceActionJSON(url.Values{"name": {ns}}))
-		if err != nil {
-			t.Fatalf("deleting %s: %v", ns, err)
-		}
-		body, _ := io.ReadAll(resp.Body)
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("closing response body: %v", err)
-		}
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("deleting non-empty %s = %d, want 400", ns, resp.StatusCode)
-		}
-		if !strings.Contains(string(body), "\"error\"") {
-			t.Errorf("deleting non-empty %s should report a JSON error: %s", ns, body)
-		}
-	}
-
-	cfg, ok := app.Namespaces()["blog"]
-	if !ok {
-		t.Fatal("blog should still be a namespace: it still contains a page")
-	}
-	if !cfg.Configured {
-		t.Errorf("rejected deletion must leave blog config intact, got %+v", cfg)
-	}
-	if _, _, err := app.Store.Read(wiki.PageFile("blog/hello")); err != nil {
-		t.Errorf("removing a namespace config must not touch its pages: %v", err)
-	}
-
-	if _, ok := app.Namespaces()["empty"]; !ok {
-		t.Error("hidden namespace files must block deletion")
 	}
 }
 
