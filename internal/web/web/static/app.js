@@ -1614,12 +1614,9 @@
   }
 
   // Settings screen: appearance, git author, tokens.
+  // Each section has its own path, so return to it with the notice.
   function settingsReturn(notice) {
-    const query = new URLSearchParams(window.location.search);
-    const section = query.get('section');
-    const next = new URLSearchParams(notice || '');
-    if (section) next.set('section', section);
-    window.location.href = '/_/settings' + (next.size ? '?' + next.toString() : '');
+    window.location.href = window.location.pathname + (notice ? '?' + notice : '');
   }
   jsonForm($('#appearance-form'), form => ({
     palette: fieldValue(form, 'palette'),
