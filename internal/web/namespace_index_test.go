@@ -54,7 +54,7 @@ func TestNamespaceIndex(t *testing.T) {
 	mustStatus(client, "/blog/", http.StatusOK)
 	mustStatus(client, "/blog", http.StatusOK)
 	_, page := body(client, "/blog/")
-	for _, want := range []string{"/blog/first", "/blog/second", "2 pages", `href="/_/namespaces/blog/edit"`} {
+	for _, want := range []string{"/blog/first", "/blog/second", "2 pages", `href="/_/settings/namespaces/blog/edit"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("namespace index missing %q, body: %s", want, page)
 		}

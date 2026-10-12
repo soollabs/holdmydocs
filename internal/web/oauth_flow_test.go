@@ -109,7 +109,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	consent, _ := io.ReadAll(response.Body)
 	if !strings.Contains(string(consent), `value="approve" disabled`) ||
 		!strings.Contains(string(consent), `id="oauth-consent-validation"`) ||
-		!strings.Contains(string(consent), `value="deny" class="ghost-btn" formnovalidate>Deny`) {
+		!strings.Contains(string(consent), `value="deny" formnovalidate>Deny`) {
 		t.Fatalf("consent form must gate approval without blocking denial: %s", consent)
 	}
 	if !strings.Contains(string(consent), "Browser-flow test") ||
@@ -147,7 +147,7 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 		callback.Query().Get("code") == "" {
 		t.Fatalf("consent approval callback = %d %q", response.StatusCode, callback)
 	}
-	response, err = testhttp.Get(t, browser, server.URL+"/_/connections")
+	response, err = testhttp.Get(t, browser, server.URL+"/_/settings/connections")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +160,12 @@ func TestOAuthAuthorizationResumesPasswordLoginAndRendersConsent(t *testing.T) {
 	if err != nil || len(connections) != 1 {
 		t.Fatalf("listed connections = %#v, %v", connections, err)
 	}
-	response, err = testhttp.PostForm(t, browser, server.URL+"/_/connections/"+connections[0].GrantID+"/revoke", url.Values{})
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/settings/connections/"+connections[0].GrantID+"/revoke", url.Values{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = response.Body.Close()
-	if response.StatusCode != http.StatusSeeOther || response.Header.Get("Location") != "/_/connections" {
+	if response.StatusCode != http.StatusSeeOther || response.Header.Get("Location") != "/_/settings/connections" {
 		t.Fatalf("disconnect response = %d %q", response.StatusCode, response.Header.Get("Location"))
 	}
 	connections, err = app.OAuth.Connections("admin")

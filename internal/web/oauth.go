@@ -190,5 +190,5 @@ func (app *App) handleConnectionRevoke(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	http.Redirect(w, r, "/_/connections", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings/connections", http.StatusSeeOther)
 }

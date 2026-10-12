@@ -58,7 +58,7 @@ func TestOAuthCredentialResponsesAreNotCompressed(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = io.WriteString(w, "synthetic credentials and client-controlled text")
 	}))
-	for _, path := range []string{"/_/oauth/token", "/_/oauth/authorize", "/_/oauth/register", "/_/admin/oauth"} {
+	for _, path := range []string{"/_/oauth/token", "/_/oauth/authorize", "/_/oauth/register", "/_/settings/oauth-clients", "/_/settings/oauth-clients"} {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, nil)
 		req.Header.Set("Accept-Encoding", "gzip")
 		rec := httptest.NewRecorder()

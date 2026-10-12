@@ -109,7 +109,8 @@ func Compression(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Accept-Encoding")
 		if r.Method == http.MethodHead || r.Header.Get("Range") != "" || r.URL.Path == "/_/mcp" ||
-			strings.HasPrefix(r.URL.Path, "/_/oauth/") || r.URL.Path == "/_/admin/oauth" ||
+			strings.HasPrefix(r.URL.Path, "/_/oauth/") ||
+			r.URL.Path == "/_/settings/oauth-clients" || strings.HasPrefix(r.URL.Path, "/_/settings/oauth-clients/") ||
 			!acceptsGzip(r.Header.Get("Accept-Encoding")) {
 			next.ServeHTTP(w, r)
 			return

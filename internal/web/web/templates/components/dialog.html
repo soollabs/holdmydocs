@@ -1,0 +1,4 @@
+{{define "ui-dialog-slot-start"}}<dialog class="ui-dialog"{{if .ID}} id="{{.ID}}"{{end}} aria-labelledby="{{.ID}}-title">{{end}}
+{{define "ui-dialog-slot-end"}}</dialog>{{end}}
+{{define "ui-dialog-start"}}{{template "ui-dialog-slot-start" .}}<div class="ui-dialog__surface"><h2 id="{{.ID}}-title">{{.Label}}</h2>{{end}}
+{{define "ui-dialog-end"}}</div>{{template "ui-dialog-slot-end" .}}{{end}}

@@ -15,7 +15,7 @@ func (app *App) landingPath() string {
 	if names := app.Namespaces().Names(); len(names) > 0 {
 		return "/" + names[0] + "/"
 	}
-	return "/_/namespaces"
+	return "/_/settings/namespaces"
 }
 
 func (app *App) handleRoot(w http.ResponseWriter, r *http.Request) {
@@ -60,25 +60,26 @@ func (app *App) Routes() http.Handler {
 	if app.OAuth != nil {
 		mux.HandleFunc("GET /_/oauth/authorize", app.handleOAuthAuthorizeGet)
 		mux.HandleFunc("POST /_/oauth/authorize", app.handleOAuthAuthorizePost)
-		mux.HandleFunc("GET /_/connections", app.handleConnectionsGet)
-		mux.HandleFunc("POST /_/connections/{id}/revoke", app.handleConnectionRevoke)
-		mux.HandleFunc("GET /_/admin/oauth", app.handleOAuthClientsGet)
-		mux.HandleFunc("POST /_/admin/oauth", app.handleOAuthClientCreate)
-		mux.HandleFunc("POST /_/admin/oauth/{id}/disable", app.handleOAuthClientDisable)
-		mux.HandleFunc("POST /_/admin/oauth/{id}/delete", app.handleOAuthClientDelete)
-		mux.HandleFunc("POST /_/admin/oauth/delete-disabled", app.handleOAuthClientsDeleteDisabled)
 	}
 
 	mux.HandleFunc("GET /_/tags", app.handleTagsIndex)
 	mux.HandleFunc("GET /_/tags/{tag}", app.handleTagPages)
 
-	mux.HandleFunc("GET /_/settings", app.handleSettingsGet)
-	mux.HandleFunc("GET /_/admin", app.handleAdminGet)
-	mux.HandleFunc("GET /_/namespaces", app.handleNamespacesGet)
-	mux.HandleFunc("GET /_/namespaces/new", app.handleNamespaceNewGet)
-	mux.HandleFunc("GET /_/namespaces/{name}/edit", app.handleNamespaceEditGet)
+	mux.HandleFunc("GET /_/settings", app.handleAccountSettingsGet)
+	mux.HandleFunc("GET /_/settings/{panel}", app.handleSettingsPanelGet)
+	mux.HandleFunc("GET /_/settings/namespaces", app.handleNamespacesGet)
+	mux.HandleFunc("GET /_/settings/namespaces/new", app.handleNamespaceNewGet)
+	mux.HandleFunc("GET /_/settings/namespaces/{name}/edit", app.handleNamespaceEditGet)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/export", app.handleExportNamespace)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/preview", app.handlePreviewExportNamespace)
+	// OAuth settings handlers return 404 themselves while OAuth is disabled.
+	mux.HandleFunc("GET /_/settings/connections", app.handleConnectionsGet)
+	mux.HandleFunc("POST /_/settings/connections/{id}/revoke", app.handleConnectionRevoke)
+	mux.HandleFunc("GET /_/settings/oauth-clients", app.handleOAuthClientsGet)
+	mux.HandleFunc("POST /_/settings/oauth-clients", app.handleOAuthClientCreate)
+	mux.HandleFunc("POST /_/settings/oauth-clients/{id}/disable", app.handleOAuthClientDisable)
+	mux.HandleFunc("POST /_/settings/oauth-clients/{id}/delete", app.handleOAuthClientDelete)
+	mux.HandleFunc("POST /_/settings/oauth-clients/delete-disabled", app.handleOAuthClientsDeleteDisabled)
 	mux.HandleFunc("GET /_/export-preview/{id}/{path...}", app.handleExportPreviewFile)
 
 	mux.HandleFunc("GET /_/search", app.handleSearch)

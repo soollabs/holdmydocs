@@ -101,8 +101,11 @@ func TestStatuslineSegmentsPerSkin(t *testing.T) {
 		}()
 	}
 	editBody, _ := io.ReadAll(editResp.Body)
-	if !strings.Contains(string(editBody), `form="edit-form" class="topbar-action topbar-primary">Save</button>`) {
-		t.Error("edit mode should replace Edit with Save in the top bar")
+	if !strings.Contains(string(editBody), `class="ui-button ui-button--primary topbar-action topbar-primary"`) || !strings.Contains(string(editBody), `type="submit" form="edit-form">Save</button>`) {
+		t.Error("edit mode should render the toolbar Save action associated with edit-form")
+	}
+	if strings.Contains(string(editBody), `href="/`+testHome+`?do=edit`) {
+		t.Error("edit mode should not render the view-mode Edit action")
 	}
 	if strings.Contains(string(editBody), `id="save-btn"`) {
 		t.Error("editor still renders a duplicate Save button")

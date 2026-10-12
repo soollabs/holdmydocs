@@ -1,13 +1,15 @@
 {{define "widget-namespaces"}}
 {{if .NamespaceNav}}
 <div class="sidebar-section sidebar-namespaces">
+	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
 	<h2>NAMESPACES</h2>
 	<ul class="sidebar-list">
 		{{range .NamespaceNav}}
 		<li><a href="/{{.Name}}/"{{if .Active}} class="active"{{end}}>{{.Name}}/<span class="count"> {{.Count}}</span></a></li>
 		{{end}}
 	</ul>
-	{{if .CanSettings}}<a href="/_/namespaces">View all</a>{{end}}
+	{{if .CanSettings}}<a href="/_/settings/namespaces">View all</a>{{end}}
+	{{template "ui-panel-end" $widgetPanel}}
 </div>
 {{end}}
 {{end}}

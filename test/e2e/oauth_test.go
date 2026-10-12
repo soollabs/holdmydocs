@@ -166,15 +166,15 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 	}
 	assertMCPTools(t, base, rotated.AccessToken)
 
-	connections := getE2E(t, browser, base+"/_/connections")
+	connections := getE2E(t, browser, base+"/_/settings/connections")
 	connectionPage := readE2EBody(t, connections)
 	if connections.StatusCode != http.StatusOK || !strings.Contains(connectionPage, "E2E MCP client") {
 		t.Fatalf("connections page = %d: %s", connections.StatusCode, connectionPage)
 	}
-	grantID := captureE2E(t, `/_/connections/([^/" ]+)/revoke`, connectionPage)
+	grantID := captureE2E(t, `/_/settings/connections/([^/"]+)/revoke`, connectionPage)
 	csrf := captureE2E(t, `name="csrf_token" value="([^"]+)"`, connectionPage)
-	disconnected := postOAuthForm(t, browser, base+"/_/connections/"+grantID+"/revoke", url.Values{}, csrf)
-	if disconnected.StatusCode != http.StatusSeeOther || disconnected.Header.Get("Location") != "/_/connections" {
+	disconnected := postOAuthForm(t, browser, base+"/_/settings/connections/"+grantID+"/revoke", url.Values{}, csrf)
+	if disconnected.StatusCode != http.StatusSeeOther || disconnected.Header.Get("Location") != "/_/settings/connections" {
 		t.Fatalf("disconnect = %d %q", disconnected.StatusCode, disconnected.Header.Get("Location"))
 	}
 	_ = disconnected.Body.Close()

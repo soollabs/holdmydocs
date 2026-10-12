@@ -1,9 +1,11 @@
 {{define "content"}}
 <div class="content-col">
 <div class="create-page">
+	{{$errorPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $errorPanel}}
 	<h1>{{.Title}}</h1>
 	<p>{{.StatusContext}}</p>
-	<a href="/" class="create-button">Back to {{.SiteName}}</a>
+	{{template "ui-button" (button (printf "Back to %s" .SiteName) "secondary" "href" "/")}}
+	{{template "ui-panel-end" $errorPanel}}
 </div>
 </div>
 {{end}}

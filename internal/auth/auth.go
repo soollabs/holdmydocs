@@ -1048,8 +1048,6 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 func requiredScope(r *http.Request) scope {
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
 		strings.HasPrefix(r.URL.Path, "/_/export-preview/") ||
-		r.URL.Path == "/_/admin" || strings.HasPrefix(r.URL.Path, "/_/admin/") ||
-		r.URL.Path == "/_/namespaces" || strings.HasPrefix(r.URL.Path, "/_/namespaces/") ||
 		r.URL.Path == "/_/api/settings" || strings.HasPrefix(r.URL.Path, "/_/api/settings/") ||
 		r.URL.Path == "/_/api/setup" ||
 		r.URL.Path == "/_/api/namespaces" || strings.HasPrefix(r.URL.Path, "/_/api/namespaces/") {
@@ -1080,12 +1078,12 @@ func restrictedTokenPathAllowed(path string) bool {
 		return path != "/"
 	}
 
-	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/api/search/attachments", "/_/api/pages/", "/_/hidden/", "/_/tags/", "/_/namespaces/"} {
+	for _, prefix := range []string{"/_/attachments/", "/_/api/attachments/", "/_/api/preview/", "/_/api/search/attachments", "/_/api/pages/", "/_/hidden/", "/_/tags/"} {
 		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
-	return slices.Contains([]string{"/_/api/preview", "/_/search", "/_/search/attachments", "/_/api/search", "/_/api/search/attachments", "/_/api/health", "/_/tags", "/_/health-report", "/_/hidden", "/_/new", "/_/namespaces"}, path)
+	return slices.Contains([]string{"/_/api/preview", "/_/search", "/_/search/attachments", "/_/api/search", "/_/api/search/attachments", "/_/api/health", "/_/tags", "/_/health-report", "/_/hidden", "/_/new"}, path)
 }
 
 func (a *Auth) Middleware(next http.Handler) http.Handler {
@@ -1100,7 +1098,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
-				(r.URL.Path == "/_/oauth/authorize" || r.URL.Path == "/_/connections") {
+				(r.URL.Path == "/_/oauth/authorize" || r.URL.Path == "/_/settings/connections") {
 				if cookie, err := r.Cookie("hmd_session"); err == nil && cookie.Value != "" {
 					if user, ok := a.UserFor(cookie.Value); ok {
 						r = r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, user))
@@ -1234,10 +1232,10 @@ func protocolOAuthPath(path string) bool {
 }
 
 func oauthConnectionPath(path string) bool {
-	const prefix = "/_/connections/"
+	const prefix = "/_/settings/connections/"
 	rest, ok := strings.CutPrefix(path, prefix)
 	if !ok {
-		return path == "/_/connections"
+		return path == "/_/settings/connections"
 	}
 	id, suffix, ok := strings.Cut(rest, "/")
 	if !ok || suffix != "revoke" || !strings.HasPrefix(id, "hmd_g_") || len(id) != len("hmd_g_")+32 {

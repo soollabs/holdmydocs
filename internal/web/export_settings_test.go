@@ -105,7 +105,7 @@ func TestNamespaceExportSettingsSaveAndRender(t *testing.T) {
 	if c := app.Namespaces()["docs"].Export.Links[0]; c.Location != "topbar" || !c.IconOnly {
 		t.Fatal("link presentation settings not saved")
 	}
-	resp, err = testhttp.Get(t, client, server.URL+"/_/namespaces/docs/edit")
+	resp, err = testhttp.Get(t, client, server.URL+"/_/settings/namespaces/docs/edit")
 	if err != nil {
 		t.Fatal(err)
 	}

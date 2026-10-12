@@ -8,9 +8,9 @@
 <h1 class="page-title"><span class="h"></span>{{.Namespace}}</h1>
 <p class="namespace-index-meta">
 	{{len .TagPages}} page{{if ne (len .TagPages) 1}}s{{end}}{{if .NamespacePublic}} · public{{end}}
-	{{if .CanSettings}} · <a href="/_/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}
+	{{if .CanSettings}} · <a href="/_/settings/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}
 </p>
-{{if not .TagPages}}<p class="namespace-index-empty">No pages in this namespace yet.</p>{{else}}
+{{if not .TagPages}}{{$empty := component "empty" "label" "No pages in this namespace yet"}}{{template "ui-empty-start" $empty}}<p>New pages will appear here.</p>{{template "ui-empty-end" $empty}}{{else}}
 {{.PageTree}}
 {{end}}
 </div>

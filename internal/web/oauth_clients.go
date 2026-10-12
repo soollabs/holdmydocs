@@ -91,7 +91,7 @@ func (app *App) handleOAuthClientDisable(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "could not disable OAuth client", http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/_/admin/oauth", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings/oauth-clients", http.StatusSeeOther)
 }
 
 func (app *App) handleOAuthClientDelete(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +102,7 @@ func (app *App) handleOAuthClientDelete(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/_/admin/oauth", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings/oauth-clients", http.StatusSeeOther)
 }
 
 func (app *App) handleOAuthClientsDeleteDisabled(w http.ResponseWriter, r *http.Request) {
@@ -113,5 +113,5 @@ func (app *App) handleOAuthClientsDeleteDisabled(w http.ResponseWriter, r *http.
 		http.Error(w, "could not delete disabled MCP clients", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/_/admin/oauth", http.StatusSeeOther)
+	http.Redirect(w, r, "/_/settings/oauth-clients", http.StatusSeeOther)
 }

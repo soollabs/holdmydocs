@@ -1,5 +1,6 @@
 {{define "widget-calendar"}}
 <div class="sidebar-section sidebar-calendar">
+	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
 	<h2>{{.Calendar.MonthName}}</h2>
 	<div class="cal">
 		<div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div><div class="cal-dow">S</div>
@@ -11,5 +12,6 @@
 		{{end}}
 		{{end}}
 	</div>
+	{{template "ui-panel-end" $widgetPanel}}
 </div>
 {{end}}

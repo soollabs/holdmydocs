@@ -1,5 +1,7 @@
 /* Browser-only OAuth enhancements. The server independently enforces consent. */
 (() => {
+  const ui = window.HMDComponents;
+  if (ui) document.querySelectorAll('.oauth-page details').forEach(details => ui.enhanceDisclosure(details));
   const form = document.getElementById('oauth-consent-form');
   if (form) {
     const approve = form.querySelector('button[value="approve"]');

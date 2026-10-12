@@ -133,6 +133,10 @@ type TemplateData struct {
 	OIDCIcon                bool   // show the icon (served at /auth/oidc/icon) on the SSO button
 	OAuthContinue           string // opaque, server-side OAuth login continuation handle
 	OAuthEnabled            bool
+	SettingsSection         string // highlights the current page in the shared settings navigation; empty hides it
+	SettingsPanel           string // URL-addressable account or system panel
+	SettingsLabel           string // current section shown by the mobile selector
+	SettingsSubpage         string // namespace editor or export step in breadcrumbs
 	SearchElapsed           string // search timing, e.g. "3ms"
 	SearchHits              int    // match count, for search stats
 	AttachmentHits          int    // attachment match count, for search stats
@@ -211,6 +215,43 @@ type LogEntry struct {
 func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name string, data TemplateData) {
 	data.ReadOnly = app.config().ReadOnly
 	data.OAuthEnabled = app.OAuth != nil
+	switch name {
+	case "settings", "admin", "namespaces", "connections", "oauth-clients":
+		data.SettingsSection = name
+	case "namespace-edit":
+		data.SettingsSection = "namespaces"
+		if data.NamespaceManagement != nil && data.NamespaceManagement.Form.Name != "" {
+			data.SettingsSubpage = "Edit " + data.NamespaceManagement.Form.Name
+		} else {
+			data.SettingsSubpage = "New namespace"
+		}
+	case "export-options":
+		data.SettingsSection = "namespaces"
+		data.SettingsSubpage = data.Title
+	}
+	if name == "settings" || name == "admin" {
+		data.SettingsPanel = r.PathValue("panel")
+		if settingsPanels[data.SettingsPanel].Template != name {
+			data.SettingsPanel = map[string]string{"settings": "appearance", "admin": "server"}[name]
+		}
+		if name == "settings" && data.Settings != nil && (data.Settings.NewToken != "" || data.Settings.TokenError != "") {
+			data.SettingsPanel = "access-tokens"
+		}
+		if name == "admin" && data.Settings != nil && data.Settings.UserError != "" {
+			data.SettingsPanel = "users"
+		}
+	}
+	if data.SettingsSection != "" {
+		key := data.SettingsSection
+		if data.SettingsPanel != "" {
+			key = data.SettingsPanel
+		}
+		data.SettingsLabel = settingsPanels[key].Label
+		data.Title = data.SettingsLabel
+		if data.SettingsSubpage != "" {
+			data.Title = data.SettingsSubpage
+		}
+	}
 	if data.SiteName == "" {
 		data.SiteName = app.wikiConfig().SiteName
 	}

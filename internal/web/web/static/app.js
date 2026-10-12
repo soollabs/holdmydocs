@@ -5,6 +5,10 @@
   const $ = (s, p) => (p || document).querySelector(s);
   const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
 
+  // components.js is a separate deferred file; skip optional enhancements if it failed to load.
+  const ui = window.HMDComponents;
+  if (ui) $$('.settings-advanced > details, .settings-selector > details').forEach(details => ui.enhanceDisclosure(details));
+
   // ---- Offline edit queue: queue form POSTs made while offline, flush on reconnect ----
   const OFFLINE_QUEUE_KEY = 'hmd-offline-queue';
 
@@ -319,6 +323,7 @@
   // ---- Sidebar: collapsible LOG section, remembers open/closed state ----
   const logDetails = $('#log-details');
   if (logDetails) {
+    if (ui) ui.enhanceDisclosure(logDetails);
     const savedLogOpen = localStorage.getItem('hmd-log-open');
     if (savedLogOpen !== null) logDetails.open = savedLogOpen === '1';
     logDetails.addEventListener('toggle', () => {
@@ -351,7 +356,7 @@
   if (togglePreviewBtn && splitEl) {
     const applyPreviewState = hidden => {
       splitEl.classList.toggle('no-preview', hidden);
-      togglePreviewBtn.classList.toggle('active', hidden);
+      togglePreviewBtn.setAttribute('aria-pressed', String(hidden));
     };
     applyPreviewState(localStorage.getItem('hmd-hide-preview') === '1');
     togglePreviewBtn.addEventListener('click', () => {
@@ -369,6 +374,7 @@
   const paletteCount = $('#palette-count');
 
   let paletteOpen = false;
+  let paletteReturnFocus = null;
   let paletteRows = [];
   let paletteSelected = 0;
   let paletteCreateMode = false;
@@ -379,6 +385,7 @@
 
   function openPalette(createMode) {
     if (!paletteBackdrop) return;
+    if (!paletteOpen) paletteReturnFocus = document.activeElement;
     paletteOpen = true;
     paletteCreateMode = !!createMode;
     paletteVerbMode = false;
@@ -403,6 +410,9 @@
     paletteVerbMode = false;
     paletteVerbInput = null;
     paletteBackdrop.classList.remove('open');
+    const prior = paletteReturnFocus;
+    paletteReturnFocus = null;
+    if (prior && typeof prior.focus === 'function' && prior.isConnected !== false) prior.focus();
   }
 
   function showRecent() {
@@ -601,7 +611,7 @@
         break;
       case 'ns':
         closePalette();
-        window.location.href = '/_/namespaces';
+        window.location.href = '/_/settings/namespaces';
         break;
       case 'sync':
         closePalette();
@@ -884,7 +894,7 @@
       document.body.classList.toggle('zen-focus', zenState.focus);
 
       $$('.zen-toolbar button[data-zen]').forEach(btn => {
-        btn.classList.toggle('active', zenState[btn.dataset.zen]);
+        btn.setAttribute('aria-pressed', String(Boolean(zenState[btn.dataset.zen])));
       });
 
       if (zenState.typewriter) {
@@ -935,11 +945,11 @@
 
     const toggleWrapBtn = $('#toggle-wrap-btn');
     if (toggleWrapBtn) {
-      toggleWrapBtn.classList.toggle('active', wrapEnabled);
+      toggleWrapBtn.setAttribute('aria-pressed', String(wrapEnabled));
       toggleWrapBtn.addEventListener('click', () => {
         wrapEnabled = !wrapEnabled;
         localStorage.setItem('hmd-wrap', wrapEnabled ? '1' : '0');
-        toggleWrapBtn.classList.toggle('active', wrapEnabled);
+        toggleWrapBtn.setAttribute('aria-pressed', String(wrapEnabled));
         editor.destroy();
         editor = mountEditor();
         editor.focus();
@@ -1604,16 +1614,20 @@
   }
 
   // Settings screen: appearance, git author, tokens.
+  // Each section has its own path, so return to it with the notice.
+  function settingsReturn(notice) {
+    window.location.href = window.location.pathname + (notice ? '?' + notice : '');
+  }
   jsonForm($('#appearance-form'), form => ({
     palette: fieldValue(form, 'palette'),
     font_ui: fieldValue(form, 'font_ui'),
     font_mono: fieldValue(form, 'font_mono'),
     skin: fieldValue(form, 'skin'),
     palette_explicit: fieldValue(form, 'palette_explicit') === '1'
-  }), () => { window.location.href = '/_/settings?saved=1'; });
+  }), () => { settingsReturn('saved=1'); });
 
   jsonForm($('form[action="/_/api/settings/author"]'), form => ({ git_author: fieldValue(form, 'git_author') }),
-    () => { window.location.href = '/_/settings?saved=1'; });
+    () => { settingsReturn('saved=1'); });
 
   jsonForm($('form[action="/_/api/settings/tokens"]'), form => ({
     label: fieldValue(form, 'label'),
@@ -1636,23 +1650,23 @@
 
   // Admin screen: system configuration, users, export, wiki settings, setup.
   jsonForm($('form[action="/_/api/settings/server"]'), serverSettingsPayload,
-    () => { window.location.href = '/_/admin?saved=1'; });
+    () => { settingsReturn('saved=1'); });
   jsonForm($('form[action="/_/api/settings/users"]'), form => ({
     name: fieldValue(form, 'name'),
     password: fieldValue(form, 'password'),
     scopes: fieldCheckedList(form, 'scopes')
-  }), () => { window.location.href = '/_/admin?saved=1'; });
+  }), () => { settingsReturn('saved=1'); });
   $$('form[action="/_/api/settings/users/scopes"]').forEach(form => {
     jsonForm(form, f => ({ name: fieldValue(f, 'name'), scopes: fieldCheckedList(f, 'scopes') }),
-      () => { window.location.href = '/_/admin?saved=1'; });
+      () => { settingsReturn('saved=1'); });
   });
-  jsonForm($('#export-config-form'), () => ({}), () => { window.location.href = '/_/admin?exported=1'; });
+  jsonForm($('#export-config-form'), () => ({}), () => { settingsReturn('exported=1'); });
   jsonForm($('form[action="/_/api/settings/wiki"]'), form => ({
     site_name: fieldValue(form, 'site_name'),
     landing: fieldValue(form, 'landing')
-  }), () => { window.location.href = '/_/admin?wiki-saved=1'; });
-  jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { window.location.href = '/_/admin'; });
-  jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { window.location.href = '/_/admin'; });
+  }), () => { settingsReturn('wiki-saved=1'); });
+  jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { settingsReturn(); });
+  jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { settingsReturn(); });
 
   // Namespace editor: save, reset, delete and delete-all share one form; the
   // submitter's formaction names the endpoint.
@@ -1689,7 +1703,7 @@
         }))
       }
     };
-  }, () => { window.location.href = '/_/namespaces?saved=1'; });
+  }, () => { window.location.href = '/_/settings/namespaces?saved=1'; });
 
   // First-run setup wizard: submit reloads the current page.
   jsonForm($('.setup-modal form'), (form, submitter) => ({

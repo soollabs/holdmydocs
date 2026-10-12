@@ -9,6 +9,7 @@
       var block = code.parentElement;
       if (block.querySelector('.code-copy')) return;
       block.classList.add('code-copy-block');
+      // An overlay control with its own .code-copy treatment, not a form action.
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'code-copy';

@@ -35,7 +35,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bearerRequest, _ := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/_/admin/oauth", nil)
+	bearerRequest, _ := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/_/settings/oauth-clients", nil)
 	bearerRequest.Header.Set("Authorization", "Bearer "+token)
 	bearerResponse, err := http.DefaultClient.Do(bearerRequest)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 		"name": {"MCP client"}, "redirect_uris": {"https://client.example/cb"},
 		"auth_method": {"client_secret_post"}, "scope": {"read", "write"},
 	}
-	response, err := testhttp.PostForm(t, browser, server.URL+"/_/admin/oauth", form)
+	response, err := testhttp.PostForm(t, browser, server.URL+"/_/settings/oauth-clients", form)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if err != nil || len(clients) != 1 {
 		t.Fatalf("clients = %#v, %v", clients, err)
 	}
-	response, err = testhttp.Get(t, browser, server.URL+"/_/admin/oauth")
+	response, err = testhttp.Get(t, browser, server.URL+"/_/settings/oauth-clients")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 		t.Fatal("list exposes credentials")
 	}
 	// A session without its Origin/CSRF proof cannot mutate clients.
-	request, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/admin/oauth", strings.NewReader(form.Encode()))
+	request, _ := http.NewRequestWithContext(t.Context(), "POST", server.URL+"/_/settings/oauth-clients", strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range browser.Jar.Cookies(request.URL) {
 		request.AddCookie(c)
@@ -94,7 +94,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("missing CSRF = %d", response.StatusCode)
 	}
-	response, err = testhttp.PostForm(t, browser, server.URL+"/_/admin/oauth/"+clients[0].ID+"/disable", url.Values{})
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/settings/oauth-clients/"+clients[0].ID+"/disable", url.Values{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	if !clients[0].Disabled {
 		t.Fatal("client was not disabled")
 	}
-	response, err = testhttp.PostForm(t, browser, server.URL+"/_/admin/oauth/"+clients[0].ID+"/delete", url.Values{})
+	response, err = testhttp.PostForm(t, browser, server.URL+"/_/settings/oauth-clients/"+clients[0].ID+"/delete", url.Values{})
 	if err != nil {
 		t.Fatal(err)
 	}

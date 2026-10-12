@@ -1,6 +1,38 @@
 {{define "csrf"}}{{if .CSRFToken}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}{{end}}
 {{define "json-required"}}<noscript><p class="settings-note">JavaScript is required to save these changes.</p></noscript>{{end}}
 {{define "export-link"}}<a class="export-external-link{{if .IconOnly}} export-icon-only{{end}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"{{if .IconOnly}} aria-label="{{.Label}}" title="{{.Label}}"{{end}}>{{if and .Icon .IconOnly}}<i class="{{.Icon}}" aria-hidden="true"></i>{{end}}{{if not .IconOnly}}<span>{{.Label}}</span>{{end}}</a>{{end}}
+{{define "settings-icon"}}<svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{if eq . "theme"}}<circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 000-16z" fill="currentColor"/>{{else if eq . "branch"}}<circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M18 7a6 6 0 01-6 6H6"/>{{else if eq . "key"}}<circle cx="8" cy="8" r="4"/><path d="M11 11l9 9m-4-4l3-3m-6 0l3-3"/>{{else if eq . "users"}}<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0112 0v3M17 5a3 3 0 010 6m1 4a4 4 0 013 4v2"/>{{else if eq . "folder"}}<path d="M3 7V5h6l2 2h10v13H3z"/>{{else if eq . "server"}}<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6h.01M7 17h.01M12 6h5m-5 11h5"/>{{else if eq . "plug"}}<path d="M8 3v5m8-5v5M6 8h12v3a6 6 0 01-12 0zm6 9v4"/>{{else if eq . "code"}}<path d="M8 5l-6 7 6 7m8-14l6 7-6 7M14 3l-4 18"/>{{else}}<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>{{end}}</svg>{{end}}
+{{define "settings-links"}}
+	<span class="settings-nav-group">account</span>
+	<a href="/_/settings/appearance"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "appearance")}} aria-current="page"{{end}}>{{template "settings-icon" "theme"}}appearance</a>
+	<a href="/_/settings/git-author"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "git-author")}} aria-current="page"{{end}}>{{template "settings-icon" "branch"}}git author</a>
+	<a href="/_/settings/access-tokens"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "access-tokens")}} aria-current="page"{{end}}>{{template "settings-icon" "key"}}access tokens</a>
+	{{if .OAuthEnabled}}<a href="/_/settings/connections"{{if eq .SettingsSection "connections"}} aria-current="page"{{end}}>{{template "settings-icon" "plug"}}connected applications</a>{{end}}
+	{{if .CanSettings}}<span class="settings-nav-group">system</span>
+	<a href="/_/settings/server"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "server")}} aria-current="page"{{end}}>{{template "settings-icon" "server"}}server</a>
+	<a href="/_/settings/git-remote"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "git-remote")}} aria-current="page"{{end}}>{{template "settings-icon" "branch"}}git remote</a>
+	<a href="/_/settings/behaviour"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "behaviour")}} aria-current="page"{{end}}>{{template "settings-icon" "sliders"}}behaviour</a>
+	<a href="/_/settings/users"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "users")}} aria-current="page"{{end}}>{{template "settings-icon" "users"}}users</a>
+	<a href="/_/settings/namespaces"{{if eq .SettingsSection "namespaces"}} aria-current="page"{{end}}>{{template "settings-icon" "folder"}}namespaces</a>
+	{{if .OAuthEnabled}}<a href="/_/settings/oauth-clients"{{if eq .SettingsSection "oauth-clients"}} aria-current="page"{{end}}>{{template "settings-icon" "plug"}}MCP OAuth clients</a>{{end}}
+	<div class="settings-advanced">{{$advancedOpen := "false"}}{{if or (eq .SettingsPanel "advanced-config") (eq .SettingsPanel "advanced")}}{{$advancedOpen = "true"}}{{end}}{{$advancedDisclosure := component "disclosure" "label" "Advanced" "open" $advancedOpen}}{{template "ui-disclosure-slot-start" $advancedDisclosure}}
+		<summary>Advanced</summary>
+		<a href="/_/settings/advanced-config"{{if eq .SettingsPanel "advanced-config"}} aria-current="page"{{end}}>{{template "settings-icon" "code"}}config.yaml</a>
+		<a href="/_/settings/advanced"{{if eq .SettingsPanel "advanced"}} aria-current="page"{{end}}>{{template "settings-icon" "sliders"}}environment overrides</a>
+	{{template "ui-disclosure-slot-end" $advancedDisclosure}}</div>{{end}}
+{{end}}
+{{define "settings-nav"}}{{if .SettingsSection}}
+<nav class="settings-nav" aria-label="Settings sections">{{template "settings-links" .}}</nav>
+<div class="settings-selector">{{$settingsDisclosure := component "disclosure" "label" .SettingsLabel}}{{template "ui-disclosure-slot-start" $settingsDisclosure}}
+	<summary aria-label="Settings section: {{.SettingsLabel}}"><span>{{.SettingsLabel}}</span><svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+	<nav class="settings-nav settings-mobile-nav" aria-label="Settings sections">{{template "settings-links" .}}</nav>
+{{template "ui-disclosure-slot-end" $settingsDisclosure}}</div>
+{{end}}{{end}}
+{{define "settings-breadcrumb"}}<nav class="breadcrumb" aria-label="Breadcrumb">
+	<a href="/_/settings">Settings</a><span class="sep">/</span>
+	{{if .SettingsSubpage}}<a href="/_/settings/namespaces">Namespaces</a><span class="sep">/</span><span class="current" aria-current="page">{{.SettingsSubpage}}</span>
+	{{else}}<span class="current" aria-current="page">{{.SettingsLabel}}</span>{{end}}
+</nav>{{end}}
 {{define "layout"}}
 <!DOCTYPE html>
 <html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
@@ -10,6 +42,7 @@
 	<title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} — {{end}}{{.SiteName}}</title>
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}style.css{{else}}{{static "style.css"}}{{end}}">
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}skins.css{{else}}{{static "skins.css"}}{{end}}">
+	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}components.css{{else}}{{static "components.css"}}{{end}}">
 	{{if .Static}}<link rel="stylesheet" href="{{.AssetPath}}export.css">{{if .ExportIcons}}<link rel="stylesheet" href="{{.AssetPath}}export-icons.css">{{end}}{{end}}
 	<link rel="icon" href="{{.AssetPath}}icon.svg" type="image/svg+xml">
 	{{if not .Static}}<link rel="manifest" href="{{static "manifest.json"}}">{{end}}
@@ -90,23 +123,23 @@
 		})();
 	</script>
 </head>
-<body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
+<body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}{{if .SettingsSection}} settings-shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
 	<a class="skip-link" href="#main-content">Skip to content</a>
 	{{if .Authed}}
 	<header class="app-topbar">
-		<button type="button" class="topbar-icon" id="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+		{{$sidebarToggle := button "Toggle sidebar" "secondary" "size" "icon" "hook" "topbar-icon" "id" "sidebar-toggle" "aria-label" "Toggle sidebar" "title" "Toggle sidebar"}}{{template "ui-button-start" $sidebarToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $sidebarToggle}}
 		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
-			{{if eq .StatusMode "edit"}}<button type="submit" form="edit-form" class="topbar-action topbar-primary">Save</button>
-			{{else if .CanEdit}}<a href="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="topbar-action" aria-label="Edit page" title="Edit page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>Edit</span></a>{{end}}
-			{{if .NewPageBase}}<a href="/{{.NewPageBase}}/new?do=edit" class="topbar-action" id="new-page" aria-label="New page" title="New page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>New</span></a>{{end}}
-			<a href="/_/search" class="topbar-icon" id="topbar-search" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></a>
+			{{if eq .StatusMode "edit"}}{{template "ui-button" (button "Save" "primary" "hook" "topbar-action topbar-primary" "type" "submit" "form" "edit-form")}}
+			{{else if .CanEdit}}{{$editAction := button "Edit page" "secondary" "hook" "topbar-action" "href" (printf "%s/%s?do=edit" .RoutePrefix .Slug) "aria-label" "Edit page" "title" "Edit page"}}{{template "ui-button-start" $editAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>Edit</span>{{template "ui-button-end" $editAction}}{{end}}
+			{{if .NewPageBase}}{{$newAction := button "New page" "secondary" "hook" "topbar-action" "href" (printf "/%s/new?do=edit" .NewPageBase) "id" "new-page" "aria-label" "New page" "title" "New page"}}{{template "ui-button-start" $newAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>New</span>{{template "ui-button-end" $newAction}}{{end}}
+			{{$searchAction := button "Search" "secondary" "size" "icon" "hook" "topbar-icon" "href" "/_/search" "id" "topbar-search" "aria-label" "Search" "title" "Search"}}{{template "ui-button-start" $searchAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>{{template "ui-button-end" $searchAction}}
 			<details class="topbar-menu">
 				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
 				<div class="topbar-menu-items">
 					{{if not .ReadOnly}}<a href="/_/settings">Settings</a>{{end}}
-					{{if .OAuthEnabled}}<a href="/_/connections">Connected applications</a>{{end}}
-					{{if .CanSettings}}<a href="/_/admin">Admin</a>{{end}}
+					{{if .OAuthEnabled}}<a href="/_/settings/connections">Connected applications</a>{{end}}
+					{{if .CanSettings}}<a href="/_/settings/server">Admin</a>{{end}}
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
 					<button type="button" id="theme-toggle">Theme</button>
@@ -117,12 +150,12 @@
 	</header>
 	{{else if .SidebarTree}}
 	<header class="app-topbar app-topbar-public">
-		<button type="button" class="topbar-icon" id="public-sidebar-toggle" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+		{{$publicToggle := button "Toggle navigation" "secondary" "size" "icon" "id" "public-sidebar-toggle" "aria-label" "Toggle navigation" "title" "Toggle navigation" "aria-controls" "sidebar" "aria-expanded" "false" "hidden" "true"}}{{template "ui-button-start" $publicToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $publicToggle}}
 		<a href="{{if .NamespaceHome}}{{.NamespaceHome}}{{else}}/{{.Namespace}}/{{end}}" class="topbar-site">{{if .NamespaceTitle}}{{.NamespaceTitle}}{{else}}{{.Namespace}}{{end}}</a>
 		{{if .ReadOnly}}<span class="topbar-action">Read-only</span>{{end}}
 		{{if .ExportTopbarLinks}}<nav class="export-topbar-links" aria-label="External links">{{range .ExportTopbarLinks}}{{template "export-link" .}}{{end}}</nav>{{end}}
-		{{if .Static}}<button type="button" class="topbar-action" id="export-search-toggle" aria-haspopup="dialog" hidden>Search docs</button>{{end}}
-		<button type="button" class="topbar-icon" id="theme-toggle" aria-label="Toggle light/dark" title="Toggle light/dark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+		{{if .Static}}{{template "ui-button" (button "Search docs" "secondary" "size" "compact" "id" "export-search-toggle" "aria-haspopup" "dialog" "hidden" "true")}}{{end}}
+		{{$themeAction := button "Toggle light/dark" "secondary" "size" "icon" "id" "theme-toggle" "aria-label" "Toggle light/dark" "title" "Toggle light/dark"}}{{template "ui-button-start" $themeAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>{{template "ui-button-end" $themeAction}}
 	</header>
 	{{end}}
 	{{if or .Authed .SidebarTree}}
@@ -143,7 +176,12 @@
 	</nav>
 	{{end}}
 	<main id="main-content" tabindex="-1">
+		{{if .SettingsSection}}<div class="settings-container">
+			<header class="settings-header"><h1>Settings</h1><p>Your account, namespaces and system configuration.</p></header>
+			<div class="settings-layout">{{template "settings-nav" .}}<div class="settings-panels">
+		{{end}}
 		{{template "content" .}}
+		{{if .SettingsSection}}</div></div></div>{{end}}
 	</main>
 	{{if .Authed}}
 	{{$quiet := or (eq .StatusVariant "write") (eq .StatusVariant "quiet")}}
@@ -172,7 +210,7 @@
 		<div class="palette" id="palette">
 			<div class="palette-input-row">
 				<span class="prefix">/</span>
-				<input type="text" id="palette-input" placeholder="jump to a page…" autocomplete="off">
+				{{$paletteField := component "field" "id" "palette-input" "label" "Jump to a page"}}{{template "ui-field-slot-start" $paletteField}}<input type="text" id="palette-input" placeholder="jump to a page…" autocomplete="off" aria-label="Jump to a page">{{template "ui-field-end" $paletteField}}
 				<span class="match-count" id="palette-count"></span>
 			</div>
 			<div class="palette-results" id="palette-results"></div>
@@ -184,6 +222,7 @@
 	{{if .NeedsSetup}}
 	<div class="setup-modal-backdrop">
 		<div class="setup-modal">
+			{{$setupPanel := component "panel" "variant" "raised"}}{{template "ui-panel-start" $setupPanel}}
 			<h1 class="page-title"><span class="h"></span>Set up wiki</h1>
 			<p>Nothing is written until you submit &ldquo;Add selected&rdquo;.</p>
 
@@ -198,19 +237,19 @@
 				</div>
 				<p class="setup-item-desc">Choose where this wiki opens. The detected namespaces are already in the repository; selecting one does not change it. Or create a new namespace with a welcome page instead.</p>
 				<div class="setup-item-head">
-					<label class="setup-item-title" for="setup-site-name">site name</label>
-					<input class="setup-item-input" id="setup-site-name" type="text" name="site_name" value="{{.SetupSiteName}}">
+					{{$setupSite := component "field" "id" "setup-site-name" "layout" "bare"}}{{template "ui-field-slot-start" $setupSite}}<label class="setup-item-title" for="setup-site-name">site name</label>
+					<input class="setup-item-input" id="setup-site-name" type="text" name="site_name" value="{{.SetupSiteName}}">{{template "ui-field-end" $setupSite}}
 				</div>
 				<div class="setup-item-head">
-					<label class="setup-item-title" for="default-namespace">default namespace</label>
+					{{$defaultNamespace := component "field" "id" "default-namespace" "layout" "bare" "type" "select"}}{{template "ui-field-slot-start" $defaultNamespace}}<label class="setup-item-title" for="default-namespace">default namespace</label>
 					<select class="setup-item-input" id="default-namespace" name="default_namespace">
 						{{range .SetupNamespaces}}<option value="{{.}}">{{.}}/</option>{{end}}
 						<option value="_new" {{if not .SetupNamespaces}}selected{{end}}>create a new namespace</option>
-					</select>
+					</select>{{template "ui-field-end" $defaultNamespace}}
 				</div>
 				<div class="setup-item-head">
-					<label class="setup-item-title" for="new-namespace">new namespace</label>
-					<input class="setup-item-input" id="new-namespace" type="text" name="new_namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">
+					{{$newNamespace := component "field" "id" "new-namespace" "layout" "bare"}}{{template "ui-field-slot-start" $newNamespace}}<label class="setup-item-title" for="new-namespace">new namespace</label>
+					<input class="setup-item-input" id="new-namespace" type="text" name="new_namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">{{template "ui-field-end" $newNamespace}}
 				</div>
 			</div>
 			{{end}}
@@ -218,38 +257,33 @@
 			{{if .NeedsNamespaceSetup}}
 			<div class="setup-item">
 				<div class="setup-item-head">
-					<label class="setup-item-title"><input type="checkbox" name="add_namespace" checked> First namespace</label>
-					<input class="setup-item-input" type="text" name="namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">
+					{{$firstNamespaceChoice := component "choice" "id" "setup-add-namespace" "type" "checkbox"}}{{template "ui-choice-slot-start" $firstNamespaceChoice}}<label class="setup-item-title"><input type="checkbox" id="setup-add-namespace" name="add_namespace" checked> First namespace</label>{{template "ui-choice-end" $firstNamespaceChoice}}
+					{{$firstNamespaceField := component "field" "id" "setup-namespace" "label" "Namespace name"}}{{template "ui-field-start" $firstNamespaceField}}<input class="setup-item-input" id="setup-namespace" type="text" name="namespace" value="{{.SetupNamespace}}" pattern="[^/\\.][^/\\]*" title="one directory name, no slashes, not starting with a dot">{{template "ui-field-end" $firstNamespaceField}}
 				</div>
-				<p class="setup-item-desc">Pages live in namespaces &mdash; a namespace is a directory in the repo. This creates the first one with a welcome page as its index, and points <code>/</code> at it, so it is where signing in takes you. Add more later on <code>/_/namespaces</code>.</p>
-				<details class="setup-preview">
-					<summary>Preview content</summary>
-					<div class="setup-preview-body">{{.SetupHomePreview}}</div>
-				</details>
+				<p class="setup-item-desc">Pages live in namespaces &mdash; a namespace is a directory in the repo. This creates the first one with a welcome page as its index, and points <code>/</code> at it, so it is where signing in takes you. Add more later on <code>/_/settings/namespaces</code>.</p>
+				<div class="setup-preview">{{$homePreview := component "disclosure" "label" "Preview content"}}{{template "ui-disclosure-start" $homePreview}}<div class="setup-preview-body">{{.SetupHomePreview}}</div>{{template "ui-disclosure-end" $homePreview}}</div>
 			</div>
 			{{end}}
 
 			{{if .NeedsHelpSetup}}
 			<div class="setup-item">
 				<div class="setup-item-head">
-					<label class="setup-item-title"><input type="checkbox" name="add_help" {{if not .HelpFileExists}}checked{{end}}> Help guide</label>
+					{{$helpChoice := component "choice" "id" "setup-add-help" "type" "checkbox"}}{{template "ui-choice-slot-start" $helpChoice}}<label class="setup-item-title"><input type="checkbox" id="setup-add-help" name="add_help" {{if not .HelpFileExists}}checked{{end}}> Help guide</label>{{template "ui-choice-end" $helpChoice}}
 					<code class="setup-item-file">.help.md</code>
 					<span class="setup-badge">hidden</span>
 					{{if .HelpFileExists}}<span class="setup-badge">exists</span>{{end}}
 				</div>
 				<p class="setup-item-desc">UI usage plus markdown/frontmatter conventions, useful for new users and AI agents. Hidden pages are excluded from the page list, search, tags, and backlinks, and live at <code>/_/hidden</code>.{{if .HelpFileExists}} <strong>Already exists: checking this overwrites it with the default.</strong>{{end}}</p>
-				<details class="setup-preview">
-					<summary>Preview content</summary>
-					<div class="setup-preview-body">{{.SetupHelpPreview}}</div>
-				</details>
+				<div class="setup-preview">{{$helpPreview := component "disclosure" "label" "Preview content"}}{{template "ui-disclosure-start" $helpPreview}}<div class="setup-preview-body">{{.SetupHelpPreview}}</div>{{template "ui-disclosure-end" $helpPreview}}</div>
 			</div>
 			{{end}}
 
 				<div class="setup-actions">
-					<button type="submit" name="action" value="add" class="primary">Add selected</button>
-					<button type="submit" name="action" value="skip" class="ghost-btn">Skip</button>
+					{{template "ui-button" (button "Add selected" "primary" "type" "submit" "name" "action" "value" "add")}}
+					{{template "ui-button" (button "Skip" "secondary" "type" "submit" "name" "action" "value" "skip")}}
 				</div>
 			</form>
+			{{template "ui-panel-end" $setupPanel}}
 		</div>
 	</div>
 	{{end}}
@@ -276,22 +310,22 @@
 		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
 	</script>
 	{{end}}
-	{{if .Content}}<script nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}page.js{{else}}{{static "page.js"}}{{end}}"></script>{{end}}
+	<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}components.js{{else}}{{static "components.js"}}{{end}}"></script>
+	{{if .Content}}<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}page.js{{else}}{{static "page.js"}}{{end}}"></script>{{end}}
 	{{if .Static}}
-	<dialog id="export-search" aria-labelledby="export-search-title">
-		<div class="export-search-heading"><h2 id="export-search-title">Search documentation</h2><button type="button" id="export-search-close" aria-label="Close search">Close</button></div>
-		<label for="export-search-input">Search pages in this site</label>
-		<input id="export-search-input" type="search" placeholder="Try backups, Markdown, or Git sync" autocomplete="off">
+	{{$exportSearchDialog := component "dialog" "id" "export-search" "label" "Search documentation"}}{{template "ui-dialog-slot-start" $exportSearchDialog}}
+		<div class="export-search-heading"><h2 id="export-search-title">Search documentation</h2>{{template "ui-button" (button "Close search" "secondary" "size" "compact" "id" "export-search-close" "aria-label" "Close search")}}</div>
+		{{$exportQueryField := component "field" "id" "export-search-input" "label" "Search pages in this site" "type" "search"}}{{template "ui-field-start" $exportQueryField}}<input id="export-search-input" type="search" placeholder="Try backups, Markdown, or Git sync" autocomplete="off">{{template "ui-field-end" $exportQueryField}}
 		<p id="export-search-status" role="status">Search titles and page text. No data leaves your browser.</p>
 		<ul id="export-search-results"></ul>
-	</dialog>
-	<script nonce="{{.CSPNonce}}" id="export-search-index" src="{{.AssetPath}}search-index.js"></script>
-	<script nonce="{{.CSPNonce}}" src="{{.AssetPath}}export.js"></script>
+	{{template "ui-dialog-slot-end" $exportSearchDialog}}
+	<script defer nonce="{{.CSPNonce}}" id="export-search-index" src="{{.AssetPath}}search-index.js"></script>
+	<script defer nonce="{{.CSPNonce}}" src="{{.AssetPath}}export.js"></script>
 	{{end}}
-	{{if .Authed}}<script src="{{static "app.js"}}"></script>{{end}}
-	{{if and .Authed .OAuthEnabled}}<script src="{{static "oauth.js"}}"></script>{{end}}
-	{{if .RailWidgets}}<script nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}toc.js{{else}}{{static "toc.js"}}{{end}}"></script>{{end}}
-	{{if or .Authed .SidebarTree}}<script nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}sidebar.js{{else}}{{static "sidebar.js"}}{{end}}"></script>{{end}}
+	{{if .Authed}}<script defer src="{{static "app.js"}}"></script>{{end}}
+	{{if and .Authed .OAuthEnabled}}<script defer src="{{static "oauth.js"}}"></script>{{end}}
+	{{if .RailWidgets}}<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}toc.js{{else}}{{static "toc.js"}}{{end}}"></script>{{end}}
+	{{if or .Authed .SidebarTree}}<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}sidebar.js{{else}}{{static "sidebar.js"}}{{end}}"></script>{{end}}
 </body>
 </html>
 {{end}}

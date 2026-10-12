@@ -10,29 +10,29 @@
 
 	<div class="history-rows" id="history-rows">
 	{{range .HistoryEntries}}
-	<div class="history-row{{if .Current}} current{{end}}" data-hash="{{.Hash}}" data-short="{{.ShortHash}}">
-		<input type="checkbox" class="rev-checkbox" value="{{.Hash}}">
+	{{$revisionPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $revisionPanel}}<div class="history-row{{if .Current}} current{{end}}" data-hash="{{.Hash}}" data-short="{{.ShortHash}}">
+		{{$revisionChoice := component "choice" "id" (printf "revision-%s" .ShortHash) "type" "checkbox" "label" (printf "Select revision %s" .ShortHash)}}{{template "ui-choice-slot-start" $revisionChoice}}<input type="checkbox" class="rev-checkbox" value="{{.Hash}}" aria-label="Select revision {{.ShortHash}}">{{template "ui-choice-end" $revisionChoice}}
 		<span class="hash">{{.ShortHash}}</span>
 		<span class="message">{{.Message}}</span>
 		{{if not .Current}}
 		<a href="/{{$.Slug}}?do=rev&hash={{.Hash}}" class="view-link">view</a>
 		<form method="GET" action="/{{$.Slug}}?do=history" class="js-revert" data-slug="{{$.Slug}}" style="display:contents">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="hash" value="{{.Hash}}">
-			<button type="submit" class="revert-link">revert</button>
+			{{template "ui-button" (button "revert" "secondary" "size" "compact" "type" "submit")}}
 		</form>
 		{{else}}
 		<span class="current-marker">&bullet; current</span>
 		{{end}}
 		<span class="author">{{.Author}}</span>
 		<span class="date">{{.When}}</span>
-	</div>
+	</div>{{template "ui-panel-end" $revisionPanel}}
 	{{end}}
 	</div>
 
-	<div class="diff-panel" id="diff-panel" style="display: none;">
+	{{$diffPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $diffPanel}}<div class="diff-panel" id="diff-panel" style="display: none;">
 		<div class="diff-header" id="diff-header"></div>
 		<div class="diff-body" id="diff-body"></div>
-	</div>
+	</div>{{template "ui-panel-end" $diffPanel}}
 
 	{{if gt .TotalHistory 50}}
 	<p class="snippet">Showing 50 of {{.TotalHistory}} revisions.</p>

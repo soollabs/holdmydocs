@@ -1495,7 +1495,7 @@ func TestSettingsGetWithConfigFile(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := testhttp.Get(t, client, server.URL+"/_/admin")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/settings/server")
 	if err != nil {
 		t.Fatalf("GET /settings failed: %v", err)
 	}
@@ -1598,9 +1598,9 @@ func TestWikiSettingsPostSavesPortableConfig(t *testing.T) {
 	if !exists || stored != app.wikiConfig() {
 		t.Errorf("stored wiki config = %#v, exists=%v", stored, exists)
 	}
-	admin, err := testhttp.Get(t, client, server.URL+"/_/admin")
+	admin, err := testhttp.Get(t, client, server.URL+"/_/settings/server")
 	if err != nil {
-		t.Fatalf("GET /_/admin: %v", err)
+		t.Fatalf("GET server settings: %v", err)
 	}
 	{
 		response := admin
@@ -1824,7 +1824,7 @@ func TestSettingsFullFlow(t *testing.T) {
 	server, client := newTestApp(t)
 	defer server.Close()
 
-	resp, err := testhttp.Get(t, client, server.URL+"/_/admin")
+	resp, err := testhttp.Get(t, client, server.URL+"/_/settings/server")
 	if err != nil {
 		t.Fatalf("GET /admin failed: %v", err)
 	}
@@ -1857,7 +1857,7 @@ func TestSettingsFullFlow(t *testing.T) {
 		t.Errorf("POST Status = %d, want 200", resp2.StatusCode)
 	}
 
-	resp3, err := testhttp.Get(t, client, server.URL+"/_/admin?saved=1")
+	resp3, err := testhttp.Get(t, client, server.URL+"/_/settings/server?saved=1")
 	if err != nil {
 		t.Fatalf("GET /admin?saved=1 failed: %v", err)
 	}

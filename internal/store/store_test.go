@@ -140,7 +140,7 @@ func TestExistingContentSkipsSetup(t *testing.T) {
 
 func TestBuiltInHelpDocumentsNamespaces(t *testing.T) {
 	for _, want := range []string{
-		"`/_/namespaces`",
+		"`/_/settings/namespaces`",
 		"`/<namespace>/`",
 		"`/<namespace>/<page>`",
 		"Quick-create page",

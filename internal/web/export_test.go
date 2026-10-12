@@ -56,6 +56,8 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		`--bg:#282a36;`,
 		`href="../../style.css"`,
 		`href="../../skins.css"`,
+		`href="../../components.css"`,
+		`src="../../components.js"`,
 		`href="../../home/index.html"`,
 		`src="../../toc.js"`,
 		`src="../../attachments/logo.svg"`,
@@ -84,7 +86,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		t.Error("export refers to live static assets")
 	}
 
-	for _, name := range []string{"style.css", "skins.css", "toc.js", "sidebar.js", "export.css", "export.js", "page.js", "search-index.js"} {
+	for _, name := range []string{"style.css", "skins.css", "components.css", "components.js", "toc.js", "sidebar.js", "export.css", "export.js", "page.js", "search-index.js"} {
 		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
 			t.Errorf("export missing %s: %v", name, err)
 		}
