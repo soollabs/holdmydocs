@@ -420,7 +420,7 @@ func NewHugotEmbedder(modelDir, model string) (*HugotEmbedder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating Hugot session: %w", err)
 	}
-	pipeline, err := hugot.NewPipeline(session, hugot.FeatureExtractionConfig{
+	pipeline, err := session.NewPipeline(hugot.FeatureExtractionConfig{
 		ModelPath:    modelDir,
 		Name:         attachmentPipelineName,
 		OnnxFilename: "model.onnx",
