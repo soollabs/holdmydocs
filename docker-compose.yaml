@@ -13,7 +13,7 @@ services:
       # HMD_GIT_USER: "you"
       # HMD_GIT_TOKEN_FILE: "/run/secrets/git_token"
       # Uncomment with `--profile documents` to enable extraction/search.
-      # HMD_TIKA_URL: "http://tika:9998"
+      # HMD_DOCUMENT_SEARCH_TIKA_URL: "http://tika:9998"
     volumes:
       # Content repository — safe on NFS-backed storage, git only.
       - repo:/data/repo

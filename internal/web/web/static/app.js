@@ -9,6 +9,18 @@
   const ui = window.HMDComponents;
   if (ui) $$('.settings-advanced > details, .settings-selector > details').forEach(details => ui.enhanceDisclosure(details));
 
+  // The mobile settings menu scrolls on its own; when it opens, centre the
+  // current page in it so a nested namespace section is visible straight away.
+  $$('.settings-selector > details').forEach(details => {
+    details.addEventListener('toggle', () => {
+      const nav = details.querySelector('.settings-mobile-nav');
+      const current = nav && nav.querySelector('[aria-current="page"]');
+      if (!details.open || !current) return;
+      const offset = current.getBoundingClientRect().top - nav.getBoundingClientRect().top;
+      nav.scrollTop += offset - (nav.clientHeight - current.offsetHeight) / 2;
+    });
+  });
+
   // ---- Offline edit queue: queue form POSTs made while offline, flush on reconnect ----
   const OFFLINE_QUEUE_KEY = 'hmd-offline-queue';
 
@@ -1563,7 +1575,7 @@
         : (form.getAttribute('action') || window.location.href);
       clearFormError(form);
       mutateJSON(url, build(form, e.submitter))
-        .then(data => { if (onSuccess) onSuccess(data, form); else window.location.reload(); })
+        .then(data => { if (onSuccess) onSuccess(data, form, url); else window.location.reload(); })
         .catch(err => {
           if (err.status === 409 && err.detail && err.detail.conflict) {
             const base = form.querySelector('[name="basehash"]');
@@ -1576,41 +1588,29 @@
     });
   }
 
+  // Server settings: every control carries its config.yaml key and kind, so the
+  // payload is built from the form rather than listed field by field. Only
+  // controls the user changed are sent, so displayed defaults are never frozen
+  // into config.yaml; disabled controls (set by an environment variable) never are.
+  function settingChanged(el) {
+    if (el.type === 'checkbox') return el.checked !== el.defaultChecked;
+    if (el.tagName === 'SELECT') return Array.from(el.options).some(o => o.selected !== o.defaultSelected);
+    return el.value !== el.defaultValue;
+  }
+
   function serverSettingsPayload(form) {
-    return {
-      bind: fieldValue(form, 'bind'),
-      repo_dir: fieldValue(form, 'repo_dir'),
-      max_upload_bytes: Number(fieldValue(form, 'max_upload_bytes')),
-      sync_poll_ms: Number(fieldValue(form, 'sync_poll_ms')),
-      sync_mode: fieldValue(form, 'sync_mode'),
-      default_branch: fieldValue(form, 'default_branch'),
-      skin: fieldValue(form, 'skin'),
-      debug: fieldOn(form, 'debug'),
-      base_url: fieldValue(form, 'base_url'),
-      trusted_proxies: csvList(fieldValue(form, 'trusted_proxies')),
-      remote_url: fieldValue(form, 'remote_url'),
-      git_user: fieldValue(form, 'git_user'),
-      git_author: fieldValue(form, 'git_author'),
-      git_token: fieldValue(form, 'git_token'),
-      store_git_token: fieldOn(form, 'store_git_token'),
-      git_token_file: fieldValue(form, 'git_token_file'),
-      mcp_enabled: fieldOn(form, 'mcp_enabled'),
-      document_model: fieldValue(form, 'document_model'),
-      document_model_dir: fieldValue(form, 'document_model_dir'),
-      document_index_dir: fieldValue(form, 'document_index_dir'),
-      oidc_issuer: fieldValue(form, 'oidc_issuer'),
-      oidc_client_id: fieldValue(form, 'oidc_client_id'),
-      oidc_client_secret: fieldValue(form, 'oidc_client_secret'),
-      oidc_client_secret_file: fieldValue(form, 'oidc_client_secret_file'),
-      oidc_local_login: fieldOn(form, 'oidc_local_login'),
-      oidc_button_text: fieldValue(form, 'oidc_button_text'),
-      oidc_icon: fieldValue(form, 'oidc_icon'),
-      oidc_default_scopes: csvList(fieldValue(form, 'oidc_default_scopes')),
-      oidc_allowed_subjects: csvList(fieldValue(form, 'oidc_allowed_subjects')),
-      oidc_allowed_email_domains: csvList(fieldValue(form, 'oidc_allowed_email_domains')),
-      oidc_allow_any_authenticated: fieldOn(form, 'oidc_allow_any_authenticated'),
-      oidc_allow_insecure_loopback: fieldOn(form, 'oidc_allow_insecure_loopback')
-    };
+    const settings = {};
+    form.querySelectorAll('[data-setting]').forEach(el => {
+      if (el.disabled || el.readOnly || !settingChanged(el)) return;
+      const key = el.dataset.setting;
+      switch (el.dataset.kind) {
+        case 'checkbox': settings[key] = el.checked; break;
+        case 'number': settings[key] = el.value === '' ? null : Number(el.value); break;
+        case 'list': settings[key] = csvList(el.value); break;
+        default: settings[key] = el.value;
+      }
+    });
+    return { settings };
   }
 
   // Settings screen: appearance, git author, tokens.
@@ -1668,11 +1668,11 @@
   jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { settingsReturn(); });
   jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { settingsReturn(); });
 
-  // Namespace editor: save, reset, delete and delete-all share one form; the
+  // Namespace editor: save, reset and delete share one form; the
   // submitter's formaction names the endpoint.
   jsonForm($('.namespace-form'), (form, submitter) => {
     const action = (submitter && submitter.hasAttribute('formaction')) ? submitter.formAction : '';
-    if (/\/namespaces\/(reset|delete|delete-all)$/.test(action)) {
+    if (/\/namespaces\/(reset|delete)$/.test(action)) {
       return { name: fieldValue(form, 'name') };
     }
     return {
@@ -1703,7 +1703,18 @@
         }))
       }
     };
-  }, () => { window.location.href = '/_/settings/namespaces?saved=1'; });
+  }, (data, form, url) => {
+    // Deletion, and resetting an empty namespace, can remove the editor.
+    if (/\/namespaces\/(reset|delete)$/.test(url)) {
+      window.location.href = '/_/settings/namespaces?saved=1';
+      return;
+    }
+    // Stay on the editor section that was saved; a new namespace opens its first section.
+    const name = fieldValue(form, 'name');
+    window.location.href = /\/edit(\/|$)/.test(window.location.pathname)
+      ? window.location.pathname + '?saved=1'
+      : '/_/settings/namespaces/' + encodeURIComponent(name) + '/edit?saved=1';
+  });
 
   // First-run setup wizard: submit reloads the current page.
   jsonForm($('.setup-modal form'), (form, submitter) => ({

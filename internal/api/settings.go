@@ -31,79 +31,30 @@ func storeOptions(cfg config.Config) store.Options {
 	}
 }
 
-// ServerSettingsInput is the submitted install-wide server configuration. It
-// accepts secrets (Git token, OIDC client secret) only to persist them when
-// asked; secrets are never returned through a configuration DTO.
+// ServerSettingsInput is the submitted install-wide configuration, keyed by
+// config.yaml setting key (git.remote_url) as the settings form posts it.
+// A null value removes the key, so its default applies again.
 type ServerSettingsInput struct {
-	Bind           string
-	RepoDir        string
-	MaxUploadBytes int64
-	SyncPollMs     int
-	SyncMode       string
-	DefaultBranch  string
-	Skin           string
-	Debug          bool
-	BaseURL        string
-	TrustedProxies []string
-
-	RemoteURL     string
-	GitUser       string
-	GitAuthor     string
-	GitToken      string
-	StoreGitToken bool
-	GitTokenFile  string
-
-	MCPEnabled bool
-
-	DocumentModel    string
-	DocumentModelDir string
-	DocumentIndexDir string
-
-	OIDCIssuer                string
-	OIDCClientID              string
-	OIDCClientSecret          string
-	OIDCClientSecretFile      string
-	OIDCLocalLogin            bool
-	OIDCButtonText            string
-	OIDCIcon                  string
-	OIDCDefaultScopes         []string
-	OIDCAllowedSubjects       []string
-	OIDCAllowedEmailDomains   []string
-	OIDCAllowAnyAuthenticated bool
-	OIDCAllowInsecureLoopback bool
+	Values map[string]any
 }
 
-// SaveServerSettings validates and persists the install-wide configuration,
-// honouring the environment-override guard so a crafted form cannot move a
-// value the environment owns. It reloads the configuration and rebuilds the
-// store remote after a successful write.
+// SaveServerSettings validates and persists the install-wide configuration.
+// Every setting is applied the same way, from the settings schema: a value an
+// environment variable supplies is never changed, so a crafted form cannot move
+// it (or turn an omitted disabled checkbox into false). It reloads the
+// configuration and rebuilds the store remote after a successful write.
 func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) error {
 	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
 		return err
 	}
-	if in.Bind == "" {
-		return InvalidInput("bind cannot be empty", nil)
-	}
-	if in.RepoDir == "" {
-		return InvalidInput("repo directory cannot be empty", nil)
-	}
-	if in.GitUser == "" {
-		return InvalidInput("git user cannot be empty", nil)
-	}
-	if in.RemoteURL != "" && !strings.HasPrefix(in.RemoteURL, "https://") && !strings.HasPrefix(in.RemoteURL, "git@") {
-		return InvalidInput("remote URL must be HTTPS or git@ SSH format", nil)
-	}
-	if in.SyncMode != "push" && in.SyncMode != "bidirectional" {
-		return InvalidInput("sync mode must be push or bidirectional", nil)
-	}
-	if err := ValidateGitAuthor(in.GitAuthor); err != nil {
-		return InvalidInput(err.Error(), err)
-	}
-	if in.MaxUploadBytes < 1 {
-		return InvalidInput("invalid upload size", nil)
-	}
-	if in.SyncPollMs < 100 {
-		return InvalidInput("sync poll must be at least 100ms", nil)
+	for key := range in.Values {
+		s, ok := config.Lookup(key)
+		if !ok {
+			return InvalidInput(fmt.Sprintf("unknown setting %q", key), nil)
+		}
+		if s.EnvOnly {
+			return InvalidInput(fmt.Sprintf("%s can only be set in the environment (%s)", key, s.Env), nil)
+		}
 	}
 
 	configPath := a.Config().ConfigFile
@@ -112,67 +63,43 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 		return Unavailable("reading config", err)
 	}
 
-	// Environment variables are authoritative. Do not let a crafted form change
-	// their on-disk fallback values (and, especially, do not turn an omitted
-	// disabled checkbox into false).
-	set := func(path string, apply func()) {
-		if a.Config().EnvOverrides[path] == "" {
-			apply()
+	overrides := a.Config().EnvOverrides
+	for _, s := range config.Settings() {
+		if s.EnvOnly || overrides[s.Key] != "" {
+			continue
+		}
+		value, ok := in.Values[s.Key]
+		if !ok {
+			continue
+		}
+		if err := config.SetFileValue(&fc, s.Key, value); err != nil {
+			return InvalidInput(err.Error(), err)
 		}
 	}
-	set("Bind", func() { fc.Bind = in.Bind })
-	set("RepoDir", func() { fc.RepoDir = in.RepoDir })
-	set("Git.RemoteURL", func() { fc.Git.RemoteURL = in.RemoteURL })
-	set("Git.User", func() { fc.Git.User = in.GitUser })
-	set("Git.Author", func() { fc.Git.Author = in.GitAuthor })
-	set("MaxUploadBytes", func() { v := in.MaxUploadBytes; fc.MaxUploadBytes = &v })
-	set("SyncPollMs", func() { v := in.SyncPollMs; fc.SyncPollMs = &v })
-	set("SyncMode", func() { fc.SyncMode = in.SyncMode })
-	set("DefaultBranch", func() { fc.DefaultBranch = in.DefaultBranch })
-	set("Skin", func() { fc.Skin = in.Skin })
-	set("Debug", func() { fc.Debug = in.Debug })
-	set("BaseURL", func() { fc.BaseURL = in.BaseURL })
-	set("TrustedProxies", func() { fc.TrustedProxies = in.TrustedProxies })
-	set("Git.TokenFile", func() { fc.Git.TokenFile = in.GitTokenFile })
-	set("MCP.Enabled", func() { fc.MCP.Enabled = in.MCPEnabled })
-	set("DocumentSearch.Model", func() { fc.DocumentSearch.Model = in.DocumentModel })
-	set("DocumentSearch.ModelDir", func() { fc.DocumentSearch.ModelDir = in.DocumentModelDir })
-	set("DocumentSearch.IndexDir", func() { fc.DocumentSearch.IndexDir = in.DocumentIndexDir })
-	set("OIDC.Issuer", func() { fc.OIDC.Issuer = in.OIDCIssuer })
-	set("OIDC.ClientID", func() { fc.OIDC.ClientID = in.OIDCClientID })
-	set("OIDC.ClientSecretFile", func() { fc.OIDC.ClientSecretFile = in.OIDCClientSecretFile })
-	set("OIDC.ClientSecret", func() {
-		if in.OIDCClientSecret != "" {
-			fc.OIDC.ClientSecret = in.OIDCClientSecret
-		}
-	})
-	set("OIDC.LocalLogin", func() { localLogin := in.OIDCLocalLogin; fc.OIDC.LocalLogin = &localLogin })
-	set("OIDC.ButtonText", func() { fc.OIDC.ButtonText = in.OIDCButtonText })
-	set("OIDC.Icon", func() { fc.OIDC.Icon = in.OIDCIcon })
-	set("OIDC.DefaultScopes", func() { fc.OIDC.DefaultScopes = in.OIDCDefaultScopes })
-	set("OIDC.AllowedSubjects", func() { fc.OIDC.AllowedSubjects = in.OIDCAllowedSubjects })
-	set("OIDC.AllowedEmailDomains", func() { fc.OIDC.AllowedEmailDomains = in.OIDCAllowedEmailDomains })
-	set("OIDC.AllowAnyAuthenticated", func() { fc.OIDC.AllowAnyAuthenticated = in.OIDCAllowAnyAuthenticated })
-	set("OIDC.AllowInsecureLoopback", func() { fc.OIDC.AllowInsecureLoopback = in.OIDCAllowInsecureLoopback })
-	set("Git.Token", func() {
-		if in.GitToken != "" && in.StoreGitToken {
-			fc.Git.Token = in.GitToken
-		}
-	})
+	if err := ValidateGitAuthor(fc.Git.Author); err != nil {
+		return InvalidInput(err.Error(), err)
+	}
 
 	currentCfg := a.Config()
 	if currentCfg.OAuth.Enabled {
 		baseURL := currentCfg.BaseURL
-		if currentCfg.EnvOverrides["BaseURL"] == "" {
-			baseURL = strings.TrimRight(fc.BaseURL, "/")
+		if currentCfg.EnvOverrides["server.base_url"] == "" {
+			baseURL = strings.TrimRight(fc.Server.BaseURL, "/")
 		}
 		mcpEnabled := currentCfg.MCP.Enabled
-		if currentCfg.EnvOverrides["MCP.Enabled"] == "" {
+		if currentCfg.EnvOverrides["mcp.enabled"] == "" {
 			mcpEnabled = fc.MCP.Enabled
 		}
 		if baseURL != currentCfg.BaseURL || !mcpEnabled {
 			return InvalidInput("OAuth issuer and MCP availability require a restart; change them in deployment configuration", nil)
 		}
+	}
+
+	// Resolve the candidate exactly as a restart would (schema rules,
+	// environment overrides and cross-field checks) before anything is
+	// written, so a saved config.yaml always loads.
+	if _, err := config.Resolve(fc); err != nil {
+		return InvalidInput(err.Error(), err)
 	}
 
 	if err := config.SaveFileConfig(configPath, fc); err != nil {

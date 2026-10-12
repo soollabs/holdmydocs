@@ -1,11 +1,11 @@
 package web
 
 import (
+	"fmt"
 	"html"
 	"html/template"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +40,9 @@ type NamespaceManagementData struct {
 	TreeEditor   template.HTML
 	Error        string
 	Flash        string
+	FileCount    int                // files in the namespace being edited; deleting removes them too
+	Section      string             // active editor section, one of namespaceSections
+	Sections     []namespaceSection // editor pages, listed in the settings navigation
 }
 
 type FieldState struct {
@@ -47,46 +50,44 @@ type FieldState struct {
 	Editable        bool   // can the user change this from the UI?
 	RestartRequired bool   // does the change only take effect on restart?
 	EnvVar          string // non-empty if an env var overrides this field
-	BootstrapOnly   bool   // true for AdminUser/AdminPass (CLI-managed)
 }
 
 // SettingsData is passed to the settings template.
 type SettingsData struct {
-	Fields           map[string]FieldState
-	ConfigPath       string
-	Flash            string // success message after a save
-	Error            string // validation error
-	MaxUploadBytes   int64
-	SyncPollMs       int
-	SyncMode         string
-	Palette          string
-	PaletteNames     []string
-	Palettes         map[string]themePreset // JSON-encoded into the settings page script
-	FontUI           string
-	FontMono         string
-	FontsMono        []string // option groups for the font selects
-	FontsSans        []string
-	FontsSerif       []string
-	FontStacks       map[string]string // JSON-encoded for the live font preview
-	Skin             string
-	SkinNames        []string
-	Skins            map[string]skin
-	SkinPalettes     map[string]string // skin -> default palette, JSON-encoded to move the selection on change
-	HelpDrifted      bool
-	UserGitAuthor    string             // current user's per-user git author override
-	WikiConfigPath   string             // repository-relative .wiki.yaml path
-	WikiLanding      string             // where "/" redirects to
-	WikiSiteName     string             // title shared by every clone of the wiki
-	Tokens           []TokenView        // current user's personal access tokens
-	TokenNamespaces  []string           // selectable namespace names for new tokens
-	NewToken         string             // freshly minted token value, shown exactly once
-	TokenError       string             // token create/revoke validation error
-	HasEnvOverrides  bool               // any field currently sourced from an env var — shows the "export to file" action
-	ExportSecretVars []string           // secret environment variables excluded from export
-	Users            []auth.UserSummary // every user, for the users tab
-	AllScopes        []string           // "read", "write", "settings" — the scope checkbox options
-	CurrentUser      string             // name of the logged-in user, so the users tab can block self-lockout
-	UserError        string             // create/scope-update validation error
+	Fields          map[string]FieldState
+	ConfigPath      string
+	Flash           string // success message after a save
+	Error           string // validation error
+	MaxUploadBytes  int64
+	SyncPollMs      int
+	SyncMode        string
+	Palette         string
+	PaletteNames    []string
+	Palettes        map[string]themePreset // JSON-encoded into the settings page script
+	FontUI          string
+	FontMono        string
+	FontsMono       []string // option groups for the font selects
+	FontsSans       []string
+	FontsSerif      []string
+	FontStacks      map[string]string // JSON-encoded for the live font preview
+	Skin            string
+	SkinNames       []string
+	Skins           map[string]skin
+	SkinPalettes    map[string]string // skin -> default palette, JSON-encoded to move the selection on change
+	HelpDrifted     bool
+	UserGitAuthor   string             // current user's per-user git author override
+	WikiConfigPath  string             // repository-relative .wiki.yaml path
+	WikiLanding     string             // where "/" redirects to
+	WikiSiteName    string             // title shared by every clone of the wiki
+	Tokens          []TokenView        // current user's personal access tokens
+	TokenNamespaces []string           // selectable namespace names for new tokens
+	NewToken        string             // freshly minted token value, shown exactly once
+	TokenError      string             // token create/revoke validation error
+	HasEnvOverrides bool               // any field currently sourced from an env var — shows the "export to file" action
+	Users           []auth.UserSummary // every user, for the users tab
+	AllScopes       []string           // "read", "write", "settings" — the scope checkbox options
+	CurrentUser     string             // name of the logged-in user, so the users tab can block self-lockout
+	UserError       string             // create/scope-update validation error
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -119,128 +120,63 @@ func remoteHost(raw string) string {
 	return s
 }
 
-func buildSettingsData(cfg config.Config, prefs auth.UserRecord) SettingsData {
+// settingFields builds the settings-page state of every config.yaml setting,
+// keyed by schema key (git.remote_url). Environment-only settings are never
+// editable, and secrets only report whether they are set.
+func settingFields(cfg config.Config) map[string]FieldState {
 	fields := make(map[string]FieldState)
-
-	mkField := func(value, fieldName string, restartRequired, bootstrapOnly bool) FieldState {
-		envVar := ""
-		if !bootstrapOnly {
-			envVar = cfg.EnvOverrides[fieldName]
+	for _, s := range config.Settings() {
+		value := settingText(config.SettingValue(cfg, s.Key))
+		if s.Secret {
+			value = map[bool]string{true: "set", false: "not set"}[value != ""]
 		}
-		editable := envVar == "" && !bootstrapOnly
-		return FieldState{
-			Value:           value,
-			Editable:        editable,
-			RestartRequired: restartRequired,
-			EnvVar:          envVar,
-			BootstrapOnly:   bootstrapOnly,
+		env := cfg.EnvOverrides[s.Key]
+		if s.EnvOnly && os.Getenv(s.Env) != "" {
+			env = s.Env
 		}
+		fields[s.Key] = FieldState{Value: value, Editable: env == "" && !s.EnvOnly, RestartRequired: s.Restart, EnvVar: env}
 	}
+	return fields
+}
 
-	fields["Bind"] = mkField(cfg.Bind, "Bind", true, false)
-	fields["MaxUploadBytes"] = mkField(strconv.FormatInt(cfg.MaxUploadBytes, 10), "MaxUploadBytes", false, false)
-	fields["SyncPollMs"] = mkField(strconv.Itoa(cfg.SyncPollMs), "SyncPollMs", false, false)
-	fields["RepoDir"] = mkField(cfg.RepoDir, "RepoDir", true, false)
-	appDirEnv := ""
-	if os.Getenv("HMD_APP_DIR") != "" {
-		appDirEnv = "HMD_APP_DIR"
+// settingText renders a config value for an input: lists as comma-separated text.
+func settingText(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case []string:
+		return strings.Join(t, ", ")
+	default:
+		return fmt.Sprint(t)
 	}
-	fields["AppDir"] = FieldState{Value: cfg.AppDir, Editable: false, RestartRequired: true, EnvVar: appDirEnv, BootstrapOnly: true}
-	fields["RemoteURL"] = mkField(cfg.Git.RemoteURL, "Git.RemoteURL", false, false)
-	fields["GitUser"] = mkField(cfg.Git.User, "Git.User", false, false)
-	fields["GitAuthor"] = mkField(cfg.Git.Author, "Git.Author", false, false)
+}
 
-	tokenValue := "not set"
-	if cfg.Git.Token != "" {
-		tokenValue = "set"
-	}
-	tokenEnvVar := cfg.EnvOverrides["Git.Token"]
-	if tokenEnvVar == "" {
-		tokenEnvVar = cfg.EnvOverrides["Git.TokenFile"]
-	}
-	fields["GitToken"] = FieldState{
-		Value:           tokenValue,
-		Editable:        tokenEnvVar == "",
-		RestartRequired: false,
-		EnvVar:          tokenEnvVar,
-		BootstrapOnly:   false,
-	}
-
-	adminUserEnv := ""
-	if os.Getenv("HMD_ADMIN_USER") != "" {
-		adminUserEnv = "HMD_ADMIN_USER"
-	}
-	fields["AdminUser"] = FieldState{Value: cfg.AdminUser, Editable: false, EnvVar: adminUserEnv, BootstrapOnly: true}
-	adminPassEnv := ""
-	if os.Getenv("HMD_ADMIN_PASSWORD") != "" {
-		adminPassEnv = "HMD_ADMIN_PASSWORD"
-	}
-	fields["AdminPass"] = FieldState{Value: cfg.AdminPass, Editable: false, EnvVar: adminPassEnv, BootstrapOnly: true}
-
-	fields["SyncMode"] = mkField(cfg.SyncMode, "SyncMode", false, false)
-	fields["DefaultBranch"] = mkField(cfg.DefaultBranch, "DefaultBranch", false, false)
-	fields["Skin"] = mkField(cfg.Skin, "Skin", false, false)
-	fields["Debug"] = mkField(strconv.FormatBool(cfg.Debug), "Debug", true, false)
-	fields["BaseURL"] = mkField(cfg.BaseURL, "BaseURL", true, false)
-	fields["TrustedProxies"] = mkField(strings.Join(cfg.TrustedProxies, ", "), "TrustedProxies", true, false)
-	fields["GitTokenFile"] = mkField(cfg.Git.TokenFile, "Git.TokenFile", false, false)
-	fields["MCPEnabled"] = mkField(strconv.FormatBool(cfg.MCP.Enabled), "MCP.Enabled", true, false)
-	fields["DocumentModel"] = mkField(cfg.DocumentSearch.Model, "DocumentSearch.Model", true, false)
-	fields["DocumentModelDir"] = mkField(cfg.DocumentSearch.ModelDir, "DocumentSearch.ModelDir", true, false)
-	fields["DocumentIndexDir"] = mkField(cfg.DocumentSearch.IndexDir, "DocumentSearch.IndexDir", true, false)
-	fields["OIDCIssuer"] = mkField(cfg.OIDC.Issuer, "OIDC.Issuer", true, false)
-	fields["OIDCClientID"] = mkField(cfg.OIDC.ClientID, "OIDC.ClientID", true, false)
-	oidcSecretValue := "not set"
-	if cfg.OIDC.ClientSecret != "" {
-		oidcSecretValue = "set"
-	}
-	fields["OIDCClientSecret"] = FieldState{Value: oidcSecretValue, Editable: cfg.EnvOverrides["OIDC.ClientSecret"] == "", RestartRequired: true, EnvVar: cfg.EnvOverrides["OIDC.ClientSecret"]}
-	fields["OIDCClientSecretFile"] = mkField(cfg.OIDC.ClientSecretFile, "OIDC.ClientSecretFile", true, false)
-	fields["OIDCLocalLogin"] = mkField(strconv.FormatBool(cfg.OIDC.LocalLogin), "OIDC.LocalLogin", true, false)
-	fields["OIDCButtonText"] = mkField(cfg.OIDC.ButtonText, "OIDC.ButtonText", true, false)
-	fields["OIDCIcon"] = mkField(cfg.OIDC.Icon, "OIDC.Icon", true, false)
-	fields["OIDCDefaultScopes"] = mkField(strings.Join(cfg.OIDC.DefaultScopes, ", "), "OIDC.DefaultScopes", true, false)
-	fields["OIDCAllowedSubjects"] = mkField(strings.Join(cfg.OIDC.AllowedSubjects, ", "), "OIDC.AllowedSubjects", true, false)
-	fields["OIDCAllowedEmailDomains"] = mkField(strings.Join(cfg.OIDC.AllowedEmailDomains, ", "), "OIDC.AllowedEmailDomains", true, false)
-	fields["OIDCAllowAnyAuthenticated"] = mkField(strconv.FormatBool(cfg.OIDC.AllowAnyAuthenticated), "OIDC.AllowAnyAuthenticated", true, false)
-	fields["OIDCAllowInsecureLoopback"] = mkField(strconv.FormatBool(cfg.OIDC.AllowInsecureLoopback), "OIDC.AllowInsecureLoopback", true, false)
-	tikaValue := "not set"
-	if cfg.TikaURL != "" {
-		tikaValue = "configured"
-	}
-	fields["TikaURL"] = FieldState{
-		Value: tikaValue, Editable: false, RestartRequired: true,
-		EnvVar: cfg.EnvOverrides["TikaURL"],
-	}
+func buildSettingsData(cfg config.Config, prefs auth.UserRecord) SettingsData {
+	fields := settingFields(cfg)
 
 	activeName, activeSkin := effectiveSkin(cfg, prefs)
 
 	return SettingsData{
-		Fields:           fields,
-		ConfigPath:       cfg.ConfigFile,
-		MaxUploadBytes:   cfg.MaxUploadBytes,
-		SyncPollMs:       cfg.SyncPollMs,
-		SyncMode:         cfg.SyncMode,
-		Palette:          effectivePalette(prefs, activeSkin),
-		PaletteNames:     themePresetNames,
-		Palettes:         themePresets,
-		FontUI:           prefs.FontUI,
-		FontMono:         prefs.FontMono,
-		FontsMono:        fontsMono,
-		FontsSans:        fontsSans,
-		FontsSerif:       fontsSerif,
-		FontStacks:       fontStacks,
-		Skin:             activeName,
-		SkinNames:        skinNames,
-		Skins:            skins,
-		SkinPalettes:     skinPalettes(),
-		HasEnvOverrides:  len(cfg.EnvOverrides) > 0,
-		ExportSecretVars: exportSecretVars(cfg),
+		Fields:          fields,
+		ConfigPath:      cfg.ConfigFile,
+		MaxUploadBytes:  cfg.MaxUploadBytes,
+		SyncPollMs:      cfg.SyncPollMs,
+		SyncMode:        cfg.SyncMode,
+		Palette:         effectivePalette(prefs, activeSkin),
+		PaletteNames:    themePresetNames,
+		Palettes:        themePresets,
+		FontUI:          prefs.FontUI,
+		FontMono:        prefs.FontMono,
+		FontsMono:       fontsMono,
+		FontsSans:       fontsSans,
+		FontsSerif:      fontsSerif,
+		FontStacks:      fontStacks,
+		Skin:            activeName,
+		SkinNames:       skinNames,
+		Skins:           skins,
+		SkinPalettes:    skinPalettes(),
+		HasEnvOverrides: len(cfg.EnvOverrides) > 0,
 	}
-}
-
-func exportSecretVars(cfg config.Config) []string {
-	return nil
 }
 
 func (app *App) settingsData(r *http.Request) SettingsData {
@@ -314,10 +250,12 @@ var settingsPanels = map[string]settingsPanel{
 	"git-author":      {"Git author", "settings"},
 	"access-tokens":   {"Access tokens", "settings"},
 	"server":          {"Server", "admin"},
-	"git-remote":      {"Git remote", "admin"},
-	"behaviour":       {"Behaviour", "admin"},
+	"git":             {"Git", "admin"},
+	"mcp":             {"MCP", "admin"},
+	"oidc":            {"OIDC single sign-on", "admin"},
+	"document-search": {"Document search", "admin"},
+	"wiki":            {"Wiki", "admin"},
 	"users":           {"Users", "admin"},
-	"advanced-config": {"config.yaml", "admin"},
 	"advanced":        {"Environment overrides", "admin"},
 	"namespaces":      {"Namespaces", ""},
 	"connections":     {"Connected applications", ""},
@@ -376,6 +314,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 		if entry.Name == name && auth.TokenAllowsNamespace(r.Context(), entry.Name) {
 			if detail, err := app.apiClient().ReadNamespace(r.Context(), entry.Name); err == nil {
 				entry.Hash = detail.Hash
+				data.FileCount = detail.Files
 			}
 			data.Form = entry
 			data.TreeEditor = namespaceTreeEditor(app.apiClient().PageTitles(r.Context()), entry.Name, entry.Index, entry.Tree)
@@ -493,6 +432,7 @@ func (app *App) handleNamespacesGet(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleNamespaceNewGet(w http.ResponseWriter, r *http.Request) {
 	data := app.namespaceManagementData(r, "", "")
 	data.Form = NamespaceListEntry{Template: wiki.DefaultNewPageTemplate, SlugPreset: presentation.SlugPresets[0].Key}
+	data.Section = "general"
 	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: "New namespace", StatusMode: "settings", NamespaceManagement: &data})
 }
 
@@ -505,10 +445,46 @@ func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
 		app.notFound(w, r)
 		return
 	}
+	section, ok := namespaceSectionByKey(r.PathValue("section"))
+	if !ok || r.PathValue("section") == "general" {
+		app.notFound(w, r)
+		return
+	}
 	data := app.namespaceManagementData(r, name, "")
 	if data.Form.Name == "" {
 		app.notFound(w, r)
 		return
 	}
+	data.Section = section.Key
+	data.Sections = namespaceSections
+	if r.URL.Query().Get("saved") == "1" {
+		data.Flash = "Namespace settings saved"
+	}
 	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data})
+}
+
+// namespaceSection is one page of the namespace editor. The editor keeps a
+// single form, so saving any section posts the whole namespace configuration.
+type namespaceSection struct {
+	Key, Label, Path string // Path follows /_/settings/namespaces/{name}/edit
+}
+
+var namespaceSections = []namespaceSection{
+	{"general", "general", ""},
+	{"published", "published view", "/published"},
+	{"static-site", "static site", "/static-site"},
+	{"widgets", "widgets", "/widgets"},
+}
+
+// namespaceSectionByKey resolves an editor section; an empty key is general.
+func namespaceSectionByKey(key string) (namespaceSection, bool) {
+	if key == "" {
+		key = "general"
+	}
+	for _, s := range namespaceSections {
+		if s.Key == key {
+			return s, true
+		}
+	}
+	return namespaceSection{}, false
 }

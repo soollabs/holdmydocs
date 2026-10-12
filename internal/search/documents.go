@@ -229,7 +229,7 @@ func NewTikaClient(raw string) (*TikaClient, error) {
 	raw = strings.TrimRight(strings.TrimSpace(raw), "/")
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-		return nil, fmt.Errorf("HMD_TIKA_URL must be an http or https URL with a host and no user-info")
+		return nil, fmt.Errorf("document_search.tika_url must be an http or https URL with a host and no user-info")
 	}
 	return &TikaClient{baseURL: raw, client: &http.Client{}, sem: make(chan struct{}, 1)}, nil
 }

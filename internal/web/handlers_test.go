@@ -1401,6 +1401,7 @@ func TestAppConfigPointer(t *testing.T) {
 }
 
 func TestBuildSettingsDataEditable(t *testing.T) {
+	t.Setenv("HMD_GIT_TOKEN", "secret")
 	cfg := config.Config{
 		ConfigFile: "/path/config.yaml",
 		Bind:       ":8080",
@@ -1411,31 +1412,31 @@ func TestBuildSettingsDataEditable(t *testing.T) {
 
 	sd := buildSettingsData(cfg, auth.UserRecord{})
 
-	if !sd.Fields["Bind"].Editable {
+	if !sd.Fields["server.bind"].Editable {
 		t.Error("Bind should be editable (no env var set)")
 	}
-	if !sd.Fields["Bind"].RestartRequired {
+	if !sd.Fields["server.bind"].RestartRequired {
 		t.Error("Bind should be RestartRequired")
 	}
-	if sd.Fields["Bind"].Value != ":8080" {
-		t.Errorf("Bind Value = %q, want %q", sd.Fields["Bind"].Value, ":8080")
+	if sd.Fields["server.bind"].Value != ":8080" {
+		t.Errorf("Bind Value = %q, want %q", sd.Fields["server.bind"].Value, ":8080")
 	}
-	if !sd.Fields["RepoDir"].RestartRequired {
+	if !sd.Fields["server.repo_dir"].RestartRequired {
 		t.Error("RepoDir should be RestartRequired")
 	}
-	if !sd.Fields["AppDir"].RestartRequired {
+	if !sd.Fields["server.app_dir"].RestartRequired {
 		t.Error("AppDir should be RestartRequired")
 	}
-	if sd.Fields["RemoteURL"].RestartRequired {
+	if sd.Fields["git.remote_url"].RestartRequired {
 		t.Error("RemoteURL should not be RestartRequired")
 	}
-	if sd.Fields["GitToken"].Value != "set" {
-		t.Errorf("GitToken Value = %q, want %q", sd.Fields["GitToken"].Value, "set")
+	if sd.Fields["git.token"].Value != "set" {
+		t.Errorf("git.token Value = %q, want %q", sd.Fields["git.token"].Value, "set")
 	}
-	if sd.Fields["AdminUser"].Editable {
+	if sd.Fields["server.admin.user"].Editable {
 		t.Error("AdminUser should not be Editable (bootstrap only)")
 	}
-	if sd.Fields["AdminPass"].Editable {
+	if sd.Fields["server.admin.password"].Editable {
 		t.Error("AdminPass should not be Editable (bootstrap only)")
 	}
 }
@@ -1448,45 +1449,24 @@ func TestBuildSettingsDataEnvLocked(t *testing.T) {
 		AppDir:     "/data/app",
 		Git:        config.GitConfig{User: "hmd"},
 		EnvOverrides: map[string]string{
-			"Bind": "HMD_BIND",
+			"server.bind": "HMD_SERVER_BIND",
 		},
 	}
 
 	sd := buildSettingsData(cfg, auth.UserRecord{})
 
-	if sd.Fields["Bind"].Editable {
+	if sd.Fields["server.bind"].Editable {
 		t.Error("Bind should be read-only (env set)")
 	}
-	if sd.Fields["Bind"].EnvVar != "HMD_BIND" {
-		t.Errorf("Bind EnvVar = %q, want %q", sd.Fields["Bind"].EnvVar, "HMD_BIND")
-	}
-}
-
-func TestBuildSettingsDataTokenFileLocked(t *testing.T) {
-	cfg := config.Config{
-		ConfigFile: "/path/config.yaml",
-		Git:        config.GitConfig{Token: "file-token", User: "hmd"},
-		RepoDir:    "/data/repo",
-		AppDir:     "/data/app",
-		EnvOverrides: map[string]string{
-			"Git.TokenFile": "HMD_GIT_TOKEN_FILE",
-		},
-	}
-
-	sd := buildSettingsData(cfg, auth.UserRecord{})
-
-	if sd.Fields["GitToken"].Editable {
-		t.Error("GitToken should be read-only when token file is set")
-	}
-	if sd.Fields["GitToken"].EnvVar == "" {
-		t.Error("GitToken EnvVar should be set when token file is configured")
+	if sd.Fields["server.bind"].EnvVar != "HMD_SERVER_BIND" {
+		t.Errorf("Bind EnvVar = %q, want %q", sd.Fields["server.bind"].EnvVar, "HMD_SERVER_BIND")
 	}
 }
 
 func TestSettingsGetWithConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "bind: \":7000\"\n"
+	yamlContent := "server:\n  bind: \":7000\"\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -1521,7 +1501,7 @@ func TestSettingsGetWithConfigFile(t *testing.T) {
 func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "bind: \":7000\"\n"
+	yamlContent := "server:\n  bind: \":7000\"\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -1531,14 +1511,14 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{
-		"bind":             {":7001"},
-		"repo_dir":         {"/data/repo"},
-		"remote_url":       {""},
-		"git_user":         {"test"},
-		"git_token":        {""},
-		"max_upload_bytes": {"10485760"},
-		"sync_poll_ms":     {"10000"},
-		"sync_mode":        {"push"},
+		"server.bind":             {":7001"},
+		"server.repo_dir":         {"/data/repo"},
+		"remote_url":              {""},
+		"git_user":                {"test"},
+		"git_token":               {""},
+		"server.max_upload_bytes": {"10485760"},
+		"git.sync_poll_ms":        {"10000"},
+		"git.sync_mode":           {"push"},
 	}
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
@@ -1561,8 +1541,8 @@ func TestSettingsPostSavesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
-	if loaded.Bind != ":7001" {
-		t.Errorf("Bind in file = %q, want %q", loaded.Bind, ":7001")
+	if loaded.Server.Bind != ":7001" {
+		t.Errorf("Bind in file = %q, want %q", loaded.Server.Bind, ":7001")
 	}
 }
 
@@ -1629,14 +1609,14 @@ func TestSettingsPostInvalidBind(t *testing.T) {
 	defer server.Close()
 
 	form := url.Values{
-		"bind":             {""},
-		"repo_dir":         {"/data/repo"},
-		"remote_url":       {""},
-		"git_user":         {"test"},
-		"git_token":        {""},
-		"max_upload_bytes": {"10485760"},
-		"sync_poll_ms":     {"10000"},
-		"sync_mode":        {"push"},
+		"server.bind":             {"localhost"},
+		"server.repo_dir":         {"/data/repo"},
+		"remote_url":              {""},
+		"git_user":                {"test"},
+		"git_token":               {""},
+		"server.max_upload_bytes": {"10485760"},
+		"git.sync_poll_ms":        {"10000"},
+		"git.sync_mode":           {"push"},
 	}
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
@@ -1815,7 +1795,7 @@ func TestRerunSetupShowsModalEvenWhenFilesExist(t *testing.T) {
 func TestSettingsFullFlow(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/config.yaml"
-	yamlContent := "bind: \":7000\"\ngit:\n  user: test\n"
+	yamlContent := "server:\n  bind: \":7000\"\ngit:\n  user: test\n"
 	if err := os.WriteFile(cfgFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -1837,14 +1817,14 @@ func TestSettingsFullFlow(t *testing.T) {
 	}
 
 	form := url.Values{
-		"bind":             {":7001"},
-		"repo_dir":         {"/data/repo"},
-		"remote_url":       {""},
-		"git_user":         {"test"},
-		"git_token":        {""},
-		"max_upload_bytes": {"10485760"},
-		"sync_poll_ms":     {"10000"},
-		"sync_mode":        {"push"},
+		"server.bind":             {":7001"},
+		"server.repo_dir":         {"/data/repo"},
+		"remote_url":              {""},
+		"git_user":                {"test"},
+		"git_token":               {""},
+		"server.max_upload_bytes": {"10485760"},
+		"git.sync_poll_ms":        {"10000"},
+		"git.sync_mode":           {"push"},
 	}
 	resp2, err := postJSON(t, client, server.URL+"/_/api/settings/server", serverSettingsJSON(form))
 	if err != nil {
@@ -1873,8 +1853,8 @@ func TestSettingsFullFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
-	if loaded.Bind != ":7001" {
-		t.Errorf("File Bind = %q, want %q", loaded.Bind, ":7001")
+	if loaded.Server.Bind != ":7001" {
+		t.Errorf("File Bind = %q, want %q", loaded.Server.Bind, ":7001")
 	}
 }
 
@@ -1890,7 +1870,7 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 	t.Setenv("HMD_CONFIG_FILE", cfgFile)
-	t.Setenv("HMD_SYNC_MODE", "bidirectional")
+	t.Setenv("HMD_GIT_SYNC_MODE", "bidirectional")
 
 	server, client := newTestApp(t)
 	defer server.Close()
@@ -1915,28 +1895,8 @@ func TestSettingsExportBakesInEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFileConfig failed: %v", err)
 	}
-	if loaded.SyncMode != "bidirectional" {
-		t.Errorf("SyncMode in file = %q, want %q (exported from HMD_SYNC_MODE)", loaded.SyncMode, "bidirectional")
-	}
-}
-
-func TestConfigExportOmitsResolvedTokenWhenTokenFileSet(t *testing.T) {
-	dir := t.TempDir()
-	tokenFile := dir + "/token.txt"
-	if err := os.WriteFile(tokenFile, []byte("secret-from-file\n"), 0644); err != nil {
-		t.Fatalf("failed to write token file: %v", err)
-	}
-
-	cfg := config.Config{
-		Git: config.GitConfig{TokenFile: tokenFile, Token: "secret-from-file"},
-	}
-
-	fc := cfg.ToFileConfig()
-	if fc.Git.Token != "" {
-		t.Errorf("Git.Token = %q, want empty (resolved-from-file secret should not be exported in plaintext)", fc.Git.Token)
-	}
-	if fc.Git.TokenFile != tokenFile {
-		t.Errorf("Git.TokenFile = %q, want %q", fc.Git.TokenFile, tokenFile)
+	if loaded.Git.SyncMode != "bidirectional" {
+		t.Errorf("SyncMode in file = %q, want %q (exported from HMD_GIT_SYNC_MODE)", loaded.Git.SyncMode, "bidirectional")
 	}
 }
 

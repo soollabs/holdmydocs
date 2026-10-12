@@ -70,6 +70,7 @@ func (app *App) Routes() http.Handler {
 	mux.HandleFunc("GET /_/settings/namespaces", app.handleNamespacesGet)
 	mux.HandleFunc("GET /_/settings/namespaces/new", app.handleNamespaceNewGet)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/edit", app.handleNamespaceEditGet)
+	mux.HandleFunc("GET /_/settings/namespaces/{name}/edit/{section}", app.handleNamespaceEditGet)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/export", app.handleExportNamespace)
 	mux.HandleFunc("GET /_/settings/namespaces/{name}/preview", app.handlePreviewExportNamespace)
 	// OAuth settings handlers return 404 themselves while OAuth is disabled.

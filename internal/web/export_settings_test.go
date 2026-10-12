@@ -116,7 +116,7 @@ func TestNamespaceExportSettingsSaveAndRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"https://docs.example.org/manual/", "Googlebot, CustomBot", "fa-brands fa-github", `id="export-add-link"`, `value="topbar" selected`, `class="export-link-icon-only" checked`, "Labels are shown as link text", "namespace-preview.css"} {
+	for _, want := range []string{"https://docs.example.org/manual/", "Googlebot, CustomBot", "fa-brands fa-github", `id="export-add-link"`, `value="topbar" selected`, `class="export-link-icon-only" checked`, "Labels are link text, or tooltips for icon-only links", "namespace-preview.css"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("editor missing %q", want)
 		}

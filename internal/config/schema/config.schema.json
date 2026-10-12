@@ -1,0 +1,443 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HMD settings",
+  "description": "Settings accepted in config.yaml. Each top-level section is one settings page and each nested object a group on it. A key's environment variable is HMD_ followed by its upper-case dotted path with underscores (server.bind is HMD_SERVER_BIND); lists have none. A setting marked x-env-only is read from the environment only, never from config.yaml; x-env names its variable when it differs, and x-secret hides its value.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "server": {
+      "title": "server",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bind": {
+          "title": "bind",
+          "type": "string",
+          "default": ":8080",
+          "description": "Address and port HMD listens on, in host:port form. Use 127.0.0.1:8080 to accept connections from this computer only.",
+          "x-restart": true,
+          "format": "host-port",
+          "examples": [
+            "127.0.0.1:8080"
+          ]
+        },
+        "repo_dir": {
+          "title": "repo dir",
+          "type": "string",
+          "default": "/data/repo",
+          "description": "Private directory holding the Git repository of pages, attachments and wiki configuration. Must not overlap the app directory.",
+          "x-restart": true
+        },
+        "app_dir": {
+          "title": "app dir",
+          "type": "string",
+          "description": "Private application state directory; defaults to /data/app.",
+          "x-restart": true,
+          "x-env-only": true,
+          "x-env": "HMD_APP_DIR"
+        },
+        "config_file": {
+          "title": "config file",
+          "type": "string",
+          "description": "Path to the YAML configuration file; overrides the default location in the app directory.",
+          "x-restart": true,
+          "x-env-only": true,
+          "x-env": "HMD_CONFIG_FILE"
+        },
+        "base_url": {
+          "title": "base URL",
+          "type": "string",
+          "default": "",
+          "description": "Public origin of HMD, such as https://wiki.example.com, with no path. Browser writes must come from this origin; MCP upload links and the OIDC callback use it. Required for MCP and OIDC.",
+          "x-restart": true,
+          "format": "origin",
+          "x-schemes": [
+            "http",
+            "https"
+          ],
+          "examples": [
+            "https://wiki.example.com"
+          ]
+        },
+        "trusted_proxies": {
+          "title": "trusted proxies",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "cidr"
+          },
+          "default": [],
+          "description": "CIDR ranges of reverse proxies allowed to set X-Forwarded-Proto. List only proxies you control.",
+          "x-restart": true,
+          "examples": [
+            "10.0.0.0/8"
+          ]
+        },
+        "read_only": {
+          "title": "read-only mode",
+          "type": "boolean",
+          "default": false,
+          "description": "Serve the wiki without allowing edits, uploads, setup, administrator operations or pushes. Once on, saving settings is blocked too: turn it off in config.yaml or HMD_SERVER_READ_ONLY and restart.",
+          "x-restart": true
+        },
+        "debug": {
+          "title": "debug logging",
+          "type": "boolean",
+          "default": false,
+          "description": "Log at debug level. Logs never include credentials, queries or page bodies.",
+          "x-restart": true
+        },
+        "max_upload_bytes": {
+          "title": "max upload (bytes)",
+          "type": "integer",
+          "default": 10485760,
+          "minimum": 1,
+          "maximum": 1073741824,
+          "description": "Largest attachment upload accepted, in bytes (default 10 MiB).",
+          "x-restart": false
+        },
+        "skin": {
+          "title": "default skin",
+          "type": "string",
+          "default": "phosphor",
+          "enum": [
+            "phosphor",
+            "newsprint",
+            "journal",
+            "soft",
+            "bare"
+          ],
+          "description": "Skin used for users who have not chosen their own.",
+          "x-restart": false
+        },
+        "admin": {
+          "title": "bootstrap admin",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "user": {
+              "title": "user",
+              "type": "string",
+              "description": "Bootstrap administrator user name, managed from the environment rather than config.yaml.",
+              "x-restart": false,
+              "x-env-only": true,
+              "x-env": "HMD_ADMIN_USER"
+            },
+            "password": {
+              "title": "password",
+              "type": "string",
+              "description": "Bootstrap administrator password, managed from the environment rather than config.yaml.",
+              "x-restart": false,
+              "x-env-only": true,
+              "x-secret": true,
+              "x-env": "HMD_ADMIN_PASSWORD"
+            }
+          }
+        }
+      }
+    },
+    "git": {
+      "title": "git",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "remote_url": {
+          "title": "remote url",
+          "type": "string",
+          "default": "",
+          "description": "HTTPS URL of an optional Git remote to push to. Leave empty to keep the repository local only.",
+          "x-restart": false,
+          "format": "url",
+          "x-schemes": [
+            "https"
+          ],
+          "examples": [
+            "https://example.com/repo.git"
+          ]
+        },
+        "user": {
+          "title": "git user",
+          "type": "string",
+          "default": "hmd",
+          "description": "User name sent to the Git remote when authenticating.",
+          "x-restart": false
+        },
+        "author": {
+          "title": "git author (default)",
+          "type": "string",
+          "default": "",
+          "description": "Commit author, as Name <email>, for users who have not set a personal Git author.",
+          "x-restart": false,
+          "examples": [
+            "Name <email@example.com>"
+          ]
+        },
+        "token_file": {
+          "title": "git token file",
+          "type": "string",
+          "default": "",
+          "description": "Path to a private file (mode 0600 or stricter) containing the Git remote token.",
+          "x-restart": false,
+          "examples": [
+            "/run/secrets/git-token"
+          ]
+        },
+        "token": {
+          "title": "git token",
+          "type": "string",
+          "description": "Personal access token for the Git remote.",
+          "x-restart": false,
+          "x-env-only": true,
+          "x-secret": true
+        },
+        "branch": {
+          "title": "branch",
+          "type": "string",
+          "default": "main",
+          "description": "Git branch that HMD commits to and pushes.",
+          "x-restart": false,
+          "format": "git-branch"
+        },
+        "sync_mode": {
+          "title": "sync mode",
+          "type": "string",
+          "default": "push",
+          "description": "push sends local commits to the remote only. bidirectional also fetches and fast-forwards remote changes; divergent histories fail rather than merge.",
+          "x-restart": false,
+          "oneOf": [
+            {
+              "const": "push",
+              "title": "push (local → remote only)"
+            },
+            {
+              "const": "bidirectional",
+              "title": "bidirectional (fetch + fast-forward pull)"
+            }
+          ]
+        },
+        "sync_poll_ms": {
+          "title": "sync poll (ms)",
+          "type": "integer",
+          "default": 10000,
+          "minimum": 100,
+          "description": "Interval in milliseconds between browser sync-status checks; in read-only mode also the background fetch interval, which is fixed at startup.",
+          "x-restart": false
+        }
+      }
+    },
+    "mcp": {
+      "title": "MCP",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "enable MCP",
+          "type": "boolean",
+          "default": false,
+          "description": "Serve the MCP endpoint at /_/mcp so AI assistants can use the wiki with a personal access token. Requires server.base_url.",
+          "x-restart": true
+        },
+        "oauth": {
+          "title": "OAuth",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "title": "enable OAuth for MCP clients",
+              "type": "boolean",
+              "default": false,
+              "description": "Let MCP clients sign in with OAuth instead of a pasted token. Requires MCP and an https server.base_url; http is allowed only on loopback with insecure loopback enabled.",
+              "x-restart": true
+            },
+            "dynamic_registration": {
+              "title": "allow dynamic client registration",
+              "type": "boolean",
+              "default": false,
+              "description": "Let MCP clients register themselves. When off, an administrator registers each client under MCP OAuth clients.",
+              "x-restart": true
+            },
+            "allow_insecure_loopback": {
+              "title": "allow insecure loopback",
+              "type": "boolean",
+              "default": false,
+              "description": "Development only: permit http OAuth origins on loopback addresses.",
+              "x-restart": true
+            },
+            "allow_admin_delegation": {
+              "title": "allow administrator delegation",
+              "type": "boolean",
+              "default": false,
+              "description": "Allow an administrator to grant a client the settings scope during OAuth consent.",
+              "x-restart": true
+            }
+          }
+        }
+      }
+    },
+    "oidc": {
+      "title": "OIDC single sign-on",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer": {
+          "title": "issuer",
+          "type": "string",
+          "default": "",
+          "description": "HTTPS issuer URL of the OpenID Connect provider. Setting it enables single sign-on; register <base_url>/_/auth/oidc/callback with the provider.",
+          "x-restart": true,
+          "format": "url",
+          "x-schemes": [
+            "https",
+            "http"
+          ],
+          "examples": [
+            "https://idp.example.com"
+          ]
+        },
+        "client_id": {
+          "title": "client ID",
+          "type": "string",
+          "default": "",
+          "description": "Client ID issued by the identity provider.",
+          "x-restart": true
+        },
+        "client_secret_file": {
+          "title": "client secret file",
+          "type": "string",
+          "default": "",
+          "description": "Path to a private file (mode 0600 or stricter) containing the OIDC client secret.",
+          "x-restart": true,
+          "examples": [
+            "/run/secrets/oidc-secret"
+          ]
+        },
+        "client_secret": {
+          "title": "client secret",
+          "type": "string",
+          "description": "Client secret issued by the identity provider.",
+          "x-restart": true,
+          "x-env-only": true,
+          "x-secret": true
+        },
+        "local_login": {
+          "title": "allow local login",
+          "type": "boolean",
+          "default": true,
+          "description": "Keep the username and password form alongside single sign-on. Useful as a fallback if the provider is unavailable.",
+          "x-restart": true
+        },
+        "button_text": {
+          "title": "button text",
+          "type": "string",
+          "default": "Sign in with SSO",
+          "description": "Label of the single sign-on login button.",
+          "x-restart": true
+        },
+        "icon": {
+          "title": "icon",
+          "type": "string",
+          "default": "",
+          "description": "Dashboard Icons name, or path to a square SVG, shown on the login button.",
+          "x-restart": true
+        },
+        "default_scopes": {
+          "title": "default scopes",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "settings"
+            ]
+          },
+          "default": [
+            "read"
+          ],
+          "description": "Scopes given to a user the first time they sign in with OIDC: any of read, write and settings.",
+          "x-restart": true
+        },
+        "allowed_subjects": {
+          "title": "allowed subjects",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Provider subject IDs allowed to sign in. Required unless email domains or any authenticated identity are allowed.",
+          "x-restart": true
+        },
+        "allowed_email_domains": {
+          "title": "allowed email domains",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^@/\\s]+$"
+          },
+          "default": [],
+          "description": "Email domains, such as example.com, whose verified addresses may sign in.",
+          "x-restart": true,
+          "examples": [
+            "example.com"
+          ]
+        },
+        "allow_any_authenticated": {
+          "title": "allow any authenticated identity",
+          "type": "boolean",
+          "default": false,
+          "description": "Admit anyone the identity provider authenticates, instead of using an HMD allowlist.",
+          "x-restart": true
+        },
+        "allow_insecure_loopback": {
+          "title": "allow insecure loopback",
+          "type": "boolean",
+          "default": false,
+          "description": "Development only: permit an http issuer on loopback addresses.",
+          "x-restart": true
+        }
+      }
+    },
+    "document_search": {
+      "title": "document search",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tika_url": {
+          "title": "document extraction",
+          "type": "string",
+          "description": "URL of a private Apache Tika server, such as http://tika:9998, used to extract text from PDF and Office attachments for search. Leave empty to turn document extraction off; HMD checks the server at startup.",
+          "x-restart": true,
+          "format": "url",
+          "x-schemes": [
+            "http",
+            "https"
+          ],
+          "examples": [
+            "http://tika:9998"
+          ]
+        },
+        "model": {
+          "title": "search model",
+          "type": "string",
+          "default": "BAAI/bge-small-en-v1.5",
+          "description": "Hugging Face model, as owner/model, used for semantic attachment search. Must produce 384-dimensional ONNX output.",
+          "x-restart": true,
+          "pattern": "^[^\\/\\s]+\\/[^\\/\\s]+$"
+        },
+        "model_dir": {
+          "title": "model directory",
+          "type": "string",
+          "description": "Directory holding the embedding model; defaults to models under the app directory.",
+          "x-restart": true
+        },
+        "index_dir": {
+          "title": "search index directory",
+          "type": "string",
+          "default": "",
+          "description": "Directory holding the document search index.",
+          "x-restart": true
+        }
+      }
+    }
+  }
+}

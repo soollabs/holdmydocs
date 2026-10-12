@@ -11,6 +11,7 @@
 :is(button, a):where(.ui-button) { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; gap:var(--pad-tight); max-width:100%; padding:var(--control-pad-y) var(--control-pad-x); border:var(--field-border-w) var(--rule-style) var(--border-visible); border-radius:var(--radius); background:none; color:var(--fg-muted); font:inherit; text-align:center; text-decoration:none; white-space:nowrap; cursor:pointer; }
 :is(button, a):where(.ui-button--compact) { padding-inline:var(--control-pad-x-compact); }
 :is(button, a):where(.ui-button--icon) { padding-inline:var(--control-pad-y); }
+:where(.ui-button--icon) > svg { width:1.15em; height:1.15em; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
 :is(button, a):where(.ui-button--primary, .ui-button[aria-pressed="true"]) { background:var(--primary); color:var(--accent-fg); border-color:var(--primary); }
 :is(button, a):where(.ui-button--danger) { color:var(--danger); border-color:var(--danger-muted); }
 :is(button, a):where(.ui-button--secondary, .ui-button--danger):hover:not(:disabled):not([aria-disabled="true"]) { background:var(--surface-raised); text-decoration:none; }
@@ -22,6 +23,20 @@
 :where(.ui-field[hidden]) { display:none; }
 :where(.ui-field textarea) { box-sizing:border-box; width:100%; }
 :where(.ui-field) :where(input, select, textarea):user-invalid { border-color:var(--danger); }
+
+/* Setting info: schema description beside a label, shown on hover or keyboard focus. */
+:where(.ui-info) { position:relative; display:inline-flex; vertical-align:middle; }
+:is(button):where(.ui-info__button) { display:inline-flex; min-width:0; min-height:0; padding:0; margin-inline-start:var(--pad-tight); border:0; background:none; color:var(--fg-faint); cursor:help; }
+:is(button):where(.ui-info__button):is(:hover, :focus-visible) { background:none; color:var(--primary); }
+:where(.ui-info__button) > svg { width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; }
+:where(.ui-info__tip) { display:none; position:absolute; z-index:30; inset-block-start:calc(100% + var(--pad-tight)); inset-inline-start:0; box-sizing:border-box; width:max-content; max-width:min(28rem, 80vw); padding:var(--control-pad-y) var(--control-pad-x); border:var(--field-border-w) var(--rule-style) var(--border-visible); border-radius:var(--radius); background:var(--surface-raised); color:var(--fg); font-size:.85em; font-weight:normal; line-height:1.45; white-space:normal; text-align:start; }
+:where(.ui-info):is(:hover, :focus-within) > :where(.ui-info__tip) { display:block; }
+:where(.ui-info__meta) { display:block; margin-block-start:var(--pad-tight); color:var(--fg-muted); }
+/* Settings that need a restart flag themselves so the help is more likely to be read. */
+:is(button):where(.ui-info--restart .ui-info__button), :is(button):where(.ui-info--restart .ui-info__button):is(:hover, :focus-visible) { color:var(--warning); }
+:where(.ui-info__meta--restart) { color:var(--warning); }
+/* An environment override comes first and stands out: it explains why the field is read-only. */
+:where(.ui-info__set) { display:block; margin-block-end:var(--pad-tight); color:var(--fg-strong); font-weight:bold; }
 
 /* Choices: slots only wrap an existing label, so they add no box. */
 :where(.ui-choice) { display:contents; }

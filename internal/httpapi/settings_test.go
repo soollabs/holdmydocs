@@ -22,15 +22,20 @@ func decodeOK(t *testing.T, resp mutationResponse, out any) {
 	}
 }
 
-func TestSaveServerSettingsRejectsEmptyBind(t *testing.T) {
+func TestSaveServerSettingsRejectsInvalidBind(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	resp := postMutation(t, client, env.server.URL+"/_/api/settings/server", map[string]any{
-		"bind":             "",
-		"repo_dir":         "/data/repo",
-		"git_user":         "test",
-		"max_upload_bytes": 1024,
-		"sync_poll_ms":     1000,
-		"sync_mode":        "push",
+		"settings": map[string]any{"bind": "localhost", "sync_mode": "push"},
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestSaveServerSettingsRejectsUnknownSetting(t *testing.T) {
+	env, client := newTestEnv(t, false)
+	resp := postMutation(t, client, env.server.URL+"/_/api/settings/server", map[string]any{
+		"settings": map[string]any{"not_a_setting": "x"},
 	})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)

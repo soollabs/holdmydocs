@@ -46,7 +46,7 @@ func TestCompiledServerLifecycle(t *testing.T) {
 	if err := os.MkdirAll(appDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, []byte("base_url: http://"+address+"\nmcp:\n  enabled: true\noauth:\n  enabled: true\n  allow_insecure_loopback: true\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  base_url: http://"+address+"\nmcp:\n  enabled: true\n  oauth:\n    enabled: true\n    allow_insecure_loopback: true\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	oauthState, err := oauthserver.OpenStore(appDir)
@@ -61,9 +61,9 @@ func TestCompiledServerLifecycle(t *testing.T) {
 	}
 	command := exec.CommandContext(t.Context(), binary)
 	command.Env = append(os.Environ(),
-		"HMD_BIND="+address,
+		"HMD_SERVER_BIND="+address,
 		"HMD_APP_DIR="+appDir,
-		"HMD_REPO_DIR="+filepath.Join(data, "repo"),
+		"HMD_SERVER_REPO_DIR="+filepath.Join(data, "repo"),
 		"HMD_CONFIG_FILE="+configPath,
 		"HMD_ADMIN_USER=admin",
 		"HMD_ADMIN_PASSWORD=password12345",

@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"hmd/internal/config"
 )
 
 // splitCSV converts a form's comma- or newline-separated field into the JSON
@@ -22,43 +24,44 @@ func appearanceJSON(form url.Values) map[string]any {
 	}
 }
 
+// serverSettingsJSON converts an old-style settings form into the payload the
+// settings screen posts: values keyed by config.yaml setting key, typed from
+// the schema. Only fields present in the form are sent.
 func serverSettingsJSON(form url.Values) map[string]any {
-	maxUpload, _ := strconv.ParseInt(form.Get("max_upload_bytes"), 10, 64)
-	syncPoll, _ := strconv.Atoi(form.Get("sync_poll_ms"))
-	return map[string]any{
-		"bind":                         form.Get("bind"),
-		"repo_dir":                     form.Get("repo_dir"),
-		"max_upload_bytes":             maxUpload,
-		"sync_poll_ms":                 syncPoll,
-		"sync_mode":                    form.Get("sync_mode"),
-		"default_branch":               form.Get("default_branch"),
-		"skin":                         form.Get("skin"),
-		"debug":                        form.Get("debug") == "on",
-		"base_url":                     form.Get("base_url"),
-		"trusted_proxies":              splitCSV(form.Get("trusted_proxies")),
-		"remote_url":                   form.Get("remote_url"),
-		"git_user":                     form.Get("git_user"),
-		"git_author":                   form.Get("git_author"),
-		"git_token":                    form.Get("git_token"),
-		"store_git_token":              form.Get("store_git_token") == "on",
-		"git_token_file":               form.Get("git_token_file"),
-		"mcp_enabled":                  form.Get("mcp_enabled") == "on",
-		"document_model":               form.Get("document_model"),
-		"document_model_dir":           form.Get("document_model_dir"),
-		"document_index_dir":           form.Get("document_index_dir"),
-		"oidc_issuer":                  form.Get("oidc_issuer"),
-		"oidc_client_id":               form.Get("oidc_client_id"),
-		"oidc_client_secret":           form.Get("oidc_client_secret"),
-		"oidc_client_secret_file":      form.Get("oidc_client_secret_file"),
-		"oidc_local_login":             form.Get("oidc_local_login") == "on",
-		"oidc_button_text":             form.Get("oidc_button_text"),
-		"oidc_icon":                    form.Get("oidc_icon"),
-		"oidc_default_scopes":          splitCSV(form.Get("oidc_default_scopes")),
-		"oidc_allowed_subjects":        splitCSV(form.Get("oidc_allowed_subjects")),
-		"oidc_allowed_email_domains":   splitCSV(form.Get("oidc_allowed_email_domains")),
-		"oidc_allow_any_authenticated": form.Get("oidc_allow_any_authenticated") == "on",
-		"oidc_allow_insecure_loopback": form.Get("oidc_allow_insecure_loopback") == "on",
+	legacy := map[string]string{
+		"remote_url": "git.remote_url", "git_user": "git.user", "git_author": "git.author",
+		"git_token_file": "git.token_file", "mcp_enabled": "mcp.enabled", "document_model": "document_search.model",
+		"document_model_dir": "document_search.model_dir", "document_index_dir": "document_search.index_dir",
+		"bind": "server.bind", "repo_dir": "server.repo_dir", "base_url": "server.base_url", "trusted_proxies": "server.trusted_proxies",
+		"debug": "server.debug", "max_upload_bytes": "server.max_upload_bytes", "skin": "server.skin", "default_branch": "git.branch",
+		"sync_mode": "git.sync_mode", "sync_poll_ms": "git.sync_poll_ms",
 	}
+	settings := map[string]any{}
+	for name := range form {
+		key := name
+		if k, ok := legacy[name]; ok {
+			key = k
+		} else if strings.HasPrefix(name, "oidc_") {
+			key = "oidc." + strings.TrimPrefix(name, "oidc_")
+		}
+		s, ok := config.Lookup(key)
+		if !ok {
+			continue
+		}
+		v := form.Get(name)
+		switch s.Type {
+		case "boolean":
+			settings[key] = v == "on"
+		case "integer":
+			n, _ := strconv.ParseInt(v, 10, 64)
+			settings[key] = n
+		case "array":
+			settings[key] = splitCSV(v)
+		default:
+			settings[key] = v
+		}
+	}
+	return map[string]any{"settings": settings}
 }
 
 func wikiConfigJSON(form url.Values) map[string]any {

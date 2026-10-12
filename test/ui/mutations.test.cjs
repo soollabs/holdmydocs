@@ -223,7 +223,7 @@ test('namespace conflict preserves submitted settings and retries with the curre
   assert.equal(f.calls[1].payload.base_hash, 'fresh-hash');
   assert.equal(f.calls[1].payload.title, 'Draft namespace');
   assert.deepEqual(f.calls[1].payload.tree, ['home', 'folder']);
-  assert.equal(f.location.href, '/_/settings/namespaces?saved=1');
+  assert.equal(f.location.href, '/_/settings/namespaces/notes/edit?saved=1');
 });
 
 test('namespace validation failure stays inline without replacing fields', async () => {
@@ -235,6 +235,30 @@ test('namespace validation failure stays inline without replacing fields', async
   assert.equal(f.fields.description.value, 'Unsaved description');
   assert.equal(f.form.querySelector('[data-form-error]').textContent, 'invalid index');
 });
+
+for (const action of ['reset', 'delete']) {
+  test(`namespace ${action} returns to the catalogue`, async () => {
+    const f = fixture('namespace', [{ status: 200, body: { ok: true } }]);
+    f.location.pathname = '/_/settings/namespaces/notes/edit';
+    const submitter = new Element();
+    submitter.setAttribute('formaction', '/_/api/namespaces/' + action);
+    submitter.formAction = 'http://localhost:8080/_/api/namespaces/' + action;
+    f.form.emit('submit', { submitter });
+    await settle();
+    assert.deepEqual(f.calls[0].payload, { name: 'notes' });
+    assert.equal(f.location.href, '/_/settings/namespaces?saved=1');
+  });
+}
+
+for (const section of ['', '/published', '/static-site', '/widgets']) {
+  test(`namespace save preserves editor section ${section || 'general'}`, async () => {
+    const f = fixture('namespace', [{ status: 200, body: { ok: true } }]);
+    f.location.pathname = '/_/settings/namespaces/notes/edit' + section;
+    f.form.emit('submit');
+    await settle();
+    assert.equal(f.location.href, f.location.pathname + '?saved=1');
+  });
+}
 
 // Browsers resolve a submit button's formAction to the current document URL when
 // the button carries no formaction attribute, so a plain submit must fall back

@@ -26,22 +26,26 @@ func TestSettingsNavigationLinksSettingsPages(t *testing.T) {
 	adminLogin(t, server, client)
 	for _, tc := range []struct {
 		path, section, label, subpage string
+		current                       string // highlighted link when it differs from the section
 	}{
-		{"", "appearance", "Appearance", ""},
-		{"/appearance", "appearance", "Appearance", ""},
-		{"/git-author", "git-author", "Git author", ""},
-		{"/access-tokens", "access-tokens", "Access tokens", ""},
-		{"/server", "server", "Server", ""},
-		{"/git-remote", "git-remote", "Git remote", ""},
-		{"/behaviour", "behaviour", "Behaviour", ""},
-		{"/users", "users", "Users", ""},
-		{"/advanced-config", "advanced-config", "config.yaml", ""},
-		{"/advanced", "advanced", "Environment overrides", ""},
-		{"/namespaces", "namespaces", "Namespaces", ""},
-		{"/namespaces/new", "namespaces", "Namespaces", "New namespace"},
-		{"/namespaces/" + testNS + "/edit", "namespaces", "Namespaces", "Edit " + testNS},
-		{"/connections", "connections", "Connected applications", ""},
-		{"/oauth-clients", "oauth-clients", "MCP OAuth clients", ""},
+		{"", "appearance", "Appearance", "", ""},
+		{"/appearance", "appearance", "Appearance", "", ""},
+		{"/git-author", "git-author", "Git author", "", ""},
+		{"/access-tokens", "access-tokens", "Access tokens", "", ""},
+		{"/server", "server", "Server", "", ""},
+		{"/git", "git", "Git", "", ""},
+		{"/mcp", "mcp", "MCP", "", ""},
+		{"/oidc", "oidc", "OIDC single sign-on", "", ""},
+		{"/document-search", "document-search", "Document search", "", ""},
+		{"/wiki", "wiki", "Wiki", "", ""},
+		{"/users", "users", "Users", "", ""},
+		{"/advanced", "advanced", "Environment overrides", "", ""},
+		{"/namespaces", "namespaces", "Namespaces", "", ""},
+		{"/namespaces/new", "namespaces", "Namespaces", "New namespace", ""},
+		{"/namespaces/" + testNS + "/edit", "namespaces", testNS + ": general", "Edit " + testNS, "namespaces/" + testNS + "/edit"},
+		{"/namespaces/" + testNS + "/edit/static-site", "namespaces", testNS + ": static site", "Edit " + testNS + ": static site", "namespaces/" + testNS + "/edit/static-site"},
+		{"/connections", "connections", "Connected applications", "", ""},
+		{"/oauth-clients", "oauth-clients", "MCP OAuth clients", "", ""},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			resp, err := testhttp.Get(t, client, server.URL+"/_/settings"+tc.path)
@@ -57,7 +61,11 @@ func TestSettingsNavigationLinksSettingsPages(t *testing.T) {
 				t.Fatalf("settings response = %d: %s", resp.StatusCode, body)
 			}
 			html := string(body)
-			current := `<a href="/_/settings/` + tc.section + `" aria-current="page">`
+			link := tc.section
+			if tc.current != "" {
+				link = tc.current
+			}
+			current := `<a href="/_/settings/` + link + `" aria-current="page">`
 			for _, want := range []string{
 				`class="settings-layout"`, `<div class="settings-selector"><details class="ui-disclosure">`,
 				`aria-label="Settings section: ` + tc.label + `"`, `aria-label="Breadcrumb"`,
@@ -90,11 +98,8 @@ func TestSettingsNavigationLinksSettingsPages(t *testing.T) {
 			if strings.Contains(html, `class="settings-tabs"`) {
 				t.Error("old tab strip still present")
 			}
-			if tc.section == "advanced-config" && !strings.Contains(html, `<div class="settings-advanced"><details class="ui-disclosure" open>`) {
-				t.Error("advanced navigation should open on advanced sections")
-			}
 			if tc.section == "users" {
-				for _, panel := range []string{"server", "git-remote", "behaviour", "advanced-config"} {
+				for _, panel := range []string{"server", "git", "mcp", "oidc", "document-search"} {
 					if !strings.Contains(html, `data-panel="`+panel+`" hidden`) {
 						t.Errorf("inactive %s panel should be hidden server-side", panel)
 					}
@@ -108,7 +113,7 @@ func TestSettingsRetiredPageRoutesDoNotRedirect(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 	adminLogin(t, server, client)
-	for _, path := range []string{"/_/admin", "/_/admin/oauth", "/_/namespaces", "/_/namespaces/new", "/_/namespaces/" + testNS + "/edit", "/_/connections"} {
+	for _, path := range []string{"/_/admin", "/_/admin/oauth", "/_/namespaces", "/_/namespaces/new", "/_/namespaces/" + testNS + "/edit", "/_/connections", "/_/settings/git-remote", "/_/settings/behaviour", "/_/settings/advanced-config"} {
 		resp, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +121,52 @@ func TestSettingsRetiredPageRoutesDoNotRedirect(t *testing.T) {
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound || resp.Header.Get("Location") != "" {
 			t.Errorf("%s = %d, Location %q; want 404 without redirect", path, resp.StatusCode, resp.Header.Get("Location"))
+		}
+	}
+}
+
+// TestNamespaceEditorSections checks that each editor page shows only its own
+// section while the form still carries every field, and that unknown or
+// duplicate section URLs are not served.
+func TestNamespaceEditorSections(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+	adminLogin(t, server, client)
+	base := server.URL + "/_/settings/namespaces/" + testNS + "/edit"
+	legends := map[string]string{"general": "general", "published": "published view", "static-site": "static site", "widgets": "widgets"}
+	for _, s := range namespaceSections {
+		t.Run(s.Key, func(t *testing.T) {
+			resp, err := testhttp.Get(t, client, base+s.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			html := string(body)
+			for key, legend := range legends {
+				visible := strings.Contains(html, `settings-panel"><legend>`+legend+`</legend>`)
+				if visible != (key == s.Key) {
+					t.Errorf("section %s visible = %v", key, visible)
+				}
+			}
+			for _, field := range []string{`name="description"`, `name="public"`, `name="export_base_url"`, `name="slug_preset"`, `name="widgets"`} {
+				if !strings.Contains(html, field) {
+					t.Errorf("form is missing %s, so saving would drop it", field)
+				}
+			}
+		})
+	}
+	for _, path := range []string{"/general", "/nope"} {
+		resp, err := testhttp.Get(t, client, base+path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: status = %d, want 404", path, resp.StatusCode)
 		}
 	}
 }
