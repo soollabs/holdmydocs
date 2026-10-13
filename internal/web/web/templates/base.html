@@ -29,49 +29,12 @@
 	{{if .SettingsSubpage}}<a href="/_/settings/namespaces">Namespaces</a><span class="sep">/</span><span class="current" aria-current="page">{{.SettingsSubpage}}</span>
 	{{else}}<span class="current" aria-current="page">{{.SettingsLabel}}</span>{{end}}
 </nav>{{end}}
-{{define "layout"}}
-<!DOCTYPE html>
-<html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-	<title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} — {{end}}{{.SiteName}}</title>
-	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}style.css{{else}}{{static "style.css"}}{{end}}">
-	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}skins.css{{else}}{{static "skins.css"}}{{end}}">
-	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}components.css{{else}}{{static "components.css"}}{{end}}">
-	{{if .Static}}<link rel="stylesheet" href="{{.AssetPath}}export.css">{{if .ExportIcons}}<link rel="stylesheet" href="{{.AssetPath}}export-icons.css">{{end}}{{end}}
-	<link rel="icon" href="{{.AssetPath}}icon.svg" type="image/svg+xml">
-	{{if not .Static}}<link rel="manifest" href="{{static "manifest.json"}}">{{end}}
-	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
-	<meta name="mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}">{{.ThemeStyle}}</style>{{end}}
-	<script nonce="{{.CSPNonce}}">
-		window.hmdSyncPollMs = {{.SyncPollMs}};
-		window.hmdSyncMode = "{{.SyncMode}}";
-		window.hmdReadOnly = {{.ReadOnly}};
-		window.hmdNewEnabled = {{.NewPageEnabled}};
-		window.hmdNewNamespace = {{.NewNamespace}};
-		window.hmdNamespaceIndex = {{.IsNamespaceIndex}};
-		window.hmdNamespace = {{.Namespace}};
-		window.hmdCSRFToken = {{.CSRFToken}};
-		window.hmdCSPNonce = "{{.CSPNonce}}";
-		var hmdFetch = window.fetch;
-		window.fetch = function(input, init) {
-			init = init || {};
-			if ((init.method || 'GET').toUpperCase() !== 'GET' && window.hmdCSRFToken) {
-				init.headers = new Headers(init.headers || {});
-				init.headers.set('X-CSRF-Token', window.hmdCSRFToken);
-			}
-			return hmdFetch(input, init);
-		};
+{{/* theme-script sets data-theme from the saved or system preference. The
+   layout and the startup page share it, so both look the same before login. */}}
+{{define "theme-script"}}
 		window.HMDSyncThemeColor = function() {
 			document.getElementById('meta-theme-color').setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 		};
-		{{if not .Static}}if ('serviceWorker' in navigator) {
-			window.addEventListener('load', () => navigator.serviceWorker.register('{{static "sw.js"}}'));
-		}{{end}}
 		window.HMDTheme = (function() {
 			var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
 			function stored() {
@@ -117,6 +80,48 @@
 			apply();
 			return { mode: mode, cycle: cycle, syncToggle: syncToggle };
 		})();
+{{end}}
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} — {{end}}{{.SiteName}}</title>
+	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}style.css{{else}}{{static "style.css"}}{{end}}">
+	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}skins.css{{else}}{{static "skins.css"}}{{end}}">
+	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}components.css{{else}}{{static "components.css"}}{{end}}">
+	{{if .Static}}<link rel="stylesheet" href="{{.AssetPath}}export.css">{{if .ExportIcons}}<link rel="stylesheet" href="{{.AssetPath}}export-icons.css">{{end}}{{end}}
+	<link rel="icon" href="{{.AssetPath}}icon.svg" type="image/svg+xml">
+	{{if not .Static}}<link rel="manifest" href="{{static "manifest.json"}}">{{end}}
+	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}">{{.ThemeStyle}}</style>{{end}}
+	<script nonce="{{.CSPNonce}}">
+		window.hmdSyncPollMs = {{.SyncPollMs}};
+		window.hmdSyncMode = "{{.SyncMode}}";
+		window.hmdReadOnly = {{.ReadOnly}};
+		window.hmdNewEnabled = {{.NewPageEnabled}};
+		window.hmdNewNamespace = {{.NewNamespace}};
+		window.hmdNamespaceIndex = {{.IsNamespaceIndex}};
+		window.hmdNamespace = {{.Namespace}};
+		window.hmdCSRFToken = {{.CSRFToken}};
+		window.hmdCSPNonce = "{{.CSPNonce}}";
+		var hmdFetch = window.fetch;
+		window.fetch = function(input, init) {
+			init = init || {};
+			if ((init.method || 'GET').toUpperCase() !== 'GET' && window.hmdCSRFToken) {
+				init.headers = new Headers(init.headers || {});
+				init.headers.set('X-CSRF-Token', window.hmdCSRFToken);
+			}
+			return hmdFetch(input, init);
+		};
+		{{if not .Static}}if ('serviceWorker' in navigator) {
+			window.addEventListener('load', () => navigator.serviceWorker.register('{{static "sw.js"}}'));
+		}{{end}}
+		{{template "theme-script"}}
 	</script>
 </head>
 <body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}{{if .SettingsSection}} settings-shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">

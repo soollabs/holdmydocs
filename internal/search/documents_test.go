@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"hmd/internal/store"
 	"hmd/internal/wiki"
 	"io"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -197,7 +199,7 @@ func TestEnsureEmbeddingModelDownloadsVerifiedFiles(t *testing.T) {
 
 func TestOpenIndexRebuildsPageMaps(t *testing.T) {
 	page := wiki.Page{Slug: "notes/home", Title: "Home", Tags: []string{"wiki"}, Body: "see [[Guide]]"}
-	ix, err := OpenIndexAt(t.TempDir()+"/search.bleve", []wiki.Page{page}, map[string]string{page.Slug: "hash"}, nil, nil)
+	ix, err := OpenIndexAt(t.TempDir()+"/search.bleve", []wiki.Page{page}, map[string]string{page.Slug: "hash"}, nil)
 	if err != nil {
 		t.Fatalf("openIndexAt: %v", err)
 	}
@@ -335,7 +337,7 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	embedder := &testEmbedder{vector: testVector(0)}
-	reopened, err := OpenIndexAt(path, nil, nil, map[string]string{"attachments/notes/page/file.pdf": "hash"}, &DocumentSearch{embedder: embedder})
+	reopened, err := OpenIndexAt(path, nil, nil, &DocumentSearch{embedder: embedder})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,12 +346,117 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 			t.Errorf("closing response body: %v", err)
 		}
 	}()
+	reopened.ReconcileAttachments(context.Background(), map[string]string{"attachments/notes/page/file.pdf": "hash"})
 	if embedder.calls != 0 {
 		t.Fatalf("reopening re-embedded %d times", embedder.calls)
 	}
 	hits, err := reopened.SearchAttachments(context.Background(), "unrelated", 20)
 	if err != nil || len(hits) != 1 || hits[0].Filename != "file.pdf" {
 		t.Fatalf("semantic search after reopen = %#v, %v", hits, err)
+	}
+}
+
+// TestOpenIndexSkipsAttachmentsWithNoText pins that an attachment Tika found
+// no text in (most images) is not extracted again on every startup, while an
+// attachment that failed for another reason is still retried.
+func TestOpenIndexSkipsAttachmentsWithNoText(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "search.bleve")
+	idx, err := bleve.New(path, attachmentIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := newIndex(idx)
+	ix.indexDir = path
+	ix.manifestPath = manifestPath(path)
+	ix.manifest = newSearchManifest("test")
+	const photo, report = "attachments/notes/page/photo.png", "attachments/notes/page/report.pdf"
+	if err := ix.replaceAttachment(photo, "notes/page", "photo.png", "photo-hash", nil, nil, errNoExtractedText); !errors.Is(err, errNoExtractedText) {
+		t.Fatalf("replaceAttachment no text = %v", err)
+	}
+	if err := ix.replaceAttachment(report, "notes/page", "report.pdf", "report-hash", nil, nil, errors.New("tika extraction failed: HTTP 503")); err == nil {
+		t.Fatal("replaceAttachment failure returned nil")
+	}
+	if err := idx.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// No store is configured, so any attachment the index tries to extract
+	// again fails with "attachment store is not configured".
+	reopened, err := OpenIndexAt(path, nil, nil, &DocumentSearch{embedder: &testEmbedder{vector: testVector(0)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := reopened.bleve.Close(); err != nil {
+			t.Errorf("closing index: %v", err)
+		}
+	}()
+	reopened.failedAttachments = map[string]string{}
+	if err := reopened.ReconcileAttachmentPath(context.Background(), photo, "photo-hash"); err != nil {
+		t.Fatalf("unchanged no-text attachment was extracted again: %v", err)
+	}
+	if err := reopened.ReconcileAttachmentPath(context.Background(), photo, "edited-photo-hash"); err == nil {
+		t.Fatal("changed no-text attachment was not extracted again")
+	}
+	if err := reopened.ReconcileAttachmentPath(context.Background(), report, "report-hash"); err == nil {
+		t.Fatal("attachment that failed for another reason was not retried")
+	}
+}
+
+// TestReconcileAttachmentsStopsOnCancel pins that shutdown can interrupt the
+// background attachment pass: a cancelled extraction is left for the next
+// pass instead of being recorded as a failure, and a cancelled pass sends
+// nothing more to Tika.
+func TestReconcileAttachmentsStopsOnCancel(t *testing.T) {
+	content, err := store.Open(store.Options{RepoDir: t.TempDir(), DefaultBranch: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const photo = "attachments/notes/page/photo.png"
+	hashes, err := content.SaveAll(map[string][]byte{photo: []byte("not really a png")}, "add photo", "Test", "test@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var requests atomic.Int32
+	tika := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		// Drain the body so the server notices when the client hangs up.
+		_, _ = io.Copy(io.Discard, r.Body)
+		cancel()
+		<-r.Context().Done()
+	}))
+	defer tika.Close()
+	client, err := NewTikaClient(tika.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, err := bleve.NewMemOnly(attachmentIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := newIndex(idx)
+	defer func() {
+		if err := ix.Close(); err != nil {
+			t.Errorf("closing index: %v", err)
+		}
+	}()
+	ix.manifest = newSearchManifest("test")
+	ix.manifestPath = filepath.Join(t.TempDir(), "search.manifest.json")
+	ix.documents = &DocumentSearch{tika: client, embedder: &testEmbedder{vector: testVector(0)}, store: content}
+
+	if err := ix.ReconcileAttachmentPath(ctx, photo, hashes[photo]); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ReconcileAttachmentPath during shutdown = %v, want context.Canceled", err)
+	}
+	if _, ok := ix.manifest.Attachments[photo]; ok {
+		t.Fatal("cancelled extraction was recorded in the manifest")
+	}
+	if _, ok := ix.failedAttachments[photo]; ok {
+		t.Fatal("cancelled extraction was recorded as failed")
+	}
+	ix.ReconcileAttachments(ctx, hashes)
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("Tika requests = %d, want 1: a cancelled pass sent more work", got)
 	}
 }
 
@@ -361,7 +468,7 @@ func TestInvalidManifestSchemaRebuilds(t *testing.T) {
 	if err := writeSearchManifest(manifestPath(path), searchManifest{SchemaVersion: 1, Pages: map[string]string{}, Attachments: map[string]attachmentManifest{}}); err != nil {
 		t.Fatal(err)
 	}
-	ix, err := OpenIndexAt(path, nil, nil, nil, nil)
+	ix, err := OpenIndexAt(path, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +493,7 @@ func TestCorruptIndexRebuilds(t *testing.T) {
 	if err := writeSearchManifest(manifestPath(path), newSearchManifest("")); err != nil {
 		t.Fatal(err)
 	}
-	ix, err := OpenIndexAt(path, nil, nil, nil, nil)
+	ix, err := OpenIndexAt(path, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

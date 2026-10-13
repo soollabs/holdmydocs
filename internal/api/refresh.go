@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 
@@ -91,8 +92,8 @@ func (a *API) ReconcilePages(hashes map[string]string, retries map[string]IndexR
 
 // ReconcileAttachments reconciles the derived document index with the
 // attachments currently in the store. It is a no-op when document indexing is
-// disabled.
-func (a *API) ReconcileAttachments() {
+// disabled. It stops early once ctx is cancelled.
+func (a *API) ReconcileAttachments(ctx context.Context) {
 	if a.index == nil || !a.index.DocumentsEnabled() {
 		return
 	}
@@ -103,6 +104,9 @@ func (a *API) ReconcileAttachments() {
 	}
 	hashes := make(map[string]string, len(paths))
 	for _, path := range paths {
+		if ctx.Err() != nil {
+			return
+		}
 		file, hash, err := a.store.OpenAttachment(path)
 		if err != nil {
 			slog.Warn("refresh: attachment hash failed", "path", path, "err", err)
@@ -113,5 +117,5 @@ func (a *API) ReconcileAttachments() {
 		}
 		hashes[path] = hash
 	}
-	a.index.ReconcileAttachments(hashes)
+	a.index.ReconcileAttachments(ctx, hashes)
 }

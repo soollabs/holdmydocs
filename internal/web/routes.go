@@ -31,25 +31,12 @@ func (app *App) Routes() http.Handler {
 
 	mux.HandleFunc("GET /_/new", app.handleNewPage)
 
-	wFS, _ := fs.Sub(webFS, "web/static")
-	staticHandler := http.StripPrefix("/_/static/", http.FileServerFS(wFS))
-	mux.Handle("GET /_/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// FileServer renders directory listings. Assets are public, but listing
-		// embedded directories needlessly advertises every shipped file and can
-		// expose one added by mistake in a later build.
-		if strings.HasSuffix(r.URL.Path, "/") {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		staticHandler.ServeHTTP(w, r)
-	}))
-
+	mux.Handle("GET /_/static/", staticFiles())
 	// These assets contain the build hash in their own source, so they are
 	// rendered rather than served as frozen files. Exact routes outrank the
 	// /_/static/ subtree their bytes live under.
-	mux.HandleFunc("GET /_/static/sw.js", app.handleServiceWorker)
-	mux.HandleFunc("GET /_/static/style.css", app.handleStyleSheet)
+	mux.HandleFunc("GET /_/static/sw.js", handleServiceWorker)
+	mux.HandleFunc("GET /_/static/style.css", handleStyleSheet)
 
 	mux.HandleFunc("GET /_/login", app.handleLoginGet)
 	mux.HandleFunc("POST /_/login", app.handleLoginPost)
@@ -99,15 +86,32 @@ func (app *App) Routes() http.Handler {
 	return mux
 }
 
-func (app *App) handleServiceWorker(w http.ResponseWriter, r *http.Request) {
-	app.serveVersionedStatic(w, "web/static/sw.js", "text/javascript; charset=utf-8")
+// staticFiles serves the embedded assets under /_/static/.
+func staticFiles() http.Handler {
+	wFS, _ := fs.Sub(webFS, "web/static")
+	files := http.StripPrefix("/_/static/", http.FileServerFS(wFS))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// FileServer renders directory listings. Assets are public, but listing
+		// embedded directories needlessly advertises every shipped file and can
+		// expose one added by mistake in a later build.
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		files.ServeHTTP(w, r)
+	})
 }
 
-func (app *App) handleStyleSheet(w http.ResponseWriter, r *http.Request) {
-	app.serveVersionedStatic(w, "web/static/style.css", "text/css; charset=utf-8")
+func handleServiceWorker(w http.ResponseWriter, r *http.Request) {
+	serveVersionedStatic(w, "web/static/sw.js", "text/javascript; charset=utf-8")
 }
 
-func (app *App) serveVersionedStatic(w http.ResponseWriter, path, contentType string) {
+func handleStyleSheet(w http.ResponseWriter, r *http.Request) {
+	serveVersionedStatic(w, "web/static/style.css", "text/css; charset=utf-8")
+}
+
+func serveVersionedStatic(w http.ResponseWriter, path, contentType string) {
 	body, err := webFS.ReadFile(path)
 	if err != nil {
 		http.Error(w, "static asset unavailable", http.StatusInternalServerError)

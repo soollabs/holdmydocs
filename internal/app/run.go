@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/export"
+	"hmd/internal/httpmiddleware"
 	"hmd/internal/oauthserver"
 	"hmd/internal/search"
 	"hmd/internal/store"
@@ -120,6 +123,34 @@ func Run() {
 	}
 	finishStage()
 
+	// Listen before the slow stages below, so a browser gets a loading page
+	// straight away instead of a connection that hangs until startup is done.
+	// The gate hands over to the real handler once everything is open.
+	var gate startupGate
+	var server *http.Server
+	if *exportNS == "" {
+		starting, err := web.StartupHandler()
+		if err != nil {
+			log.Fatal(err)
+		}
+		gate.starting = httpmiddleware.SecurityHeaders(starting)
+		server = newHTTPServer(cfg.Bind, &gate)
+		address := server.Addr
+		if address == "" {
+			address = ":http"
+		}
+		listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", address)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() {
+			if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+				log.Fatal(err)
+			}
+		}()
+		slog.Debug("HTTP server listening; serving the loading page until startup completes", "bind", cfg.Bind)
+	}
+
 	finishStage = debugStartupStage("open repository", "path", cfg.RepoDir, "remote", cfg.Git.RemoteURL != "")
 	content, err := store.Open(store.Options{
 		RepoDir: cfg.RepoDir, DefaultBranch: cfg.DefaultBranch,
@@ -169,32 +200,12 @@ func Run() {
 		documents.SetStore(content)
 		finishStage()
 	}
-	attachmentHashes := map[string]string{}
-	if documents != nil {
-		finishStage = debugStartupStage("list attachments")
-		attachmentPaths, err := content.ListAttachments()
-		if err != nil {
-			log.Fatalf("store.ListAttachments failed: %v", err)
-		}
-		finishStage("attachments", len(attachmentPaths))
-		finishStage = debugStartupStage("read attachment hashes", "attachments", len(attachmentPaths))
-		for _, path := range attachmentPaths {
-			file, hash, err := content.OpenAttachment(path)
-			if err != nil {
-				slog.Warn("reading attachment hash", "path", path, "err", err)
-				continue
-			}
-			_ = file.Close()
-			attachmentHashes[path] = hash
-		}
-		finishStage()
-	}
 	indexDir := cfg.DocumentSearch.IndexDir
 	if indexDir == "" {
 		indexDir = filepath.Join(cfg.AppDir, "search.bleve")
 	}
-	finishStage = debugStartupStage("open search index", "path", indexDir, "pages", len(pages), "attachments", len(attachmentHashes))
-	index, err := search.OpenIndexAt(indexDir, pages, hashes, attachmentHashes, documents)
+	finishStage = debugStartupStage("open search index", "path", indexDir, "pages", len(pages))
+	index, err := search.OpenIndexAt(indexDir, pages, hashes, documents)
 	if err != nil {
 		log.Fatalf("open index failed: %v", err)
 	}
@@ -278,7 +289,9 @@ func Run() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go pollFS(ctx, application.API, hashes)
+	var workers sync.WaitGroup
+	workers.Go(func() { pollFS(ctx, application.API, hashes) })
+	workers.Go(func() { pollAttachments(ctx, application.API) })
 	if cfg.OIDC.Issuer != "" {
 		finishStage = debugStartupStage("initialize OIDC", "issuer", cfg.OIDC.Issuer)
 		application.OIDC, err = web.NewOIDCAuth(context.Background(), cfg)
@@ -288,31 +301,30 @@ func Run() {
 		finishStage()
 	}
 
-	server := newHTTPServer(cfg.Bind, newHandler(application))
-	go func() {
-		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdown); err != nil {
-			slog.Error("graceful shutdown failed", "err", err)
-			_ = server.Close()
+	gate.Ready(newHandler(application))
+	slog.Debug("startup completed; serving requests", "bind", cfg.Bind)
+
+	<-ctx.Done()
+	shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdown); err != nil {
+		slog.Error("graceful shutdown failed", "err", err)
+		_ = server.Close()
+	}
+	application.CloseExportPreviews()
+	// The workers write to the store and index, so they must finish before
+	// either is closed.
+	workers.Wait()
+	if err := content.WaitForPushes(shutdown); err != nil {
+		slog.Error("waiting for Git pushes", "err", err)
+	}
+	if err := index.Close(); err != nil {
+		slog.Warn("closing search index", "err", err)
+	}
+	if oauthService != nil {
+		if err := oauthService.Close(); err != nil {
+			slog.Warn("closing OAuth state store", "err", err)
 		}
-		application.CloseExportPreviews()
-		if err := content.WaitForPushes(shutdown); err != nil {
-			slog.Error("waiting for Git pushes", "err", err)
-		}
-		if err := index.Close(); err != nil {
-			slog.Warn("closing search index", "err", err)
-		}
-		if oauthService != nil {
-			if err := oauthService.Close(); err != nil {
-				slog.Warn("closing OAuth state store", "err", err)
-			}
-		}
-	}()
-	slog.Debug("startup completed; HTTP server listening", "bind", cfg.Bind)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
 	}
 }
 

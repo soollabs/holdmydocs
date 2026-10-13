@@ -11,15 +11,11 @@ import (
 
 // pollFS is the repository refresh worker. The composition root starts it and
 // cancels it on shutdown; the worker owns its ticker and delegates the shared
-// refresh steps — history drop, configuration reload, page and attachment
-// reconciliation — to the application api, so every adapter refreshes the same
+// refresh steps — history drop, configuration reload and page reconciliation
+// — to the application api, so every adapter refreshes the same
 // state by the same rules.
 func pollFS(ctx context.Context, client *api.API, hashes map[string]string) {
-	interval := 5 * time.Second
-	if cfg := client.Config(); cfg.ReadOnly && cfg.SyncPollMs > 0 {
-		interval = time.Duration(cfg.SyncPollMs) * time.Millisecond
-	}
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(refreshInterval(client))
 	defer ticker.Stop()
 	retries := make(map[string]api.IndexRetry)
 	for {
@@ -32,8 +28,32 @@ func pollFS(ctx context.Context, client *api.API, hashes map[string]string) {
 		client.DropExternalHistory()
 		client.ReloadConfiguration()
 		client.ReconcilePages(hashes, retries)
-		client.ReconcileAttachments()
 	}
+}
+
+// pollAttachments is the attachment indexing worker. Its first pass runs
+// straight away, so a new or changed document index fills in while the server
+// is already answering. It is separate from pollFS because a first pass can
+// take minutes (Tika and embedding for every attachment) and must not hold up
+// page refreshes.
+func pollAttachments(ctx context.Context, client *api.API) {
+	ticker := time.NewTicker(refreshInterval(client))
+	defer ticker.Stop()
+	for {
+		client.ReconcileAttachments(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func refreshInterval(client *api.API) time.Duration {
+	if cfg := client.Config(); cfg.ReadOnly && cfg.SyncPollMs > 0 {
+		return time.Duration(cfg.SyncPollMs) * time.Millisecond
+	}
+	return 5 * time.Second
 }
 
 // CheckReadiness probes the local readiness endpoint for the -healthcheck flag.
