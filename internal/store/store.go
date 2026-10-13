@@ -461,6 +461,9 @@ func Open(cfg Options) (*Store, error) {
 			auth:      auth,
 			syncState: "ok",
 		}
+		if remote == "" {
+			store.syncState = "no remote"
+		}
 		store.lastSuccessUnix.Store(time.Now().Unix())
 		seedOrFlagSetup(store)
 		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
