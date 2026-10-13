@@ -1217,6 +1217,15 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	walk := s.historyWalk
 	leader := walk == nil || walk.head != head
 	if leader {
+		// A walk that finished since the miss above has already published
+		// its result, so look again rather than walk a second time.
+		s.mu.RLock()
+		cached, ok := s.historyCache[path]
+		s.mu.RUnlock()
+		if ok {
+			s.walkMu.Unlock()
+			return cached, nil
+		}
 		walk = &historyWalk{head: head, done: make(chan struct{})}
 		s.historyWalk = walk
 	}
@@ -1230,6 +1239,16 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	}
 
 	walk.histories, walk.err = s.walkHistory(head)
+	// A commit or reset during the walk makes its result stale; it still
+	// answers this call but is not cached. The result is published before the
+	// walk is cleared, so a later miss either joins the walk or finds it cached.
+	if walk.err == nil {
+		s.mu.Lock()
+		if s.historyGen == gen {
+			s.historyCache = walk.histories
+		}
+		s.mu.Unlock()
+	}
 	s.walkMu.Lock()
 	if s.historyWalk == walk {
 		s.historyWalk = nil
@@ -1239,14 +1258,6 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	if walk.err != nil {
 		return nil, walk.err
 	}
-
-	// A commit or reset during the walk makes its result stale; it still
-	// answers this call but is not cached.
-	s.mu.Lock()
-	if s.historyGen == gen {
-		s.historyCache = walk.histories
-	}
-	s.mu.Unlock()
 	return walk.histories[path], nil
 }
 
