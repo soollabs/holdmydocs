@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"hmd/internal/config"
@@ -42,10 +43,59 @@ func serverSettingsBody(env *testEnv, extra map[string]any) map[string]any {
 	return body
 }
 
+// saveServerSettingsOK saves the settings form and returns the configuration
+// as saved, including settings still waiting for a restart.
 func saveServerSettingsOK(t *testing.T, env *testEnv, client *http.Client, extra map[string]any) config.Config {
 	t.Helper()
 	decodeOK(t, postMutation(t, client, env.server.URL+"/_/api/settings/server", serverSettingsBody(env, extra)), nil)
-	return env.api.Config()
+	return env.api.SavedConfig()
+}
+
+// TestSaveServerSettingsHoldsRestartSettings pins how a save treats settings
+// that need a restart: they are saved and reported as pending, the running
+// configuration keeps its value so nothing applies halfway, live settings
+// apply at once, and saving the running value again clears the pending list.
+func TestSaveServerSettingsHoldsRestartSettings(t *testing.T) {
+	env, client := newTestEnv(t, false)
+	configSaveEnv(t, env)
+	save := func(extra map[string]any) []string {
+		t.Helper()
+		var result struct {
+			OK             bool     `json:"ok"`
+			PendingRestart []string `json:"pending_restart"`
+		}
+		decodeOK(t, postMutation(t, client, env.server.URL+"/_/api/settings/server", serverSettingsBody(env, extra)), &result)
+		return result.PendingRestart
+	}
+	// The fixture's configuration is not fully resolved, so save a baseline
+	// and restart on it, as a real server starts from its saved file.
+	save(nil)
+	env.api.SetConfig(env.api.SavedConfig())
+	if pending := save(nil); len(pending) != 0 {
+		t.Fatalf("pending after saving the running values = %v, want none", pending)
+	}
+
+	pending := save(map[string]any{"server.read_only": true, "server.debug": true, "git.sync_poll_ms": 2500})
+	if want := []string{"server.debug", "server.read_only"}; !slices.Equal(pending, want) {
+		t.Errorf("pending_restart = %v, want %v", pending, want)
+	}
+	running, saved := env.api.Config(), env.api.SavedConfig()
+	if running.ReadOnly || running.Debug {
+		t.Errorf("running read_only %v debug %v, want both still false until a restart", running.ReadOnly, running.Debug)
+	}
+	if !saved.ReadOnly || !saved.Debug {
+		t.Errorf("saved read_only %v debug %v, want both true", saved.ReadOnly, saved.Debug)
+	}
+	if running.SyncPollMs != 2500 {
+		t.Errorf("running sync_poll_ms = %d, want the live setting applied at once", running.SyncPollMs)
+	}
+	if got := len(env.api.PendingRestart()); got != 2 {
+		t.Errorf("API PendingRestart lists %d settings, want 2", got)
+	}
+
+	if pending := save(map[string]any{"server.read_only": false, "server.debug": false}); len(pending) != 0 {
+		t.Errorf("pending after restoring the running values = %v, want none", pending)
+	}
 }
 
 func TestSaveServerSettingsWritesOAuthSettings(t *testing.T) {

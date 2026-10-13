@@ -289,6 +289,9 @@ func Run() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// Delay the stop so the browser receives the response before the server
+	// starts closing connections.
+	apiClient.SetShutdown(func() { time.AfterFunc(300*time.Millisecond, stop) })
 	var workers sync.WaitGroup
 	workers.Go(func() { pollFS(ctx, application.API, hashes) })
 	workers.Go(func() { pollAttachments(ctx, application.API) })

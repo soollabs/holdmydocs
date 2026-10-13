@@ -19,12 +19,23 @@ type serverSettingsInput struct {
 	Settings map[string]any `json:"settings"`
 }
 
+// serverSettingsResult reports a saved configuration and the setting keys
+// that take effect only after a restart.
+type serverSettingsResult struct {
+	OK             bool     `json:"ok"`
+	PendingRestart []string `json:"pending_restart"`
+}
+
 // saveServerSettings persists the install-wide configuration.
-func (h *Handlers) saveServerSettings(ctx context.Context, in serverSettingsInput) (okResult, error) {
+func (h *Handlers) saveServerSettings(ctx context.Context, in serverSettingsInput) (serverSettingsResult, error) {
 	if err := h.api.SaveServerSettings(ctx, api.ServerSettingsInput{Values: in.Settings}); err != nil {
-		return okResult{}, err
+		return serverSettingsResult{}, err
 	}
-	return okResult{OK: true}, nil
+	pending := []string{}
+	for _, s := range h.api.PendingRestart() {
+		pending = append(pending, s.Key)
+	}
+	return serverSettingsResult{OK: true, PendingRestart: pending}, nil
 }
 
 // appearanceInput is the JSON body of the per-user appearance form. The
@@ -87,6 +98,14 @@ func (h *Handlers) saveWikiConfig(ctx context.Context, in wikiConfigInput) (okRe
 // resetHelp rewrites the built-in help guide.
 func (h *Handlers) resetHelp(ctx context.Context, _ noneIn) (okResult, error) {
 	if err := h.api.ResetHelp(ctx); err != nil {
+		return okResult{}, err
+	}
+	return okResult{OK: true}, nil
+}
+
+// shutdown stops the process after the response is sent.
+func (h *Handlers) shutdown(ctx context.Context, _ noneIn) (okResult, error) {
+	if err := h.api.Shutdown(ctx); err != nil {
 		return okResult{}, err
 	}
 	return okResult{OK: true}, nil
@@ -211,6 +230,7 @@ func (h *Handlers) registerSettings(mux *http.ServeMux) {
 	h.registerJSON(mux, "POST /_/api/settings/wiki", h.saveWikiConfig)
 	h.registerJSON(mux, "POST /_/api/settings/help/reset", h.resetHelp)
 	h.registerJSON(mux, "POST /_/api/settings/setup", h.rerunSetup)
+	h.registerJSON(mux, "POST /_/api/settings/shutdown", h.shutdown)
 	h.registerJSON(mux, "POST /_/api/settings/users", h.createUser)
 	h.registerJSON(mux, "POST /_/api/settings/users/scopes", h.setUserScopes)
 	h.registerJSON(mux, "POST /_/api/settings/tokens", h.createToken)

@@ -110,7 +110,7 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 	if err != nil {
 		return Unavailable("config saved but reload failed", err)
 	}
-	a.SetConfig(newCfg)
+	a.applySavedConfig(newCfg)
 
 	if err := a.store.UpdateRemote(storeOptions(newCfg)); err != nil {
 		slog.Warn("updating store remote", "err", err)
@@ -119,13 +119,15 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 	return nil
 }
 
-// ExportServerConfig bakes the resolved runtime configuration (including
-// environment-derived values) into the configuration file.
+// ExportServerConfig bakes the resolved saved configuration (including
+// environment-derived values) into the configuration file. It exports the
+// saved rather than the running values so settings waiting for a restart
+// are kept.
 func (a *API) ExportServerConfig(ctx context.Context) error {
 	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
 		return err
 	}
-	cfg := a.Config()
+	cfg := a.SavedConfig()
 	if err := config.SaveFileConfig(cfg.ConfigFile, cfg.ToFileConfig()); err != nil {
 		return Unavailable("exporting config", err)
 	}
@@ -133,7 +135,7 @@ func (a *API) ExportServerConfig(ctx context.Context) error {
 	if err != nil {
 		return Unavailable("config exported but reload failed", err)
 	}
-	a.SetConfig(newCfg)
+	a.applySavedConfig(newCfg)
 	slog.Info("settings exported to config file")
 	return nil
 }
@@ -243,6 +245,20 @@ func (a *API) RerunSetup(ctx context.Context) error {
 		return err
 	}
 	a.store.ForceSetup.Store(true)
+	return nil
+}
+
+// Shutdown begins a graceful process shutdown. The process exits; it only
+// comes back if a supervisor such as Docker or systemd restarts it.
+func (a *API) Shutdown(ctx context.Context) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
+	if a.shutdown == nil {
+		return Unavailable("shutdown is not available", nil)
+	}
+	slog.Warn("shutdown requested from settings", "user", auth.UserFromContext(ctx))
+	a.shutdown()
 	return nil
 }
 

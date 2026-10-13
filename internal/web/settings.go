@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -139,6 +140,32 @@ func settingFields(cfg config.Config) map[string]FieldState {
 	return fields
 }
 
+// pendingSetting is a saved setting waiting for a restart, as the restart
+// banner lists it: a label and a link to its row on the settings page.
+type pendingSetting struct {
+	Label string
+	Href  string
+}
+
+func pendingSettings(settings []config.Setting) []pendingSetting {
+	var pending []pendingSetting
+	for _, s := range settings {
+		item := pendingSetting{Label: s.Title}
+		if s.Group != "" {
+			item.Label = s.Group + ": " + s.Title
+		}
+		for _, section := range config.Sections() {
+			for _, group := range section.Groups {
+				if slices.Contains(group.Rows, s.Key) {
+					item.Href = "/_/settings/" + section.Key + "#" + s.Key
+				}
+			}
+		}
+		pending = append(pending, item)
+	}
+	return pending
+}
+
 // settingText renders a config value for an input: lists as comma-separated text.
 func settingText(v any) string {
 	switch t := v.(type) {
@@ -180,7 +207,8 @@ func buildSettingsData(cfg config.Config, prefs auth.UserRecord) SettingsData {
 }
 
 func (app *App) settingsData(r *http.Request) SettingsData {
-	cfg := app.config()
+	// Show what was saved, including settings still waiting for a restart.
+	cfg := app.apiClient().SavedConfig()
 	user := app.currentUser(r)
 	prefs := app.Auth.Prefs(user)
 

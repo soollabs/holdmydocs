@@ -1615,6 +1615,39 @@
 
   // Settings screen: appearance, git author, tokens.
   // Each section has its own path, so return to it with the notice.
+  // Shutdown lives in the top-bar menu and the restart banner, so it is wired
+  // outside the settings pages.
+  (function () {
+    const dialog = $('#shutdown-dialog');
+    if (!dialog) return;
+    const confirmBtn = $('#shutdown-confirm');
+    const cancelBtn = $('#shutdown-cancel');
+    const message = $('#shutdown-message');
+    const error = $('#shutdown-error');
+    $$('#shutdown-open, #restart-open').forEach(open => open.addEventListener('click', () => {
+      const menu = open.closest('details');
+      if (menu) menu.open = false;
+      error.hidden = true;
+      window.HMDComponents.openDialog(dialog, open);
+    }));
+    cancelBtn.addEventListener('click', () => dialog.close());
+    confirmBtn.addEventListener('click', () => {
+      confirmBtn.disabled = true;
+      mutateJSON('/_/api/settings/shutdown', {})
+        .then(() => {
+          $('#shutdown-dialog-title').textContent = 'Shutting down';
+          message.textContent = 'HMD is shutting down. It may restart automatically if it runs under Docker or systemd; otherwise start it again manually.';
+          confirmBtn.hidden = true;
+          cancelBtn.textContent = 'Close';
+        })
+        .catch(err => {
+          confirmBtn.disabled = false;
+          error.textContent = err.message || 'shutdown failed';
+          error.hidden = false;
+        });
+    });
+  })();
+
   function settingsReturn(notice) {
     window.location.href = window.location.pathname + (notice ? '?' + notice : '');
   }

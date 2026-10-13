@@ -66,6 +66,7 @@
 
 /* Dialogs */
 :where(.ui-dialog) { max-width:min(42rem,calc(100vw - 2rem)); max-height:calc(100vh - 2rem); padding:0; border:var(--border-w) var(--rule-style) var(--border-visible); border-radius:var(--radius-lg); background:var(--bg); color:var(--fg); }
+dialog.ui-dialog { margin:auto; }
 :where(.ui-dialog)::backdrop { background:color-mix(in srgb,var(--fg-strong) 48%,transparent); }
 :where(.ui-dialog__surface) { padding:var(--pad); }
 :where(.ui-dialog__surface h2) { margin-top:0; }
