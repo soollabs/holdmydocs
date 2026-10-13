@@ -10,8 +10,7 @@ import (
 func ParseTemplates() (map[string]*template.Template, error) { return parseTemplates() }
 func LoadThemeDefaults()                                     { loadThemeDefaults() }
 func SetBuildVersion(value string) {
-	buildVersion = value
-	version = config.EnvOr("HMD_VERSION", value)
+	version = value
 }
 
 // Version returns the build version stamp used by the MCP server identity.

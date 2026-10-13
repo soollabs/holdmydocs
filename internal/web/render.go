@@ -22,8 +22,7 @@ import (
 	"hmd/internal/wiki"
 )
 
-var buildVersion = "dev"
-var version = config.EnvOr("HMD_VERSION", buildVersion)
+var version = "dev"
 
 // App is the browser adapter: it renders HTML, owns templates and static
 // assets, and delegates shared application state to API. Auth carries the
