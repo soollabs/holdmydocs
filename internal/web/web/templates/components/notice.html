@@ -1,2 +1,2 @@
-{{define "ui-notice-start"}}<div class="ui-notice ui-notice--{{.Variant}}" role="{{.Role}}"{{if .ID}} id="{{.ID}}"{{end}}{{if .Hidden}} hidden{{end}}>{{if .Label}}<strong class="ui-notice__title">{{.Label}}</strong>{{end}}{{end}}
-{{define "ui-notice-end"}}</div>{{end}}
+{{define "ui-notice-start"}}<div class="ui-notice ui-notice--{{.Variant}}{{if .Dismissible}} ui-notice--dismissible{{end}}" role="{{.Role}}"{{if .ID}} id="{{.ID}}"{{end}}{{if .Hidden}} hidden{{end}}>{{if .Label}}<strong class="ui-notice__title">{{.Label}}</strong>{{end}}{{end}}
+{{define "ui-notice-end"}}{{if .Dismissible}}{{$dismiss := button "Dismiss" "secondary" "size" "icon" "hook" "ui-notice__dismiss" "aria-label" "Dismiss" "title" "Dismiss"}}{{template "ui-button-start" $dismiss}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>{{template "ui-button-end" $dismiss}}{{end}}</div>{{end}}

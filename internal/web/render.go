@@ -176,6 +176,7 @@ type TemplateData struct {
 	ReadOnly                bool
 	CanSettings             bool
 	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
+	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
 	CanEdit                 bool
 	NewPageBase             string
 	NamespaceNames          []string // editor path field: namespaces a move may target
@@ -327,7 +328,13 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
 		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
 		if data.CanSettings {
-			data.PendingRestart = pendingSettings(app.apiClient().PendingRestart())
+			pending := app.apiClient().PendingRestart()
+			data.PendingRestart = pendingSettings(pending)
+			keys := make([]string, len(pending))
+			for i, s := range pending {
+				keys[i] = s.Key
+			}
+			data.PendingRestartKey = "restart:" + strings.Join(keys, ",")
 		}
 		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {
