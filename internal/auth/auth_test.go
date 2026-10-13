@@ -179,6 +179,8 @@ func TestUnifiedSettingsConnectionScopeBoundary(t *testing.T) {
 func TestBootstrapRejectsPlaceholderAndMatchingCredentials(t *testing.T) {
 	for _, cfg := range []Config{
 		{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "change-me"},
+		{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: "replace this with your own unique password"},
+		{AppDir: t.TempDir(), AdminUser: "admin", AdminPass: " REPLACE THIS WITH YOUR OWN UNIQUE PASSWORD "},
 		{AppDir: t.TempDir(), AdminUser: "samepassword", AdminPass: "samepassword"},
 	} {
 		if _, err := OpenAuth(cfg); err == nil {

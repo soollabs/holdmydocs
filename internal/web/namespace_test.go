@@ -638,6 +638,28 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("template link = %q, want the hidden-page editor for blog/entry", blog.TemplateHref)
 	}
 
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/settings/namespaces/blog/edit", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("opening namespace editor: %v", err)
+	}
+	editorBody, err := io.ReadAll(editor.Body)
+	if closeErr := editor.Body.Close(); closeErr != nil {
+		t.Errorf("closing namespace editor: %v", closeErr)
+	}
+	if err != nil {
+		t.Fatalf("reading namespace editor: %v", err)
+	}
+	if !strings.Contains(string(editorBody), `id="namespace-template" name="template" value="entry"`) {
+		t.Error("namespace template must have an editable, pre-filled control")
+	}
+	if strings.Contains(string(editorBody), `type="hidden" name="template"`) {
+		t.Error("namespace template must not remain a hidden-only setting")
+	}
+
 	_, hash, err := app.Store.Read(wiki.NamespaceConfigPath("blog"))
 	if err != nil {
 		t.Fatalf("reading blog config hash: %v", err)

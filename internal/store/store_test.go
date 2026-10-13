@@ -87,6 +87,14 @@ func TestInitNoRemote(t *testing.T) {
 	if state != "no remote" {
 		t.Errorf("SyncState = %q, want %q", state, "no remote")
 	}
+
+	reopened, err := OpenStore(cfg)
+	if err != nil {
+		t.Fatalf("reopening local repository: %v", err)
+	}
+	if state, _ := reopened.SyncState(); state != "no remote" {
+		t.Errorf("reopened SyncState = %q, want %q", state, "no remote")
+	}
 }
 
 // TestExistingContentSkipsSetup ensures complete repositories need no setup.
