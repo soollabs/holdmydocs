@@ -133,6 +133,7 @@ type TemplateData struct {
 	OAuthContinue           string // opaque, server-side OAuth login continuation handle
 	OAuthEnabled            bool
 	SettingsSection         string // highlights the current page in the shared settings navigation; empty hides it
+	NoSidebar               bool   // a page outside any namespace: no wiki sidebar, and the app bar links back to the wiki
 	SettingsPanel           string // URL-addressable account or system panel
 	SettingsLabel           string // current section shown by the mobile selector
 	SettingsHeading         string // page heading: the schema section title, or the lower-case label
@@ -219,6 +220,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	data.ReadOnly = app.config().ReadOnly
 	data.OAuthEnabled = app.OAuth != nil
 	switch name {
+	case "tags", "search", "hidden":
+		data.NoSidebar = true
 	case "settings", "admin", "namespaces", "connections", "oauth-clients":
 		data.SettingsSection = name
 	case "namespace-edit":

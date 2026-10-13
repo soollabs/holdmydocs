@@ -395,6 +395,66 @@ body.shell.shell-public {
 	}
 }
 
+/* On wide screens the sidebar, content and outline rail form one centred
+   group, with the sidebar beside the text instead of pinned to the window
+   edge. The gutter column is empty page background; it is zero until the
+   window is wider than the group. The editor and other full-width screens
+   keep the plain two-column shell. */
+@media (min-width: 900px) {
+	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) {
+		--shell-measure: calc(260px + var(--prose-measure) + var(--rail-w));
+		--shell-gutter: max(0px, calc((100vw - var(--shell-measure)) / 2));
+		grid-template-columns: var(--shell-gutter) 260px minmax(0, 1fr);
+		grid-template-areas:
+			"topbar topbar topbar"
+			". sidebar main"
+			"statusline statusline statusline";
+	}
+
+	body.shell.shell-public:not(.sidebar-collapsed):has(> main > :is(.page-wrap, .content-col)) {
+		grid-template-areas:
+			"topbar topbar topbar"
+			". sidebar main";
+	}
+
+	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
+		border-left: var(--chrome-border-w) solid var(--chrome-border);
+	}
+
+	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > main {
+		align-items: flex-start;
+	}
+
+	/* The app bar keeps its full-width background, but its contents line up with
+	   the group below instead of the window edges. */
+	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+		padding-inline: calc(var(--shell-gutter) + 10px);
+	}
+
+	body.shell.shell-public:not(.sidebar-collapsed):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+		padding-inline: calc(var(--shell-gutter) + 20px);
+	}
+
+	/* Pages without a sidebar centre one column, so the app bar follows that
+	   column's edges: the reading measure, that plus the outline rail, or the wider
+	   settings container. */
+	body.shell.no-sidebar {
+		--shell-gutter: max(0px, calc((100vw - var(--prose-measure)) / 2));
+	}
+
+	body.shell.no-sidebar:has(> main > .page-wrap) {
+		--shell-gutter: max(0px, calc((100vw - var(--prose-measure) - var(--rail-w)) / 2));
+	}
+
+	body.shell.no-sidebar:has(> main > .settings-container) {
+		--shell-gutter: max(0px, calc((100vw - 1200px) / 2));
+	}
+
+	body.shell.no-sidebar > .app-topbar {
+		padding-inline: calc(var(--shell-gutter) + 10px);
+	}
+}
+
 kbd {
 	border: var(--border-w) solid var(--border-strong);
 	border-radius: 3px;
@@ -1472,6 +1532,17 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	padding: 6px 12px;
 }
 
+/* Cells keep their words whole: letting them break anywhere squeezed every
+   column to a few characters. A wide table scrolls in its wrapper instead. */
+#page-content th, #page-content td {
+	overflow-wrap: normal;
+	vertical-align: top;
+}
+
+#page-content th {
+	white-space: nowrap;
+}
+
 #page-content th {
 	background: var(--surface-raised);
 	color: var(--fg-muted);
@@ -1982,6 +2053,9 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	.shell-public .sidebar {
 		top: calc(56px + env(safe-area-inset-top));
 		background: var(--surface);
+	}
+
+	.shell-public .sidebar.open {
 		box-shadow: 8px 0 24px #0003;
 	}
 
@@ -2247,12 +2321,13 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin: 0 0 1.25rem;
 }
 
-body.shell.settings-shell {
+/* Pages outside any namespace (settings, tags, search, health) have no wiki
+   sidebar; the app bar links back to the wiki instead. */
+body.shell.no-sidebar {
 	grid-template-columns: minmax(0, 1fr);
 	grid-template-areas: "topbar" "main" "statusline";
 }
-.settings-shell > .sidebar { display: none; }
-.settings-shell #sidebar-toggle { display: none; }
+.no-sidebar > .sidebar { display: none; }
 .settings-container { width: 100%; max-width: 1200px; padding: 32px; }
 .settings-header { margin-bottom: 28px; }
 .settings-header h1 { font-size: 1.75rem; margin: 0 0 8px; }
