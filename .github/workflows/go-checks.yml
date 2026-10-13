@@ -33,7 +33,13 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/embedding-model
+          key: embedding-model-${{ hashFiles('internal/search/documents.go') }}
       - run: go test ./...
+        env:
+          HMD_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/embedding-model
 
   vet:
     name: Vet
