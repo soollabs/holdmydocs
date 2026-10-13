@@ -590,6 +590,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	titles := app.apiClient().PageTitles(r.Context())
 	report, err := app.apiClient().Health(r.Context(), "")
 	if err != nil {
+		slog.Error("building health report", "err", err, "cause", errors.Unwrap(err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
