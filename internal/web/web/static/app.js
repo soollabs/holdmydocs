@@ -1615,21 +1615,21 @@
 
   // Settings screen: appearance, git author, tokens.
   // Each section has its own path, so return to it with the notice.
-  // Shutdown lives in the top-bar menu, so it is wired outside the settings pages.
+  // Shutdown lives in the top-bar menu and the restart banner, so it is wired
+  // outside the settings pages.
   (function () {
-    const open = $('#shutdown-open');
     const dialog = $('#shutdown-dialog');
-    if (!open || !dialog) return;
+    if (!dialog) return;
     const confirmBtn = $('#shutdown-confirm');
     const cancelBtn = $('#shutdown-cancel');
     const message = $('#shutdown-message');
     const error = $('#shutdown-error');
-    open.addEventListener('click', () => {
+    $$('#shutdown-open, #restart-open').forEach(open => open.addEventListener('click', () => {
       const menu = open.closest('details');
       if (menu) menu.open = false;
       error.hidden = true;
       window.HMDComponents.openDialog(dialog, open);
-    });
+    }));
     cancelBtn.addEventListener('click', () => dialog.close());
     confirmBtn.addEventListener('click', () => {
       confirmBtn.disabled = true;

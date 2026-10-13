@@ -1848,6 +1848,14 @@ func TestSettingsFullFlow(t *testing.T) {
 	if !bytes.Contains(body3, []byte(":7001")) {
 		t.Errorf("After save, should show updated bind value")
 	}
+	// Bind only changes on restart, so every page tells the admin, links to
+	// the setting and offers the shutdown dialog.
+	if !bytes.Contains(body3, []byte("Restart needed.")) || !bytes.Contains(body3, []byte(`<a href="/_/settings/server#server.bind">server: bind</a>`)) || !bytes.Contains(body3, []byte(`id="restart-open"`)) {
+		t.Errorf("After saving a restart-only setting, the page should show the restart banner, body: %s", body3)
+	}
+	if bytes.Contains(body, []byte("Restart needed.")) {
+		t.Error("Before any save, no restart should be pending")
+	}
 
 	loaded, err := config.LoadFileConfig(cfgFile)
 	if err != nil {

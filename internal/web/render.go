@@ -175,6 +175,7 @@ type TemplateData struct {
 	CanWrite                bool
 	ReadOnly                bool
 	CanSettings             bool
+	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
 	CanEdit                 bool
 	NewPageBase             string
 	NamespaceNames          []string // editor path field: namespaces a move may target
@@ -325,6 +326,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		prefs := app.Auth.Prefs(app.currentUser(r))
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
 		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
+		if data.CanSettings {
+			data.PendingRestart = pendingSettings(app.apiClient().PendingRestart())
+		}
 		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {
 			if data.IsNamespaceIndex {

@@ -1892,6 +1892,12 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin: 4rem auto;
 }
 
+/* Restart banner: spans the main column on every page, like the top bar. */
+.restart-pending {
+	align-self: stretch;
+	padding: var(--pad) var(--pad) 0;
+}
+
 .remote-changed-banner {
 	background: var(--warning-bg);
 	color: var(--fg-strong);

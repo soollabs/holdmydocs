@@ -27,6 +27,7 @@ type API struct {
 	shutdown         func()
 
 	cfg        atomic.Pointer[config.Config]
+	savedCfg   atomic.Pointer[config.Config]
 	wikiCfg    atomic.Pointer[wiki.WikiConfig]
 	namespaces atomic.Pointer[wiki.NamespaceRegistry]
 
@@ -76,6 +77,30 @@ func (a *API) HasConfig() bool { return a.cfg.Load() != nil }
 // SetConfig stores a new configuration value atomically.
 func (a *API) SetConfig(cfg config.Config) {
 	a.cfg.Store(&cfg)
+}
+
+// SavedConfig returns the configuration as saved, which can differ from
+// Config in settings that only take effect after a restart.
+func (a *API) SavedConfig() config.Config {
+	if cfg := a.savedCfg.Load(); cfg != nil {
+		return *cfg
+	}
+	return a.Config()
+}
+
+// applySavedConfig stores a configuration that was just saved. Settings that
+// take effect live apply now; restart-only ones keep their running value
+// until the process restarts, so they never apply halfway.
+func (a *API) applySavedConfig(saved config.Config) {
+	a.savedCfg.Store(&saved)
+	a.SetConfig(config.KeepRestartValues(a.Config(), saved))
+}
+
+// PendingRestart lists the saved settings that wait for a restart to take
+// effect, in schema order. It is empty when the saved and running
+// configuration agree.
+func (a *API) PendingRestart() []config.Setting {
+	return config.PendingRestart(a.Config(), a.SavedConfig())
 }
 
 // WikiConfig returns the current repository-level settings.

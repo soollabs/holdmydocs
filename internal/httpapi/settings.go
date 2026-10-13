@@ -19,12 +19,23 @@ type serverSettingsInput struct {
 	Settings map[string]any `json:"settings"`
 }
 
+// serverSettingsResult reports a saved configuration and the setting keys
+// that take effect only after a restart.
+type serverSettingsResult struct {
+	OK             bool     `json:"ok"`
+	PendingRestart []string `json:"pending_restart"`
+}
+
 // saveServerSettings persists the install-wide configuration.
-func (h *Handlers) saveServerSettings(ctx context.Context, in serverSettingsInput) (okResult, error) {
+func (h *Handlers) saveServerSettings(ctx context.Context, in serverSettingsInput) (serverSettingsResult, error) {
 	if err := h.api.SaveServerSettings(ctx, api.ServerSettingsInput{Values: in.Settings}); err != nil {
-		return okResult{}, err
+		return serverSettingsResult{}, err
 	}
-	return okResult{OK: true}, nil
+	pending := []string{}
+	for _, s := range h.api.PendingRestart() {
+		pending = append(pending, s.Key)
+	}
+	return serverSettingsResult{OK: true, PendingRestart: pending}, nil
 }
 
 // appearanceInput is the JSON body of the per-user appearance form. The

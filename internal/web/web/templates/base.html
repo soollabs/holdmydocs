@@ -178,6 +178,7 @@
 	</nav>
 	{{end}}
 	<main id="main-content" tabindex="-1">
+		{{if .PendingRestart}}<div class="restart-pending">{{$restartNotice := component "notice" "variant" "warning" "role" "status"}}{{template "ui-notice-start" $restartNotice}}<strong>Restart needed.</strong> Saved settings that take effect after HMD restarts: {{range $i, $p := .PendingRestart}}{{if $i}}, {{end}}{{if $p.Href}}<a href="{{$p.Href}}">{{$p.Label}}</a>{{else}}{{$p.Label}}{{end}}{{end}}. {{template "ui-button" (button "Shut down to restart" "secondary" "size" "compact" "id" "restart-open" "aria-haspopup" "dialog")}}{{template "ui-notice-end" $restartNotice}}</div>{{end}}
 		{{if .SettingsSection}}<div class="settings-container">
 			<header class="settings-header"><h1>Settings</h1><p>Your account, namespaces and system configuration.</p></header>
 			<div class="settings-layout">{{template "settings-nav" .}}<div class="settings-panels">
