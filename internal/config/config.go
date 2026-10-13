@@ -96,6 +96,7 @@ type Config struct {
 	RepoDir        string
 	ReadOnly       bool
 	MaxUploadBytes int64
+	TikaTimeout    int
 	SyncPollMs     int
 	SyncMode       string
 	DefaultBranch  string
@@ -130,6 +131,7 @@ type serverFileConfig struct {
 	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
 	MaxUploadBytes *int64   `yaml:"max_upload_bytes,omitempty"`
+	TikaTimeout    *int     `yaml:"tika_timeout,omitempty"`
 	Skin           string   `yaml:"skin,omitempty"`
 }
 
@@ -326,6 +328,7 @@ func Resolve(file fileConfig) (Config, error) {
 		RepoDir:        or(file.Server.RepoDir, "/data/repo"),
 		ReadOnly:       readOnly,
 		MaxUploadBytes: orInt64(file.Server.MaxUploadBytes, 10*1024*1024),
+		TikaTimeout:    orInt(file.Server.TikaTimeout, 120),
 		SyncPollMs:     orInt(file.Git.SyncPollMs, 10000),
 		SyncMode:       or(file.Git.SyncMode, "push"),
 		DefaultBranch:  or(file.Git.Branch, "main"),
@@ -445,6 +448,7 @@ func (c Config) toFileConfig() fileConfig {
 			TrustedProxies: append([]string(nil), c.TrustedProxies...),
 			Debug:          c.Debug,
 			MaxUploadBytes: new(c.MaxUploadBytes),
+			TikaTimeout:    new(c.TikaTimeout),
 			Skin:           c.Skin,
 		},
 		Git: gitFileConfig{

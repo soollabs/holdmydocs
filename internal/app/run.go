@@ -193,6 +193,7 @@ func Run() {
 		finishStage = debugStartupStage("initialize document search", "model", cfg.DocumentSearch.Model)
 		documents, err = search.NewDocumentSearch(search.DocumentOptions{
 			TikaURL: cfg.TikaURL, ModelDir: cfg.DocumentSearch.ModelDir, Model: cfg.DocumentSearch.Model,
+			TikaTimeout: time.Duration(cfg.TikaTimeout) * time.Second,
 		})
 		if err != nil {
 			log.Fatalf("setting up document search failed: %v", err)
