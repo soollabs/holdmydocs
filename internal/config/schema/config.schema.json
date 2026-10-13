@@ -97,6 +97,15 @@
           "description": "Largest attachment upload accepted, in bytes (default 10 MiB).",
           "x-restart": false
         },
+        "tika_timeout": {
+          "title": "tika timeout (seconds)",
+          "type": "integer",
+          "default": 120,
+          "minimum": 0,
+          "maximum": 3600,
+          "description": "How long startup waits for Tika to be available before failing. 0 checks once.",
+          "x-restart": true
+        },
         "skin": {
           "title": "default skin",
           "type": "string",

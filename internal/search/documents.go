@@ -240,6 +240,29 @@ func NewTikaClient(raw string) (*TikaClient, error) {
 	return &TikaClient{baseURL: raw, client: &http.Client{}, sem: make(chan struct{}, 1)}, nil
 }
 
+// tikaRetryInterval is how long WaitReady pauses between validation attempts.
+var tikaRetryInterval = time.Second
+
+// WaitReady validates the Tika server, retrying until it answers or wait has
+// passed.
+func (c *TikaClient) WaitReady(ctx context.Context, wait time.Duration) error {
+	deadline := time.Now().Add(wait)
+	for attempt := 1; ; attempt++ {
+		err := c.Validate(ctx)
+		if err == nil || !time.Now().Before(deadline) {
+			return err
+		}
+		if attempt == 1 {
+			slog.Info("waiting for Tika", "url", c.baseURL, "wait", wait, "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(min(tikaRetryInterval, time.Until(deadline))):
+		}
+	}
+}
+
 func (c *TikaClient) Validate(ctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -507,6 +530,7 @@ type DocumentOptions struct {
 	TikaURL  string
 	ModelDir string
 	Model    string
+	TikaTimeout time.Duration
 }
 
 func (d *DocumentSearch) SetStore(value *store.Store) { d.store = value }
@@ -516,7 +540,7 @@ func NewDocumentSearch(cfg DocumentOptions) (*DocumentSearch, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := tika.Validate(context.Background()); err != nil {
+	if err := tika.WaitReady(context.Background(), cfg.TikaTimeout); err != nil {
 		return nil, err
 	}
 	embedder, err := NewHugotEmbedder(cfg.ModelDir, cfg.Model)

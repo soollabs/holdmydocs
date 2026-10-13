@@ -37,6 +37,7 @@ func KeepRestartValues(running, saved Config) Config {
 	saved.TrustedProxies = running.TrustedProxies
 	saved.ReadOnly = running.ReadOnly
 	saved.Debug = running.Debug
+	saved.TikaTimeout = running.TikaTimeout
 	saved.MCP = running.MCP
 	saved.OAuth = running.OAuth
 	saved.OIDC = running.OIDC

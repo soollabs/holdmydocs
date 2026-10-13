@@ -121,6 +121,7 @@ func TestSchemaRules(t *testing.T) {
 		"server.skin":                "bogus",
 		"git.sync_mode":              "sideways",
 		"server.max_upload_bytes":    int64(1<<30 + 1),
+		"server.tika_timeout":        3601,
 		"git.sync_poll_ms":           50,
 		"git.branch":                 "bad..name",
 		"server.base_url":            "https://wiki.example.com/docs",

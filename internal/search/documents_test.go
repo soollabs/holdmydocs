@@ -584,3 +584,53 @@ func TestHugotEmbedderEveryBatchSize(t *testing.T) {
 		}
 	}
 }
+
+func TestTikaWaitReadyRetriesUntilTikaAnswers(t *testing.T) {
+	tikaRetryInterval = time.Millisecond
+	t.Cleanup(func() { tikaRetryInterval = time.Second })
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) < 3 {
+			http.Error(w, "starting", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, "This is Tika Server")
+	}))
+	defer server.Close()
+	client, err := NewTikaClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.WaitReady(context.Background(), time.Minute); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+	if n := calls.Load(); n != 3 {
+		t.Fatalf("WaitReady made %d attempts, want 3", n)
+	}
+}
+
+func TestTikaWaitReadyGivesUp(t *testing.T) {
+	tikaRetryInterval = time.Millisecond
+	t.Cleanup(func() { tikaRetryInterval = time.Second })
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	client, err := NewTikaClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.WaitReady(context.Background(), 0); err == nil {
+		t.Fatal("WaitReady with no wait accepted a failing Tika")
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("WaitReady with no wait made %d attempts, want 1", n)
+	}
+	if err := client.WaitReady(context.Background(), 50*time.Millisecond); err == nil {
+		t.Fatal("WaitReady accepted a Tika that never answered")
+	}
+}
