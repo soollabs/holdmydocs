@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,6 +20,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/export"
+	"hmd/internal/httpmiddleware"
 	"hmd/internal/oauthserver"
 	"hmd/internal/search"
 	"hmd/internal/store"
@@ -120,6 +122,34 @@ func Run() {
 		}
 	}
 	finishStage()
+
+	// Listen before the slow stages below, so a browser gets a loading page
+	// straight away instead of a connection that hangs until startup is done.
+	// The gate hands over to the real handler once everything is open.
+	var gate startupGate
+	var server *http.Server
+	if *exportNS == "" {
+		starting, err := web.StartupHandler()
+		if err != nil {
+			log.Fatal(err)
+		}
+		gate.starting = httpmiddleware.SecurityHeaders(starting)
+		server = newHTTPServer(cfg.Bind, &gate)
+		address := server.Addr
+		if address == "" {
+			address = ":http"
+		}
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() {
+			if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+				log.Fatal(err)
+			}
+		}()
+		slog.Debug("HTTP server listening; serving the loading page until startup completes", "bind", cfg.Bind)
+	}
 
 	finishStage = debugStartupStage("open repository", "path", cfg.RepoDir, "remote", cfg.Git.RemoteURL != "")
 	content, err := store.Open(store.Options{
@@ -271,38 +301,31 @@ func Run() {
 		finishStage()
 	}
 
-	server := newHTTPServer(cfg.Bind, newHandler(application))
-	shutdownDone := make(chan struct{})
-	go func() {
-		defer close(shutdownDone)
-		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdown); err != nil {
-			slog.Error("graceful shutdown failed", "err", err)
-			_ = server.Close()
-		}
-		application.CloseExportPreviews()
-		// The workers write to the store and index, so they must finish
-		// before either is closed.
-		workers.Wait()
-		if err := content.WaitForPushes(shutdown); err != nil {
-			slog.Error("waiting for Git pushes", "err", err)
-		}
-		if err := index.Close(); err != nil {
-			slog.Warn("closing search index", "err", err)
-		}
-		if oauthService != nil {
-			if err := oauthService.Close(); err != nil {
-				slog.Warn("closing OAuth state store", "err", err)
-			}
-		}
-	}()
-	slog.Debug("startup completed; HTTP server listening", "bind", cfg.Bind)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	gate.Ready(newHandler(application))
+	slog.Debug("startup completed; serving requests", "bind", cfg.Bind)
+
+	<-ctx.Done()
+	shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdown); err != nil {
+		slog.Error("graceful shutdown failed", "err", err)
+		_ = server.Close()
 	}
-	<-shutdownDone
+	application.CloseExportPreviews()
+	// The workers write to the store and index, so they must finish before
+	// either is closed.
+	workers.Wait()
+	if err := content.WaitForPushes(shutdown); err != nil {
+		slog.Error("waiting for Git pushes", "err", err)
+	}
+	if err := index.Close(); err != nil {
+		slog.Warn("closing search index", "err", err)
+	}
+	if oauthService != nil {
+		if err := oauthService.Close(); err != nil {
+			slog.Warn("closing OAuth state store", "err", err)
+		}
+	}
 }
 
 type stringListFlag []string

@@ -9,9 +9,11 @@ import (
 
 var webFS = FS
 
+var templateFuncs = template.FuncMap{"static": staticURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections}
+
 func parseTemplates() (map[string]*template.Template, error) {
 	templates := make(map[string]*template.Template)
-	funcs := template.FuncMap{"static": staticURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections}
+	funcs := templateFuncs
 	widgetFiles := []string{
 		"web/templates/widgets/tree.html", "web/templates/widgets/pages.html",
 		"web/templates/widgets/namespaces.html", "web/templates/widgets/pinned.html",
