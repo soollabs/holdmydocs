@@ -20,10 +20,12 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 )
 
 var gitNetworkTimeout atomic.Int64
@@ -71,9 +73,15 @@ type Store struct {
 	syncErr   string
 	// historyCache caches history results by path.
 	historyCache map[string][]CommitInfo
+	// historyGen counts history cache invalidations, protected by mu. A cold
+	// walk publishes its result only if no invalidation happened meanwhile.
+	historyGen uint64
 	// knownHead is the HEAD hash after the last commit or reset made by this process, protected by mu.
-	knownHead  plumbing.Hash
-	NeedsSetup atomic.Bool
+	knownHead plumbing.Hash
+	walkMu    sync.Mutex
+	// historyWalk is the cold history walk in progress, protected by walkMu.
+	historyWalk *historyWalk
+	NeedsSetup  atomic.Bool
 	// ForceSetup requests displaying the setup modal.
 	ForceSetup      atomic.Bool
 	lastSuccessUnix atomic.Int64
@@ -465,6 +473,9 @@ func Open(cfg Options) (*Store, error) {
 			store.syncState = "no remote"
 		}
 		store.lastSuccessUnix.Store(time.Now().Unix())
+		// Without the opening head, the first refresh or save would mistake it
+		// for an external commit and drop the history cache.
+		store.knownHead = store.headHash()
 		seedOrFlagSetup(store)
 		slog.Info("opened existing repo", "dir", cfg.RepoDir, "remote", remote != "")
 		return store, nil
@@ -500,6 +511,7 @@ func Open(cfg Options) (*Store, error) {
 			syncState: "ok",
 		}
 		store.lastSuccessUnix.Store(time.Now().Unix())
+		store.knownHead = store.headHash()
 
 		slog.Info("cloned repo", "dir", cfg.RepoDir, "remote", cfg.Git.RemoteURL)
 
@@ -1177,30 +1189,94 @@ func (s *Store) ListHidden() ([]string, error) {
 	return paths, nil
 }
 
+// historyWalk is a cold history walk from one HEAD, shared by every caller
+// that misses the cache while it runs.
+type historyWalk struct {
+	head      plumbing.Hash
+	done      chan struct{}
+	histories map[string][]CommitInfo
+	err       error
+}
+
+// historyWalkHook, when set by tests, runs inside the walk after the first commit.
+var historyWalkHook func()
+
 func (s *Store) History(path string) ([]CommitInfo, error) {
 	// A cache hit needs only a read lock and does not wait for network operations.
 	s.mu.RLock()
 	cached, ok := s.historyCache[path]
+	gen, head := s.historyGen, s.headHash()
 	s.mu.RUnlock()
 	if ok {
 		return cached, nil
 	}
 
-	// The cache miss walk runs under the write lock to stay consistent with concurrent saves.
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if cached, ok := s.historyCache[path]; ok {
-		return cached, nil
+	// The walk holds no Store lock, so a cold cache never blocks reads, saves
+	// or the refresh worker. Callers missing the cache meanwhile share it.
+	s.walkMu.Lock()
+	walk := s.historyWalk
+	leader := walk == nil || walk.head != head
+	if leader {
+		walk = &historyWalk{head: head, done: make(chan struct{})}
+		s.historyWalk = walk
+	}
+	s.walkMu.Unlock()
+	if !leader {
+		<-walk.done
+		if walk.err != nil {
+			return nil, walk.err
+		}
+		return walk.histories[path], nil
 	}
 
-	iter, err := s.repo.Log(&git.LogOptions{})
+	walk.histories, walk.err = s.walkHistory(head)
+	s.walkMu.Lock()
+	if s.historyWalk == walk {
+		s.historyWalk = nil
+	}
+	s.walkMu.Unlock()
+	close(walk.done)
+	if walk.err != nil {
+		return nil, walk.err
+	}
+
+	// A commit or reset during the walk makes its result stale; it still
+	// answers this call but is not cached.
+	s.mu.Lock()
+	if s.historyGen == gen {
+		s.historyCache = walk.histories
+	}
+	s.mu.Unlock()
+	return walk.histories[path], nil
+}
+
+// walkHistory lists the commits touching each path, newest first, from head.
+// It uses a private object storage: by default go-git reopens a pack or loose
+// object file for every object it reads, which is slow on network storage,
+// and the shared storage is not safe for concurrent use with kept
+// descriptors. Changed paths come from a tree diff without rename detection,
+// which yields the same paths as a patch without reading blobs.
+func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error) {
+	started := time.Now()
+	if head.IsZero() {
+		return nil, fmt.Errorf("getting log: %w", plumbing.ErrReferenceNotFound)
+	}
+	shared, ok := s.repo.Storer.(*filesystem.Storage)
+	if !ok {
+		return nil, fmt.Errorf("walking history: unsupported storage %T", s.repo.Storer)
+	}
+	storage := filesystem.NewStorageWithOptions(shared.Filesystem(), cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+	defer func() { _ = storage.Close() }()
+	objects := cacheFirstStorage{Storage: storage, cache: cache.NewObjectLRUDefault()}
+
+	commit, err := object.GetCommit(objects, head)
 	if err != nil {
 		return nil, fmt.Errorf("getting log: %w", err)
 	}
 
 	histories := make(map[string][]CommitInfo)
-	if err := iter.ForEach(func(c *object.Commit) error {
+	commits := 0
+	if err := object.NewCommitPreorderIter(commit, nil, nil).ForEach(func(c *object.Commit) error {
 		current, err := c.Tree()
 		if err != nil {
 			return err
@@ -1216,7 +1292,7 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 				return err
 			}
 		}
-		patch, err := previous.Patch(current)
+		changes, err := object.DiffTreeWithOptions(context.Background(), previous, current, &object.DiffTreeOptions{})
 		if err != nil {
 			return err
 		}
@@ -1226,26 +1302,46 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 			Author:  c.Author.Name,
 			When:    c.Author.When,
 		}
-		for _, filePatch := range patch.FilePatches() {
-			from, to := filePatch.Files()
-			paths := map[string]bool{}
-			if from != nil {
-				paths[from.Path()] = true
+		paths := map[string]bool{}
+		for _, change := range changes {
+			if change.From.Name != "" {
+				paths[change.From.Name] = true
 			}
-			if to != nil {
-				paths[to.Path()] = true
+			if change.To.Name != "" {
+				paths[change.To.Name] = true
 			}
-			for path := range paths {
-				histories[path] = append(histories[path], entry)
-			}
+		}
+		for path := range paths {
+			histories[path] = append(histories[path], entry)
+		}
+		commits++
+		if commits == 1 && historyWalkHook != nil {
+			historyWalkHook()
 		}
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("walking history: %w", err)
 	}
+	slog.Debug("history walk completed", "commits", commits, "paths", len(histories), "duration", time.Since(started))
+	return histories, nil
+}
 
-	s.historyCache = histories
-	return histories[path], nil
+// cacheFirstStorage answers object reads from its cache before the storage,
+// which otherwise opens the object's file even when it has the object cached.
+type cacheFirstStorage struct {
+	*filesystem.Storage
+	cache cache.Object
+}
+
+func (s cacheFirstStorage) EncodedObject(t plumbing.ObjectType, h plumbing.Hash) (plumbing.EncodedObject, error) {
+	if obj, ok := s.cache.Get(h); ok && (t == plumbing.AnyObject || obj.Type() == t) {
+		return obj, nil
+	}
+	obj, err := s.Storage.EncodedObject(t, h)
+	if err == nil {
+		s.cache.Put(obj)
+	}
+	return obj, err
 }
 
 // CommitDetail is CommitInfo plus the files the commit touched, for the MCP recent_changes tool.
@@ -1303,6 +1399,7 @@ func (s *Store) headHash() plumbing.Hash {
 }
 
 func (s *Store) noteCommit(newHead, preHead plumbing.Hash) {
+	s.historyGen++
 	if s.knownHead != preHead {
 		s.historyCache = nil
 	}
@@ -1315,6 +1412,7 @@ func (s *Store) DropHistoryOnExternalCommit() {
 	defer s.mu.Unlock()
 	if head := s.headHash(); head != s.knownHead {
 		s.historyCache = nil
+		s.historyGen++
 		s.knownHead = head
 	}
 }
@@ -1584,6 +1682,7 @@ func (s *Store) FetchAndFF() (FetchResult, error) {
 	for _, p := range result.ChangedPaths {
 		delete(s.historyCache, p)
 	}
+	s.historyGen++
 	s.knownHead = remoteHash
 	s.syncState = "ok"
 	s.syncErr = ""
