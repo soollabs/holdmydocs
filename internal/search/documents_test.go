@@ -541,3 +541,47 @@ func TestSearchAttachmentsDisabledBusyAndEmptyQuery(t *testing.T) {
 	<-ix.searches
 	<-ix.searches
 }
+
+func TestEmbeddingBatchSizeAvoidsPadding(t *testing.T) {
+	for total := 1; total <= 100; total++ {
+		covered := 0
+		for covered < total {
+			size := embeddingBatchSize(total - covered)
+			if size < 1 || size > 32 || size&(size-1) != 0 {
+				t.Fatalf("batch of %d after %d of %d: want a power of two up to 32", size, covered, total)
+			}
+			covered += size
+		}
+		if covered != total {
+			t.Fatalf("batches covered %d of %d texts", covered, total)
+		}
+	}
+}
+
+// TestHugotEmbedderEveryBatchSize runs the real model over every batch size up
+// to past the 32-text chunk, because Hugot has panicked on sizes it pads.
+// It needs the model, so it runs only when HMD_TEST_EMBEDDING_MODEL_DIR names
+// a directory to download it into or load it from.
+func TestHugotEmbedderEveryBatchSize(t *testing.T) {
+	modelDir := os.Getenv("HMD_TEST_EMBEDDING_MODEL_DIR")
+	if modelDir == "" {
+		t.Skip("HMD_TEST_EMBEDDING_MODEL_DIR is not set")
+	}
+	embedder, err := NewHugotEmbedder(modelDir, semanticModelName)
+	if err != nil {
+		t.Fatalf("loading embedding model: %v", err)
+	}
+	for size := 1; size <= 40; size++ {
+		texts := make([]string, size)
+		for i := range texts {
+			texts[i] = strings.Repeat("document text ", i+1)
+		}
+		embeddings, err := embedder.Embed(context.Background(), texts)
+		if err != nil {
+			t.Fatalf("embedding %d texts: %v", size, err)
+		}
+		if len(embeddings) != size || len(embeddings[size-1]) != semanticModelDimensions {
+			t.Fatalf("embedding %d texts returned %d embeddings", size, len(embeddings))
+		}
+	}
+}
