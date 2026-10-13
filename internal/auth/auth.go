@@ -502,7 +502,7 @@ func validBootstrapCredentials(name, password string) bool {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(password)) {
-	case "change-me", "your-password", "your_password", "password":
+	case "change-me", "your-password", "your_password", "password", "replace this with your own unique password":
 		return false
 	}
 	return true
