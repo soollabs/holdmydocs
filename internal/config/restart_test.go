@@ -10,8 +10,8 @@ import (
 func changeAll(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			changeAll(v.Field(i))
+		for _, field := range v.Fields() {
+			changeAll(field)
 		}
 	case reflect.String:
 		v.SetString(v.String() + "-changed")
