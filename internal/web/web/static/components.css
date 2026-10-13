@@ -61,6 +61,8 @@
 :where(.ui-notice--warning) { border-left:var(--field-border-w) var(--rule-style) var(--warning); background:var(--warning-bg); color:var(--fg-strong); }
 :where(.ui-notice--danger) { background:var(--danger-bg); color:var(--danger); }
 :where(.ui-notice__title) { display:block; color:var(--fg-strong); }
+:where(.ui-notice--dismissible) { position:relative; padding-inline-end:calc(var(--control-pad-x) * 2 + 1.5em); }
+:where(.ui-notice__dismiss) { position:absolute; inset-block-start:calc(var(--control-pad-y) / 2); inset-inline-end:calc(var(--control-pad-x) / 2); }
 /* A notice wrapping an element that already has its own treatment adds nothing. */
 :where(.ui-notice:has(> .old-version, > .health-hint, > .index-warning)) { display:contents; }
 

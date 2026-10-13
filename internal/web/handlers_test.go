@@ -1853,6 +1853,11 @@ func TestSettingsFullFlow(t *testing.T) {
 	if !bytes.Contains(body3, []byte("Restart needed.")) || !bytes.Contains(body3, []byte(`<a href="/_/settings/server#server.bind">server: bind</a>`)) || !bytes.Contains(body3, []byte(`id="restart-open"`)) {
 		t.Errorf("After saving a restart-only setting, the page should show the restart banner, body: %s", body3)
 	}
+	// The dismissal key names the pending settings, so a dismissed banner
+	// comes back once another restart-only setting is saved.
+	if !bytes.Contains(body3, []byte(`data-dismiss="restart:server.bind,server.repo_dir"`)) || !bytes.Contains(body3, []byte(`ui-notice__dismiss`)) {
+		t.Error("restart banner must be dismissible under a key naming the pending settings")
+	}
 	if bytes.Contains(body, []byte("Restart needed.")) {
 		t.Error("Before any save, no restart should be pending")
 	}

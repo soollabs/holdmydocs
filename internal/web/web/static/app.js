@@ -1615,6 +1615,24 @@
 
   // Settings screen: appearance, git author, tokens.
   // Each section has its own path, so return to it with the notice.
+  // Dismissible notices hide until the browser session ends. A notice inside
+  // a [data-dismiss] wrapper remembers its key in sessionStorage; the head
+  // script hides remembered keys on later pages.
+  document.addEventListener('click', event => {
+    const dismiss = event.target.closest('.ui-notice__dismiss');
+    if (!dismiss) return;
+    const wrapper = dismiss.closest('[data-dismiss]');
+    const target = wrapper || dismiss.closest('.ui-notice');
+    if (wrapper) {
+      try {
+        const dismissed = JSON.parse(sessionStorage.getItem('hmd-dismissed') || '[]');
+        if (!dismissed.includes(wrapper.dataset.dismiss)) dismissed.push(wrapper.dataset.dismiss);
+        sessionStorage.setItem('hmd-dismissed', JSON.stringify(dismissed));
+      } catch (e) { /* storage unavailable: hide for this page only */ }
+    }
+    target.hidden = true;
+  });
+
   // Shutdown lives in the top-bar menu and the restart banner, so it is wired
   // outside the settings pages.
   (function () {

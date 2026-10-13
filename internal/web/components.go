@@ -28,7 +28,7 @@ var boolValues = []string{"true", "false"}
 var buttonEnums = map[string][]string{
 	"size":          {"regular", "compact", "icon"},
 	"type":          {"button", "submit", "reset"},
-	"hook":          {"export-link-remove", "widget-chip", "zen-exit", "topbar-icon", "topbar-action", "topbar-action topbar-primary"},
+	"hook":          {"export-link-remove", "widget-chip", "zen-exit", "topbar-icon", "topbar-action", "topbar-action topbar-primary", "ui-notice__dismiss"},
 	"aria-expanded": boolValues,
 	"aria-haspopup": {"true", "menu", "listbox", "tree", "grid", "dialog"},
 	"pressed":       boolValues, "disabled": boolValues, "hidden": boolValues,
@@ -121,7 +121,7 @@ func makeButton(label, variant string, options ...string) (buttonProps, error) {
 // Arbitrary content belongs between the component's explicit start/end templates.
 type componentProps struct {
 	Kind, Variant, Label, ID, Role, Name, Value, Type, For, State, Layout string
-	Disabled, Required, Hidden, Multiple, Checked, Open                   bool
+	Disabled, Required, Hidden, Multiple, Checked, Open, Dismissible      bool
 }
 
 // componentRule lists the options a kind accepts. A nil value list accepts any
@@ -145,7 +145,7 @@ var componentRules = map[string]componentRule{
 		"checked": boolValues, "disabled": boolValues, "required": boolValues,
 	}, required: []string{"id"}},
 	"panel":      {options: map[string][]string{"variant": {"default", "raised"}}},
-	"notice":     {options: map[string][]string{"variant": {"info", "success", "warning", "danger"}, "role": {"status", "alert"}}},
+	"notice":     {options: map[string][]string{"variant": {"info", "success", "warning", "danger"}, "role": {"status", "alert"}, "dismissible": boolValues}},
 	"empty":      {options: map[string][]string{"state": {"default", "error", "loading"}}},
 	"table":      {},
 	"disclosure": {options: map[string][]string{"open": boolValues}},
@@ -191,5 +191,6 @@ func makeComponent(kind string, options ...string) (componentProps, error) {
 	p.Name, p.Value, p.Type, p.For, p.State, p.Layout = values["name"], values["value"], values["type"], values["for"], values["state"], values["layout"]
 	p.Disabled, p.Required, p.Hidden = values["disabled"] == "true", values["required"] == "true", values["hidden"] == "true"
 	p.Multiple, p.Checked, p.Open = values["multiple"] == "true", values["checked"] == "true", values["open"] == "true"
+	p.Dismissible = values["dismissible"] == "true"
 	return p, nil
 }
