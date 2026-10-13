@@ -61,7 +61,8 @@ func TestStartupGateAnswersBeforeReady(t *testing.T) {
 	csp := page.Header.Get("Content-Security-Policy")
 	_, afterNonce, _ := strings.Cut(csp, "'nonce-")
 	nonce, _, _ := strings.Cut(afterNonce, "'")
-	if nonce == "" || !strings.Contains(html, `nonce="`+nonce+`"`) {
+	// html/template escapes "+" in an attribute, which a browser decodes.
+	if nonce == "" || !strings.Contains(strings.ReplaceAll(html, "&#43;", "+"), `nonce="`+nonce+`"`) {
 		t.Errorf("theme script nonce does not match CSP %q", csp)
 	}
 	if style := serve(http.MethodGet, "/_/static/style.css", "text/css,*/*;q=0.1"); style.StatusCode != http.StatusOK || !strings.HasPrefix(style.Header.Get("Content-Type"), "text/css") {
