@@ -527,9 +527,9 @@ type DocumentSearch struct {
 }
 
 type DocumentOptions struct {
-	TikaURL  string
-	ModelDir string
-	Model    string
+	TikaURL     string
+	ModelDir    string
+	Model       string
 	TikaTimeout time.Duration
 }
 
