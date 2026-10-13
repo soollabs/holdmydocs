@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -333,6 +334,11 @@ type HugotEmbedder struct {
 	session  *hugot.Session
 	pipeline *pipelines.FeatureExtractionPipeline
 	revision string
+	// mu runs one batch at a time. The model already needs most of the
+	// memory a small container has, and a search embedding its query while
+	// background indexing ran a batch pushed a 512 MiB container out of
+	// memory. A search now waits for the batch in progress instead.
+	mu sync.Mutex
 }
 
 func ensureEmbeddingModel(ctx context.Context, modelDir, baseURL string, files []embeddingModelFile) error {
@@ -453,7 +459,9 @@ func (e *HugotEmbedder) Embed(ctx context.Context, texts []string) ([][]float32,
 	var result [][]float32
 	for start := 0; start < len(texts); start += 32 {
 		end := min(start+32, len(texts))
+		e.mu.Lock()
 		output, err := e.pipeline.RunPipeline(ctx, texts[start:end])
+		e.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -607,13 +615,16 @@ func removeDerivedSearchState(indexDir string) error {
 }
 
 // OpenIndex opens and reconciles the search index.
-func OpenIndex(appDir string, pages []wiki.Page, pageHashes map[string]string, attachments map[string]string, documents *DocumentSearch) (*Index, error) {
-	return OpenIndexAt(filepath.Join(appDir, "search.bleve"), pages, pageHashes, attachments, documents)
+func OpenIndex(appDir string, pages []wiki.Page, pageHashes map[string]string, documents *DocumentSearch) (*Index, error) {
+	return OpenIndexAt(filepath.Join(appDir, "search.bleve"), pages, pageHashes, documents)
 }
 
-func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]string, attachments map[string]string, documents *DocumentSearch) (*Index, error) {
+// OpenIndexAt opens the index and brings its pages up to date. Attachments are
+// left to ReconcileAttachments, which can take minutes on a first start, so the
+// caller runs it in the background once the server is up.
+func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]string, documents *DocumentSearch) (*Index, error) {
 	started := time.Now()
-	slog.Debug("search index open started", "path", indexDir, "pages", len(pages), "attachments", len(attachments), "documents", documents != nil)
+	slog.Debug("search index open started", "path", indexDir, "pages", len(pages), "documents", documents != nil)
 	appDir := filepath.Dir(indexDir)
 	if err := os.MkdirAll(appDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating search directory: %w", err)
@@ -682,22 +693,6 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 		return nil, err
 	}
 	slog.Debug("search index reconciled pages", "duration", time.Since(reconcileStarted))
-	if documents != nil {
-		attachmentPaths := sortedAttachmentPaths(attachments)
-		slog.Debug("search index reconciling attachments", "attachments", len(attachmentPaths))
-		for _, path := range attachmentPaths {
-			if err := ix.ReconcileAttachmentPath(path, attachments[path]); err != nil {
-				slog.Warn("indexing attachment", "path", path, "err", err)
-			}
-		}
-		for path := range manifest.Attachments {
-			if _, ok := attachments[path]; !ok {
-				if err := ix.removeAttachment(path); err != nil {
-					slog.Warn("removing attachment from index", "path", path, "err", err)
-				}
-			}
-		}
-	}
 	slog.Debug("search index open completed", "path", indexDir, "duration", time.Since(started))
 	return ix, nil
 }
@@ -745,7 +740,7 @@ func (ix *Index) reconcilePages(pages []wiki.Page, pageHashes map[string]string)
 	return writeSearchManifest(ix.manifestPath, ix.manifest)
 }
 
-func (ix *Index) ReconcileAttachmentPath(path, expectedHash string) error {
+func (ix *Index) ReconcileAttachmentPath(ctx context.Context, path, expectedHash string) error {
 	if ix.documents == nil {
 		return errDocumentSearchDisabled
 	}
@@ -759,10 +754,10 @@ func (ix *Index) ReconcileAttachmentPath(path, expectedHash string) error {
 	if failedHash == expectedHash {
 		return nil
 	}
-	return ix.reconcileAttachmentPath(path, expectedHash)
+	return ix.reconcileAttachmentPath(ctx, path, expectedHash)
 }
 
-func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
+func (ix *Index) reconcileAttachmentPath(ctx context.Context, path, expectedHash string) error {
 	if ix.documents == nil {
 		return errDocumentSearchDisabled
 	}
@@ -798,7 +793,12 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 			return fmt.Errorf("attachment %q changed during reconciliation", path)
 		}
 		hash = actualHash
-		text, err = extractAttachmentText(context.Background(), ix.documents.tika, body, filename)
+		text, err = extractAttachmentText(ctx, ix.documents.tika, body, filename)
+		if ctx.Err() != nil {
+			// Shutting down: leave the attachment for the next pass rather
+			// than recording the cancellation as a failure.
+			return ctx.Err()
+		}
 		if err != nil {
 			return ix.replaceAttachment(path, owner, filename, hash, nil, nil, err)
 		}
@@ -811,7 +811,10 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 	for i := range chunks {
 		texts[i] = chunks[i].Text
 	}
-	vectors, err := ix.documents.embedder.Embed(context.Background(), texts)
+	vectors, err := ix.documents.embedder.Embed(ctx, texts)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err != nil {
 		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, fmt.Errorf("embedding attachment: %w", err))
 	}
@@ -906,12 +909,17 @@ func (ix *Index) removeAttachment(path string) error {
 	return writeSearchManifest(ix.manifestPath, ix.manifest)
 }
 
-func (ix *Index) ReconcileAttachments(hashes map[string]string) {
+// ReconcileAttachments indexes new and changed attachments and drops removed
+// ones. It stops between attachments once ctx is cancelled.
+func (ix *Index) ReconcileAttachments(ctx context.Context, hashes map[string]string) {
 	if ix.documents == nil {
 		return
 	}
 	for _, path := range sortedAttachmentPaths(hashes) {
-		if err := ix.ReconcileAttachmentPath(path, hashes[path]); err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := ix.ReconcileAttachmentPath(ctx, path, hashes[path]); err != nil {
 			slog.Warn("reconciling attachment", "path", path, "err", err)
 		}
 	}

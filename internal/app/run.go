@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -169,32 +170,12 @@ func Run() {
 		documents.SetStore(content)
 		finishStage()
 	}
-	attachmentHashes := map[string]string{}
-	if documents != nil {
-		finishStage = debugStartupStage("list attachments")
-		attachmentPaths, err := content.ListAttachments()
-		if err != nil {
-			log.Fatalf("store.ListAttachments failed: %v", err)
-		}
-		finishStage("attachments", len(attachmentPaths))
-		finishStage = debugStartupStage("read attachment hashes", "attachments", len(attachmentPaths))
-		for _, path := range attachmentPaths {
-			file, hash, err := content.OpenAttachment(path)
-			if err != nil {
-				slog.Warn("reading attachment hash", "path", path, "err", err)
-				continue
-			}
-			_ = file.Close()
-			attachmentHashes[path] = hash
-		}
-		finishStage()
-	}
 	indexDir := cfg.DocumentSearch.IndexDir
 	if indexDir == "" {
 		indexDir = filepath.Join(cfg.AppDir, "search.bleve")
 	}
-	finishStage = debugStartupStage("open search index", "path", indexDir, "pages", len(pages), "attachments", len(attachmentHashes))
-	index, err := search.OpenIndexAt(indexDir, pages, hashes, attachmentHashes, documents)
+	finishStage = debugStartupStage("open search index", "path", indexDir, "pages", len(pages))
+	index, err := search.OpenIndexAt(indexDir, pages, hashes, documents)
 	if err != nil {
 		log.Fatalf("open index failed: %v", err)
 	}
@@ -278,7 +259,9 @@ func Run() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go pollFS(ctx, application.API, hashes)
+	var workers sync.WaitGroup
+	workers.Go(func() { pollFS(ctx, application.API, hashes) })
+	workers.Go(func() { pollAttachments(ctx, application.API) })
 	if cfg.OIDC.Issuer != "" {
 		finishStage = debugStartupStage("initialize OIDC", "issuer", cfg.OIDC.Issuer)
 		application.OIDC, err = web.NewOIDCAuth(context.Background(), cfg)
@@ -289,7 +272,9 @@ func Run() {
 	}
 
 	server := newHTTPServer(cfg.Bind, newHandler(application))
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -298,6 +283,9 @@ func Run() {
 			_ = server.Close()
 		}
 		application.CloseExportPreviews()
+		// The workers write to the store and index, so they must finish
+		// before either is closed.
+		workers.Wait()
 		if err := content.WaitForPushes(shutdown); err != nil {
 			slog.Error("waiting for Git pushes", "err", err)
 		}
@@ -314,6 +302,7 @@ func Run() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+	<-shutdownDone
 }
 
 type stringListFlag []string

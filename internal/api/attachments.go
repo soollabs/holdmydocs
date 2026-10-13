@@ -168,7 +168,7 @@ func (a *API) uploadAttachment(ctx context.Context, in AttachmentUploadInput, ex
 			if closeErr := file.Close(); closeErr != nil {
 				slog.Warn("closing indexed attachment", "path", path, "err", closeErr)
 			}
-			if indexErr := a.index.ReconcileAttachmentPath(path, hash); indexErr != nil {
+			if indexErr := a.index.ReconcileAttachmentPath(context.WithoutCancel(ctx), path, hash); indexErr != nil {
 				upload.IndexWarning = "attachment indexing pending"
 				slog.Warn("attachment indexing failed", "path", path, "err", indexErr)
 			} else {
