@@ -655,7 +655,7 @@ func OpenIndexAt(indexDir string, pages []wiki.Page, pageHashes map[string]strin
 	ix.manifest = manifest
 	ix.documents = documents
 	for _, page := range pages {
-		ix.titles[page.Slug] = page.Title
+		ix.setTitle(page.Slug, page.Title)
 		ix.pinned[page.Slug] = page.Pin
 		ix.pageTags[page.Slug] = page.Tags
 		ix.forward[page.Slug] = wiki.WikiLinks(page.Body)

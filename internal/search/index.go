@@ -4,6 +4,7 @@ import (
 	"hmd/internal/wiki"
 	"log/slog"
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -20,7 +21,11 @@ type Index struct {
 	documents         *DocumentSearch
 	failedAttachments map[string]string
 	// forward maps a page slug to the raw [[titles]] it links to.
-	titles   map[string]string
+	titles map[string]string
+	// byTitle is the reverse of titles: a title to every slug carrying it. It
+	// keeps wiki-link resolution O(1); scanning titles per link made backlinks
+	// and the health report quadratic in the number of pages.
+	byTitle  map[string][]string
 	forward  map[string][]string
 	tags     map[string]map[string]bool
 	tagNames map[string]string
@@ -35,6 +40,7 @@ func newIndex(blevIdx bleve.Index) *Index {
 	return &Index{
 		bleve:             blevIdx,
 		titles:            make(map[string]string),
+		byTitle:           make(map[string][]string),
 		forward:           make(map[string][]string),
 		tags:              make(map[string]map[string]bool),
 		tagNames:          make(map[string]string),
@@ -43,6 +49,42 @@ func newIndex(blevIdx bleve.Index) *Index {
 		failedAttachments: make(map[string]string),
 		searches:          make(chan struct{}, 2),
 	}
+}
+
+// setTitle records slug's title, keeping byTitle in step with titles. The
+// caller holds the write lock, or owns the index while building it.
+func (ix *Index) setTitle(slug, title string) {
+	if old, ok := ix.titles[slug]; ok {
+		if old == title {
+			return
+		}
+		ix.dropFromTitle(old, slug)
+	}
+	ix.titles[slug] = title
+	ix.byTitle[title] = append(ix.byTitle[title], slug)
+}
+
+// removeTitle forgets slug's title. The caller holds the write lock.
+func (ix *Index) removeTitle(slug string) {
+	if old, ok := ix.titles[slug]; ok {
+		ix.dropFromTitle(old, slug)
+		delete(ix.titles, slug)
+	}
+}
+
+func (ix *Index) dropFromTitle(title, slug string) {
+	slugs := ix.byTitle[title]
+	for i, s := range slugs {
+		if s == slug {
+			slugs = append(slugs[:i], slugs[i+1:]...)
+			break
+		}
+	}
+	if len(slugs) == 0 {
+		delete(ix.byTitle, title)
+		return
+	}
+	ix.byTitle[title] = slugs
 }
 
 func pageDocumentID(slug string) string { return "page:" + slug }
@@ -64,7 +106,7 @@ func BuildIndex(pages []wiki.Page) (*Index, error) {
 	ix := newIndex(blevIdx)
 
 	for _, p := range pages {
-		ix.titles[p.Slug] = p.Title
+		ix.setTitle(p.Slug, p.Title)
 		ix.pinned[p.Slug] = p.Pin
 
 		if err := blevIdx.Index(pageDocumentID(p.Slug), pageDocument(p)); err != nil {
@@ -108,7 +150,7 @@ func (ix *Index) UpdatePage(p wiki.Page, hash string) error {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
-	ix.titles[p.Slug] = p.Title
+	ix.setTitle(p.Slug, p.Title)
 	ix.pinned[p.Slug] = p.Pin
 
 	indexErr := ix.bleve.Index(pageDocumentID(p.Slug), pageDocument(p))
@@ -156,7 +198,7 @@ func (ix *Index) Remove(slug string) {
 	if err := ix.bleve.Delete(pageDocumentID(slug)); err != nil {
 		slog.Error("removing page from search index", "slug", slug, "err", err)
 	}
-	delete(ix.titles, slug)
+	ix.removeTitle(slug)
 	delete(ix.pinned, slug)
 
 	delete(ix.forward, slug)
@@ -202,12 +244,8 @@ func (ix *Index) ResolveLink(title, ns string) (slug string, ok bool) {
 }
 
 func (ix *Index) resolveLink(title, ns string) (slug string, ok bool) {
-	var matches []string
-	for s, t := range ix.titles {
-		if t == title {
-			matches = append(matches, s)
-		}
-	}
+	// Copy before sorting: byTitle's slice is shared index state.
+	matches := slices.Clone(ix.byTitle[title])
 	if len(matches) == 0 {
 		if _, exists := ix.titles[title]; exists {
 			// title is itself a slug (e.g. [[docs/project-notes]]) — respect it

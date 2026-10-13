@@ -1661,6 +1661,37 @@ func (s *Store) Diff(filename, hashA, hashB string) (string, error) {
 	return patch.String(), nil
 }
 
+// changedPaths lists every path that differs between two commits, including
+// both sides of a rename. Only names are needed, so it diffs the trees
+// directly: Commit.Patch also detects renames and builds line-level patches
+// for every changed file, which dominated fast-forward time after a large sync
+// and ran while the store write lock was held.
+func changedPaths(oldCommit, newCommit *object.Commit) ([]string, error) {
+	oldTree, err := oldCommit.Tree()
+	if err != nil {
+		return nil, err
+	}
+	newTree, err := newCommit.Tree()
+	if err != nil {
+		return nil, err
+	}
+	changes, err := object.DiffTreeWithOptions(context.Background(), oldTree, newTree, &object.DiffTreeOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var changed []string
+	for _, change := range changes {
+		from, to := change.From.Name, change.To.Name
+		if from != "" {
+			changed = append(changed, from)
+		}
+		if to != "" && to != from {
+			changed = append(changed, to)
+		}
+	}
+	return changed, nil
+}
+
 func (s *Store) diffCommits(oldHash, newHash plumbing.Hash) (FetchResult, error) {
 	oldCommit, err := s.repo.CommitObject(oldHash)
 	if err != nil {
@@ -1671,19 +1702,9 @@ func (s *Store) diffCommits(oldHash, newHash plumbing.Hash) (FetchResult, error)
 		return FetchResult{}, err
 	}
 
-	patch, err := oldCommit.Patch(newCommit)
+	changed, err := changedPaths(oldCommit, newCommit)
 	if err != nil {
 		return FetchResult{}, err
-	}
-	var changed []string
-	for _, fp := range patch.FilePatches() {
-		from, to := fp.Files()
-		if from != nil {
-			changed = append(changed, from.Path())
-		}
-		if to != nil && (from == nil || from.Path() != to.Path()) {
-			changed = append(changed, to.Path())
-		}
 	}
 
 	var commits []CommitInfo

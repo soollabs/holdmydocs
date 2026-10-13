@@ -3,6 +3,7 @@ package search
 import (
 	"hmd/internal/wiki"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -260,5 +261,70 @@ func TestPinnedPages(t *testing.T) {
 	pinned := ix.PinnedPages()
 	if len(pinned) != 2 || pinned[0].Title != "Alpha" || pinned[1].Title != "Zeta" {
 		t.Errorf("PinnedPages() = %+v, want [Alpha Zeta] sorted by title", pinned)
+	}
+}
+
+// TestResolveLinkTracksTitleChanges ensures the title lookup follows page
+// updates and removals, including pages that share a title.
+func TestResolveLinkTracksTitleChanges(t *testing.T) {
+	ix, err := BuildIndex([]wiki.Page{
+		{Slug: "a/one", Title: "Shared"},
+		{Slug: "b/two", Title: "Shared"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slug, ok := ix.ResolveLink("Shared", "b"); !ok || slug != "b/two" {
+		t.Fatalf("shared title in b = (%q, %v), want b/two", slug, ok)
+	}
+
+	if err := ix.Update(wiki.Page{Slug: "b/two", Title: "Renamed"}); err != nil {
+		t.Fatal(err)
+	}
+	if slug, ok := ix.ResolveLink("Shared", "b"); !ok || slug != "a/one" {
+		t.Errorf("after retitle, Shared = (%q, %v), want a/one", slug, ok)
+	}
+	if slug, ok := ix.ResolveLink("Renamed", "b"); !ok || slug != "b/two" {
+		t.Errorf("after retitle, Renamed = (%q, %v), want b/two", slug, ok)
+	}
+
+	// Updating with an unchanged title must not duplicate the entry.
+	if err := ix.Update(wiki.Page{Slug: "b/two", Title: "Renamed"}); err != nil {
+		t.Fatal(err)
+	}
+	ix.Remove("b/two")
+	if _, ok := ix.ResolveLink("Renamed", "b"); ok {
+		t.Error("removed page still resolves by its old title")
+	}
+	ix.Remove("a/one")
+	if _, ok := ix.ResolveLink("Shared", "a"); ok {
+		t.Error("removed page still resolves by its title")
+	}
+	if len(ix.byTitle) != 0 {
+		t.Errorf("byTitle = %v, want empty after removing every page", ix.byTitle)
+	}
+}
+
+// BenchmarkBacklinksAndHealth guards against quadratic link resolution: both
+// walk every link of every page, so resolving one link must not scan pages.
+func BenchmarkBacklinksAndHealth(b *testing.B) {
+	const pages = 4000
+	list := make([]wiki.Page, 0, pages)
+	for i := range pages {
+		ns := "ns" + strconv.Itoa(i%8)
+		list = append(list, wiki.Page{
+			Slug:  ns + "/page-" + strconv.Itoa(i),
+			Title: "Page " + strconv.Itoa(i),
+			Body:  "See [[Page " + strconv.Itoa((i+1)%pages) + "]] and [[Page " + strconv.Itoa((i*7)%pages) + "]].",
+		})
+	}
+	ix, err := BuildIndex(list)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for range b.N {
+		ix.Backlinks("ns1/page-1")
+		ix.Health(nil)
 	}
 }
