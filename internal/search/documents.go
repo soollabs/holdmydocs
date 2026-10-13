@@ -470,9 +470,7 @@ func (e *HugotEmbedder) Embed(ctx context.Context, texts []string) ([][]float32,
 	return result, nil
 }
 
-// embeddingBatchSize returns the largest power of two up to 32 that fits in
-// remaining. Hugot v0.8.2 pads other batch sizes up to its next bucket and
-// then indexes past the end of the batch.
+// TODO: drop once hugot no longer panics on batch sizes it pads (v0.8.2 does).
 func embeddingBatchSize(remaining int) int {
 	return 1 << (bits.Len(uint(min(remaining, 32))) - 1)
 }
