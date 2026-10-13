@@ -246,6 +246,20 @@ func (a *API) RerunSetup(ctx context.Context) error {
 	return nil
 }
 
+// Shutdown begins a graceful process shutdown. The process exits; it only
+// comes back if a supervisor such as Docker or systemd restarts it.
+func (a *API) Shutdown(ctx context.Context) error {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return err
+	}
+	if a.shutdown == nil {
+		return Unavailable("shutdown is not available", nil)
+	}
+	slog.Warn("shutdown requested from settings", "user", auth.UserFromContext(ctx))
+	a.shutdown()
+	return nil
+}
+
 // DefaultSetupNamespace is the namespace name the first-run wizard suggests
 // when the user does not name one.
 const DefaultSetupNamespace = "notes"

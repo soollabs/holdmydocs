@@ -144,6 +144,7 @@
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
 					<button type="button" id="theme-toggle">Theme</button>
+					{{if .CanSettings}}<button type="button" id="shutdown-open" aria-haspopup="dialog">Shut down</button>{{end}}
 					<form method="POST" action="/_/logout">{{template "csrf" .}}<button type="submit">Logout</button></form>
 				</div>
 			</details>
@@ -313,6 +314,13 @@
 	{{end}}
 	<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}components.js{{else}}{{static "components.js"}}{{end}}"></script>
 	{{if .Content}}<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}page.js{{else}}{{static "page.js"}}{{end}}"></script>{{end}}
+	{{if and .Authed .CanSettings}}
+	{{$shutdownDialog := component "dialog" "id" "shutdown-dialog" "label" "Shut down HMD?"}}{{template "ui-dialog-start" $shutdownDialog}}
+		<p id="shutdown-message">This stops the HMD process and the site becomes unavailable. It restarts automatically only if it runs under a supervisor such as Docker (<code>restart: unless-stopped</code>) or systemd (<code>Restart=always</code>). Otherwise it stays down until someone starts it again.</p>
+		<p id="shutdown-error" role="alert" hidden></p>
+		<div class="settings-actions">{{template "ui-button" (button "Shut down" "danger" "type" "button" "id" "shutdown-confirm")}}{{template "ui-button" (button "Cancel" "secondary" "type" "button" "id" "shutdown-cancel")}}</div>
+	{{template "ui-dialog-end" $shutdownDialog}}
+	{{end}}
 	{{if .Static}}
 	{{$exportSearchDialog := component "dialog" "id" "export-search" "label" "Search documentation"}}{{template "ui-dialog-slot-start" $exportSearchDialog}}
 		<div class="export-search-heading"><h2 id="export-search-title">Search documentation</h2>{{template "ui-button" (button "Close search" "secondary" "size" "compact" "id" "export-search-close" "aria-label" "Close search")}}</div>

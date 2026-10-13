@@ -92,6 +92,14 @@ func (h *Handlers) resetHelp(ctx context.Context, _ noneIn) (okResult, error) {
 	return okResult{OK: true}, nil
 }
 
+// shutdown stops the process after the response is sent.
+func (h *Handlers) shutdown(ctx context.Context, _ noneIn) (okResult, error) {
+	if err := h.api.Shutdown(ctx); err != nil {
+		return okResult{}, err
+	}
+	return okResult{OK: true}, nil
+}
+
 // rerunSetup requests the first-run setup wizard on the next navigation.
 func (h *Handlers) rerunSetup(ctx context.Context, _ noneIn) (okResult, error) {
 	if err := h.api.RerunSetup(ctx); err != nil {
@@ -211,6 +219,7 @@ func (h *Handlers) registerSettings(mux *http.ServeMux) {
 	h.registerJSON(mux, "POST /_/api/settings/wiki", h.saveWikiConfig)
 	h.registerJSON(mux, "POST /_/api/settings/help/reset", h.resetHelp)
 	h.registerJSON(mux, "POST /_/api/settings/setup", h.rerunSetup)
+	h.registerJSON(mux, "POST /_/api/settings/shutdown", h.shutdown)
 	h.registerJSON(mux, "POST /_/api/settings/users", h.createUser)
 	h.registerJSON(mux, "POST /_/api/settings/users/scopes", h.setUserScopes)
 	h.registerJSON(mux, "POST /_/api/settings/tokens", h.createToken)

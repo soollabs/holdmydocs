@@ -24,6 +24,7 @@ type API struct {
 	index            *search.Index
 	auth             *auth.Auth
 	uploadAuthorizer OAuthUploadAuthorizer
+	shutdown         func()
 
 	cfg        atomic.Pointer[config.Config]
 	wikiCfg    atomic.Pointer[wiki.WikiConfig]
@@ -53,6 +54,12 @@ func New(content *store.Store, index *search.Index, authn *auth.Auth) *API {
 	empty := wiki.NamespaceRegistry{}
 	a.namespaces.Store(&empty)
 	return a
+}
+
+// SetShutdown installs the function that begins a graceful process shutdown.
+// It is called during application composition before serving requests.
+func (a *API) SetShutdown(shutdown func()) {
+	a.shutdown = shutdown
 }
 
 // Config returns the current runtime configuration.

@@ -78,6 +78,7 @@ func TestOperationScopeGates(t *testing.T) {
 		{"appearance", "settings", func(ctx context.Context) error { return a.SetAppearance(ctx, "", "", "", "", false) }},
 		{"author", "settings", func(ctx context.Context) error { return a.SetGitAuthor(ctx, "") }},
 		{"rerun setup", "settings", a.RerunSetup},
+		{"shutdown", "settings", a.Shutdown},
 		{"setup", "settings", func(ctx context.Context) error { return a.CompleteFirstRunSetup(ctx, FirstRunSetupInput{}) }},
 		{"seed", "settings", func(ctx context.Context) error { return a.SeedFirstNamespace(ctx, "notes") }},
 		{"create user", "settings", func(ctx context.Context) error { return a.CreateUser(ctx, "", "", nil) }},
@@ -235,5 +236,28 @@ func TestCapabilityRedemptionOwnsAuthorisation(t *testing.T) {
 	}
 	if _, _, err := st.Read("attachments/notes/page/expired.txt"); err == nil {
 		t.Fatal("expired capability committed")
+	}
+}
+
+// TestShutdownRunsInstalledHook ensures an administrator's request triggers
+// the process shutdown, and that an instance without a hook reports it.
+func TestShutdownRunsInstalledHook(t *testing.T) {
+	a := New(nil, nil, nil)
+	if err := a.Shutdown(principal("settings")); CategoryOf(err) != CategoryUnavailable {
+		t.Fatalf("no hook installed: %v", err)
+	}
+	calls := 0
+	a.SetShutdown(func() { calls++ })
+	if err := a.Shutdown(principal("settings")); err != nil {
+		t.Fatalf("administrator shutdown: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("shutdown hook calls = %d, want 1", calls)
+	}
+	if err := a.Shutdown(principal("write")); CategoryOf(err) != CategoryForbidden || calls != 1 {
+		t.Errorf("write-only principal shut down the instance (err=%v, calls=%d)", err, calls)
+	}
+	if err := a.Shutdown(context.Background()); CategoryOf(err) != CategoryUnauthenticated || calls != 1 {
+		t.Errorf("anonymous caller shut down the instance (err=%v, calls=%d)", err, calls)
 	}
 }
