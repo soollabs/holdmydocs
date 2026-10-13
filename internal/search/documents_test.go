@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -559,7 +560,8 @@ func TestEmbeddingBatchSizeAvoidsPadding(t *testing.T) {
 }
 
 // TestHugotEmbedderEveryBatchSize runs the real model over every batch size up
-// to past the 32-text chunk, because Hugot has panicked on sizes it pads.
+// to past the 32-text chunk, because Hugot has panicked on sizes it pads. The
+// texts are identical so the model compiles one sequence length, not forty.
 // It needs the model, so it runs only when HMD_TEST_EMBEDDING_MODEL_DIR names
 // a directory to download it into or load it from.
 func TestHugotEmbedderEveryBatchSize(t *testing.T) {
@@ -571,11 +573,8 @@ func TestHugotEmbedderEveryBatchSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading embedding model: %v", err)
 	}
-	for size := 1; size <= 40; size++ {
-		texts := make([]string, size)
-		for i := range texts {
-			texts[i] = strings.Repeat("document text ", i+1)
-		}
+	for size := 1; size <= 33; size++ {
+		texts := slices.Repeat([]string{"document text"}, size)
 		embeddings, err := embedder.Embed(context.Background(), texts)
 		if err != nil {
 			t.Fatalf("embedding %d texts: %v", size, err)
