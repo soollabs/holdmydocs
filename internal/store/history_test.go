@@ -235,3 +235,22 @@ func TestHistoryCacheSurvivesFirstRefreshAfterOpen(t *testing.T) {
 		t.Fatalf("first save after open dropped the history cache: %d, %v", length, ok)
 	}
 }
+
+func TestWarmHistoryCachesEveryPath(t *testing.T) {
+	s := openHistoryStore(t, "docs/one.md", "notes/two.md")
+	if err := s.WarmHistory(); err != nil {
+		t.Fatal(err)
+	}
+	for _, page := range []string{"docs/one.md", "notes/two.md"} {
+		if length, ok := s.CachedHistoryLength(page); !ok || length != 1 {
+			t.Fatalf("WarmHistory did not cache %s: %d, %v", page, length, ok)
+		}
+	}
+}
+
+func TestWarmHistoryOnEmptyRepositoryFails(t *testing.T) {
+	s := openHistoryStore(t)
+	if err := s.WarmHistory(); err == nil {
+		t.Fatal("WarmHistory on a repository without commits succeeded")
+	}
+}

@@ -306,6 +306,7 @@ func Run() {
 
 	gate.Ready(newHandler(application))
 	slog.Debug("startup completed; serving requests", "bind", cfg.Bind)
+	go apiClient.WarmHistory()
 
 	<-ctx.Done()
 	shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)

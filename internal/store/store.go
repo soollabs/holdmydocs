@@ -1250,6 +1250,12 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	return walk.histories[path], nil
 }
 
+// WarmHistory fills the history cache so the first page view does not walk.
+func (s *Store) WarmHistory() error {
+	_, err := s.History("")
+	return err
+}
+
 // walkHistory lists the commits touching each path, newest first, from head.
 // It uses a private object storage: by default go-git reopens a pack or loose
 // object file for every object it reads, which is slow on network storage,
