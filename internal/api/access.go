@@ -48,6 +48,24 @@ func (a *API) HasScope(ctx context.Context, scope Scope) bool {
 	if a.readOnly() && (scope == ScopeWrite || scope == ScopeSettings) {
 		return false
 	}
+	return a.grantedScope(ctx, scope)
+}
+
+// CanViewSettings reports whether the caller holds the settings scope,
+// ignoring read-only mode. A read-only instance still shows administrators
+// its settings pages, but nothing on them can be saved.
+func (a *API) CanViewSettings(ctx context.Context) bool {
+	return a.grantedScope(ctx, ScopeSettings)
+}
+
+// ReadOnly reports whether the instance refuses writes and settings changes.
+func (a *API) ReadOnly() bool {
+	return a.readOnly()
+}
+
+// grantedScope reports whether the principal was granted the scope, before
+// read-only mode is applied.
+func (a *API) grantedScope(ctx context.Context, scope Scope) bool {
 	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok {
 		return principal.User != "" && principal.HasScope(scope)
 	}

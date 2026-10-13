@@ -111,3 +111,52 @@ func TestReadOnlyBrowser(t *testing.T) {
 		t.Fatalf("anonymous private browse = %v, %v", anonymous, err)
 	}
 }
+
+// TestReadOnlySettingsViewOnly pins what an administrator sees in settings on
+// a read-only instance: settings stay in the menu and sidebar, a banner
+// explains why nothing can change, and every control is disabled with no save
+// row. Read-only mode refuses account saves too, so account pages are no
+// different from system ones.
+func TestReadOnlySettingsViewOnly(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+	get := func(path string) string {
+		t.Helper()
+		response, err := testhttp.Get(t, client, server.URL+path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil {
+			t.Fatalf("reading %s: %v, %v", path, readErr, closeErr)
+		}
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s = %d, want 200", path, response.StatusCode)
+		}
+		return string(body)
+	}
+
+	if body := get("/_/settings/git"); strings.Contains(body, `class="settings-banner"`) || strings.Contains(body, "settings-view-only") {
+		t.Error("writable instance shows the read-only banner or disables settings")
+	}
+
+	cfg := app.Config()
+	cfg.ReadOnly = true
+	app.SetConfig(cfg)
+	for _, path := range []string{"/_/settings/appearance", "/_/settings/git", "/_/settings/users", "/_/settings/namespaces"} {
+		body := get(path)
+		if !strings.Contains(body, `class="settings-banner" data-dismiss="read-only"`) || !strings.Contains(body, "Read-only mode.") || !strings.Contains(body, "ui-notice__dismiss") {
+			t.Errorf("%s lacks the dismissible read-only banner", path)
+		}
+		if !strings.Contains(body, `<fieldset class="settings-view-only" disabled>`) {
+			t.Errorf("%s controls are not disabled", path)
+		}
+		if !strings.Contains(body, `<span class="settings-nav-group">system</span>`) {
+			t.Errorf("%s sidebar hides the system settings", path)
+		}
+		if !strings.Contains(body, `<a href="/_/settings">Settings</a>`) || !strings.Contains(body, `<a href="/_/settings/server">Admin</a>`) {
+			t.Errorf("%s menu hides Settings or Admin", path)
+		}
+	}
+}

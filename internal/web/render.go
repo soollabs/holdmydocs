@@ -174,6 +174,7 @@ type TemplateData struct {
 	CanWrite                bool
 	ReadOnly                bool
 	CanSettings             bool
+	CanViewSettings         bool             // settings pages are listed and shown; without CanSettings they are view-only
 	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
 	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
 	CanEdit                 bool
@@ -326,6 +327,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		prefs := app.Auth.Prefs(app.currentUser(r))
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
 		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
+		data.CanViewSettings = app.apiClient().CanViewSettings(r.Context())
 		if data.CanSettings {
 			pending := app.apiClient().PendingRestart()
 			data.PendingRestart = pendingSettings(pending)

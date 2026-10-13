@@ -22,7 +22,11 @@ func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	_, ok := app.Auth.UserFor(cookie.Value)
-	if !ok || !app.apiClient().HasScope(r.Context(), api.ScopeSettings) {
+	allowed := app.apiClient().HasScope(r.Context(), api.ScopeSettings)
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		allowed = app.apiClient().CanViewSettings(r.Context())
+	}
+	if !ok || !allowed {
 		http.Error(w, "administrator access required", http.StatusForbidden)
 		return false
 	}

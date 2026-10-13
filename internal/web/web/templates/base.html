@@ -8,7 +8,7 @@
 	<a href="/_/settings/git-author"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "git-author")}} aria-current="page"{{end}}>{{template "settings-icon" "branch"}}git author</a>
 	<a href="/_/settings/access-tokens"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "access-tokens")}} aria-current="page"{{end}}>{{template "settings-icon" "key"}}access tokens</a>
 	{{if .OAuthEnabled}}<a href="/_/settings/connections"{{if eq .SettingsSection "connections"}} aria-current="page"{{end}}>{{template "settings-icon" "plug"}}connected applications</a>{{end}}
-	{{if .CanSettings}}<span class="settings-nav-group">system</span>
+	{{if .CanViewSettings}}<span class="settings-nav-group">system</span>
 	{{range settingsections}}<a href="/_/settings/{{.Key}}"{{if and (eq $.SettingsSection "admin") (eq $.SettingsPanel .Key)}} aria-current="page"{{end}}>{{template "settings-icon" .Key}}{{.Title}}</a>
 	{{end}}<a href="/_/settings/wiki"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "wiki")}} aria-current="page"{{end}}>{{template "settings-icon" "sliders"}}wiki</a>
 	<a href="/_/settings/users"{{if and (eq .SettingsSection "admin") (eq .SettingsPanel "users")}} aria-current="page"{{end}}>{{template "settings-icon" "users"}}users</a>
@@ -149,9 +149,9 @@
 			<details class="topbar-menu">
 				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
 				<div class="topbar-menu-items">
-					{{if not .ReadOnly}}<a href="/_/settings">Settings</a>{{end}}
+					{{if or (not .ReadOnly) .CanViewSettings}}<a href="/_/settings">Settings</a>{{end}}
 					{{if .OAuthEnabled}}<a href="/_/settings/connections">Connected applications</a>{{end}}
-					{{if .CanSettings}}<a href="/_/settings/server">Admin</a>{{end}}
+					{{if .CanViewSettings}}<a href="/_/settings/server">Admin</a>{{end}}
 					<a href="/_/health-report">Health</a>
 					<a href="/_/hidden/help">Help</a>
 					<button type="button" id="theme-toggle">Theme</button>
@@ -190,11 +190,16 @@
 	{{end}}
 	<main id="main-content" tabindex="-1">
 		{{if .PendingRestart}}<div class="restart-pending" data-dismiss="{{.PendingRestartKey}}">{{$restartNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true"}}{{template "ui-notice-start" $restartNotice}}<strong>Restart needed.</strong> Saved settings that take effect after HMD restarts: {{range $i, $p := .PendingRestart}}{{if $i}}, {{end}}{{if $p.Href}}<a href="{{$p.Href}}">{{$p.Label}}</a>{{else}}{{$p.Label}}{{end}}{{end}}. {{template "ui-button" (button "Shut down" "secondary" "size" "compact" "id" "restart-open" "aria-haspopup" "dialog")}}{{template "ui-notice-end" $restartNotice}}</div>{{end}}
+		{{/* Read-only mode refuses every settings save except revoking a connected application. */}}
+		{{$viewOnly := and .SettingsSection .CanViewSettings (not .CanSettings) (ne .SettingsSection "connections")}}
+		{{if $viewOnly}}<div class="settings-banner" data-dismiss="read-only">{{$readOnlyNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true"}}{{template "ui-notice-start" $readOnlyNotice}}<strong>Read-only mode.</strong> Settings can be viewed but not changed. To change them, unset {{envname "server.read_only"}} and restart HMD.{{template "ui-notice-end" $readOnlyNotice}}</div>{{end}}
 		{{if .SettingsSection}}<div class="settings-container">
 			<header class="settings-header"><h1>Settings</h1><p>Your account, namespaces and system configuration.</p></header>
 			<div class="settings-layout">{{template "settings-nav" .}}<div class="settings-panels">
 		{{end}}
+		{{if $viewOnly}}<fieldset class="settings-view-only" disabled>{{end}}
 		{{template "content" .}}
+		{{if $viewOnly}}</fieldset>{{end}}
 		{{if .SettingsSection}}</div></div></div>{{end}}
 	</main>
 	{{if .Authed}}

@@ -1892,8 +1892,9 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin: 4rem auto;
 }
 
-/* Restart banner: spans the main column on every page, like the top bar. */
-.restart-pending {
+/* Restart and read-only banners: span the main column, like the top bar. */
+.restart-pending,
+.settings-banner {
 	align-self: stretch;
 	padding: var(--pad) var(--pad) 0;
 }
@@ -2258,7 +2259,12 @@ body.shell.settings-shell {
 .settings-header p { color: var(--fg-muted); margin: 0; }
 .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; }
 .settings-panels { min-width: 0; overflow-wrap: anywhere; }
-.settings-panels > .content-col { padding: 0; max-width: none; }
+.settings-panels > .content-col,
+.settings-view-only > .content-col { padding: 0; max-width: none; }
+/* Read-only mode: settings stay visible, but their controls are disabled by
+   the fieldset and there is nothing to save. */
+.settings-view-only { display: contents; }
+.settings-view-only .settings-actions { display: none; }
 .settings-panels .settings-zone { max-width: none; }
 .settings-panels .page-title { font-size: 1.25rem; }
 .settings-nav {
