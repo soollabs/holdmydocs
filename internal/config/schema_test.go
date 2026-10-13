@@ -97,7 +97,7 @@ func TestSettingsSchemaEnums(t *testing.T) {
 
 func TestSettingsSchemaEnvOnly(t *testing.T) {
 	want := map[string]string{
-		"server.app_dir": "HMD_APP_DIR", "server.config_file": "HMD_CONFIG_FILE",
+		"server.app_dir": "HMD_APP_DIR", "server.config_file": "HMD_CONFIG_FILE", "server.read_only": "HMD_SERVER_READ_ONLY",
 		"server.admin.user": "HMD_ADMIN_USER", "server.admin.password": "HMD_ADMIN_PASSWORD",
 		"git.token": "HMD_GIT_TOKEN", "oidc.client_secret": "HMD_OIDC_CLIENT_SECRET",
 	}

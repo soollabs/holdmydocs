@@ -163,6 +163,7 @@ func SettingValue(c Config, key string) any {
 var envOnlyValues = map[string]func(Config) string{
 	"server.app_dir":        func(c Config) string { return c.AppDir },
 	"server.config_file":    func(c Config) string { return c.ConfigFile },
+	"server.read_only":      func(c Config) string { return strconv.FormatBool(c.ReadOnly) },
 	"server.admin.user":     func(c Config) string { return c.AdminUser },
 	"server.admin.password": func(c Config) string { return c.AdminPass },
 	"git.token":             func(c Config) string { return c.Git.Token },

@@ -77,8 +77,9 @@
           "title": "read-only mode",
           "type": "boolean",
           "default": false,
-          "description": "Serve the wiki without allowing edits, uploads, setup, administrator operations or pushes. Once on, saving settings is blocked too: turn it off in config.yaml or HMD_SERVER_READ_ONLY and restart.",
-          "x-restart": true
+          "description": "Serve the wiki without allowing edits, uploads, setup, administrator operations, settings changes or pushes. Set only in the environment, so the settings screen cannot switch it on and leave no way back.",
+          "x-restart": true,
+          "x-env-only": true
         },
         "debug": {
           "title": "debug logging",

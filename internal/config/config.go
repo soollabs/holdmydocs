@@ -128,7 +128,6 @@ type serverFileConfig struct {
 	RepoDir        string   `yaml:"repo_dir,omitempty"`
 	BaseURL        string   `yaml:"base_url,omitempty"`
 	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
-	ReadOnly       bool     `yaml:"read_only,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
 	MaxUploadBytes *int64   `yaml:"max_upload_bytes,omitempty"`
 	Skin           string   `yaml:"skin,omitempty"`
@@ -311,6 +310,11 @@ func Resolve(file fileConfig) (Config, error) {
 		return def
 	}
 
+	readOnly, err := envBool(envOnly("server.read_only"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		ConfigFile:   path,
 		EnvOverrides: envOverrides,
@@ -320,7 +324,7 @@ func Resolve(file fileConfig) (Config, error) {
 
 		Bind:           or(file.Server.Bind, ":8080"),
 		RepoDir:        or(file.Server.RepoDir, "/data/repo"),
-		ReadOnly:       file.Server.ReadOnly,
+		ReadOnly:       readOnly,
 		MaxUploadBytes: orInt64(file.Server.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:     orInt(file.Git.SyncPollMs, 10000),
 		SyncMode:       or(file.Git.SyncMode, "push"),
@@ -439,7 +443,6 @@ func (c Config) toFileConfig() fileConfig {
 			RepoDir:        c.RepoDir,
 			BaseURL:        c.BaseURL,
 			TrustedProxies: append([]string(nil), c.TrustedProxies...),
-			ReadOnly:       c.ReadOnly,
 			Debug:          c.Debug,
 			MaxUploadBytes: new(c.MaxUploadBytes),
 			Skin:           c.Skin,
