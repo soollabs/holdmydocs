@@ -151,6 +151,7 @@ func TestRequestSecurityRejectsCrossOriginLogin(t *testing.T) {
 		name          string
 		origin        string
 		secFetchSite  string
+		session       string
 		wantStatus    int
 		wantForwarded bool
 	}{
@@ -159,6 +160,8 @@ func TestRequestSecurityRejectsCrossOriginLogin(t *testing.T) {
 		{name: "null origin", origin: "null", wantStatus: http.StatusForbidden},
 		{name: "cross-site fetch metadata", secFetchSite: "cross-site", wantStatus: http.StatusForbidden},
 		{name: "non-browser client", wantStatus: http.StatusNoContent, wantForwarded: true},
+		{name: "stale session cookie", origin: "https://wiki.example.com", session: "expired-session", wantStatus: http.StatusNoContent, wantForwarded: true},
+		{name: "stale session cookie from foreign origin", origin: "https://evil.example", session: "expired-session", wantStatus: http.StatusForbidden},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,6 +173,9 @@ func TestRequestSecurityRejectsCrossOriginLogin(t *testing.T) {
 			}
 			if tc.secFetchSite != "" {
 				request.Header.Set("Sec-Fetch-Site", tc.secFetchSite)
+			}
+			if tc.session != "" {
+				request.AddCookie(&http.Cookie{Name: "hmd_session", Value: tc.session})
 			}
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)

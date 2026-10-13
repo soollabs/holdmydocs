@@ -226,8 +226,10 @@ func (s Security) Handler(next http.Handler) http.Handler {
 				return
 			}
 		}
+		// A session cookie that no longer matches a session carries no
+		// credentials, so it must not lock the browser out of logging in.
 		cookie, err := r.Cookie("hmd_session")
-		if err != nil || cookie.Value == "" {
+		if err != nil || cookie.Value == "" || (r.URL.Path == "/_/login" && s.Auth.CSRFToken(cookie.Value) == "") {
 			next.ServeHTTP(w, r)
 			return
 		}
