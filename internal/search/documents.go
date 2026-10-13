@@ -47,6 +47,10 @@ const AttachmentMaxExtractedBytes = attachmentMaxExtractedBytes
 
 var errDocumentSearchDisabled = errors.New("attachment search is disabled")
 
+// errNoExtractedText means Tika read the attachment but found no text, as for
+// most images. Unlike a Tika or embedding error it will not change on retry.
+var errNoExtractedText = errors.New("tika extracted no text")
+
 type embeddingModelFile struct {
 	Path   string
 	Size   int64
@@ -496,6 +500,9 @@ type attachmentManifest struct {
 	SourceHash string      `json:"source_hash"`
 	ChunkIDs   []string    `json:"chunk_ids"`
 	Vectors    [][]float32 `json:"vectors"`
+	// NoText records that this SourceHash yielded no text, so startup does not
+	// send the same file to Tika again.
+	NoText bool `json:"no_text,omitempty"`
 }
 
 type searchManifest struct {
@@ -746,7 +753,7 @@ func (ix *Index) ReconcileAttachmentPath(path, expectedHash string) error {
 	previous, exists := ix.manifest.Attachments[path]
 	failedHash := ix.failedAttachments[path]
 	ix.mu.RUnlock()
-	if exists && previous.SourceHash == expectedHash && validAttachmentVectors(previous) {
+	if exists && previous.SourceHash == expectedHash && (previous.NoText || validAttachmentVectors(previous)) {
 		return nil
 	}
 	if failedHash == expectedHash {
@@ -798,7 +805,7 @@ func (ix *Index) reconcileAttachmentPath(path, expectedHash string) error {
 	}
 	chunks := chunkText(text)
 	if len(chunks) == 0 {
-		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, errors.New("tika extracted no text"))
+		return ix.replaceAttachment(path, owner, filename, hash, nil, nil, errNoExtractedText)
 	}
 	texts := make([]string, len(chunks))
 	for i := range chunks {
@@ -848,7 +855,7 @@ func (ix *Index) replaceAttachment(path, owner, filename, hash string, chunks []
 		if err := ix.bleve.Batch(batch); err != nil {
 			return err
 		}
-		ix.manifest.Attachments[path] = attachmentManifest{SourceHash: hash}
+		ix.manifest.Attachments[path] = attachmentManifest{SourceHash: hash, NoText: errors.Is(failure, errNoExtractedText)}
 		ix.failedAttachments[path] = hash
 		if err := writeSearchManifest(ix.manifestPath, ix.manifest); err != nil {
 			return err

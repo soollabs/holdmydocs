@@ -353,6 +353,53 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 	}
 }
 
+// TestOpenIndexSkipsAttachmentsWithNoText pins that an attachment Tika found
+// no text in (most images) is not extracted again on every startup, while an
+// attachment that failed for another reason is still retried.
+func TestOpenIndexSkipsAttachmentsWithNoText(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "search.bleve")
+	idx, err := bleve.New(path, attachmentIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := newIndex(idx)
+	ix.indexDir = path
+	ix.manifestPath = manifestPath(path)
+	ix.manifest = newSearchManifest("test")
+	const photo, report = "attachments/notes/page/photo.png", "attachments/notes/page/report.pdf"
+	if err := ix.replaceAttachment(photo, "notes/page", "photo.png", "photo-hash", nil, nil, errNoExtractedText); !errors.Is(err, errNoExtractedText) {
+		t.Fatalf("replaceAttachment no text = %v", err)
+	}
+	if err := ix.replaceAttachment(report, "notes/page", "report.pdf", "report-hash", nil, nil, errors.New("tika extraction failed: HTTP 503")); err == nil {
+		t.Fatal("replaceAttachment failure returned nil")
+	}
+	if err := idx.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// No store is configured, so any attachment the index tries to extract
+	// again fails with "attachment store is not configured".
+	reopened, err := OpenIndexAt(path, nil, nil, map[string]string{photo: "photo-hash", report: "report-hash"}, &DocumentSearch{embedder: &testEmbedder{vector: testVector(0)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := reopened.bleve.Close(); err != nil {
+			t.Errorf("closing index: %v", err)
+		}
+	}()
+	reopened.failedAttachments = map[string]string{}
+	if err := reopened.ReconcileAttachmentPath(photo, "photo-hash"); err != nil {
+		t.Fatalf("unchanged no-text attachment was extracted again: %v", err)
+	}
+	if err := reopened.ReconcileAttachmentPath(photo, "edited-photo-hash"); err == nil {
+		t.Fatal("changed no-text attachment was not extracted again")
+	}
+	if err := reopened.ReconcileAttachmentPath(report, "report-hash"); err == nil {
+		t.Fatal("attachment that failed for another reason was not retried")
+	}
+}
+
 func TestInvalidManifestSchemaRebuilds(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "search.bleve")
 	if err := os.MkdirAll(path, 0755); err != nil {
