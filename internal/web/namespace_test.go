@@ -638,7 +638,11 @@ func TestNamespaceNewPageFormRoundTrip(t *testing.T) {
 		t.Errorf("template link = %q, want the hidden-page editor for blog/entry", blog.TemplateHref)
 	}
 
-	editor, err := client.Get(server.URL + "/_/settings/namespaces/blog/edit")
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/settings/namespaces/blog/edit", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor, err := client.Do(request)
 	if err != nil {
 		t.Fatalf("opening namespace editor: %v", err)
 	}
