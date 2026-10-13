@@ -139,7 +139,7 @@ func Run() {
 		if address == "" {
 			address = ":http"
 		}
-		listener, err := net.Listen("tcp", address)
+		listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", address)
 		if err != nil {
 			log.Fatal(err)
 		}

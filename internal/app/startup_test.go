@@ -22,23 +22,28 @@ func TestStartupGateAnswersBeforeReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	gate := startupGate{starting: httpmiddleware.SecurityHeaders(starting)}
-	serve := func(method, path, accept string) *http.Response {
+	// serve returns the status, headers and body rather than the
+	// *http.Response, so no caller has a response body left to close.
+	type reply struct {
+		StatusCode int
+		Header     http.Header
+		Body       string
+	}
+	serve := func(method, path, accept string) reply {
 		t.Helper()
-		request := httptest.NewRequest(method, path, nil)
+		request := httptest.NewRequestWithContext(t.Context(), method, path, nil)
 		if accept != "" {
 			request.Header.Set("Accept", accept)
 		}
 		recorder := httptest.NewRecorder()
 		gate.ServeHTTP(recorder, request)
-		return recorder.Result()
-	}
-	body := func(response *http.Response) string {
-		t.Helper()
+		response := recorder.Result()
+		defer func() { _ = response.Body.Close() }()
 		data, err := io.ReadAll(response.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return string(data)
+		return reply{StatusCode: response.StatusCode, Header: response.Header, Body: string(data)}
 	}
 
 	browser := "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
@@ -46,7 +51,7 @@ func TestStartupGateAnswersBeforeReady(t *testing.T) {
 	if page.StatusCode != http.StatusServiceUnavailable || page.Header.Get("Retry-After") == "" {
 		t.Fatalf("browser request = %d Retry-After %q, want 503 with Retry-After", page.StatusCode, page.Header.Get("Retry-After"))
 	}
-	html := body(page)
+	html := page.Body
 	if !strings.Contains(html, `http-equiv="refresh"`) || !strings.Contains(html, "starting") {
 		t.Fatalf("loading page does not refresh itself:\n%s", html)
 	}
@@ -72,7 +77,7 @@ func TestStartupGateAnswersBeforeReady(t *testing.T) {
 		{http.MethodGet, "/_/ready", ""},
 	} {
 		response := serve(request.method, request.path, request.accept)
-		if response.StatusCode != http.StatusServiceUnavailable || strings.Contains(body(response), "<html") {
+		if response.StatusCode != http.StatusServiceUnavailable || strings.Contains(response.Body, "<html") {
 			t.Errorf("%s %s while starting = %d, want a plain 503", request.method, request.path, response.StatusCode)
 		}
 	}
@@ -85,7 +90,7 @@ func TestStartupGateAnswersBeforeReady(t *testing.T) {
 	}))
 	for _, path := range []string{"/docs/home", "/_/ready", "/_/live"} {
 		response := serve(http.MethodGet, path, browser)
-		if got := body(response); response.StatusCode != http.StatusOK || got != "real "+path {
+		if got := response.Body; response.StatusCode != http.StatusOK || got != "real "+path {
 			t.Errorf("GET %s after Ready = %d %q, want the real handler", path, response.StatusCode, got)
 		}
 	}
