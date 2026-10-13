@@ -25,7 +25,6 @@ server:
   # base_url: https://wiki.example.com
   # Only peers in these CIDRs may supply X-Forwarded-Proto.
   # trusted_proxies: ["172.16.0.0/12"]
-  # read_only: false
   # debug: false
   max_upload_bytes: 10485760   # 10 MiB
   # Install-wide default skin: phosphor | newsprint | journal | soft | bare.

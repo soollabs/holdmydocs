@@ -75,16 +75,16 @@ func TestSaveServerSettingsHoldsRestartSettings(t *testing.T) {
 		t.Fatalf("pending after saving the running values = %v, want none", pending)
 	}
 
-	pending := save(map[string]any{"server.read_only": true, "server.debug": true, "git.sync_poll_ms": 2500})
-	if want := []string{"server.debug", "server.read_only"}; !slices.Equal(pending, want) {
+	pending := save(map[string]any{"server.debug": true, "oidc.allow_insecure_loopback": true, "git.sync_poll_ms": 2500})
+	if want := []string{"oidc.allow_insecure_loopback", "server.debug"}; !slices.Equal(pending, want) {
 		t.Errorf("pending_restart = %v, want %v", pending, want)
 	}
 	running, saved := env.api.Config(), env.api.SavedConfig()
-	if running.ReadOnly || running.Debug {
-		t.Errorf("running read_only %v debug %v, want both still false until a restart", running.ReadOnly, running.Debug)
+	if running.Debug || running.OIDC.AllowInsecureLoopback {
+		t.Errorf("running debug %v insecure loopback %v, want both still false until a restart", running.Debug, running.OIDC.AllowInsecureLoopback)
 	}
-	if !saved.ReadOnly || !saved.Debug {
-		t.Errorf("saved read_only %v debug %v, want both true", saved.ReadOnly, saved.Debug)
+	if !saved.Debug || !saved.OIDC.AllowInsecureLoopback {
+		t.Errorf("saved debug %v insecure loopback %v, want both true", saved.Debug, saved.OIDC.AllowInsecureLoopback)
 	}
 	if running.SyncPollMs != 2500 {
 		t.Errorf("running sync_poll_ms = %d, want the live setting applied at once", running.SyncPollMs)
@@ -93,7 +93,7 @@ func TestSaveServerSettingsHoldsRestartSettings(t *testing.T) {
 		t.Errorf("API PendingRestart lists %d settings, want 2", got)
 	}
 
-	if pending := save(map[string]any{"server.read_only": false, "server.debug": false}); len(pending) != 0 {
+	if pending := save(map[string]any{"server.debug": false, "oidc.allow_insecure_loopback": false}); len(pending) != 0 {
 		t.Errorf("pending after restoring the running values = %v, want none", pending)
 	}
 }
@@ -113,21 +113,13 @@ func TestSaveServerSettingsWritesOAuthSettings(t *testing.T) {
 	}
 }
 
-func TestSaveServerSettingsWritesReadOnly(t *testing.T) {
-	env, client := newTestEnv(t, false)
-	configSaveEnv(t, env)
-	if cfg := saveServerSettingsOK(t, env, client, map[string]any{"server.read_only": true}); !cfg.ReadOnly {
-		t.Fatal("read_only was not saved")
-	}
-}
-
-// TestSaveServerSettingsRejectsEnvOnlySecrets checks that secrets cannot be
-// saved to config.yaml: they are environment-only, not config settings.
+// TestSaveServerSettingsRejectsEnvOnlySecrets checks that environment-only
+// settings, secrets and read-only mode, cannot be saved to config.yaml.
 func TestSaveServerSettingsRejectsEnvOnlySecrets(t *testing.T) {
 	env, client := newTestEnv(t, false)
 	configSaveEnv(t, env)
-	for _, key := range []string{"git.token", "oidc.client_secret"} {
-		resp := postMutation(t, client, env.server.URL+"/_/api/settings/server", serverSettingsBody(env, map[string]any{key: "secret"}))
+	for key, value := range map[string]any{"git.token": "secret", "oidc.client_secret": "secret", "server.read_only": true} {
+		resp := postMutation(t, client, env.server.URL+"/_/api/settings/server", serverSettingsBody(env, map[string]any{key: value}))
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("%s: status = %d, want 400", key, resp.StatusCode)
 		}

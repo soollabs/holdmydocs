@@ -128,7 +128,6 @@ type serverFileConfig struct {
 	RepoDir        string   `yaml:"repo_dir,omitempty"`
 	BaseURL        string   `yaml:"base_url,omitempty"`
 	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
-	ReadOnly       bool     `yaml:"read_only,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
 	MaxUploadBytes *int64   `yaml:"max_upload_bytes,omitempty"`
 	Skin           string   `yaml:"skin,omitempty"`
@@ -156,11 +155,37 @@ type documentSearchFileConfig struct {
 	IndexDir string `yaml:"index_dir,omitempty"`
 }
 
-func EnvOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
+// EnvName returns the environment variable the schema names for a setting.
+// Code and messages take names from here rather than spelling them out.
+func EnvName(key string) string {
+	s, _ := Lookup(key)
+	return s.Env
+}
+
+// envOnly returns an x-env-only setting's environment variable and value.
+func envOnly(key string) (name, value string) {
+	name = EnvName(key)
+	return name, os.Getenv(name)
+}
+
+// envOnlyOr returns an x-env-only setting's value, or def when it is unset.
+func envOnlyOr(key, def string) string {
+	if _, v := envOnly(key); v != "" {
 		return v
 	}
 	return def
+}
+
+// envBool parses a boolean environment variable; empty means false.
+func envBool(key, raw string) (bool, error) {
+	if raw == "" {
+		return false, nil
+	}
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", key, err)
+	}
+	return b, nil
 }
 
 func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied map[string]string) error {
@@ -191,15 +216,15 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 		case fv.Kind() == reflect.String:
 			fv.SetString(raw)
 		case fv.Kind() == reflect.Bool:
-			b, err := strconv.ParseBool(raw)
+			b, err := envBool(envKey, raw)
 			if err != nil {
-				return fmt.Errorf("%s must be a boolean: %w", envKey, err)
+				return err
 			}
 			fv.SetBool(b)
 		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Bool:
-			b, err := strconv.ParseBool(raw)
+			b, err := envBool(envKey, raw)
 			if err != nil {
-				return fmt.Errorf("%s must be a boolean: %w", envKey, err)
+				return err
 			}
 			fv.Set(reflect.ValueOf(&b))
 		case fv.Kind() == reflect.Pointer && fv.Type().Elem().Kind() == reflect.Int:
@@ -224,10 +249,10 @@ func applyEnvOverrides(v reflect.Value, envPrefix, pathPrefix string, applied ma
 
 // ConfigFilePath returns the configured path to the YAML config file.
 func ConfigFilePath() string {
-	if f := os.Getenv("HMD_CONFIG_FILE"); f != "" {
+	if _, f := envOnly("server.config_file"); f != "" {
 		return f
 	}
-	return filepath.Join(EnvOr("HMD_APP_DIR", "/data/app"), "config.yaml")
+	return filepath.Join(envOnlyOr("server.app_dir", "/data/app"), "config.yaml")
 }
 
 // LoadConfig loads configuration from the YAML file and environment variables.
@@ -257,7 +282,7 @@ func Resolve(file fileConfig) (Config, error) {
 	}
 	modelDir := file.DocumentSearch.ModelDir
 	if modelDir == "" {
-		modelDir = filepath.Join(EnvOr("HMD_APP_DIR", "/data/app"), "models")
+		modelDir = filepath.Join(envOnlyOr("server.app_dir", "/data/app"), "models")
 	}
 
 	or := func(fileVal, def string) string {
@@ -285,16 +310,21 @@ func Resolve(file fileConfig) (Config, error) {
 		return def
 	}
 
+	readOnly, err := envBool(envOnly("server.read_only"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		ConfigFile:   path,
 		EnvOverrides: envOverrides,
-		AppDir:       EnvOr("HMD_APP_DIR", "/data/app"),
-		AdminUser:    os.Getenv("HMD_ADMIN_USER"),
-		AdminPass:    os.Getenv("HMD_ADMIN_PASSWORD"),
+		AppDir:       envOnlyOr("server.app_dir", "/data/app"),
+		AdminUser:    envOnlyOr("server.admin.user", ""),
+		AdminPass:    envOnlyOr("server.admin.password", ""),
 
 		Bind:           or(file.Server.Bind, ":8080"),
 		RepoDir:        or(file.Server.RepoDir, "/data/repo"),
-		ReadOnly:       file.Server.ReadOnly,
+		ReadOnly:       readOnly,
 		MaxUploadBytes: orInt64(file.Server.MaxUploadBytes, 10*1024*1024),
 		SyncPollMs:     orInt(file.Git.SyncPollMs, 10000),
 		SyncMode:       or(file.Git.SyncMode, "push"),
@@ -307,7 +337,7 @@ func Resolve(file fileConfig) (Config, error) {
 		Git: GitConfig{
 			RemoteURL: file.Git.RemoteURL,
 			User:      or(file.Git.User, "hmd"),
-			Token:     os.Getenv("HMD_GIT_TOKEN"),
+			Token:     envOnlyOr("git.token", ""),
 			TokenFile: file.Git.TokenFile,
 			Author:    file.Git.Author,
 		},
@@ -316,7 +346,7 @@ func Resolve(file fileConfig) (Config, error) {
 		OIDC: OIDCConfig{
 			Issuer:                file.OIDC.Issuer,
 			ClientID:              file.OIDC.ClientID,
-			ClientSecret:          os.Getenv("HMD_OIDC_CLIENT_SECRET"),
+			ClientSecret:          envOnlyOr("oidc.client_secret", ""),
 			ClientSecretFile:      file.OIDC.ClientSecretFile,
 			LocalLogin:            orBool(file.OIDC.LocalLogin, true),
 			ButtonText:            or(file.OIDC.ButtonText, "Sign in with SSO"),
@@ -336,10 +366,12 @@ func Resolve(file fileConfig) (Config, error) {
 	}
 
 	if cfg.Git.Token != "" && cfg.Git.TokenFile != "" {
-		return Config{}, fmt.Errorf("HMD_GIT_TOKEN and git.token_file are mutually exclusive")
+		name, _ := envOnly("git.token")
+		return Config{}, fmt.Errorf("%s and git.token_file are mutually exclusive", name)
 	}
 	if cfg.OIDC.ClientSecret != "" && cfg.OIDC.ClientSecretFile != "" {
-		return Config{}, fmt.Errorf("HMD_OIDC_CLIENT_SECRET and oidc.client_secret_file are mutually exclusive")
+		name, _ := envOnly("oidc.client_secret")
+		return Config{}, fmt.Errorf("%s and oidc.client_secret_file are mutually exclusive", name)
 	}
 	if f := cfg.Git.TokenFile; f != "" {
 		secret, err := readSecretFile(f)
@@ -376,7 +408,8 @@ func Resolve(file fileConfig) (Config, error) {
 
 	if cfg.OIDC.Issuer != "" {
 		if cfg.OIDC.ClientID == "" || cfg.OIDC.ClientSecret == "" {
-			return Config{}, fmt.Errorf("oidc.client_id and HMD_OIDC_CLIENT_SECRET (or oidc.client_secret_file) must be set when oidc.issuer is set")
+			name, _ := envOnly("oidc.client_secret")
+			return Config{}, fmt.Errorf("oidc.client_id and %s (or oidc.client_secret_file) must be set when oidc.issuer is set", name)
 		}
 		if cfg.BaseURL == "" {
 			return Config{}, fmt.Errorf("server.base_url must be set when oidc.issuer is set (needed for the redirect URI)")
@@ -410,7 +443,6 @@ func (c Config) toFileConfig() fileConfig {
 			RepoDir:        c.RepoDir,
 			BaseURL:        c.BaseURL,
 			TrustedProxies: append([]string(nil), c.TrustedProxies...),
-			ReadOnly:       c.ReadOnly,
 			Debug:          c.Debug,
 			MaxUploadBytes: new(c.MaxUploadBytes),
 			Skin:           c.Skin,

@@ -9,7 +9,7 @@ import (
 
 var webFS = FS
 
-var templateFuncs = template.FuncMap{"static": staticURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections}
+var templateFuncs = template.FuncMap{"static": staticURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections, "envname": config.EnvName}
 
 func parseTemplates() (map[string]*template.Template, error) {
 	templates := make(map[string]*template.Template)

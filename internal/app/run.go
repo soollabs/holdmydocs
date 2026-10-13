@@ -254,7 +254,7 @@ func Run() {
 	}
 	finishStage()
 	if !authn.HasUsers() && cfg.OIDC.Issuer == "" && !cfg.ReadOnly {
-		log.Fatal("no users.json: set HMD_ADMIN_USER and HMD_ADMIN_PASSWORD or configure OIDC admission")
+		log.Fatalf("no users.json: set %s and %s or configure OIDC admission", config.EnvName("server.admin.user"), config.EnvName("server.admin.password"))
 	}
 	var oauthService *oauthserver.Service
 	if cfg.OAuth.Enabled {
