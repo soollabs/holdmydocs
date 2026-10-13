@@ -25,6 +25,15 @@ type IndexRetry struct {
 // has moved the repository head.
 func (a *API) DropExternalHistory() { a.store.DropHistoryOnExternalCommit() }
 
+// WarmHistory walks the commit history once in the background so the first
+// page view after startup finds it cached. A repository without commits has
+// nothing to walk.
+func (a *API) WarmHistory() {
+	if err := a.store.WarmHistory(); err != nil {
+		slog.Debug("warming page history skipped", "err", err)
+	}
+}
+
 // ReloadConfiguration rebuilds the shared namespace registry and wiki
 // configuration snapshots from the store. Each failure is logged and the
 // previous snapshot kept, so a transient read failure never clears state.
