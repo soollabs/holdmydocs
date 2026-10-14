@@ -56,9 +56,9 @@ func TestCrawlFilesRobotsPolicy(t *testing.T) {
 		allow []string
 		want  string
 	}{
-		"blocks by default":   {nil, "User-agent: *\nDisallow: /\n"},
-		"allows named bots":   {[]string{"Googlebot"}, "User-agent: *\nDisallow: /\n\nUser-agent: Googlebot\nAllow: /\n"},
-		"allows every bot":    {[]string{"*"}, "User-agent: *\nAllow: /\n"},
+		"blocks by default": {nil, "User-agent: *\nDisallow: /\n"},
+		"allows named bots": {[]string{"Googlebot"}, "User-agent: *\nDisallow: /\n\nUser-agent: Googlebot\nAllow: /\n"},
+		"allows every bot":  {[]string{"*"}, "User-agent: *\nAllow: /\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			disabled := false
@@ -79,7 +79,6 @@ func TestCrawlFilesRobotsPolicy(t *testing.T) {
 		})
 	}
 }
-
 
 func TestMissingExportURLDoesNotWrite(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "output")
