@@ -13,7 +13,6 @@ import (
 	"io"
 	"log/slog"
 	"math"
-	"math/bits"
 	"net/http"
 	"net/url"
 	"os"
@@ -481,38 +480,17 @@ func (e *HugotEmbedder) Revision() string { return e.revision }
 
 func (e *HugotEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	var result [][]float32
-	for start := 0; start < len(texts); {
-		end := start + embeddingBatchSize(len(texts)-start)
-		embeddings, err := e.embedBatch(ctx, texts[start:end])
+	for start := 0; start < len(texts); start += 32 {
+		end := min(start+32, len(texts))
+		e.mu.Lock()
+		output, err := e.pipeline.RunPipeline(ctx, texts[start:end])
+		e.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, embeddings...)
-		start = end
+		result = append(result, output.Embeddings...)
 	}
 	return result, nil
-}
-
-// TODO: drop once hugot no longer panics on batch sizes it pads (v0.8.2 does).
-func embeddingBatchSize(remaining int) int {
-	return 1 << (bits.Len(uint(min(remaining, 32))) - 1)
-}
-
-// embedBatch runs one batch, turning a panic inside the model library into an
-// error so one document cannot take the server down.
-func (e *HugotEmbedder) embedBatch(ctx context.Context, texts []string) (embeddings [][]float32, err error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("embedding model panicked: %v", recovered)
-		}
-	}()
-	output, err := e.pipeline.RunPipeline(ctx, texts)
-	if err != nil {
-		return nil, err
-	}
-	return output.Embeddings, nil
 }
 
 type documentEmbedder interface {

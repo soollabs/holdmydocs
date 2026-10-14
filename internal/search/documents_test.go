@@ -543,22 +543,6 @@ func TestSearchAttachmentsDisabledBusyAndEmptyQuery(t *testing.T) {
 	<-ix.searches
 }
 
-func TestEmbeddingBatchSizeAvoidsPadding(t *testing.T) {
-	for total := 1; total <= 100; total++ {
-		covered := 0
-		for covered < total {
-			size := embeddingBatchSize(total - covered)
-			if size < 1 || size > 32 || size&(size-1) != 0 {
-				t.Fatalf("batch of %d after %d of %d: want a power of two up to 32", size, covered, total)
-			}
-			covered += size
-		}
-		if covered != total {
-			t.Fatalf("batches covered %d of %d texts", covered, total)
-		}
-	}
-}
-
 // TestHugotEmbedderEveryBatchSize runs the real model over every batch size up
 // to past the 32-text chunk, because Hugot has panicked on sizes it pads. The
 // texts are identical so the model compiles one sequence length, not forty.
