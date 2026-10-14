@@ -51,11 +51,14 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 	seen := map[string]bool{}
 	for i, name := range c.RobotsAllow {
 		name = strings.TrimSpace(name)
-		if !robotName.MatchString(name) || seen[strings.ToLower(name)] {
+		if (name != "*" && !robotName.MatchString(name)) || seen[strings.ToLower(name)] {
 			return c, fmt.Errorf("invalid or repeated robots bot name %q", name)
 		}
 		seen[strings.ToLower(name)] = true
 		c.RobotsAllow[i] = name
+	}
+	if seen["*"] && len(c.RobotsAllow) > 1 {
+		return c, fmt.Errorf(`robots bot "*" allows every bot and cannot be combined with named bots`)
 	}
 	var sidebarMode *bool
 	for i, link := range c.Links {

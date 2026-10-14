@@ -51,6 +51,36 @@ func TestCrawlFiles(t *testing.T) {
 	}
 }
 
+func TestCrawlFilesRobotsPolicy(t *testing.T) {
+	for name, tc := range map[string]struct {
+		allow []string
+		want  string
+	}{
+		"blocks by default":   {nil, "User-agent: *\nDisallow: /\n"},
+		"allows named bots":   {[]string{"Googlebot"}, "User-agent: *\nDisallow: /\n\nUser-agent: Googlebot\nAllow: /\n"},
+		"allows every bot":    {[]string{"*"}, "User-agent: *\nAllow: /\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			disabled := false
+			req := NamespaceRequest{OutDir: t.TempDir(), Config: wiki.NamespaceConfig{Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/", Sitemap: &disabled, RobotsAllow: tc.allow}}}
+			if err := writeCrawlFiles(req, []wiki.Page{{Slug: "docs/home"}}); err != nil {
+				t.Fatal(err)
+			}
+			robots, err := os.ReadFile(filepath.Join(req.OutDir, "robots.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(robots) != tc.want {
+				t.Fatalf("robots = %q, want %q", robots, tc.want)
+			}
+			if tc.allow != nil && tc.allow[0] == "*" && strings.Contains(string(robots), "Disallow") {
+				t.Fatal("wildcard output still disallows")
+			}
+		})
+	}
+}
+
+
 func TestMissingExportURLDoesNotWrite(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "output")
 	err := Namespace(NamespaceRequest{OutDir: out, Namespace: "docs", Pages: []wiki.Page{{Slug: "docs/home"}}}, nil)

@@ -10,14 +10,21 @@ func TestExportConfigValidation(t *testing.T) {
 			}
 		})
 	}
-	for _, bot := range []string{"*", "Googlebot\nAllow: /", "bot:evil", "bot name"} {
+	for _, bot := range []string{"Googlebot\nAllow: /", "bot:evil", "bot name"} {
 		if _, err := NormaliseExportConfig(ExportConfig{RobotsAllow: []string{bot}}, false); err == nil {
 			t.Errorf("accepted bot %q", bot)
 		}
 	}
 	if _, err := NormaliseExportConfig(ExportConfig{RobotsAllow: []string{"Googlebot", "googlebot"}}, false); err == nil {
 		t.Fatal("accepted duplicate bot")
+    }	
+    	if c, err := NormaliseExportConfig(ExportConfig{RobotsAllow: []string{" * "}}, false); err != nil || len(c.RobotsAllow) != 1 || c.RobotsAllow[0] != "*" {
+		t.Fatalf("wildcard bot = %#v, %v", c.RobotsAllow, err)
 	}
+	if _, err := NormaliseExportConfig(ExportConfig{RobotsAllow: []string{"*", "Googlebot"}}, false); err == nil {
+		t.Fatal("accepted wildcard combined with named bot")
+	}
+
 	for _, link := range []ExportLink{
 		{Label: "Bad", URL: "javascript:alert(1)"},
 		{Label: "Bad", URL: "https://user:pass@example.org/"},
