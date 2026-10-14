@@ -58,7 +58,19 @@ func (r *Renderer) convert(body string) (string, error) {
 	if err := r.html.Render(&buf, source, doc); err != nil {
 		return "", fmt.Errorf("rendering markdown: %w", err)
 	}
-	return sanitizePolicy.Sanitize(r.processMermaidBlocks(buf.String())), nil
+	return wrapTables(sanitizePolicy.Sanitize(r.processMermaidBlocks(buf.String()))), nil
+}
+
+// wrapTables puts every table in a scrolling wrapper, so a wide table scrolls
+// inside the page column instead of squeezing its columns or overflowing it.
+// It runs on sanitised output: text containing "<table" is already escaped,
+// and every table element is well formed.
+func wrapTables(h string) string {
+	if !strings.Contains(h, "<table") {
+		return h
+	}
+	h = strings.ReplaceAll(h, "<table", `<div class="ui-table-wrap"><table`)
+	return strings.ReplaceAll(h, "</table>", "</table></div>")
 }
 
 // Render renders body for an authenticated viewer using the page's namespace for link resolution.

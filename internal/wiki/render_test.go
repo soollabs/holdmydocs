@@ -115,3 +115,25 @@ func TestRender(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderWrapsTables(t *testing.T) {
+	r := NewRenderer(func(title, ns string) (string, bool) { return "", false })
+	got, err := r.Render("| A | B |\n|---|---|\n| 1 | 2 |\n\n`<table>` stays text", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(got)
+	if n := strings.Count(s, `<div class="ui-table-wrap"><table>`); n != 1 {
+		t.Errorf("want one wrapped table, got %d: %s", n, s)
+	}
+	if n := strings.Count(s, "</table></div>"); n != 1 {
+		t.Errorf("want one closed wrapper, got %d: %s", n, s)
+	}
+	if !strings.Contains(s, "&lt;table&gt;") {
+		t.Errorf("literal table text should stay escaped: %s", s)
+	}
+	plain, err := r.Render("no tables here", "")
+	if err != nil || strings.Contains(string(plain), "ui-table-wrap") {
+		t.Errorf("page without a table gained a wrapper: %q %v", plain, err)
+	}
+}

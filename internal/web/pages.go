@@ -597,6 +597,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 
 	content := healthReportHTML(report, titles)
 	app.render(w, r, http.StatusOK, "page", TemplateData{
+		NoSidebar:     true,
 		Authed:        true,
 		Title:         "wiki health",
 		Slug:          "health-report",

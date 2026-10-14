@@ -164,3 +164,29 @@ func TestResolveSkinFallback(t *testing.T) {
 		t.Errorf("resolveSkin(bogus).Label = %q, want %q", got, skins[defaultSkin].Label)
 	}
 }
+
+// TestPagesOutsideANamespaceLinkBackToWiki checks that settings, tags, search and
+// health replace the sidebar toggle with a link back to the wiki, since they
+// belong to no namespace and have no sidebar.
+func TestPagesOutsideANamespaceLinkBackToWiki(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, path := range []string{"/_/settings", "/_/settings/server", "/_/tags", "/_/search?q=x", "/_/health-report", "/_/hidden"} {
+		resp, err := testhttp.Get(t, client, server.URL+path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		if err := resp.Body.Close(); err != nil || readErr != nil {
+			t.Fatalf("reading %s: %v, %v", path, err, readErr)
+		}
+		page := string(body)
+		if !strings.Contains(page, `aria-label="Back to wiki"`) || !strings.Contains(page, `href="/"`) {
+			t.Errorf("%s app bar lacks the back to wiki link", path)
+		}
+		if strings.Contains(page, `id="sidebar-toggle"`) {
+			t.Errorf("%s still has a sidebar toggle", path)
+		}
+	}
+}

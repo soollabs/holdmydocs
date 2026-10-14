@@ -135,11 +135,12 @@
 		} catch (e) {}
 	</script>
 </head>
-<body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}{{if .SettingsSection}} settings-shell{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
+<body class="{{if .Authed}}shell{{else if .SidebarTree}}shell shell-public{{end}}{{if or .SettingsSection .NoSidebar}} no-sidebar{{end}}" data-slug="{{.Slug}}" data-route-prefix="{{.RoutePrefix}}">
 	<a class="skip-link" href="#main-content">Skip to content</a>
 	{{if .Authed}}
 	<header class="app-topbar">
-		{{$sidebarToggle := button "Toggle sidebar" "secondary" "size" "icon" "hook" "topbar-icon" "id" "sidebar-toggle" "aria-label" "Toggle sidebar" "title" "Toggle sidebar"}}{{template "ui-button-start" $sidebarToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $sidebarToggle}}
+		{{if or .SettingsSection .NoSidebar}}{{$backToWiki := button "Back to wiki" "secondary" "hook" "topbar-action" "href" "/" "aria-label" "Back to wiki" "title" "Back to wiki"}}{{template "ui-button-start" $backToWiki}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> <span>Wiki</span>{{template "ui-button-end" $backToWiki}}
+		{{else}}{{$sidebarToggle := button "Toggle sidebar" "secondary" "size" "icon" "hook" "topbar-icon" "id" "sidebar-toggle" "aria-label" "Toggle sidebar" "title" "Toggle sidebar"}}{{template "ui-button-start" $sidebarToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $sidebarToggle}}{{end}}
 		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
 			{{if eq .StatusMode "edit"}}{{template "ui-button" (button "Save" "primary" "hook" "topbar-action topbar-primary" "type" "submit" "form" "edit-form")}}
