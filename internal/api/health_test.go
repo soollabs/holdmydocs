@@ -2,11 +2,15 @@ package api
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"hmd/internal/auth"
+	"hmd/internal/config"
 	"hmd/internal/search"
+	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
 
@@ -76,5 +80,35 @@ func TestHealthSummaryDoesNotNeedGitHistory(t *testing.T) {
 	}
 	if summary.Missing != 1 || summary.Orphans != 1 {
 		t.Fatalf("HealthSummary = %+v, want one missing and one orphan", summary)
+	}
+}
+
+// Pages copied into a repository that has no commits yet have no history; the
+// report still builds, with nothing stale, instead of failing.
+func TestHealthWithoutCommits(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "notes"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "notes", "page.md"), []byte("---\ntitle: Page\n---\nbody"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(store.Options{RepoDir: dir, Git: store.GitOptions{User: "tester"}})
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	index, err := search.BuildIndex(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(st, index, nil)
+	a.SetConfig(config.Config{})
+
+	report, err := a.Health(writeCtx(), "")
+	if err != nil {
+		t.Fatalf("Health on a repository without commits: %v", err)
+	}
+	if len(report.Stale) != 0 {
+		t.Fatalf("uncommitted pages reported stale: %+v", report.Stale)
 	}
 }

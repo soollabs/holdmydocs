@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
 
@@ -91,6 +92,10 @@ func (a *API) healthAt(ctx context.Context, namespace string, now time.Time) (He
 			continue
 		}
 		history, err := a.store.History(path)
+		if store.IsNoCommits(err) {
+			// Pages that were never committed have no age to report.
+			break
+		}
 		if err != nil {
 			return HealthReport{}, Unavailable("reading page history for health report", err)
 		}

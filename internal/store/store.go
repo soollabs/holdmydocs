@@ -1261,6 +1261,10 @@ func (s *Store) History(path string) ([]CommitInfo, error) {
 	return walk.histories[path], nil
 }
 
+// IsNoCommits reports whether err means the repository has no commits yet, so
+// no page has a history, rather than a failure to read one.
+func IsNoCommits(err error) bool { return errors.Is(err, plumbing.ErrReferenceNotFound) }
+
 // WarmHistory fills the history cache so the first page view does not walk.
 func (s *Store) WarmHistory() error {
 	_, err := s.History("")
