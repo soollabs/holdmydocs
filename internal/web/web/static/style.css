@@ -401,7 +401,7 @@ body.shell.shell-public {
    window is wider than the group. The editor and other full-width screens
    keep the plain two-column shell. */
 @media (min-width: 900px) {
-	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) {
+	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) {
 		--shell-measure: calc(260px + var(--prose-measure) + var(--rail-w));
 		--shell-gutter: max(0px, calc((100vw - var(--shell-measure)) / 2));
 		grid-template-columns: var(--shell-gutter) 260px minmax(0, 1fr);
@@ -411,28 +411,40 @@ body.shell.shell-public {
 			"statusline statusline statusline";
 	}
 
-	body.shell.shell-public:not(.sidebar-collapsed):has(> main > :is(.page-wrap, .content-col)) {
+	body.shell.shell-public:has(> main > :is(.page-wrap, .content-col)) {
 		grid-template-areas:
 			"topbar topbar topbar"
 			". sidebar main";
 	}
 
-	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
-		border-left: var(--chrome-border-w) solid var(--chrome-border);
+	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
+		background: transparent;
+		border: 0;
 	}
 
-	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > main {
+	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > main {
 		align-items: flex-start;
 	}
 
 	/* The app bar keeps its full-width background, but its contents line up with
 	   the group below instead of the window edges. */
-	body.shell:not(.sidebar-collapsed, .no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
 		padding-inline: calc(var(--shell-gutter) + 10px);
 	}
 
-	body.shell.shell-public:not(.sidebar-collapsed):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+	body.shell.shell-public:has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
 		padding-inline: calc(var(--shell-gutter) + 20px);
+	}
+
+	/* Reading pages always show the sidebar on desktop, like the docs sites this
+	   layout follows: no toggle, and a collapsed state saved from the editor
+	   cannot hide it. Mobile keeps its drawer and toggle. */
+	body.shell:has(> main > :is(.page-wrap, .content-col)) #sidebar-toggle {
+		display: none;
+	}
+
+	body.shell.sidebar-collapsed:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
+		display: flex;
 	}
 
 	/* Pages without a sidebar centre one column, so the app bar follows that
