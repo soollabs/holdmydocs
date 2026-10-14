@@ -95,7 +95,7 @@
             "type": "string"
           },
           "maxItems": 64,
-          "description": "Search and AI bots allowed to crawl the static site. Every other bot is blocked in robots.txt."
+          "description": "Search and AI bots allowed to crawl the static site. Every other bot is blocked in robots.txt. Use a single \"*\" to allow every bot."
         },
         "links": {
           "type": "array",

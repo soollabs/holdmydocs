@@ -31,9 +31,13 @@ func writeCrawlFiles(request NamespaceRequest, pages []wiki.Page) error {
 		return err
 	}
 	var robots strings.Builder
-	robots.WriteString("User-agent: *\nDisallow: /\n")
-	for _, bot := range c.RobotsAllow {
-		fmt.Fprintf(&robots, "\nUser-agent: %s\nAllow: /\n", bot)
+	if len(c.RobotsAllow) == 1 && c.RobotsAllow[0] == "*" {
+		robots.WriteString("User-agent: *\nAllow: /\n")
+	} else {
+		robots.WriteString("User-agent: *\nDisallow: /\n")
+		for _, bot := range c.RobotsAllow {
+			fmt.Fprintf(&robots, "\nUser-agent: %s\nAllow: /\n", bot)
+		}
 	}
 	if c.SitemapEnabled() {
 		type location struct {
