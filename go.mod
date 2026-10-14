@@ -9,7 +9,7 @@ require (
 	github.com/go-oauth2/oauth2/v4 v4.6.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.1
-	github.com/knights-analytics/hugot v0.8.2
+	github.com/knights-analytics/hugot v0.8.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/yuin/goldmark/v2 v2.1.6
@@ -46,7 +46,7 @@ require (
 	github.com/blevesearch/zapx/v17 v17.2.3 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
-	github.com/daulet/tokenizers v1.27.0 // indirect
+	github.com/eliben/go-sentencepiece v0.7.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.2 // indirect
@@ -58,19 +58,18 @@ require (
 	github.com/gomlx/compute v0.1.14 // indirect
 	github.com/gomlx/compute-onnx v0.1.13 // indirect
 	github.com/gomlx/exceptions v0.0.3 // indirect
-	github.com/gomlx/go-huggingface v0.4.13 // indirect
-	github.com/gomlx/go-xla v0.4.13 // indirect
-	github.com/gomlx/gomlx v0.28.16 // indirect
-	github.com/gomlx/onnx-gomlx v0.5.13 // indirect
+	github.com/gomlx/go-huggingface v0.4.15 // indirect
+	github.com/gomlx/go-xla v0.4.14 // indirect
+	github.com/gomlx/gomlx v0.28.17 // indirect
+	github.com/gomlx/onnx-gomlx v0.5.14 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/knights-analytics/ortgenai v0.3.3 // indirect
-	github.com/microsoft/onnxruntime/go v0.0.0-20261006105309-99433be6709e // indirect
+	github.com/knights-analytics/ortgenai v0.3.4 // indirect
+	github.com/microsoft/onnxruntime/go v0.0.0-20261014085412-9c87bdf2e667 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -79,11 +78,10 @@ require (
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/yalue/onnxruntime_go v1.35.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
-	golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 // indirect
-	golang.org/x/image v0.46.0 // indirect
+	golang.org/x/exp v0.0.0-20261013213113-2ab7f3cbc5fb // indirect
+	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
