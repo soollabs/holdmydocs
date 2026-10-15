@@ -4,6 +4,7 @@ import (
 	"hmd/internal/testhttp"
 
 	"io"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -165,23 +166,14 @@ func TestResolveSkinFallback(t *testing.T) {
 	}
 }
 
-// TestPagesOutsideANamespaceLinkBackToWiki checks that settings, tags, search and
-// health replace the sidebar toggle with a link back to the wiki, since they
-// belong to no namespace and have no sidebar.
-func TestPagesOutsideANamespaceLinkBackToWiki(t *testing.T) {
+// TestSettingsLinkBackToWiki checks that settings replace the sidebar toggle
+// with a link back to the wiki: their own menu takes the sidebar's place.
+func TestSettingsLinkBackToWiki(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
-	for _, path := range []string{"/_/settings", "/_/settings/server", "/_/tags", "/_/search?q=x", "/_/health-report", "/_/hidden"} {
-		resp, err := testhttp.Get(t, client, server.URL+path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
-		}
-		body, readErr := io.ReadAll(resp.Body)
-		if err := resp.Body.Close(); err != nil || readErr != nil {
-			t.Fatalf("reading %s: %v, %v", path, err, readErr)
-		}
-		page := string(body)
+	for _, path := range []string{"/_/settings", "/_/settings/server"} {
+		page := getPage(t, client, server.URL+path)
 		if !strings.Contains(page, `aria-label="Back to wiki"`) || !strings.Contains(page, `href="/"`) {
 			t.Errorf("%s app bar lacks the back to wiki link", path)
 		}
@@ -189,4 +181,38 @@ func TestPagesOutsideANamespaceLinkBackToWiki(t *testing.T) {
 			t.Errorf("%s still has a sidebar toggle", path)
 		}
 	}
+}
+
+// TestWikiWideScreensShowWikiWideSidebar checks that tags, search, hidden and
+// health keep the wiki sidebar, like reading pages, but only with widgets that
+// span the whole wiki: they belong to no namespace, so there is no page tree.
+func TestWikiWideScreensShowWikiWideSidebar(t *testing.T) {
+	_, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	for _, path := range []string{"/_/tags", "/_/search?q=x", "/_/health-report", "/_/hidden"} {
+		page := getPage(t, client, server.URL+path)
+		if !strings.Contains(page, `id="sidebar-toggle"`) || strings.Contains(page, `aria-label="Back to wiki"`) {
+			t.Errorf("%s app bar is not the wiki one", path)
+		}
+		if strings.Contains(page, "no-sidebar") || !strings.Contains(page, `class="sidebar-section sidebar-namespaces"`) {
+			t.Errorf("%s lacks the wiki-wide sidebar", path)
+		}
+		if strings.Contains(page, "sidebar-tree") || strings.Contains(page, `id="sidebar-log"`) {
+			t.Errorf("%s shows a namespace widget", path)
+		}
+	}
+}
+
+func getPage(t *testing.T, client *http.Client, url string) string {
+	t.Helper()
+	resp, err := testhttp.Get(t, client, url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	body, readErr := io.ReadAll(resp.Body)
+	if err := resp.Body.Close(); err != nil || readErr != nil {
+		t.Fatalf("reading %s: %v, %v", url, err, readErr)
+	}
+	return string(body)
 }

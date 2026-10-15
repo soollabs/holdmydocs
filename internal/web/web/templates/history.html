@@ -1,8 +1,14 @@
 {{define "content"}}
-<div class="editor-col">
+<div class="content-col">
 <div class="history-view">
-	<h1 class="page-title">History</h1>
-	<div class="history-sub">{{.Slug}}.md &middot; {{.TotalHistory}} revision{{if ne .TotalHistory 1}}s{{end}} &middot; <a href="/{{.Slug}}">back to page</a></div>
+	<nav class="breadcrumb" aria-label="Breadcrumb">
+		<a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span>
+		<a href="/{{.Slug}}">{{.Slug}}.md</a><span class="sep">/</span>
+		<span class="current" aria-current="page">history</span>
+	</nav>
+	<h1 class="page-title"><span class="h"></span>History</h1>
+	<div class="history-sub">{{.TotalHistory}} revision{{if ne .TotalHistory 1}}s{{end}} &middot; <a href="/{{.Slug}}">back to page</a></div>
+	{{if .HistoryEntries}}
 
 	<div class="diff-selector" id="diff-selector">
 		<p>Select two revisions to diff. <span id="diff-status"></span></p>
@@ -16,7 +22,7 @@
 		<span class="message">{{.Message}}</span>
 		{{if not .Current}}
 		<a href="/{{$.Slug}}?do=rev&hash={{.Hash}}" class="view-link">view</a>
-		<form method="GET" action="/{{$.Slug}}?do=history" class="js-revert" data-slug="{{$.Slug}}" style="display:contents">{{template "csrf" $}}{{template "json-required" $}}
+		<form method="GET" action="/{{$.Slug}}?do=history" class="js-revert" data-slug="{{$.Slug}}">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="hash" value="{{.Hash}}">
 			{{template "ui-button" (button "revert" "secondary" "size" "compact" "type" "submit")}}
 		</form>
@@ -29,10 +35,13 @@
 	{{end}}
 	</div>
 
-	{{$diffPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $diffPanel}}<div class="diff-panel" id="diff-panel" style="display: none;">
+	<div class="diff-panel" id="diff-panel" hidden>{{$diffPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $diffPanel}}
 		<div class="diff-header" id="diff-header"></div>
 		<div class="diff-body" id="diff-body"></div>
-	</div>{{template "ui-panel-end" $diffPanel}}
+	{{template "ui-panel-end" $diffPanel}}</div>
+	{{else}}
+	{{$empty := component "empty" "label" "No revisions yet"}}{{template "ui-empty-start" $empty}}<p>This page has not been committed yet.</p>{{template "ui-empty-end" $empty}}
+	{{end}}
 
 	{{if gt .TotalHistory 50}}
 	<p class="snippet">Showing 50 of {{.TotalHistory}} revisions.</p>

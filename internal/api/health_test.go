@@ -83,9 +83,10 @@ func TestHealthSummaryDoesNotNeedGitHistory(t *testing.T) {
 	}
 }
 
-// Pages copied into a repository that has no commits yet have no history; the
-// report still builds, with nothing stale, instead of failing.
-func TestHealthWithoutCommits(t *testing.T) {
+// newAPIWithoutCommits returns an API over a repository holding one page,
+// notes/page, that was copied in but never committed.
+func newAPIWithoutCommits(t *testing.T) *API {
+	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "notes"), 0o750); err != nil {
 		t.Fatal(err)
@@ -103,8 +104,13 @@ func TestHealthWithoutCommits(t *testing.T) {
 	}
 	a := New(st, index, nil)
 	a.SetConfig(config.Config{})
+	return a
+}
 
-	report, err := a.Health(writeCtx(), "")
+// Pages copied into a repository that has no commits yet have no history; the
+// report still builds, with nothing stale, instead of failing.
+func TestHealthWithoutCommits(t *testing.T) {
+	report, err := newAPIWithoutCommits(t).Health(writeCtx(), "")
 	if err != nil {
 		t.Fatalf("Health on a repository without commits: %v", err)
 	}

@@ -2,7 +2,7 @@
 <div class="content-col oauth-page">
 	{{template "settings-breadcrumb" .}}
 	<header class="oauth-heading">
-		<h1 class="page-title">MCP OAuth clients</h1>
+		<h1 class="page-title"><span class="h"></span>MCP OAuth clients</h1>
 		<p>Register applications that can request access to HoldMyDocs. Each user still chooses what to share.</p>
 	</header>
 	{{if .Error}}{{$errorNotice := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $errorNotice}}{{.Error}}{{template "ui-notice-end" $errorNotice}}{{end}}

@@ -597,9 +597,9 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 
 	content := healthReportHTML(report, titles)
 	app.render(w, r, http.StatusOK, "page", TemplateData{
-		NoSidebar:     true,
+		WikiWide:      true,
 		Authed:        true,
-		Title:         "wiki health",
+		Title:         "Health",
 		Slug:          "health-report",
 		Content:       content,
 		StatusContext: fmt.Sprintf("%d missing · %d orphan%s · %d stale", len(report.Missing), len(report.Orphans), wiki.Plural(len(report.Orphans)), len(report.Stale)),
@@ -701,6 +701,7 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	history, err := app.apiClient().PageHistory(r.Context(), slug)
 	if err != nil {
+		slog.Error("reading page history", "slug", slug, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

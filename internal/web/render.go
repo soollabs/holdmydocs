@@ -133,7 +133,7 @@ type TemplateData struct {
 	OAuthContinue           string // opaque, server-side OAuth login continuation handle
 	OAuthEnabled            bool
 	SettingsSection         string // highlights the current page in the shared settings navigation; empty hides it
-	NoSidebar               bool   // a page outside any namespace: no wiki sidebar, and the app bar links back to the wiki
+	WikiWide                bool   // a screen outside any namespace (tags, search, hidden, health): the sidebar keeps only widgets that span the whole wiki
 	SettingsPanel           string // URL-addressable account or system panel
 	SettingsLabel           string // current section shown by the mobile selector
 	SettingsHeading         string // page heading: the schema section title, or the lower-case label
@@ -221,7 +221,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	data.OAuthEnabled = app.OAuth != nil
 	switch name {
 	case "tags", "search", "hidden":
-		data.NoSidebar = true
+		data.WikiWide = true
 	case "settings", "admin", "namespaces", "connections", "oauth-clients":
 		data.SettingsSection = name
 	case "namespace-edit":
@@ -305,7 +305,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		// Default the tags widget to the current page's namespace tags, but
 		// preserve an explicit whole-wiki list supplied by the handler (the
 		// tags index).
-		if data.AllTags == nil {
+		if data.AllTags == nil && data.WikiWide {
+			data.AllTags = app.apiClient().Tags(r.Context())
+		} else if data.AllTags == nil {
 			ns, _ := wiki.NamespaceFor(data.Slug)
 			data.AllTags = app.apiClient().NamespaceTags(r.Context(), ns)
 		}
@@ -398,6 +400,9 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 
 		nsCfg := app.Namespaces().Resolve(data.Slug)
 		data.SidebarWidgets = widgetsForSlot(slotSidebar, nsCfg.Widgets)
+		if data.WikiWide {
+			data.SidebarWidgets = slices.DeleteFunc(widgetsForSlot(slotSidebar, wiki.BuiltinNamespaceWidgets), func(w *widget) bool { return !wikiWideWidgets[w.ID] })
+		}
 		data.RailWidgets = widgetsForSlot(slotRail, nsCfg.Widgets)
 		data.PageHeadWidgets = widgetsForSlot(slotPageHead, nsCfg.Widgets)
 		data.PageFootWidgets = widgetsForSlot(slotPageFoot, nsCfg.Widgets)

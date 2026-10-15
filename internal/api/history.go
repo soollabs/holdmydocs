@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"hmd/internal/search"
+	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
 
@@ -47,6 +48,9 @@ func (a *API) RecentChanges(ctx context.Context, limit int) ([]Commit, error) {
 		limit = 20
 	}
 	commits, err := a.store.RecentCommits(limit)
+	if store.IsNoCommits(err) {
+		return []Commit{}, nil
+	}
 	if err != nil {
 		return nil, Unavailable("reading recent changes", err)
 	}
@@ -73,6 +77,10 @@ func (a *API) PageHistory(ctx context.Context, slug string) ([]Revision, error) 
 		return nil, Forbidden("namespace access denied")
 	}
 	history, err := a.store.History(wiki.PageFile(slug))
+	if store.IsNoCommits(err) {
+		// Pages in a repository without commits have no revisions yet.
+		return []Revision{}, nil
+	}
 	if err != nil {
 		return nil, Unavailable("reading page history", err)
 	}

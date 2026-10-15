@@ -109,7 +109,8 @@
 }
 
 /* Newsprint uses an underlined current-page link instead of a filled block. */
-:root[data-skin="newsprint"] .sidebar-list li a.active {
+:root[data-skin="newsprint"] .sidebar-list li a.active,
+:root[data-skin="newsprint"] .sidebar-tree .page-tree a.current {
 	background: none;
 	color: var(--fg-strong);
 	font-weight: 700;
@@ -207,7 +208,8 @@
 	letter-spacing: 0.14em;
 }
 
-:root[data-skin="journal"] .sidebar-list li a.active {
+:root[data-skin="journal"] .sidebar-list li a.active,
+:root[data-skin="journal"] .sidebar-tree .page-tree a.current {
 	background: none;
 	color: var(--fg-strong);
 	font-style: italic;
@@ -269,7 +271,12 @@
 	padding: 2px 8px;
 }
 
-:root[data-skin="soft"] .sidebar-list li a.active {
+:root[data-skin="soft"] .sidebar-tree .page-tree a.current {
+	border-radius: var(--radius);
+}
+
+:root[data-skin="soft"] .sidebar-list li a.active,
+:root[data-skin="soft"] .sidebar-tree .page-tree a.current {
 	background: color-mix(in srgb, var(--primary) 18%, transparent);
 	color: var(--fg-strong);
 }
@@ -325,7 +332,8 @@
 	letter-spacing: 0.1em;
 }
 
-:root[data-skin="bare"] .sidebar-list li a.active {
+:root[data-skin="bare"] .sidebar-list li a.active,
+:root[data-skin="bare"] .sidebar-tree .page-tree a.current {
 	background: none;
 	color: var(--fg-strong);
 }

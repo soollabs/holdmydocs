@@ -5,7 +5,7 @@
 	<span class="sep">/</span>
 	<span class="current">{{.Namespace}}</span>
 </div>
-<h1 class="page-title"><span class="h"></span>{{.Namespace}}</h1>
+<h1 class="page-title" data-title="{{.Namespace}}"><span class="h"></span>{{.Namespace}}</h1>
 <p class="namespace-index-meta">
 	{{len .TagPages}} page{{if ne (len .TagPages) 1}}s{{end}}{{if .NamespacePublic}} · public{{end}}
 	{{if .CanSettings}} · <a href="/_/settings/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}

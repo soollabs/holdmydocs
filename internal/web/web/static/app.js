@@ -115,7 +115,9 @@
 
   if (recentList) {
     try {
-      const titleEl = $('.page-title');
+      // Only a page's own view carries data-title; history and other screens
+      // under a page's URL must not rename it.
+      const titleEl = $('.page-title[data-title]');
       if (currentSlug && titleEl) {
         const title = titleEl.dataset.title || titleEl.textContent.trim() || currentSlug;
         let recent = JSON.parse(localStorage.getItem('hmd-recent') || '[]');
@@ -145,8 +147,9 @@
     recentList.innerHTML = entries.map(e => {
       const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
       const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
-      const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '<span class="recent-glyph">·</span>';
-      return `<li>${glyph}${dot}<a href="/${escapeHtml(e.slug)}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a></li>`;
+      // Markers follow the title so every sidebar row's text starts at the same edge.
+      const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '';
+      return `<li><a href="/${escapeHtml(e.slug)}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a>${dot}${glyph}</li>`;
     }).join('');
   }
 
@@ -311,17 +314,9 @@
   // ---- Shared app bar ----
   const sidebarToggle = $('#sidebar-toggle');
   const sidebar = $('#sidebar');
+  // The toggle only exists on mobile, where it opens the sidebar drawer.
   if (sidebarToggle && sidebar) {
-    const COLLAPSE_KEY = 'hmd-sidebar-collapsed';
-    if (localStorage.getItem(COLLAPSE_KEY) === '1') document.body.classList.add('sidebar-collapsed');
-    sidebarToggle.addEventListener('click', () => {
-      if (window.matchMedia('(max-width: 899px)').matches) {
-        sidebar.classList.toggle('open');
-        return;
-      }
-      const collapsed = document.body.classList.toggle('sidebar-collapsed');
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-    });
+    sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
   }
   const topbarSearch = $('#topbar-search');
   if (topbarSearch) {
@@ -1477,13 +1472,13 @@
 
     function updateDiffDisplay() {
       if (checked.length === 0) {
-        diffPanel.style.display = 'none';
+        diffPanel.hidden = true;
         diffStatus.textContent = '';
         return;
       }
 
       if (checked.length === 1) {
-        diffPanel.style.display = 'none';
+        diffPanel.hidden = true;
         diffStatus.textContent = checked[0].value.slice(0, 7) + ' selected';
         return;
       }
@@ -1499,7 +1494,7 @@
         .then(diff => {
           diffHeader.textContent = `diff ${hashA.slice(0, 7)}..${hashB.slice(0, 7)}`;
           renderDiff(diff);
-          diffPanel.style.display = 'block';
+          diffPanel.hidden = false;
         })
         .catch(() => {});
     }
