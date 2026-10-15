@@ -40,6 +40,14 @@
 	--prompt-symbol: "$";
 	--tag-prefix:    "#";
 	--collapse-glyph: "\00ab";  /* « — the sidebar collapse control */
+	--brand-prefix:  "~/";      /* before the site name in the topbar */
+	--brand-cursor:  "\258d";   /* ▍ — blinks after the site name on hover */
+	--marker-glow:   0 0 10px color-mix(in srgb, var(--primary) 45%, transparent);
+	/* A short rule under the page title's left edge; `block` shows it. */
+	--title-rule:        none;
+	--title-rule-w:      2.5rem;
+	--title-rule-h:      1px;
+	--title-rule-colour: var(--fg-faint);
 
 	--radius:        4px;
 	--radius-lg:     6px;
@@ -79,6 +87,11 @@
 	   data grids) uses this instead — anchored to --fg-muted, which is
 	   itself held at >=4.5:1 against --bg. */
 	--border-visible: color-mix(in srgb, var(--fg-muted) 40%, var(--bg));
+	/* Scrollbars take the palette's colours; the track is clear so each
+	   scrolling region keeps its own background. Inherited, so this one
+	   declaration covers every scroller. */
+	--scrollbar-thumb: var(--border-visible);
+	scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 :root, :root[data-theme="dark"] {
@@ -292,6 +305,9 @@ body.shell.shell-public {
 	display: flex;
 	flex-direction: column;
 	overflow-y: auto;
+	/* Reserve the scrollbar's room, so opening a folder that makes the tree
+	   scroll doesn't narrow every row and resize the current-page highlight. */
+	scrollbar-gutter: stable;
 }
 
 .sidebar h2 {
@@ -639,6 +655,19 @@ main {
 	z-index: 1000;
 }
 
+/* Same-origin page loads crossfade instead of flashing. Nothing slides or
+   morphs: the topbar is named only so it holds still while the page beneath
+   it fades. */
+@media (prefers-reduced-motion: no-preference) {
+	@view-transition {
+		navigation: auto;
+	}
+
+	.app-topbar {
+		view-transition-name: topbar;
+	}
+}
+
 .topbar-site {
 	min-width: 0;
 	flex: 1;
@@ -647,6 +676,40 @@ main {
 	white-space: nowrap;
 	color: var(--fg-strong);
 	text-decoration: none;
+}
+
+.topbar-site::before {
+	content: var(--brand-prefix);
+	color: var(--marker-colour);
+}
+
+.topbar-site::after {
+	content: var(--brand-cursor);
+	color: var(--marker-colour);
+	visibility: hidden;
+}
+
+.topbar-site:hover::after,
+.topbar-site:focus-visible::after {
+	visibility: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.topbar-site:hover::after,
+	.topbar-site:focus-visible::after {
+		animation: brand-cursor-blink 1s steps(1) infinite;
+	}
+}
+
+@keyframes brand-cursor-blink {
+	50% { visibility: hidden; }
+}
+
+/* Glow reads as phosphor on a dark screen and as a smudge on a light one. */
+:root:not([data-theme="light"]) .topbar-site::before,
+:root:not([data-theme="light"]) .topbar-site::after,
+:root:not([data-theme="light"]) .h::before {
+	text-shadow: var(--marker-glow);
 }
 
 .topbar-actions {
@@ -1173,6 +1236,17 @@ body.zen-manuscript .zen-status.visible {
 	margin: 0 0 8px;
 }
 
+/* Document titles only: settings panel headings stay plain. */
+h1.page-title:not(.settings-panels *)::after {
+	content: "";
+	display: var(--title-rule);
+	width: var(--title-rule-w);
+	height: var(--title-rule-h);
+	margin-top: 0.35em;
+	border-radius: var(--title-rule-h);
+	background: var(--title-rule-colour);
+}
+
 /* Namespace indexes keep their catalogue readable without borrowing page chrome. */
 .namespace-index-page {
 	max-width: var(--prose-measure);
@@ -1289,14 +1363,45 @@ ul.page-tree.branch > li::before {
 	margin-left: -0.3em;
 	padding-left: 0.3em;
 }
+/* A folder row is a flex row with its own fixed-width disclosure triangle,
+   so the row's geometry doesn't depend on the skin font's native marker.
+   The folder's link reaches back under the triangle, so its highlight is
+   exactly a page row's block; the triangle sits above the link so clicking
+   it still opens and closes the folder. */
 .sidebar-tree .page-tree summary {
-	padding: 4px 0;
+	display: flex;
+	align-items: baseline;
+	list-style: none;
 }
-.sidebar-tree .page-tree summary > a,
-.sidebar-tree .page-tree summary > a.current {
-	display: inline;
-	margin: 0;
-	padding: 0;
+.sidebar-tree .page-tree summary::-webkit-details-marker {
+	display: none;
+}
+.sidebar-tree .page-tree summary::before {
+	content: "\25b8";
+	position: relative;
+	z-index: 1;
+	flex: none;
+	width: 1.25em;
+	color: var(--fg-muted);
+}
+.sidebar-tree .page-tree details[open] > summary::before {
+	content: "\25be";
+}
+.sidebar-tree .page-tree summary:has(> a.current)::before {
+	color: var(--accent-fg);
+}
+.sidebar-tree .page-tree summary > a.nav-link {
+	flex: 1;
+	min-width: 0;
+	margin: 0 -8px 0 calc(-1.25em - 8px);
+	padding: 4px 8px 4px calc(1.25em + 8px);
+}
+.sidebar-tree .page-tree.branch summary > a.nav-link {
+	margin-left: calc(-1.25em - 0.3em);
+	padding-left: calc(1.25em + 0.3em);
+}
+.sidebar-tree .page-tree summary > .dir {
+	padding: 4px 0;
 }
 .sidebar-tree .page-tree .dir {
 	color: var(--fg-faint);
@@ -1483,6 +1588,13 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 #page-content p, #preview p {
 	margin-bottom: var(--para-gap);
 	text-indent: var(--para-indent);
+	text-wrap: pretty;
+}
+
+.page-title,
+#page-content :is(h2, h3, h4),
+#preview :is(h2, h3, h4) {
+	text-wrap: balance;
 }
 
 #page-content h2::before, #preview h2::before {
