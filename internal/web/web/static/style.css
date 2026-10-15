@@ -2087,6 +2087,23 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	padding: var(--pad) var(--pad) 0;
 }
 
+/* On wide screens the banners sit over the reading column instead of running
+   to the window edge, so they start where content starts on every screen.
+   Settings screens give the sidebar column to their own menu. */
+@media (min-width: 900px) {
+	body.shell > main > :is(.restart-pending, .legacy-attachments, .settings-banner) {
+		align-self: flex-start;
+		width: 100%;
+		max-width: var(--prose-measure);
+		padding: var(--pad) 48px 0;
+	}
+
+	body.shell.no-sidebar > main > :is(.restart-pending, .legacy-attachments, .settings-banner) {
+		margin-left: 260px;
+		max-width: min(var(--prose-measure), calc(100% - 260px));
+	}
+}
+
 .remote-changed-banner {
 	background: var(--warning-bg);
 	color: var(--fg-strong);
