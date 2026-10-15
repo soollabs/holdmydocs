@@ -16,10 +16,74 @@
    A skin that wants "no chrome" zeroes the first and keeps the second at a
    hairline, or the three regions bleed into one undifferentiated field. */
 
-/* phosphor is the default look; the block is empty because style.css's
-   :root already holds its values. It exists so the settings picker has an
-   explicit option to land on. */
+/* phosphor is the default look; style.css's :root already holds nearly all
+   its values. The block exists so the settings picker has an explicit option
+   to land on, and carries the few tokens that are phosphor's alone. */
 :root[data-skin="phosphor"] {
+	--scrollbar-thumb: var(--primary-muted);
+}
+
+/* Inverse video, like a terminal selection. */
+:root[data-skin="phosphor"] ::selection {
+	background: var(--primary);
+	color: var(--accent-fg);
+}
+
+:root[data-skin="phosphor"] #page-content a:hover {
+	background: var(--primary);
+	color: var(--accent-fg);
+	text-decoration: none;
+}
+
+:root[data-skin="phosphor"] #page-content a:hover .br {
+	color: inherit;
+}
+
+/* Box-drawing section headers: ── TREE ── */
+:root[data-skin="phosphor"] .sidebar h2::before,
+:root[data-skin="phosphor"] .sidebar-tree > summary::before {
+	content: "\2500\2500 ";
+	color: var(--fg-faint);
+}
+
+:root[data-skin="phosphor"] .sidebar h2::after,
+:root[data-skin="phosphor"] .sidebar-tree > summary::after {
+	content: " \2500\2500";
+	color: var(--fg-faint);
+}
+
+/* page.js types the title in; a cursor rides the typed edge, then sits after
+   the title and blinks a few times. The cursor takes no width while it
+   rides, so the hidden rest keeps the heading's final wrap. */
+:root[data-skin="phosphor"] h1.page-title:not(.settings-panels *)::after {
+	content: var(--brand-cursor);
+	display: inline;
+	margin: 0 0 0 0.1em;
+	background: none;
+	color: var(--marker-colour);
+	font-weight: 400;
+}
+
+:root[data-skin="phosphor"] h1.page-title.title-typing::after {
+	visibility: hidden;
+}
+
+:root[data-skin="phosphor"] h1.page-title .title-rest {
+	visibility: hidden;
+}
+
+:root[data-skin="phosphor"] h1.page-title .title-rest::before {
+	content: var(--brand-cursor);
+	position: absolute;
+	visibility: visible;
+	color: var(--marker-colour);
+	font-weight: 400;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	:root[data-skin="phosphor"] h1.page-title:not(.settings-panels *):not(.title-typing)::after {
+		animation: brand-cursor-blink 1s steps(1) 4;
+	}
 }
 
 /* Brackets identify links in the terminal skin; prose skins show the title. */
@@ -51,6 +115,41 @@
 	--para-indent:   1.4em;
 	--title-size:     40px;
 	--title-tracking: -0.02em;
+	--brand-prefix:  "";
+	--brand-cursor:  "";
+}
+
+/* A masthead: a large small-caps site name, and a double rule under the
+   title. On wide screens the name sits centred between thin double rules. */
+:root[data-skin="newsprint"] .topbar-site {
+	font-variant: small-caps;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+}
+
+@media (min-width: 900px) {
+	:root[data-skin="newsprint"] .topbar-site {
+		display: flex;
+		align-items: center;
+		gap: 1.25rem;
+		font-size: 19px;
+	}
+
+	:root[data-skin="newsprint"] .topbar-site::before,
+	:root[data-skin="newsprint"] .topbar-site::after {
+		content: "";
+		flex: 1;
+		height: 4px;
+		border-block: 1px solid var(--fg-faint);
+		visibility: visible;
+		animation: none;
+	}
+}
+
+:root[data-skin="newsprint"] h1.page-title:not(.settings-panels *) {
+	border-bottom: 3px double var(--fg-faint);
+	padding-bottom: 0.3em;
+	margin-bottom: 0.6em;
 }
 
 :root[data-skin="newsprint"] #page-content h2,
@@ -82,13 +181,67 @@
 	padding-right: 0.08em;
 }
 
+/* The opening paragraph is the lede: larger and italic; its drop cap stays
+   upright. */
 :root[data-skin="newsprint"] #page-content > p:first-of-type {
 	text-indent: 0;
+	font-size: 1.12em;
+	font-style: italic;
 }
 
+:root[data-skin="newsprint"] #page-content > p:first-of-type::first-letter {
+	font-style: normal;
+}
+
+/* Print numerals sit among lowercase letters; tables keep lining figures
+   so columns of numbers still align. */
 :root[data-skin="newsprint"] #page-content,
 :root[data-skin="newsprint"] #preview {
 	hyphens: auto;
+	hanging-punctuation: first last;
+	font-variant-numeric: oldstyle-nums;
+}
+
+:root[data-skin="newsprint"] #page-content table {
+	font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Blockquotes become pull quotes, set between rules. */
+:root[data-skin="newsprint"] #page-content blockquote,
+:root[data-skin="newsprint"] #preview blockquote {
+	border-left: none;
+	border-block: 1px solid var(--fg-faint);
+	margin: 1.75em 2em;
+	padding: 0.9em 0;
+	color: var(--fg-strong);
+	font-size: 1.3em;
+	font-style: italic;
+	line-height: 1.4;
+}
+
+:root[data-skin="newsprint"] #page-content blockquote p,
+:root[data-skin="newsprint"] #preview blockquote p {
+	text-align: center;
+	text-indent: 0;
+	margin: 0;
+}
+
+/* A section break is a printer's flower, not a line. */
+:root[data-skin="newsprint"] #page-content hr,
+:root[data-skin="newsprint"] #preview hr {
+	border: none;
+	height: auto;
+	margin: 1.75em 0;
+	background: none;
+	text-align: center;
+	overflow: visible;
+}
+
+:root[data-skin="newsprint"] #page-content hr::after,
+:root[data-skin="newsprint"] #preview hr::after {
+	content: "\2767";
+	color: var(--fg-muted);
+	font-size: 1.4em;
 }
 
 :root[data-skin="newsprint"] #page-content p + p,
@@ -106,6 +259,12 @@
 
 :root[data-skin="newsprint"] .sidebar h2 {
 	font-variant: small-caps;
+}
+
+/* Skins whose current folder isn't a filled block keep its triangle muted;
+   the default colour is for text on the filled highlight. */
+:root:is([data-skin="newsprint"], [data-skin="journal"], [data-skin="soft"], [data-skin="bare"]) .sidebar-tree .page-tree summary:has(> a.current)::before {
+	color: var(--fg-muted);
 }
 
 /* Newsprint uses an underlined current-page link instead of a filled block. */
@@ -142,7 +301,13 @@
 	--prose-measure: 900px;
 	--prose-size:    18px;
 	--prose-leading: 1.9;
-	--para-gap:      1.4em;
+	/* One ruled line. Gaps and heading spacing are whole lines so the text
+	   keeps sitting on the rules below it. */
+	--rhythm:        calc(var(--prose-size) * var(--prose-leading));
+	--para-gap:      var(--rhythm);
+	--rule-ink:      color-mix(in srgb, var(--accent) 10%, transparent);
+	--margin-ink:    color-mix(in srgb, var(--danger) 40%, transparent);
+	--paper-grain:   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 
 	--title-size:      34px;
 	--title-weight:    400;
@@ -154,6 +319,99 @@
 	--border-w:  0;
 	--pad:       32px;
 	--pad-tight: 16px;
+
+	--brand-prefix:      "";
+	--brand-cursor:      "";
+	--title-rule: block;
+}
+
+/* Light paper takes dark grain, a little stronger than the light grain a
+   dark page can carry. */
+:root[data-skin="journal"][data-theme="light"] {
+	--paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+:root[data-skin="journal"] body {
+	background-image: var(--paper-grain);
+}
+
+:root[data-skin="journal"] .topbar-site {
+	font-style: italic;
+}
+
+/* A notebook page: faint rules one line apart, and a margin line. */
+:root[data-skin="journal"] #page-content {
+	padding-left: 1.25em;
+	border-left: 1px solid var(--margin-ink);
+	background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--rhythm) - 1px), var(--rule-ink) calc(var(--rhythm) - 1px) var(--rhythm));
+}
+
+:root[data-skin="journal"] #page-content :is(ul, ol) {
+	margin-bottom: var(--rhythm);
+}
+
+/* Blocks that cannot sit on the rules cover them instead. */
+:root[data-skin="journal"] #page-content table {
+	background-color: var(--bg);
+}
+
+/* Blockquotes are notes in the margin of the column on wide screens. */
+:root[data-skin="journal"] #page-content blockquote {
+	border-left: 1px solid var(--fg-faint);
+	background-color: var(--bg);
+	font-style: italic;
+}
+
+@media (min-width: 1100px) {
+	:root[data-skin="journal"] #page-content blockquote {
+		float: right;
+		clear: right;
+		width: 36%;
+		margin: 0 0 1em 1.5em;
+		font-size: 0.85em;
+		line-height: 1.6;
+	}
+
+	:root[data-skin="journal"] #page-content blockquote p {
+		margin-bottom: 0.5em;
+	}
+}
+
+/* A picture on its own is taped onto the page. */
+:root[data-skin="journal"] #page-content p:has(> img:only-child) {
+	position: relative;
+	width: fit-content;
+	padding-top: 0.6em;
+}
+
+:root[data-skin="journal"] #page-content p:has(> img:only-child) > img {
+	transform: rotate(-0.7deg);
+}
+
+:root[data-skin="journal"] #page-content p:has(> img:only-child)::before {
+	content: "";
+	position: absolute;
+	z-index: 1;
+	top: 0;
+	left: 50%;
+	width: 5.5rem;
+	height: 1.5rem;
+	transform: translateX(-50%) rotate(-3deg);
+	background: color-mix(in srgb, var(--warning) 32%, transparent);
+}
+
+:root[data-skin="journal"] #page-content hr {
+	border: none;
+	height: auto;
+	margin: var(--rhythm) 0;
+	background: none;
+	text-align: center;
+	overflow: visible;
+}
+
+:root[data-skin="journal"] #page-content hr::after {
+	content: "\2766";
+	color: var(--fg-faint);
 }
 
 /* Whitespace does the work borders used to. */
@@ -167,14 +425,16 @@
 
 :root[data-skin="journal"] #page-content h2,
 :root[data-skin="journal"] #preview h2 {
-	margin-top: 2.4em;
+	margin: calc(var(--rhythm) * 2) 0 0;
+	line-height: var(--rhythm);
 	font-weight: 400;
 	font-style: italic;
 }
 
 :root[data-skin="journal"] #page-content h3,
 :root[data-skin="journal"] #preview h3 {
-	margin-top: 1.8em;
+	margin: var(--rhythm) 0 0;
+	line-height: var(--rhythm);
 	font-weight: 400;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
@@ -191,7 +451,7 @@
 
 :root[data-skin="journal"] #page-content pre,
 :root[data-skin="journal"] #preview pre {
-	background: none;
+	background: var(--bg);
 	border-left: none;
 	padding-left: 1.5em;
 }
@@ -226,6 +486,7 @@
    --------------------------------------------------------------- */
 
 :root[data-skin="soft"] {
+	--scrollbar-thumb: color-mix(in srgb, var(--primary) 35%, var(--bg));
 	--marker-title:  "";
 	--marker-h2:     "";
 	--marker-h3:     "";
@@ -244,6 +505,22 @@
 	--pad: 20px;
 	/* Keep a low-contrast border so the panel edge remains visible. */
 	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
+	--brand-prefix: "";
+	--brand-cursor: "";
+	--title-rule:        block;
+	--title-rule-h:      3px;
+	--title-rule-colour: var(--primary);
+}
+
+/* The site name sits on the same rounded fill as the active page. It no
+   longer stretches, so the auto margin keeps the actions on the right. */
+:root[data-skin="soft"] .topbar-site {
+	flex: 0 1 auto;
+	margin-right: auto;
+	padding: 2px 10px;
+	border-radius: var(--radius);
+	background: color-mix(in srgb, var(--primary) 14%, transparent);
+	font-weight: 600;
 }
 
 /* Panels are cards: rounded and filled rather than outlined. */
@@ -301,6 +578,45 @@
 	border-radius: var(--radius);
 }
 
+/* The topbar floats as a rounded island instead of spanning edge to edge. */
+:root[data-skin="soft"] .app-topbar {
+	margin: 6px 8px 0;
+	border: none;
+	border-radius: var(--radius-lg);
+	background: var(--surface-raised);
+}
+
+/* Code blocks are little windows: three dots in the space above the code
+   that the copy button already reserves. */
+:root[data-skin="soft"] #page-content pre.code-copy-block::before {
+	content: "";
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	width: 52px;
+	height: 12px;
+	background:
+		radial-gradient(circle, var(--danger) 5px, transparent 5.5px) 0 0 / 12px 12px no-repeat,
+		radial-gradient(circle, var(--warning) 5px, transparent 5.5px) 20px 0 / 12px 12px no-repeat,
+		radial-gradient(circle, var(--primary) 5px, transparent 5.5px) 40px 0 / 12px 12px no-repeat;
+	opacity: 0.8;
+}
+
+/* Blockquotes are callout cards. */
+:root[data-skin="soft"] #page-content blockquote,
+:root[data-skin="soft"] #preview blockquote {
+	border-left: none;
+	border-radius: var(--radius-lg);
+	padding: 0.9em 1.2em;
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
+	color: var(--fg);
+}
+
+:root[data-skin="soft"] #page-content blockquote > :last-child,
+:root[data-skin="soft"] #preview blockquote > :last-child {
+	margin-bottom: 0;
+}
+
 
 /* ---------------------------------------------------------------
    bare — minimal. Subtraction only; no rule here may add a border,
@@ -324,6 +640,32 @@
 	--title-weight: 500;
 	--title-size:   22px;
 	--font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--brand-prefix: "";
+	--brand-cursor: "";
+}
+
+/* Swiss restraint: one very large, tightly set title carries the page. */
+:root[data-skin="bare"] h1.page-title:not(.settings-panels *) {
+	font-size: clamp(32px, 5.5vw, 68px);
+	font-weight: 600;
+	letter-spacing: -0.035em;
+	line-height: 1.02;
+	margin-bottom: 0.4em;
+}
+
+/* Sections are numbered 01, 02 in the faintest ink; subsections are not. */
+:root[data-skin="bare"] #page-content,
+:root[data-skin="bare"] #preview {
+	counter-reset: bare-section;
+}
+
+:root[data-skin="bare"] #page-content h2::before,
+:root[data-skin="bare"] #preview h2::before {
+	counter-increment: bare-section;
+	content: counter(bare-section, decimal-leading-zero) "\2003";
+	color: var(--fg-faint);
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
 }
 
 :root[data-skin="bare"] .sidebar h2 {
