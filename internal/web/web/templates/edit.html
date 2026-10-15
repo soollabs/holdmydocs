@@ -11,7 +11,7 @@
 	<span id="conflict-text">This page changed while you were editing. Your draft is preserved.</span>
 	{{template "ui-button" (button "overwrite with mine" "danger" "size" "compact" "id" "conflict-overwrite")}}
 {{template "ui-notice-end" $conflictNotice}}
-<form method="GET" action="{{.RoutePrefix}}/{{.Slug}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
+<form method="GET" action="{{.PageURL}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
 	<div class="edit-topbar">
 		<div class="edit-field">
 			{{$slugField := component "field" "id" "new-slug" "layout" "bare" "label" "path:"}}{{template "ui-field-start" $slugField}}
@@ -27,7 +27,7 @@
 		{{$choiceSlot1 := component "choice" "id" "edit-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
 			<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
 		</label>{{template "ui-choice-end" $choiceSlot1}}
-		<a href="{{.RoutePrefix}}/{{.Slug}}" class="cancel-link">cancel</a>
+		<a href="{{.PageURL}}" class="cancel-link">cancel</a>
 		{{if ne .BaseHash ""}}{{template "ui-button" (button "delete" "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
 	</div>
 
@@ -60,7 +60,7 @@
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
 
-{{if ne .BaseHash ""}}<form method="GET" action="{{.RoutePrefix}}/{{.Slug}}?do=edit" id="delete-form" data-confirm="Delete this page? History stays in git, but it disappears from the wiki.">{{template "csrf" .}}</form>{{end}}
+{{if ne .BaseHash ""}}<form method="GET" action="{{.PageURL}}?do=edit" id="delete-form" data-confirm="Delete this page? History stays in git, but it disappears from the wiki.">{{template "csrf" .}}</form>{{end}}
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>

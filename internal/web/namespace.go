@@ -103,7 +103,7 @@ func sortNavTree(node *navNode, index string, order map[string]int) {
 
 func renderLiveTree(root *navNode, ns string, currentPath string) template.HTML {
 	return renderTree(root, currentPath, func(pagePath string) string {
-		return fmt.Sprintf("/%s/%s", ns, pagePath)
+		return wiki.PageURL(wiki.NamespaceSlug(ns, pagePath))
 	})
 }
 
@@ -215,7 +215,7 @@ func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceList
 				e.SlugExample = rendered
 			}
 		}
-		e.TemplateHref = "/_/hidden/" + wiki.NamespaceSlug(name, e.Template) + "?do=edit"
+		e.TemplateHref = wiki.HiddenPageURL(wiki.NamespaceSlug(name, e.Template)) + "?do=edit"
 		entries = append(entries, e)
 	}
 	return entries

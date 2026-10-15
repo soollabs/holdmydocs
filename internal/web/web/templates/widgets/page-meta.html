@@ -2,6 +2,6 @@
 <div class="page-meta">
 	{{range .PageTags}}<a class="meta-tag" href="/_/tags/{{.Slug}}">{{.Tag}}</a>{{end}}
 	{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
-	{{if .RevisionCount}}<span>&middot; <a href="{{.RoutePrefix}}/{{.Slug}}?do=history">history({{.RevisionCount}})</a></span>{{end}}
+	{{if .RevisionCount}}<span>&middot; <a href="{{.PageURL}}?do=history">history({{.RevisionCount}})</a></span>{{end}}
 </div>
 {{end}}

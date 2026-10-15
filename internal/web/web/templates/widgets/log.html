@@ -5,7 +5,7 @@
 		<summary>LOG</summary>
 		<div id="log-entries">
 			{{range .RecentCommits}}
-			<div class="log-entry"><a href="{{$.RoutePrefix}}/{{$.Slug}}?do=history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
+			<div class="log-entry"><a href="{{$.PageURL}}?do=history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
 			{{end}}
 		</div>
 	{{template "ui-disclosure-slot-end" $logDisclosure}}

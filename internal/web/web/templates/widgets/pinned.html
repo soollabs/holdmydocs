@@ -5,7 +5,7 @@
 	<h2>PINNED</h2>
 	<ul class="sidebar-list">
 		{{range .PinnedPages}}
-		<li><a href="/{{.Slug}}">{{.Title}}</a></li>
+		<li><a href="{{pageurl .Slug}}">{{.Title}}</a></li>
 		{{end}}
 	</ul>
 	{{template "ui-panel-end" $widgetPanel}}

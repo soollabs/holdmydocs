@@ -119,7 +119,7 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := app.apiClient().ViewPage(r.Context(), slug); err == nil {
-		target := "/" + slug + "?do=edit"
+		target := wiki.PageURL(slug) + "?do=edit"
 		if !isLocalURL(target) {
 			http.Error(w, "invalid redirect target", http.StatusInternalServerError)
 			return
@@ -611,7 +611,7 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 	if len(report.Missing) > 0 {
 		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(report.Missing))
 		for _, entry := range report.Missing {
-			fmt.Fprintf(&b, `<li><a href="/%s?do=edit" class="missing">%s</a> — linked from `, entry.Slug, htmlEscape(entry.Slug))
+			fmt.Fprintf(&b, `<li><a href="%s?do=edit" class="missing">%s</a> — linked from `, htmlEscape(wiki.PageURL(entry.Slug)), htmlEscape(entry.Slug))
 			for i, src := range entry.Sources {
 				if i > 0 {
 					b.WriteString(", ")
@@ -620,7 +620,7 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 				if title == "" {
 					title = src
 				}
-				fmt.Fprintf(&b, `<a href="/%s">%s</a>`, src, htmlEscape(title))
+				fmt.Fprintf(&b, `<a href="%s">%s</a>`, htmlEscape(wiki.PageURL(src)), htmlEscape(title))
 			}
 			b.WriteString(`</li>`)
 		}
@@ -634,7 +634,7 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 			if title == "" {
 				title = o
 			}
-			fmt.Fprintf(&b, `<li><a href="/%s">%s</a></li>`, o, htmlEscape(title))
+			fmt.Fprintf(&b, `<li><a href="%s">%s</a></li>`, htmlEscape(wiki.PageURL(o)), htmlEscape(title))
 		}
 		b.WriteString(`</ul></section>`)
 	}
@@ -646,8 +646,8 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 			if title == "" {
 				title = stale.Slug
 			}
-			fmt.Fprintf(&b, `<li><a href="/%s">%s</a> — last updated %s</li>`,
-				stale.Slug, htmlEscape(title), stale.LastUpdated.Format("2 Jan 2006"))
+			fmt.Fprintf(&b, `<li><a href="%s">%s</a> — last updated %s</li>`,
+				htmlEscape(wiki.PageURL(stale.Slug)), htmlEscape(title), stale.LastUpdated.Format("2 Jan 2006"))
 		}
 		b.WriteString(`</ul></section>`)
 	}
@@ -785,7 +785,7 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 		Authed:      true,
 		Title:       "Hidden",
 		StatusMode:  "view",
-		RoutePrefix: "/_/hidden",
+		RoutePrefix: wiki.HiddenRoutePrefix,
 		TagPages:    pages,
 	})
 }
@@ -803,7 +803,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 				Authed:      true,
 				Title:       "Page not found",
 				Slug:        slug,
-				RoutePrefix: "/_/hidden",
+				RoutePrefix: wiki.HiddenRoutePrefix,
 			})
 			return
 		}
@@ -823,7 +823,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 		Title:       view.Title,
 		Slug:        slug,
 		Content:     renderedBody,
-		RoutePrefix: "/_/hidden",
+		RoutePrefix: wiki.HiddenRoutePrefix,
 	})
 }
 
@@ -859,7 +859,7 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 		BaseHash:    baseHash,
 		TagsInput:   strings.Join(page.Tags, ", "),
 		StatusMode:  "edit",
-		RoutePrefix: "/_/hidden",
+		RoutePrefix: wiki.HiddenRoutePrefix,
 		IsHidden:    true,
 	})
 }

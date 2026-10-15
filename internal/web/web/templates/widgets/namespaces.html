@@ -5,7 +5,7 @@
 	<h2>NAMESPACES</h2>
 	<ul class="sidebar-list">
 		{{range .NamespaceNav}}
-		<li><a href="/{{.Name}}/"{{if .Active}} class="active"{{end}}>{{.Name}}/<span class="count"> {{.Count}}</span></a></li>
+		<li><a href="{{namespaceurl .Name}}"{{if .Active}} class="active"{{end}}>{{.Name}}/<span class="count"> {{.Count}}</span></a></li>
 		{{end}}
 	</ul>
 	{{if .CanSettings}}<a href="/_/settings/namespaces">View all</a>{{end}}

@@ -12,7 +12,7 @@
 	{{if .SearchResults}}
 		{{range .SearchResults}}
 		{{$resultPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $resultPanel}}<div class="search-hit">
-			<a href="/{{.Slug}}" class="hit-title">{{.Title}}</a>
+			<a href="{{pageurl .Slug}}" class="hit-title">{{.Title}}</a>
 			{{if .Tags}}<span class="hit-tags">{{range .Tags}}<span class="hit-tag">{{.}}</span> {{end}}</span>{{end}}
 			{{if .Snippet}}<div class="hit-snippet">{{.Snippet}}</div>{{end}}
 		</div>{{template "ui-panel-end" $resultPanel}}

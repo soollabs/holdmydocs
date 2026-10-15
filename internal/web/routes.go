@@ -6,14 +6,19 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"hmd/internal/wiki"
 )
 
 func (app *App) landingPath() string {
 	if slug := app.wikiConfig().Landing; slug != "" {
-		return "/" + slug
+		if namespace, ok := strings.CutSuffix(slug, "/"); ok {
+			return wiki.NamespaceURL(namespace)
+		}
+		return wiki.PageURL(slug)
 	}
 	if names := app.Namespaces().Names(); len(names) > 0 {
-		return "/" + names[0] + "/"
+		return wiki.NamespaceURL(names[0])
 	}
 	return "/_/settings/namespaces"
 }

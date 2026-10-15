@@ -6,7 +6,7 @@
 {{if .TagPages}}
 <ul>
 	{{range .TagPages}}
-	<li><a href="/{{.Slug}}">{{.Title}}</a></li>
+	<li><a href="{{pageurl .Slug}}">{{.Title}}</a></li>
 	{{end}}
 </ul>
 {{else}}

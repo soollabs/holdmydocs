@@ -8,7 +8,7 @@
 		<fieldset class="settings-section settings-panel" id="namespace-list"><legend>namespaces</legend>
 			{{range .Rows}}
 			<div class="settings-row namespace-row">
-				<a class="settings-row-label" href="/{{.Name}}/">{{.Name}}/</a>
+				<a class="settings-row-label" href="{{namespaceurl .Name}}">{{.Name}}/</a>
 				<span class="token-meta">{{.Count}} pages &middot; {{if .Config.Public}}public{{else}}private{{end}}</span>
 				<div class="ui-actions">{{template "ui-button" (button "Edit" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/edit" .Name))}}{{if .Count}}{{template "ui-button" (button "Preview static site" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/preview" .Name) "new-tab" "true")}}{{template "ui-button" (button "Export static site" "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/export" .Name))}}{{end}}</div>
 			</div>

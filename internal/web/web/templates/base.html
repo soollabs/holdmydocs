@@ -144,8 +144,8 @@
 		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
 			{{if eq .StatusMode "edit"}}{{template "ui-button" (button "Save" "primary" "hook" "topbar-action topbar-primary" "type" "submit" "form" "edit-form")}}
-			{{else if .CanEdit}}{{$editAction := button "Edit page" "secondary" "hook" "topbar-action" "href" (printf "%s/%s?do=edit" .RoutePrefix .Slug) "aria-label" "Edit page" "title" "Edit page"}}{{template "ui-button-start" $editAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>Edit</span>{{template "ui-button-end" $editAction}}{{end}}
-			{{if .NewPageBase}}{{$newAction := button "New page" "secondary" "hook" "topbar-action" "href" (printf "/%s/new?do=edit" .NewPageBase) "id" "new-page" "aria-label" "New page" "title" "New page"}}{{template "ui-button-start" $newAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>New</span>{{template "ui-button-end" $newAction}}{{end}}
+			{{else if .CanEdit}}{{$editAction := button "Edit page" "secondary" "hook" "topbar-action" "href" (printf "%s?do=edit" .PageURL) "aria-label" "Edit page" "title" "Edit page"}}{{template "ui-button-start" $editAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>Edit</span>{{template "ui-button-end" $editAction}}{{end}}
+			{{if .NewPageHref}}{{$newAction := button "New page" "secondary" "hook" "topbar-action" "href" .NewPageHref "id" "new-page" "aria-label" "New page" "title" "New page"}}{{template "ui-button-start" $newAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>New</span>{{template "ui-button-end" $newAction}}{{end}}
 			{{$searchAction := button "Search" "secondary" "size" "icon" "hook" "topbar-icon" "href" "/_/search" "id" "topbar-search" "aria-label" "Search" "title" "Search"}}{{template "ui-button-start" $searchAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>{{template "ui-button-end" $searchAction}}
 			<details class="topbar-menu">
 				<summary class="topbar-icon" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></summary>
@@ -165,7 +165,7 @@
 	{{else if .SidebarTree}}
 	<header class="app-topbar app-topbar-public">
 		{{$publicToggle := button "Toggle navigation" "secondary" "size" "icon" "id" "public-sidebar-toggle" "aria-label" "Toggle navigation" "title" "Toggle navigation" "aria-controls" "sidebar" "aria-expanded" "false" "hidden" "true"}}{{template "ui-button-start" $publicToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $publicToggle}}
-		<a href="{{if .NamespaceHome}}{{.NamespaceHome}}{{else}}/{{.Namespace}}/{{end}}" class="topbar-site">{{if .NamespaceTitle}}{{.NamespaceTitle}}{{else}}{{.Namespace}}{{end}}</a>
+		<a href="{{if .NamespaceHome}}{{.NamespaceHome}}{{else}}{{namespaceurl .Namespace}}{{end}}" class="topbar-site">{{if .NamespaceTitle}}{{.NamespaceTitle}}{{else}}{{.Namespace}}{{end}}</a>
 		{{if .ReadOnly}}<span class="topbar-action">Read-only</span>{{end}}
 		{{if .ExportTopbarLinks}}<nav class="export-topbar-links" aria-label="External links">{{range .ExportTopbarLinks}}{{template "export-link" .}}{{end}}</nav>{{end}}
 		{{if .Static}}{{template "ui-button" (button "Search docs" "secondary" "size" "compact" "id" "export-search-toggle" "aria-haspopup" "dialog" "hidden" "true")}}{{end}}

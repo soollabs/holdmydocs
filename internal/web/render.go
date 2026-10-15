@@ -179,7 +179,7 @@ type TemplateData struct {
 	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
 	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
 	CanEdit                 bool
-	NewPageBase             string
+	NewPageHref             string
 	NamespaceNames          []string // editor path field: namespaces a move may target
 	NamespaceManagement     *NamespaceManagementData
 	Namespace               string // namespace index page: the namespace being listed
@@ -209,6 +209,14 @@ type TemplateData struct {
 	SidebarTree        template.HTML
 	NewPageEnabled     bool   // whether ctrl-j is available
 	NewNamespace       string // which namespace ctrl-j targets
+}
+
+// PageURL is the browser URL of the page being rendered, hidden or not.
+func (d TemplateData) PageURL() string {
+	if d.RoutePrefix == wiki.HiddenRoutePrefix {
+		return wiki.HiddenPageURL(d.Slug)
+	}
+	return wiki.PageURL(d.Slug)
 }
 
 type LogEntry struct {
@@ -344,12 +352,16 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {
+			base := ""
 			if data.IsNamespaceIndex {
-				data.NewPageBase = data.Namespace
+				base = data.Namespace
 			} else if isPageSlug(data.Slug) {
-				data.NewPageBase = data.Slug[:strings.LastIndex(data.Slug, "/")]
+				base = data.Slug[:strings.LastIndex(data.Slug, "/")]
 			} else if names := app.Namespaces().Names(); len(names) > 0 {
-				data.NewPageBase = names[0]
+				base = names[0]
+			}
+			if base != "" {
+				data.NewPageHref = wiki.PageURL(base+"/new") + "?do=edit"
 			}
 		}
 		if data.StatusMode == "edit" {
@@ -424,7 +436,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		data.SidebarTree = renderLiveTree(tree, data.SidebarTreeNS, currentPath)
 		if name == "page" && data.RevHash == "" && data.RoutePrefix == "" {
 			data.PreviousPage, data.NextPage = pageNeighbours(orderedTreePages(tree), currentPath, func(to string) string {
-				return "/" + data.SidebarTreeNS + "/" + to
+				return wiki.PageURL(wiki.NamespaceSlug(data.SidebarTreeNS, to))
 			})
 		}
 	}
