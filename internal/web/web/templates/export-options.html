@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="content-col settings-page">
 {{template "settings-breadcrumb" .}}
-<h1 class="page-title">{{if .ExportPreview}}Preview static site{{else}}Export static site{{end}}</h1>
+<h1 class="page-title"><span class="h"></span>{{if .ExportPreview}}Preview static site{{else}}Export static site{{end}}</h1>
 {{$exportNotice := component "notice" "variant" "warning" "role" "status"}}{{template "ui-notice-start" $exportNotice}}No export URL is set.{{if .ExportMainBaseURL}} Set one for this namespace or use the main HMD URL below.{{else}} Set one for this namespace before exporting.{{end}}{{template "ui-notice-end" $exportNotice}}
 {{$exportPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $exportPanel}}
 {{template "ui-button" (button "Set an export URL" "secondary" "href" (printf "/_/settings/namespaces/%s/edit" .Namespace))}}

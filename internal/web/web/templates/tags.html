@@ -1,6 +1,7 @@
 {{define "content"}}
 <div class="content-col">
 {{if .TagName}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><a href="/_/tags">tags</a><span class="sep">/</span><span class="current" aria-current="page">{{.TagName}}</span></nav>
 <h1 class="page-title"><span class="h"></span>Tag: {{.TagName}}</h1>
 {{if .TagPages}}
 <ul>
@@ -12,6 +13,7 @@
 {{$empty := component "empty" "label" "No pages with this tag"}}{{template "ui-empty-start" $empty}}<p>Pages carrying this tag will appear here.</p>{{template "ui-empty-end" $empty}}
 {{end}}
 {{else}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><span class="current" aria-current="page">tags</span></nav>
 <h1 class="page-title"><span class="h"></span>Tags</h1>
 {{if .AllTags}}
 <ul class="tag-list">

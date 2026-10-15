@@ -232,6 +232,17 @@ body.shell {
 	min-height: 100vh;
 }
 
+/* Settings have no wiki sidebar; their own menu takes its place and the app
+   bar links back to the wiki. */
+body.shell.no-sidebar {
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-areas: "topbar" "main" "statusline";
+}
+
+.no-sidebar > .sidebar {
+	display: none;
+}
+
 /* Pages without the shell (login) keep normal block flow */
 body:not(.shell) {
 	min-height: 100vh;
@@ -304,6 +315,8 @@ body.shell.shell-public {
 
 .sidebar-list li a {
 	display: block;
+	flex: 1;
+	min-width: 0;
 	padding: 4px 8px;
 	margin: 0 -8px;
 	color: var(--fg-muted);
@@ -319,7 +332,9 @@ body.shell.shell-public {
 	color: var(--fg-strong);
 }
 
-.sidebar-list li a.active {
+/* The current item looks the same in every sidebar widget, tree included. */
+.sidebar-list li a.active,
+.sidebar-tree .page-tree a.current {
 	background: var(--primary);
 	color: var(--accent-fg);
 }
@@ -384,24 +399,15 @@ body.shell.shell-public {
 	white-space: nowrap;
 }
 
-/* Desktop collapse removes navigation entirely; mobile keeps its drawer. */
+/* On wide screens every screen shares the reading layout: the sidebar, content
+   and outline rail form one centred group, with the sidebar beside the text
+   instead of pinned to the window edge. The gutter column is empty page
+   background; it is zero until the window is wider than the group. Content
+   starts at the same place on every screen; the editor, which needs more room,
+   grows to the right from there. Settings put their own menu in the sidebar
+   column. */
 @media (min-width: 900px) {
-	body.shell.sidebar-collapsed {
-		grid-template-columns: 0 1fr;
-	}
-
-	body.sidebar-collapsed .sidebar {
-		display: none;
-	}
-}
-
-/* On wide screens the sidebar, content and outline rail form one centred
-   group, with the sidebar beside the text instead of pinned to the window
-   edge. The gutter column is empty page background; it is zero until the
-   window is wider than the group. The editor and other full-width screens
-   keep the plain two-column shell. */
-@media (min-width: 900px) {
-	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) {
+	body.shell {
 		--shell-measure: calc(260px + var(--prose-measure) + var(--rail-w));
 		--shell-gutter: max(0px, calc((100vw - var(--shell-measure)) / 2));
 		grid-template-columns: var(--shell-gutter) 260px minmax(0, 1fr);
@@ -411,59 +417,45 @@ body.shell.shell-public {
 			"statusline statusline statusline";
 	}
 
-	body.shell.shell-public:has(> main > :is(.page-wrap, .content-col)) {
+	body.shell.shell-public {
 		grid-template-areas:
 			"topbar topbar topbar"
 			". sidebar main";
 	}
 
-	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
+	body.shell.no-sidebar {
+		grid-template-columns: var(--shell-gutter) 260px minmax(0, 1fr);
+		grid-template-areas:
+			"topbar topbar topbar"
+			". main main"
+			"statusline statusline statusline";
+	}
+
+	body.shell > .sidebar {
 		background: transparent;
 		border: 0;
 	}
 
-	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > main {
+	body.shell > main {
 		align-items: flex-start;
 	}
 
 	/* The app bar keeps its full-width background, but its contents line up with
 	   the group below instead of the window edges. */
-	body.shell:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+	body.shell > .app-topbar {
 		padding-inline: calc(var(--shell-gutter) + 10px);
 	}
 
-	body.shell.shell-public:has(> main > :is(.page-wrap, .content-col)) > .app-topbar {
+	body.shell.shell-public > .app-topbar {
 		padding-inline: calc(var(--shell-gutter) + 20px);
 	}
 
-	/* Reading pages always show the sidebar on desktop, like the docs sites this
-	   layout follows: no toggle, and a collapsed state saved from the editor
-	   cannot hide it. Mobile keeps its drawer and toggle. */
-	body.shell:has(> main > :is(.page-wrap, .content-col)) #sidebar-toggle {
+	/* The sidebar is always shown on desktop, like the docs sites this layout
+	   follows, so the toggle and the back link are mobile-only; the site name
+	   links back to the wiki. The editor's Full mode hides the sidebar. */
+	body.shell #sidebar-toggle,
+	body.shell .topbar-back {
 		display: none;
-	}
-
-	body.shell.sidebar-collapsed:not(.no-sidebar):has(> main > :is(.page-wrap, .content-col)) > .sidebar {
-		display: flex;
-	}
-
-	/* Pages without a sidebar centre one column, so the app bar follows that
-	   column's edges: the reading measure, that plus the outline rail, or the wider
-	   settings container. */
-	body.shell.no-sidebar {
-		--shell-gutter: max(0px, calc((100vw - var(--prose-measure)) / 2));
-	}
-
-	body.shell.no-sidebar:has(> main > .page-wrap) {
-		--shell-gutter: max(0px, calc((100vw - var(--prose-measure) - var(--rail-w)) / 2));
-	}
-
-	body.shell.no-sidebar:has(> main > .settings-container) {
-		--shell-gutter: max(0px, calc((100vw - 1200px) / 2));
-	}
-
-	body.shell.no-sidebar > .app-topbar {
-		padding-inline: calc(var(--shell-gutter) + 10px);
 	}
 }
 
@@ -1291,11 +1283,11 @@ ul.page-tree.branch > li::before {
 .sidebar-tree .page-tree a:hover {
 	color: var(--fg-strong);
 }
-.sidebar-tree .page-tree a.current {
-	background: var(--primary);
-	color: var(--accent-fg);
-	margin: 0 -8px;
-	padding: 4px 8px;
+/* Nested rows start their highlight where the connector into the row ends, so
+   it never covers the tree's guide lines. */
+.sidebar-tree .page-tree.branch a {
+	margin-left: -0.3em;
+	padding-left: 0.3em;
 }
 .sidebar-tree .page-tree summary {
 	padding: 4px 0;
@@ -2333,19 +2325,17 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin: 0 0 1.25rem;
 }
 
-/* Pages outside any namespace (settings, tags, search, health) have no wiki
-   sidebar; the app bar links back to the wiki instead. */
-body.shell.no-sidebar {
-	grid-template-columns: minmax(0, 1fr);
-	grid-template-areas: "topbar" "main" "statusline";
-}
-.no-sidebar > .sidebar { display: none; }
 .settings-container { width: 100%; max-width: 1200px; padding: 32px; }
-.settings-header { margin-bottom: 28px; }
-.settings-header h1 { font-size: 1.75rem; margin: 0 0 8px; }
-.settings-header p { color: var(--fg-muted); margin: 0; }
 .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; }
 .settings-panels { min-width: 0; overflow-wrap: anywhere; }
+/* Desktop: the settings menu fills the sidebar column and the panels the reading
+   column, so they line up with the wiki sidebar and page text. */
+@media (min-width: 900px) {
+	.settings-container { max-width: var(--shell-measure); padding: 0; }
+	.settings-layout { grid-template-columns: 260px minmax(0, 1fr); gap: 0; }
+	.settings-layout > .settings-nav { padding: var(--pad); }
+	.settings-panels { max-width: calc(var(--prose-measure) + var(--rail-w)); padding: 40px 48px; }
+}
 .settings-panels > .content-col,
 .settings-view-only > .content-col { padding: 0; max-width: none; }
 /* Read-only mode: settings stay visible, but their controls are disabled by
@@ -2353,7 +2343,6 @@ body.shell.no-sidebar {
 .settings-view-only { display: contents; }
 .settings-view-only .settings-actions { display: none; }
 .settings-panels .settings-zone { max-width: none; }
-.settings-panels .page-title { font-size: 1.25rem; }
 .settings-nav {
 	display: flex;
 	flex-direction: column;
@@ -2980,9 +2969,6 @@ body.shell.no-sidebar {
 	color: var(--primary);
 }
 
-.recent-glyph {
-	color: var(--fg-faint);
-}
 
 /* Tag chips */
 .tag-chips {
@@ -3521,6 +3507,11 @@ body.shell.no-sidebar {
 	border-bottom: var(--border-w) solid var(--chrome-border);
 }
 
+/* The revert form's button sits in the row's flex line. */
+.history-row .js-revert {
+	display: contents;
+}
+
 .history-row:last-child {
 	border-bottom: none;
 }
@@ -3615,11 +3606,7 @@ body.shell.no-sidebar {
 }
 
 .diff-panel {
-	background: var(--surface);
-	border: var(--border-w) solid var(--chrome-border);
-	border-radius: var(--radius-lg);
 	margin-top: 1rem;
-	overflow: hidden;
 }
 
 .diff-header {

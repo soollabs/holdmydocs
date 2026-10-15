@@ -28,7 +28,7 @@ var boolValues = []string{"true", "false"}
 var buttonEnums = map[string][]string{
 	"size":          {"regular", "compact", "icon"},
 	"type":          {"button", "submit", "reset"},
-	"hook":          {"export-link-remove", "widget-chip", "zen-exit", "topbar-icon", "topbar-action", "topbar-action topbar-primary", "ui-notice__dismiss"},
+	"hook":          {"export-link-remove", "widget-chip", "zen-exit", "topbar-icon", "topbar-action", "topbar-action topbar-back", "topbar-action topbar-primary", "ui-notice__dismiss"},
 	"aria-expanded": boolValues,
 	"aria-haspopup": {"true", "menu", "listbox", "tree", "grid", "dialog"},
 	"pressed":       boolValues, "disabled": boolValues, "hidden": boolValues,

@@ -27,6 +27,10 @@ var widgetIDs = presentation.WidgetIDs
 
 var widgets = presentation.Widgets
 
+// wikiWideWidgets are the sidebar widgets that make sense on a screen outside any
+// namespace: they span the whole wiki rather than one namespace or page.
+var wikiWideWidgets = map[string]bool{"pages": true, "namespaces": true, "pinned": true, "tags": true, "health": true}
+
 type widgetSlotGroup = presentation.WidgetSlotGroup
 
 func widgetSlotGroups() []widgetSlotGroup { return presentation.WidgetSlotGroups() }
@@ -84,6 +88,9 @@ func (app *App) populateWidgetData(ctx context.Context, data *TemplateData, s sk
 	}
 
 	ns, _ := wiki.NamespaceFor(data.Slug)
+	if data.WikiWide {
+		ns = ""
+	}
 	var titles map[string]string
 	if needs("namespaces") || ns != "" {
 		titles = app.apiClient().PageTitles(ctx)
