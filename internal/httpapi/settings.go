@@ -119,6 +119,15 @@ func (h *Handlers) rerunSetup(ctx context.Context, _ noneIn) (okResult, error) {
 	return okResult{OK: true}, nil
 }
 
+// migrateAttachments moves attachments from the old top-level layout into
+// their namespaces.
+func (h *Handlers) migrateAttachments(ctx context.Context, _ noneIn) (okResult, error) {
+	if _, err := h.api.MigrateAttachments(ctx); err != nil {
+		return okResult{}, err
+	}
+	return okResult{OK: true}, nil
+}
+
 // createUserInput is the JSON body of the admin "create user" form.
 type createUserInput struct {
 	Name     string   `json:"name"`
@@ -230,6 +239,7 @@ func (h *Handlers) registerSettings(mux *http.ServeMux) {
 	h.registerJSON(mux, "POST /_/api/settings/wiki", h.saveWikiConfig)
 	h.registerJSON(mux, "POST /_/api/settings/help/reset", h.resetHelp)
 	h.registerJSON(mux, "POST /_/api/settings/setup", h.rerunSetup)
+	h.registerJSON(mux, "POST /_/api/settings/attachments/migrate", h.migrateAttachments)
 	h.registerJSON(mux, "POST /_/api/settings/shutdown", h.shutdown)
 	h.registerJSON(mux, "POST /_/api/settings/users", h.createUser)
 	h.registerJSON(mux, "POST /_/api/settings/users/scopes", h.setUserScopes)

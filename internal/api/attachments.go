@@ -144,22 +144,20 @@ func (a *API) uploadAttachment(ctx context.Context, in AttachmentUploadInput, ex
 	if expectedFilename != "" && filename != expectedFilename {
 		return nil, InvalidInput("filename does not match upload URL", nil)
 	}
-	path := "attachments/" + in.Slug + "/" + filename
-	if !a.attachmentPathAllowed(path) {
-		return nil, InvalidInput("invalid slug", nil)
-	}
-	files := map[string][]byte{path: in.Content}
+	var extracted []byte
 	if a.index != nil {
-		if extracted, ok := a.index.ExtractAttachment(ctx, bytes.NewReader(in.Content), filename, in.Content); ok {
-			files[search.ExtractedAttachmentPath(path)] = extracted
+		if text, ok := a.index.ExtractAttachment(ctx, bytes.NewReader(in.Content), filename, in.Content); ok {
+			extracted = text
 		}
 	}
 	name, email := a.authorFor(actor)
-	if _, err := a.store.SaveAll(files, "Add attachment "+filename, name, email); err != nil {
+	attachment, err := a.store.SaveAttachment(in.Slug, filename, in.Content, extracted, "Add attachment "+filename, name, email)
+	if err != nil {
 		return nil, Unavailable("saving attachment", err)
 	}
 	upload := &AttachmentUpload{Slug: in.Slug, Filename: filename}
 	if a.index != nil && a.index.DocumentsEnabled() {
+		path := attachment.Path
 		file, hash, openErr := a.store.OpenAttachment(path)
 		if openErr != nil {
 			upload.IndexWarning = "attachment indexing pending"
@@ -200,33 +198,18 @@ func (a *API) OpenAttachmentForRead(ctx context.Context, slug, filename string) 
 	if filepath.Base(filename) != filename {
 		return nil, NotFound("attachment not found")
 	}
-	path := "attachments/" + slug + "/" + filename
-	if !a.attachmentPathAllowed(path) {
+	if a.store == nil {
 		return nil, NotFound("attachment not found")
 	}
-	file, _, err := a.store.OpenAttachment(path)
+	attachment, ok := a.store.FindAttachment(slug, filename)
+	if !ok {
+		return nil, NotFound("attachment not found")
+	}
+	file, _, err := a.store.OpenAttachment(attachment.Path)
 	if err != nil {
 		return nil, NotFoundCause("attachment not found", err)
 	}
 	return file, nil
-}
-
-// attachmentPathAllowed verifies that a cleaned attachment path stays under the
-// repository's attachments directory. The slug is a caller-supplied path
-// segment, so it must not be able to escape the tree.
-func (a *API) attachmentPathAllowed(path string) bool {
-	if a.store == nil {
-		return false
-	}
-	absRepo, err := filepath.Abs(filepath.Join(a.store.Dir(), "attachments"))
-	if err != nil {
-		return false
-	}
-	absPath, err := filepath.Abs(filepath.Join(a.store.Dir(), path))
-	if err != nil {
-		return false
-	}
-	return strings.HasPrefix(absPath, absRepo+string(filepath.Separator))
 }
 
 // ReadAttachment returns the cached extracted text of an attachment after
@@ -245,10 +228,11 @@ func (a *API) ReadAttachment(ctx context.Context, slug, filename string) (string
 	if filepath.Base(filename) != filename {
 		return "", InvalidInput("filename must not contain a path", nil)
 	}
-	path := "attachments/" + slug + "/" + filename
-	if _, _, ok := search.ParseAttachmentPath(path); !ok {
-		return "", InvalidInput("invalid attachment filename", nil)
+	attachment, ok := a.store.FindAttachment(slug, filename)
+	if !ok {
+		return "", NotFound("attachment not found")
 	}
+	path := attachment.Path
 	source, hash, err := a.store.OpenAttachment(path)
 	if err != nil {
 		return "", NotFound("attachment not found")
@@ -273,4 +257,36 @@ func (a *API) ReadAttachment(ctx context.Context, slug, filename string) (string
 		return "", InvalidInput("attachment extraction is stale", nil)
 	}
 	return text, nil
+}
+
+// LegacyAttachments reports whether attachments in the previous top-level
+// layout are waiting to be moved into their namespaces.
+func (a *API) LegacyAttachments() bool {
+	return a.store != nil && !a.readOnly() && a.store.LegacyAttachments()
+}
+
+// LegacyAttachmentCounts counts the legacy attachments a migration would move
+// and those it would leave because their namespace no longer exists.
+func (a *API) LegacyAttachmentCounts() (movable, orphaned int, err error) {
+	if a.store == nil {
+		return 0, 0, nil
+	}
+	return a.store.LegacyAttachmentCounts()
+}
+
+// MigrateAttachments moves legacy attachments into their namespaces'
+// .attachments folders in one commit. Their URLs do not change, so pages that
+// link to them need no edits.
+func (a *API) MigrateAttachments(ctx context.Context) (int, error) {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return 0, err
+	}
+	username, _ := Username(ctx)
+	name, email := a.authorFor(username)
+	moved, err := a.store.MigrateLegacyAttachments("Move attachments into namespace folders", name, email)
+	if err != nil {
+		return 0, Unavailable("moving attachments", err)
+	}
+	slog.Info("attachments migrated", "attachments", moved, "author", name)
+	return moved, nil
 }

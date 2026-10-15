@@ -32,7 +32,6 @@ import (
 )
 
 const (
-	attachmentsDir              = "attachments"
 	attachmentMaxExtractedBytes = 8 << 20
 	attachmentExtractTimeout    = 60 * time.Second
 	semanticModelName           = "BAAI/bge-small-en-v1.5"
@@ -40,7 +39,6 @@ const (
 	semanticModelDimensions     = 384
 	documentIndexSchemaVersion  = 2
 	attachmentPipelineName      = "hmd-document-search"
-	extractedAttachmentDir      = ".hmd/extracted"
 	extractedAttachmentPrefix   = "<!-- hmd:source-hash "
 )
 
@@ -140,38 +138,6 @@ func attachmentChunkID(path string, position int) string {
 	hash := sha256.Sum256([]byte(path))
 	return fmt.Sprintf("attachment:%s:%06d", hex.EncodeToString(hash[:]), position)
 }
-
-func parseAttachmentPath(path string) (owner, filename string, ok bool) {
-	path = filepath.ToSlash(path)
-	prefix := attachmentsDir + "/"
-	if !strings.HasPrefix(path, prefix) {
-		return "", "", false
-	}
-	rest := strings.TrimPrefix(path, prefix)
-	i := strings.LastIndexByte(rest, '/')
-	if i < 1 || i == len(rest)-1 {
-		return "", "", false
-	}
-	owner, filename = rest[:i], rest[i+1:]
-	if !wiki.ValidPageSlug(owner) || strings.ContainsAny(filename, `/\\`) || strings.HasPrefix(filename, ".") {
-		return "", "", false
-	}
-	return owner, filename, true
-}
-
-func ParseAttachmentPath(path string) (owner, filename string, ok bool) {
-	return parseAttachmentPath(path)
-}
-
-func extractedAttachmentPath(path string) string {
-	owner, filename, ok := parseAttachmentPath(path)
-	if !ok {
-		return ""
-	}
-	return attachmentsDir + "/" + owner + "/" + extractedAttachmentDir + "/" + filename + ".txt"
-}
-
-func ExtractedAttachmentPath(path string) string { return extractedAttachmentPath(path) }
 
 func encodeExtractedAttachment(sourceHash, text string) []byte {
 	return []byte(extractedAttachmentPrefix + sourceHash + " -->\n" + text)
@@ -785,7 +751,7 @@ func (ix *Index) reconcileAttachmentPath(ctx context.Context, path, expectedHash
 	if ix.documents == nil {
 		return errDocumentSearchDisabled
 	}
-	owner, filename, ok := parseAttachmentPath(path)
+	owner, filename, ok := store.ParseAttachmentPath(path)
 	if !ok {
 		return fmt.Errorf("invalid attachment path %q", path)
 	}
@@ -969,7 +935,7 @@ func attachmentHitFromMatch(match *search.DocumentMatch) AttachmentSearchHit {
 		}
 		return ""
 	}
-	owner, filename, path := value("OwnerSlug"), value("Filename"), value("AttachmentPath")
+	owner, filename := value("OwnerSlug"), value("Filename")
 	excerpt := ""
 	if fragments := match.Fragments["Text"]; len(fragments) > 0 {
 		excerpt = fragments[0]
@@ -979,7 +945,7 @@ func attachmentHitFromMatch(match *search.DocumentMatch) AttachmentSearchHit {
 	return AttachmentSearchHit{
 		OwnerSlug: owner,
 		Filename:  filename,
-		URL:       "/_/attachments/" + strings.TrimPrefix(path, attachmentsDir+"/"),
+		URL:       wiki.AttachmentURL(owner, filename),
 		Excerpt:   excerpt,
 		Score:     match.Score,
 	}

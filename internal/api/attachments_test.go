@@ -125,8 +125,8 @@ func TestUploadAttachmentCommitsAndReadsExtraction(t *testing.T) {
 	if upload.Filename != "source.txt" || upload.Slug != "notes/page" {
 		t.Fatalf("upload = %+v", upload)
 	}
-	if _, _, err := st.Read("attachments/notes/page/source.txt"); err != nil {
-		t.Fatalf("committed attachment missing: %v", err)
+	if _, ok := st.FindAttachment("notes/page", "source.txt"); !ok {
+		t.Fatal("committed attachment missing")
 	}
 	text, err := a.ReadAttachment(writeCtx(), "notes/page", "source.txt")
 	if err != nil || text != "source text" {

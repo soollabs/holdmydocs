@@ -2079,8 +2079,9 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	margin: 4rem auto;
 }
 
-/* Restart and read-only banners: span the main column, like the top bar. */
+/* Restart, attachment-migration and read-only banners: span the main column, like the top bar. */
 .restart-pending,
+.legacy-attachments,
 .settings-banner {
 	align-self: stretch;
 	padding: var(--pad) var(--pad) 0;

@@ -27,3 +27,11 @@ func escapePath(p string) string {
 	}
 	return strings.Join(segments, "/")
 }
+
+// AttachmentRoutePrefix is the browser route attachments are served under.
+const AttachmentRoutePrefix = "/_/attachments/"
+
+// AttachmentURL is the browser URL of a page's attachment.
+func AttachmentURL(slug, filename string) string {
+	return AttachmentRoutePrefix + escapePath(slug) + "/" + url.PathEscape(filename)
+}
