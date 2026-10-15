@@ -4,7 +4,7 @@
 	<div class="backlinks-label">linked from</div>
 	<div class="backlinks-row">
 	{{range .Backlinks}}
-		<a href="/{{.Slug}}">{{.Title}}</a>
+		<a href="{{pageurl .Slug}}">{{.Title}}</a>
 	{{end}}
 	</div>
 </footer>{{template "ui-panel-end" $linksPanel}}

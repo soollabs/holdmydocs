@@ -6,7 +6,7 @@
 	<p>Hidden pages, not in the page list, search, or tags.</p>
 	{{if .TagPages}}<ul>
 	{{range .TagPages}}
-		<li><a href="/_/hidden/{{.Slug}}">{{.Slug}}</a></li>
+		<li><a href="{{hiddenpageurl .Slug}}">{{.Slug}}</a></li>
 	{{end}}
 	</ul>{{else}}{{$empty := component "empty" "label" "No hidden pages"}}{{template "ui-empty-start" $empty}}<p>Pages marked hidden will appear here.</p>{{template "ui-empty-end" $empty}}{{end}}
 </div>

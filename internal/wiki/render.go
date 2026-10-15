@@ -92,14 +92,14 @@ func (r *Renderer) processWikiLinks(body, ns string) string {
 		escaped := html.EscapeString(title)
 
 		if slug, ok := r.resolve(title, ns); ok {
-			return fmt.Sprintf(`<a class="wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, slug, escaped)
+			return fmt.Sprintf(`<a class="wiki" href="%s"><span class="br">[[</span>%s<span class="br">]]</span></a>`, PageURL(slug), escaped)
 		}
 		// Guess a namespace-local slug so the link can create the page in the correct namespace.
 		if ns == "" {
 			return fmt.Sprintf(`<span class="missing wiki"><span class="br">[[</span>%s<span class="br">]]</span></span>`, escaped)
 		}
 		slug := NamespaceSlug(ns, Slugify(title))
-		return fmt.Sprintf(`<a class="missing wiki" href="/%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, slug, escaped)
+		return fmt.Sprintf(`<a class="missing wiki" href="%s"><span class="br">[[</span>%s<span class="br">]]</span><span class="missing-suffix">+</span></a>`, PageURL(slug), escaped)
 	})
 }
 
@@ -113,7 +113,7 @@ func (r *Renderer) RenderPublic(body, ns string, isPublicLink func(slug string) 
 		escaped := html.EscapeString(title)
 		slug, ok := r.resolve(title, ns)
 		if ok && isPublicLink(slug) {
-			return fmt.Sprintf(`<a class="wiki" href="/%s">%s</a>`, slug, escaped)
+			return fmt.Sprintf(`<a class="wiki" href="%s">%s</a>`, PageURL(slug), escaped)
 		}
 		return escaped
 	})

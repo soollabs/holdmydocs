@@ -46,6 +46,13 @@ func TestRender(t *testing.T) {
 			wantNotContains: []string{"class=\"missing"},
 		},
 		{
+			name:         "wiki link to a page with URL characters in its name",
+			ns:           "notes",
+			resolve:      func(title, ns string) (string, bool) { return "notes/what? #1", true },
+			input:        "go to [[What]]",
+			wantContains: []string{"href=\"/notes/what%3F%20%231\""},
+		},
+		{
 			name:         "missing wiki link",
 			ns:           "notes",
 			resolve:      func(title, ns string) (string, bool) { return "notes/alpha", title == "Alpha" },

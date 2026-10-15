@@ -90,8 +90,23 @@
     return currentRoutePrefix() === '/_/hidden';
   }
 
+  // Page URLs are built here and nowhere else, mirroring PageURL and
+  // HiddenPageURL in internal/wiki/url.go.
   function viewHref(slug, hidden) {
-    return (hidden ? '/_/hidden/' : '/') + slug;
+    return (hidden ? '/_/hidden/' : '/') + encodeSlugPath(slug);
+  }
+
+  // slugFromPath is the inverse of viewHref for ordinary pages: the slug a
+  // URL path names, or '' for an app route under /_/.
+  function slugFromPath(pathname) {
+    if (pathname.startsWith('/_/')) return '';
+    return pathname.slice(1).replace(/\/$/, '').split('/').map(segment => {
+      try {
+        return decodeURIComponent(segment);
+      } catch (e) {
+        return segment;
+      }
+    }).join('/');
   }
 
   // Parse a comma-separated tag field into the JSON string array the API takes.
@@ -107,7 +122,7 @@
   // path outside /_/ is a real page's own URL, and the slug is just the
   // path with its leading slash stripped.
   const recentList = $('#recent-list');
-  const currentSlug = window.location.pathname.startsWith('/_/') ? '' : window.location.pathname.slice(1).replace(/\/$/, '');
+  const currentSlug = slugFromPath(window.location.pathname);
   // Namespaces are one level deep (mirrors namespaceFor in namespace.go):
   // "blog/drafts/post" belongs to "blog", a bare slug belongs to root ("").
   const namespaceOf = slug => { const i = slug.indexOf('/'); return i === -1 ? '' : slug.slice(0, i); };
@@ -149,7 +164,7 @@
       const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
       // Markers follow the title so every sidebar row's text starts at the same edge.
       const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '';
-      return `<li><a href="/${escapeHtml(e.slug)}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a>${dot}${glyph}</li>`;
+      return `<li><a href="${escapeHtml(viewHref(e.slug))}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a>${dot}${glyph}</li>`;
     }).join('');
   }
 
@@ -171,7 +186,7 @@
           const href = link.getAttribute('href');
           if (!link.classList.contains('wiki') || !href) return;
 
-          const slug = href.replace(/^\//, '').replace(/\/$/, '');
+          const slug = slugFromPath(new URL(href, window.location.href).pathname);
           fetch('/_/api/preview/' + encodeURIComponent(slug))
             .then(r => r.json())
             .then(data => {
@@ -461,7 +476,7 @@
       }
       const tags = r.tags && r.tags.length ? ' <span class="hit-tags">' + r.tags.map(t => '<span class="hit-tag">' + escapeHtml(t) + '</span>').join(' ') + '</span>' : '';
       const owner = r.owner ? ' <span class="hit-tags">' + escapeHtml(r.owner) + '</span>' : '';
-      const href = r.href || '/' + r.slug;
+      const href = r.href || viewHref(r.slug);
       // r.snippet comes from bleve's "html" highlighter, which already HTML-escapes
       // the surrounding text and only adds trusted <mark> tags around matches.
       return `<a href="${escapeHtml(href)}" class="palette-row${i === paletteSelected ? ' selected' : ''}">
@@ -489,7 +504,7 @@
   }
 
   function createHref(query) {
-    return '/' + createNamespace() + '/' + slugifyQuery(query) + '?do=edit';
+    return viewHref(createNamespace() + '/' + slugifyQuery(query)) + '?do=edit';
   }
 
   function slugifyQuery(q) {
@@ -499,9 +514,9 @@
   }
 
   // encodeSlugPath percent-encodes each segment of a page slug for use in a
-  // URL. Slugs read back from location.pathname are already encoded, so decode
-  // before re-encoding to avoid double-encoding; malformed input falls back to
-  // encoding the raw segment.
+  // URL. Recent pages stored by older versions kept the still-encoded
+  // location.pathname, so decode before re-encoding to avoid double-encoding;
+  // malformed input falls back to encoding the raw segment.
   function encodeSlugPath(slug) {
     return String(slug || '').split('/').map(segment => {
       try {
@@ -606,7 +621,7 @@
     switch (action) {
       case 'hist':
         closePalette();
-        window.location.href = `/${slug}?do=history`;
+        window.location.href = viewHref(slug) + '?do=history';
         break;
       case 'new':
         closePalette();
@@ -732,7 +747,7 @@
       // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
       // (javascript:, data:) would execute in the page origin. Percent-encode
       // the slug before it reaches the URL.
-      const target = row.href || '/' + encodeSlugPath(row.slug) + (editMode && !window.hmdReadOnly ? '?do=edit' : '');
+      const target = row.href || viewHref(row.slug) + (editMode && !window.hmdReadOnly ? '?do=edit' : '');
       if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
         window.location.href = target;
       }
@@ -790,8 +805,7 @@
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.
       const slug = window.hmdNamespaceIndex ? '' : document.body.dataset.slug;
-      const routePrefix = document.body.dataset.routePrefix || '';
-      if (slug) { e.preventDefault(); window.location.href = routePrefix + '/' + slug + '?do=edit'; }
+      if (slug) { e.preventDefault(); window.location.href = viewHref(slug, isHiddenPage()) + '?do=edit'; }
       return;
     }
     if (e.key === 'Escape' && paletteOpen) {
@@ -818,7 +832,7 @@
   // (still empty until Save), which matches the previous behaviour.
   if (cmHost && window.location.pathname === '/_/new') {
     const draftSlug = cmHost.dataset.slug;
-    if (draftSlug) history.replaceState(null, '', '/' + draftSlug + '?do=edit');
+    if (draftSlug) history.replaceState(null, '', viewHref(draftSlug) + '?do=edit');
   }
   if (cmHost && window.HMD) {
     const textarea = $('#editor-src');
@@ -1489,7 +1503,7 @@
       diffStatus.textContent = hashA.slice(0, 7) + ' ↔ ' + hashB.slice(0, 7) + ' selected';
 
       const slug = document.body.dataset.slug;
-      fetch(`/${slug}?do=diff&a=${hashA}&b=${hashB}`)
+      fetch(viewHref(slug) + `?do=diff&a=${hashA}&b=${hashB}`)
         .then(r => r.text())
         .then(diff => {
           diffHeader.textContent = `diff ${hashA.slice(0, 7)}..${hashB.slice(0, 7)}`;

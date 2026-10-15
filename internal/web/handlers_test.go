@@ -794,6 +794,14 @@ func TestHealthReportHTMLShowsStalePages(t *testing.T) {
 	}
 }
 
+func TestHealthReportHTMLEncodesPageURLs(t *testing.T) {
+	report := api.HealthReport{Orphans: []string{`notes/a" onmouseover="x`}}
+	html := string(healthReportHTML(report, nil))
+	if !strings.Contains(html, `href="/notes/a%22%20onmouseover=%22x"`) {
+		t.Fatalf("health report did not encode the page URL: %s", html)
+	}
+}
+
 func TestAttachmentRejectsOversizedUpload(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()

@@ -3,7 +3,7 @@
 {{$entriesPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $entriesPanel}}<footer class="prev-entries">
 	<div class="prev-entries-label">earlier</div>
 	{{range .PrevEntries}}
-	<div class="prev-entry"><a href="/{{.Slug}}">{{.Date}}</a>{{if .FirstLine}} — {{.FirstLine}}{{end}}</div>
+	<div class="prev-entry"><a href="{{pageurl .Slug}}">{{.Date}}</a>{{if .FirstLine}} — {{.FirstLine}}{{end}}</div>
 	{{end}}
 </footer>{{template "ui-panel-end" $entriesPanel}}
 {{end}}
