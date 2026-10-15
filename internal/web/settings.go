@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"os"
 	"slices"
@@ -89,6 +90,9 @@ type SettingsData struct {
 	AllScopes       []string           // "read", "write", "settings" — the scope checkbox options
 	CurrentUser     string             // name of the logged-in user, so the users tab can block self-lockout
 	UserError       string             // create/scope-update validation error
+	// Legacy attachments a migration would move, and those it leaves because
+	// their namespace no longer exists.
+	LegacyAttachmentsMovable, LegacyAttachmentsOrphaned int
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -320,6 +324,14 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("wiki-saved"); q == "1" {
 		sd.Flash = "Wiki settings saved to " + sd.WikiConfigPath
 	}
+	if q := r.URL.Query().Get("attachments-moved"); q == "1" {
+		sd.Flash = "Attachments moved into their namespaces"
+	}
+	movable, orphaned, err := app.apiClient().LegacyAttachmentCounts()
+	if err != nil {
+		slog.Warn("counting legacy attachments", "err", err)
+	}
+	sd.LegacyAttachmentsMovable, sd.LegacyAttachmentsOrphaned = movable, orphaned
 	app.renderSettings(w, r, sd, "admin")
 }
 

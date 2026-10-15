@@ -739,7 +739,16 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 	}
 
 	source := []byte("source text")
-	sidecar, _, err := app.Store.Read(search.ExtractedAttachmentPath("attachments/" + testHome + "/source.txt"))
+	attachment, ok := app.Store.FindAttachment(testHome, "source.txt")
+	if !ok {
+		t.Fatal("uploaded attachment not found")
+	}
+	file, err := app.Store.OpenExtractedAttachment(attachment.Path)
+	if err != nil {
+		t.Fatalf("opening extracted sidecar: %v", err)
+	}
+	sidecar, err := io.ReadAll(file)
+	_ = file.Close()
 	if err != nil {
 		t.Fatalf("reading extracted sidecar: %v", err)
 	}
@@ -747,7 +756,7 @@ func TestTextAttachmentStoresExtractedSidecar(t *testing.T) {
 		t.Fatalf("extracted sidecar = %q, valid = %v", text, ok)
 	}
 	attachments, err := app.Store.ListAttachments()
-	if err != nil || len(attachments) != 1 || attachments[0] != "attachments/"+testHome+"/source.txt" {
+	if err != nil || len(attachments) != 1 || attachments[0] != attachment {
 		t.Fatalf("ListAttachments = %v, %v", attachments, err)
 	}
 	commits, err := app.Store.RecentCommits(1)

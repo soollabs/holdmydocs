@@ -51,27 +51,7 @@ func TestChunkTextNormalisesAndOverlaps(t *testing.T) {
 	}
 }
 
-func TestParseAttachmentPath(t *testing.T) {
-	owner, filename, ok := parseAttachmentPath("attachments/notes/reports/quarterly.PDF")
-	if !ok || owner != "notes/reports" || filename != "quarterly.PDF" {
-		t.Fatalf("parseAttachmentPath valid path = %q, %q, %v", owner, filename, ok)
-	}
-	for _, path := range []string{
-		"attachments/notes/report/.quarterly.pdf",
-		"attachments/notes/quarterly.pdf",
-		"notes/report/quarterly.pdf",
-	} {
-		if _, _, ok := parseAttachmentPath(path); ok {
-			t.Errorf("parseAttachmentPath(%q) accepted invalid path", path)
-		}
-	}
-}
-
 func TestExtractedAttachmentSidecar(t *testing.T) {
-	path := "attachments/notes/reports/quarterly.pdf"
-	if got, want := extractedAttachmentPath(path), "attachments/notes/reports/.hmd/extracted/quarterly.pdf.txt"; got != want {
-		t.Fatalf("extractedAttachmentPath = %q, want %q", got, want)
-	}
 	hash := attachmentBlobHash([]byte("source"))
 	text, ok := decodeExtractedAttachment(hash, encodeExtractedAttachment(hash, "extracted text"))
 	if !ok || text != "extracted text" {

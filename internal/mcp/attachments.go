@@ -6,6 +6,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"hmd/internal/api"
+	"hmd/internal/wiki"
 )
 
 type mcpAttachmentSearchIn struct {
@@ -92,7 +93,7 @@ func (s *Server) registerAttachments(server *sdk.Server) {
 		baseURL, _ := ctx.Value(mcpBaseURLKey{}).(string)
 		return nil, mcpAttachmentUploadOut{
 			UploadURL:     baseURL + "/_/api/attachment-uploads/" + grant.Token,
-			AttachmentURL: "/_/attachments/" + grant.Slug + "/" + grant.Filename,
+			AttachmentURL: wiki.AttachmentURL(grant.Slug, grant.Filename),
 			ExpiresAt:     grant.Expires.UTC().Format(time.RFC3339),
 		}, nil
 	})

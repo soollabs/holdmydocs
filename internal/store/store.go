@@ -97,10 +97,9 @@ type Store struct {
 }
 
 const (
-	attachmentsDir         = "attachments"
-	namespaceConfigFile    = ".namespace.yaml"
-	extractedAttachmentDir = ".hmd/extracted"
-	slowLockWait           = time.Second
+	attachmentsDir      = "attachments"
+	namespaceConfigFile = ".namespace.yaml"
+	slowLockWait        = time.Second
 )
 
 func traceSlowLockWait(operation string) func() {
@@ -118,44 +117,6 @@ func traceSlowLockWait(operation string) func() {
 func validNamespaceName(name string) bool {
 	return name != "" && name != "_" && name != attachmentsDir &&
 		!strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".") && !strings.HasPrefix(name, "_")
-}
-
-func validPageSlug(slug string) bool {
-	namespace, rest, ok := strings.Cut(slug, "/")
-	if !ok || !validNamespaceName(namespace) || rest == "" {
-		return false
-	}
-	for segment := range strings.SplitSeq(rest, "/") {
-		if segment == "" || strings.ContainsAny(segment, `/\`) || strings.HasPrefix(segment, ".") || strings.HasPrefix(segment, "_") {
-			return false
-		}
-	}
-	return true
-}
-
-func parseAttachmentPath(path string) (owner, filename string, ok bool) {
-	path = filepath.ToSlash(path)
-	rest, ok := strings.CutPrefix(path, attachmentsDir+"/")
-	if !ok {
-		return "", "", false
-	}
-	i := strings.LastIndexByte(rest, '/')
-	if i < 1 || i == len(rest)-1 {
-		return "", "", false
-	}
-	owner, filename = rest[:i], rest[i+1:]
-	if !validPageSlug(owner) || strings.ContainsAny(filename, `/\`) || strings.HasPrefix(filename, ".") {
-		return "", "", false
-	}
-	return owner, filename, true
-}
-
-func extractedAttachmentPath(path string) string {
-	owner, filename, ok := parseAttachmentPath(path)
-	if !ok {
-		return ""
-	}
-	return attachmentsDir + "/" + owner + "/" + extractedAttachmentDir + "/" + filename + ".txt"
 }
 
 func (s *Store) Dir() string { return s.dir }
@@ -284,7 +245,7 @@ failed, since every save is an auto-pushed commit.
 - Every page lives in a namespace directory; the slug is the path without the ` + "`.md`" + ` suffix, e.g. ` + "`docs/running-the-app`" + `.
 - A namespace's ` + "`index`" + ` setting names the page that serves ` + "`/<namespace>/`" + `; ` + "`/`" + ` itself goes wherever ` + "`.wiki.yaml`" + `'s ` + "`landing`" + ` key points.
 - ` + "`.wiki.yaml`" + ` sits at the repository root and sets the wiki's ` + "`site_name`" + ` and ` + "`landing`" + `; it travels with the content to another hmd instance.
-- Attachments live under ` + "`attachments/<slug>/<file>`" + `.
+- Attachments live in their namespace under ` + "`<namespace>/.attachments/<page>/<file>`" + `.
 
 ## Frontmatter
 
@@ -329,7 +290,7 @@ Paste or drag an image into the editor to upload it, or reference one
 already uploaded by its served URL: ` + "`/_/attachments/<slug>/<file>`" + `.
 
 Editing the repo directly (agents, scripts): commit the file straight to
-` + "`attachments/<slug>/<file>`" + `, no upload API call needed. The type
+` + "`<namespace>/.attachments/<page>/<file>`" + `, no upload API call needed. The type
 whitelist and SVG exclusion above are only enforced by the upload
 endpoint, not when serving, so stick to them by convention on direct
 writes too.
@@ -1060,67 +1021,11 @@ func (s *Store) List() ([]string, error) {
 	return paths, nil
 }
 
-// ListAttachments returns regular source attachments below attachments/, sorted by repository-relative path.
-func (s *Store) ListAttachments() ([]string, error) {
-	lockWaitDone := traceSlowLockWait("list attachments")
-	s.mu.RLock()
-	lockWaitDone()
-	defer s.mu.RUnlock()
-
-	root := filepath.Join(s.dir, attachmentsDir)
-	if info, err := os.Lstat(root); os.IsNotExist(err) {
-		return []string{}, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("inspecting attachments directory: %w", err)
-	} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New("attachments directory is not a real directory")
-	}
-	var paths []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			slog.Debug("attachment walk entering directory", "path", path)
-		}
-		if d.Type()&os.ModeSymlink != 0 {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			if d.Name() == ".hmd" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
-		rel, err := filepath.Rel(s.dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if _, _, ok := parseAttachmentPath(rel); !ok {
-			return nil
-		}
-		paths = append(paths, rel)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("reading attachments directory: %w", err)
-	}
-	sort.Strings(paths)
-	return paths, nil
-}
-
 // OpenAttachment validates and opens an attachment while the store lock is held.
 func (s *Store) OpenAttachment(path string) (*os.File, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, _, ok := parseAttachmentPath(path); !ok {
+	if _, _, ok := ParseAttachmentPath(path); !ok {
 		return nil, "", fmt.Errorf("invalid attachment path %q", path)
 	}
 	file, err := s.openRepositoryFile(path, os.O_RDONLY, 0, false)
@@ -1169,7 +1074,7 @@ func (s *Store) ListHidden() ([]string, error) {
 			return err
 		}
 		if d.IsDir() {
-			if rel == ".git" || rel == "attachments" {
+			if rel == ".git" || rel == attachmentsDir || d.Name() == namespaceAttachmentDir {
 				return filepath.SkipDir
 			}
 			return nil

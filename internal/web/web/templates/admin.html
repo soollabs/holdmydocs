@@ -129,6 +129,20 @@
 			</form>
 		</div>
 	</fieldset>
+
+	{{if or .Settings.LegacyAttachmentsMovable .Settings.LegacyAttachmentsOrphaned}}
+	<fieldset class="settings-section" id="attachments">
+		<legend>attachments</legend>
+		<p class="settings-zone-desc">Attachments now live inside each namespace, in <code>&lt;namespace&gt;/.attachments/</code>. {{.Settings.LegacyAttachmentsMovable}} still use the old top-level <code>attachments/</code> folder. They keep working where they are; moving them takes one commit, and links to them don't change. HMD instances older than this one only look in the old folder, so update every instance using this repository first.</p>
+		{{if .Settings.LegacyAttachmentsOrphaned}}<p class="settings-zone-desc">{{.Settings.LegacyAttachmentsOrphaned}} belong to namespaces that no longer exist and will stay in <code>attachments/</code>.</p>{{end}}
+		{{if .Settings.LegacyAttachmentsMovable}}<div class="settings-row">
+			<label>old layout</label>
+			<form method="POST" action="/_/api/settings/attachments/migrate" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
+				{{template "ui-button" (button "Move attachments" "primary" "type" "submit")}}
+			</form>
+		</div>{{end}}
+	</fieldset>
+	{{end}}
 </section>
 {{end}}
 </div>

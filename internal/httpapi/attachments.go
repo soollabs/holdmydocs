@@ -3,7 +3,6 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -151,7 +150,7 @@ func (h *Handlers) upload(w http.ResponseWriter, r *http.Request, slug, token st
 		w.WriteHeader(http.StatusCreated)
 	}
 	resp := map[string]any{
-		"url":     fmt.Sprintf("/_/attachments/%s/%s", upload.Slug, upload.Filename),
+		"url":     wiki.AttachmentURL(upload.Slug, upload.Filename),
 		"indexed": upload.Indexed,
 	}
 	if upload.IndexWarning != "" {

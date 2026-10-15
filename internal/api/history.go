@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
 )
@@ -139,7 +138,7 @@ func commitAllowed(ctx context.Context, files []string) bool {
 // commitPathNamespace resolves a repository-relative commit path to the
 // namespace whose access governs it.
 func commitPathNamespace(path string) (string, bool) {
-	if owner, _, ok := search.ParseAttachmentPath(path); ok {
+	if owner, _, ok := store.ParseAttachmentPath(path); ok {
 		namespace, _ := wiki.NamespaceFor(owner)
 		return namespace, true
 	}

@@ -106,16 +106,17 @@ func (a *API) ReconcileAttachments(ctx context.Context) {
 	if a.index == nil || !a.index.DocumentsEnabled() {
 		return
 	}
-	paths, err := a.store.ListAttachments()
+	attachments, err := a.store.ListAttachments()
 	if err != nil {
 		slog.Warn("refresh: attachment list failed", "err", err)
 		return
 	}
-	hashes := make(map[string]string, len(paths))
-	for _, path := range paths {
+	hashes := make(map[string]string, len(attachments))
+	for _, attachment := range attachments {
 		if ctx.Err() != nil {
 			return
 		}
+		path := attachment.Path
 		file, hash, err := a.store.OpenAttachment(path)
 		if err != nil {
 			slog.Warn("refresh: attachment hash failed", "path", path, "err", err)

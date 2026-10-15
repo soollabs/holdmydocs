@@ -1726,6 +1726,7 @@
     landing: fieldValue(form, 'landing')
   }), () => { settingsReturn('wiki-saved=1'); });
   jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { settingsReturn(); });
+  jsonForm($('form[action="/_/api/settings/attachments/migrate"]'), () => ({}), () => { settingsReturn('attachments-moved=1'); });
   jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { settingsReturn(); });
 
   // Namespace editor: save, reset and delete share one form; the

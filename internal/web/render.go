@@ -178,6 +178,7 @@ type TemplateData struct {
 	CanViewSettings         bool             // settings pages are listed and shown; without CanSettings they are view-only
 	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
 	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
+	LegacyAttachments       bool             // attachments in the old top-level layout wait to be moved; admins only
 	CanEdit                 bool
 	NewPageHref             string
 	NamespaceNames          []string // editor path field: namespaces a move may target
@@ -349,6 +350,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 				keys[i] = s.Key
 			}
 			data.PendingRestartKey = "restart:" + strings.Join(keys, ",")
+			data.LegacyAttachments = app.apiClient().LegacyAttachments()
 		}
 		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {

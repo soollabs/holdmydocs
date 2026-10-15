@@ -8,9 +8,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"hmd/internal/store"
+	"hmd/internal/wiki"
 )
 
 const (
@@ -50,15 +50,16 @@ func CopyAssets(source fs.FS, root, outDir string) error {
 }
 
 func CopyAttachments(content *store.Store, outDir, namespace string, files *int, bytes *int64) error {
-	paths, err := content.ListAttachments()
+	attachments, err := content.ListAttachments()
 	if err != nil {
 		return err
 	}
-	prefix := "attachments/" + namespace + "/"
-	for _, sourcePath := range paths {
-		if !strings.HasPrefix(sourcePath, prefix) {
+	for _, attachment := range attachments {
+		ns, page := wiki.NamespaceFor(attachment.Slug)
+		if ns != namespace {
 			continue
 		}
+		sourcePath := attachment.Path
 		file, _, err := content.OpenAttachment(sourcePath)
 		if err != nil {
 			return fmt.Errorf("opening attachment %q: %w", sourcePath, err)
@@ -74,7 +75,7 @@ func CopyAttachments(content *store.Store, outDir, namespace string, files *int,
 			_ = file.Close()
 			return fmt.Errorf("export exceeds %d files or %d bytes", maxFiles, maxBytes)
 		}
-		target := filepath.Join(outDir, "attachments", filepath.FromSlash(strings.TrimPrefix(sourcePath, prefix)))
+		target := filepath.Join(outDir, "attachments", filepath.FromSlash(page), attachment.Filename)
 		if err := CopyFile(file, target); err != nil {
 			_ = file.Close()
 			return fmt.Errorf("copying attachment %q: %w", sourcePath, err)

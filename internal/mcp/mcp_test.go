@@ -438,20 +438,18 @@ func TestMCPUploadAttachment(t *testing.T) {
 	if upload.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d, want %d", upload.StatusCode, http.StatusOK)
 	}
-	got, _, err := app.store.Read("attachments/notes/readme/source.txt")
-	if err != nil || string(got) != "PDF content" {
+	attachment, ok := app.store.FindAttachment("notes/readme", "source.txt")
+	got, _, err := app.store.Read(attachment.Path)
+	if !ok || err != nil || string(got) != "PDF content" {
 		t.Fatalf("uploaded attachment = %q, %v", got, err)
 	}
 }
 
 func TestMCPReadAttachment(t *testing.T) {
 	app, server, token := newMCPTestAppWithApp(t, true)
-	path := "attachments/" + testHome + "/source.txt"
 	source := []byte("source text")
-	if _, err := app.store.SaveAll(map[string][]byte{
-		path:                                 source,
-		search.ExtractedAttachmentPath(path): search.EncodeExtractedAttachment(search.AttachmentBlobHash(source), "extracted text"),
-	}, "Add attachment source.txt", "test", "test@hmd.local"); err != nil {
+	extracted := search.EncodeExtractedAttachment(search.AttachmentBlobHash(source), "extracted text")
+	if _, err := app.store.SaveAttachment(testHome, "source.txt", source, extracted, "Add attachment source.txt", "test", "test@hmd.local"); err != nil {
 		t.Fatalf("saving attachment: %v", err)
 	}
 	session := connectMCP(t, server, token)

@@ -348,7 +348,7 @@ func TestAttachmentsAndExportRejectSymlinks(t *testing.T) {
 		t.Error("OpenAttachment followed a symlink")
 	}
 	paths, err := store.ListAttachments()
-	if err != nil || len(paths) != 1 || paths[0] != "attachments/docs/page/real.txt" {
+	if err != nil || len(paths) != 1 || paths[0].Path != "attachments/docs/page/real.txt" {
 		t.Errorf("ListAttachments() = %v, %v", paths, err)
 	}
 	outDir := t.TempDir()
