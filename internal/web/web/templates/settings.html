@@ -79,7 +79,7 @@
 
 	<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
 		{{template "ui-button" (button "Save appearance" "primary" "type" "submit" "form" "appearance-form")}}
-		{{template "ui-button" (button "Cancel" "secondary" "href" "/index")}}
+		{{template "ui-button" (button "Cancel" "secondary" "href" "/")}}
 	</div>
 
 	<fieldset class="settings-section settings-panel" data-panel="git-author"{{if ne .SettingsPanel "git-author"}} hidden{{end}}>
