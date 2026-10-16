@@ -128,6 +128,21 @@ func (h *Handlers) migrateAttachments(ctx context.Context, _ noneIn) (okResult, 
 	return okResult{OK: true}, nil
 }
 
+// deleteOrphanedAttachmentsInput names the gone namespace whose old
+// attachments to delete.
+type deleteOrphanedAttachmentsInput struct {
+	Namespace string `json:"namespace"`
+}
+
+// deleteOrphanedAttachments deletes the old-layout attachments of a namespace
+// that no longer exists.
+func (h *Handlers) deleteOrphanedAttachments(ctx context.Context, in deleteOrphanedAttachmentsInput) (okResult, error) {
+	if _, err := h.api.DeleteOrphanedAttachments(ctx, in.Namespace); err != nil {
+		return okResult{}, err
+	}
+	return okResult{OK: true}, nil
+}
+
 // createUserInput is the JSON body of the admin "create user" form.
 type createUserInput struct {
 	Name     string   `json:"name"`
@@ -240,6 +255,7 @@ func (h *Handlers) registerSettings(mux *http.ServeMux) {
 	h.registerJSON(mux, "POST /_/api/settings/help/reset", h.resetHelp)
 	h.registerJSON(mux, "POST /_/api/settings/setup", h.rerunSetup)
 	h.registerJSON(mux, "POST /_/api/settings/attachments/migrate", h.migrateAttachments)
+	h.registerJSON(mux, "POST /_/api/settings/attachments/delete", h.deleteOrphanedAttachments)
 	h.registerJSON(mux, "POST /_/api/settings/shutdown", h.shutdown)
 	h.registerJSON(mux, "POST /_/api/settings/users", h.createUser)
 	h.registerJSON(mux, "POST /_/api/settings/users/scopes", h.setUserScopes)

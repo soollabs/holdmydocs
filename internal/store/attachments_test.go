@@ -137,8 +137,8 @@ func TestMigrateLegacyAttachments(t *testing.T) {
 	if !s.LegacyAttachments() {
 		t.Fatal("legacy attachments not detected")
 	}
-	if movable, orphaned, err := s.LegacyAttachmentCounts(); err != nil || movable != 2 || orphaned != 1 {
-		t.Fatalf("LegacyAttachmentCounts = %d, %d, %v", movable, orphaned, err)
+	if movable, orphans, err := s.LegacyAttachmentStatus(); err != nil || movable != 2 || len(orphans) != 1 || orphans[0] != (LegacyAttachmentOrphan{Namespace: "gone", Files: 1}) {
+		t.Fatalf("LegacyAttachmentStatus = %d, %+v, %v", movable, orphans, err)
 	}
 
 	moved, err := s.MigrateLegacyAttachments("migrate", "test", "test@hmd.local")
@@ -174,5 +174,37 @@ func TestMigrateLegacyAttachments(t *testing.T) {
 	}
 	if again, err := s.MigrateLegacyAttachments("migrate", "test", "test@hmd.local"); err != nil || again != 0 {
 		t.Errorf("second run = %d, %v", again, err)
+	}
+}
+
+func TestDeleteLegacyAttachments(t *testing.T) {
+	s := newAttachmentStore(t)
+	seed(t, s, map[string]string{
+		"notes/page.md":                                  "page",
+		"attachments/notes/page/kept.txt":                "kept",
+		"attachments/gone/page/a.txt":                    "a",
+		"attachments/gone/deep/page/b.txt":               "b",
+		"attachments/gone/page/.hmd/extracted/a.txt.txt": "sidecar",
+	})
+	for _, namespace := range []string{"notes", "", "..", "gone/page", "missing"} {
+		if _, err := s.DeleteLegacyAttachments(namespace, "delete", "test", "test@hmd.local"); err == nil {
+			t.Errorf("DeleteLegacyAttachments(%q) succeeded", namespace)
+		}
+	}
+	deleted, err := s.DeleteLegacyAttachments("gone", "delete", "test", "test@hmd.local")
+	if err != nil || deleted != 2 {
+		t.Fatalf("DeleteLegacyAttachments = %d, %v", deleted, err)
+	}
+	if _, err := os.Stat(filepath.Join(s.Dir(), "attachments", "gone")); !os.IsNotExist(err) {
+		t.Errorf("gone namespace folder left behind: %v", err)
+	}
+	if got := readAttachment(t, s, "notes/page", "kept.txt"); got != "kept" {
+		t.Errorf("another namespace's attachment touched: %q", got)
+	}
+	if _, orphans, err := s.LegacyAttachmentStatus(); err != nil || len(orphans) != 0 {
+		t.Errorf("orphans after delete = %+v, %v", orphans, err)
+	}
+	if commits, err := s.RecentCommits(1); err != nil || len(commits) != 1 || commits[0].Message != "delete" {
+		t.Errorf("latest commit = %+v, %v", commits, err)
 	}
 }

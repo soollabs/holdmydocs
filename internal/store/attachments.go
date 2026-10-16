@@ -255,23 +255,91 @@ func (s *Store) LegacyAttachments() bool {
 	return false
 }
 
-// LegacyAttachmentCounts counts the legacy source attachments a migration
-// would move, and those it would leave because their namespace is gone.
-func (s *Store) LegacyAttachmentCounts() (movable, orphaned int, err error) {
+// LegacyAttachmentOrphan is a namespace that no longer exists but still has
+// source attachments in the legacy tree.
+type LegacyAttachmentOrphan struct {
+	Namespace string
+	Files     int
+}
+
+// LegacyAttachmentStatus counts the legacy source attachments a migration
+// would move, and lists the gone namespaces whose attachments it would leave.
+func (s *Store) LegacyAttachmentStatus() (movable int, orphans []LegacyAttachmentOrphan, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var paths []string
 	if err := s.walkAttachmentRoot(attachmentsDir, &paths); err != nil {
-		return 0, 0, err
+		return 0, nil, err
 	}
+	index := map[string]int{}
 	for _, path := range paths {
 		if _, ok := s.legacyTarget(path); ok {
 			movable++
-		} else {
-			orphaned++
+			continue
+		}
+		namespace := legacyNamespace(path)
+		i, seen := index[namespace]
+		if !seen {
+			i = len(orphans)
+			index[namespace] = i
+			orphans = append(orphans, LegacyAttachmentOrphan{Namespace: namespace})
+		}
+		orphans[i].Files++
+	}
+	return movable, orphans, nil
+}
+
+// DeleteLegacyAttachments removes every file a gone namespace still has in
+// the legacy tree, sidecars included, in one commit, and returns how many
+// source attachments went. The files stay in Git history. A namespace that
+// exists is refused: its attachments are moved, not deleted.
+func (s *Store) DeleteLegacyAttachments(namespace, message, authorName, authorEmail string) (int, error) {
+	if s.readOnly {
+		return 0, ErrReadOnly
+	}
+	if namespace == "" || namespace == "." || namespace == ".." || strings.ContainsAny(namespace, `/\`) {
+		return 0, fmt.Errorf("invalid namespace %q", namespace)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.namespaceDirExists(namespace) {
+		return 0, fmt.Errorf("namespace %q exists; move its attachments instead", namespace)
+	}
+	files, err := s.legacyAttachmentFiles()
+	if err != nil {
+		return 0, err
+	}
+	wt, tracked, err := s.trackedWorktree()
+	if err != nil {
+		return 0, err
+	}
+	deleted, found := 0, false
+	for _, path := range files {
+		if legacyNamespace(path) != namespace {
+			continue
+		}
+		found = true
+		if err := s.removeTracked(wt, tracked, path); err != nil {
+			return 0, err
+		}
+		if _, _, ok := ParseAttachmentPath(path); ok {
+			deleted++
 		}
 	}
-	return movable, orphaned, nil
+	if !found {
+		return 0, fmt.Errorf("no legacy attachments for namespace %q", namespace)
+	}
+	s.removeEmptyDirs(filepath.Join(s.dir, attachmentsDir))
+	if err := s.commitWorktree(wt, message, authorName, authorEmail); err != nil {
+		return 0, err
+	}
+	return deleted, nil
+}
+
+// legacyNamespace is the namespace folder a legacy file sits in.
+func legacyNamespace(path string) string {
+	namespace, _, _ := strings.Cut(strings.TrimPrefix(path, attachmentsDir+"/"), "/")
+	return namespace
 }
 
 // MigrateLegacyAttachments moves every file below the legacy attachments/
@@ -292,17 +360,9 @@ func (s *Store) MigrateLegacyAttachments(message, authorName, authorEmail string
 	if err != nil {
 		return 0, err
 	}
-	wt, err := s.repo.Worktree()
+	wt, tracked, err := s.trackedWorktree()
 	if err != nil {
-		return 0, fmt.Errorf("getting worktree: %w", err)
-	}
-	idx, err := s.repo.Storer.Index()
-	if err != nil {
-		return 0, fmt.Errorf("reading index: %w", err)
-	}
-	tracked := make(map[string]bool, len(idx.Entries))
-	for _, e := range idx.Entries {
-		tracked[e.Name] = true
+		return 0, err
 	}
 
 	moved := 0
@@ -319,38 +379,71 @@ func (s *Store) MigrateLegacyAttachments(message, authorName, authorEmail string
 				return 0, fmt.Errorf("adding attachment to index: %w", err)
 			}
 		}
-		if err := s.removeRepositoryFile(path); err != nil {
-			return 0, fmt.Errorf("removing legacy attachment: %w", err)
+		if err := s.removeTracked(wt, tracked, path); err != nil {
+			return 0, err
 		}
-		if tracked[path] {
-			if _, err := wt.Remove(path); err != nil {
-				return 0, fmt.Errorf("removing legacy attachment from index: %w", err)
-			}
-		}
-		delete(s.historyCache, path)
 		delete(s.historyCache, target)
 		if _, _, ok := ParseAttachmentPath(path); ok {
 			moved++
 		}
 	}
 	s.removeEmptyDirs(filepath.Join(s.dir, attachmentsDir))
+	if err := s.commitWorktree(wt, message, authorName, authorEmail); err != nil {
+		return 0, err
+	}
+	return moved, nil
+}
 
+// trackedWorktree returns the worktree and the set of paths in the Git index,
+// so removals of untracked files skip the index.
+func (s *Store) trackedWorktree() (*git.Worktree, map[string]bool, error) {
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting worktree: %w", err)
+	}
+	idx, err := s.repo.Storer.Index()
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading index: %w", err)
+	}
+	tracked := make(map[string]bool, len(idx.Entries))
+	for _, e := range idx.Entries {
+		tracked[e.Name] = true
+	}
+	return wt, tracked, nil
+}
+
+// removeTracked deletes a legacy file from disk and, when tracked, the index.
+func (s *Store) removeTracked(wt *git.Worktree, tracked map[string]bool, path string) error {
+	if err := s.removeRepositoryFile(path); err != nil {
+		return fmt.Errorf("removing legacy attachment: %w", err)
+	}
+	if tracked[path] {
+		if _, err := wt.Remove(path); err != nil {
+			return fmt.Errorf("removing legacy attachment from index: %w", err)
+		}
+	}
+	delete(s.historyCache, path)
+	return nil
+}
+
+// commitWorktree commits what has been staged; nothing staged is not an error.
+func (s *Store) commitWorktree(wt *git.Worktree, message, authorName, authorEmail string) error {
 	preHead := s.headHash()
 	commitHash, err := wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{Name: authorName, Email: authorEmail, When: time.Now()},
 	})
 	if errors.Is(err, git.ErrEmptyCommit) {
-		return moved, nil
+		return nil
 	}
 	if err != nil {
-		return 0, fmt.Errorf("committing: %w", err)
+		return fmt.Errorf("committing: %w", err)
 	}
 	s.noteCommit(commitHash, preHead)
 	if s.remote != "" {
 		s.syncState = "pending"
 		s.startPush()
 	}
-	return moved, nil
+	return nil
 }
 
 // legacyAttachmentFiles lists every regular file below the legacy tree,
