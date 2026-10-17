@@ -265,24 +265,27 @@ func (a *API) LegacyAttachments() bool {
 	return a.store != nil && !a.readOnly() && a.store.LegacyAttachments()
 }
 
-// OrphanedAttachments is a namespace that no longer exists but still has
-// attachments in the old top-level layout.
-type OrphanedAttachments struct {
+// LegacyAttachmentNamespace is a namespace that still has attachments in the
+// old top-level layout. Exists says whether the namespace is still there, so
+// its files can be moved; a gone namespace's files can only be deleted.
+type LegacyAttachmentNamespace struct {
 	Namespace string
 	Files     int
+	Exists    bool
 }
 
-// LegacyAttachmentStatus counts the legacy attachments a migration would move
-// and lists the gone namespaces whose old attachments it would leave.
-func (a *API) LegacyAttachmentStatus() (movable int, orphans []OrphanedAttachments, err error) {
+// LegacyAttachmentStatus lists the namespaces that still have attachments in
+// the old top-level layout, in name order.
+func (a *API) LegacyAttachmentStatus() ([]LegacyAttachmentNamespace, error) {
 	if a.store == nil {
-		return 0, nil, nil
+		return nil, nil
 	}
-	movable, found, err := a.store.LegacyAttachmentStatus()
-	for _, o := range found {
-		orphans = append(orphans, OrphanedAttachments{Namespace: o.Namespace, Files: o.Files})
+	found, err := a.store.LegacyAttachmentStatus()
+	namespaces := make([]LegacyAttachmentNamespace, 0, len(found))
+	for _, n := range found {
+		namespaces = append(namespaces, LegacyAttachmentNamespace{Namespace: n.Namespace, Files: n.Files, Exists: n.Exists})
 	}
-	return movable, orphans, err
+	return namespaces, err
 }
 
 // DeleteOrphanedAttachments deletes the old-layout attachments of a namespace

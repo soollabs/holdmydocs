@@ -255,38 +255,38 @@ func (s *Store) LegacyAttachments() bool {
 	return false
 }
 
-// LegacyAttachmentOrphan is a namespace that no longer exists but still has
-// source attachments in the legacy tree.
-type LegacyAttachmentOrphan struct {
+// LegacyAttachmentNamespace is a namespace with source attachments in the
+// legacy tree. A migration moves them when the namespace exists; the files of
+// a gone namespace can only be deleted.
+type LegacyAttachmentNamespace struct {
 	Namespace string
 	Files     int
+	Exists    bool
 }
 
-// LegacyAttachmentStatus counts the legacy source attachments a migration
-// would move, and lists the gone namespaces whose attachments it would leave.
-func (s *Store) LegacyAttachmentStatus() (movable int, orphans []LegacyAttachmentOrphan, err error) {
+// LegacyAttachmentStatus lists the namespaces that still have source
+// attachments in the legacy tree, in name order.
+func (s *Store) LegacyAttachmentStatus() ([]LegacyAttachmentNamespace, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var paths []string
 	if err := s.walkAttachmentRoot(attachmentsDir, &paths); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
+	var namespaces []LegacyAttachmentNamespace
 	index := map[string]int{}
 	for _, path := range paths {
-		if _, ok := s.legacyTarget(path); ok {
-			movable++
-			continue
-		}
 		namespace := legacyNamespace(path)
 		i, seen := index[namespace]
 		if !seen {
-			i = len(orphans)
+			i = len(namespaces)
 			index[namespace] = i
-			orphans = append(orphans, LegacyAttachmentOrphan{Namespace: namespace})
+			namespaces = append(namespaces, LegacyAttachmentNamespace{Namespace: namespace, Exists: s.namespaceDirExists(namespace)})
 		}
-		orphans[i].Files++
+		namespaces[i].Files++
 	}
-	return movable, orphans, nil
+	slices.SortFunc(namespaces, func(a, b LegacyAttachmentNamespace) int { return strings.Compare(a.Namespace, b.Namespace) })
+	return namespaces, nil
 }
 
 // DeleteLegacyAttachments removes every file a gone namespace still has in

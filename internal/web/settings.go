@@ -92,8 +92,9 @@ type SettingsData struct {
 	UserError       string             // create/scope-update validation error
 	// Legacy attachments a migration would move, and the gone namespaces
 	// whose old attachments it leaves.
-	LegacyAttachmentsMovable  int
-	LegacyAttachmentsOrphaned []api.OrphanedAttachments
+	LegacyAttachments         []api.LegacyAttachmentNamespace
+	LegacyAttachmentsMovable  bool
+	LegacyAttachmentsOrphaned bool
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -331,11 +332,15 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("attachments-deleted"); q == "1" {
 		sd.Flash = "Old attachments deleted"
 	}
-	movable, orphaned, err := app.apiClient().LegacyAttachmentStatus()
+	legacy, err := app.apiClient().LegacyAttachmentStatus()
 	if err != nil {
 		slog.Warn("counting legacy attachments", "err", err)
 	}
-	sd.LegacyAttachmentsMovable, sd.LegacyAttachmentsOrphaned = movable, orphaned
+	sd.LegacyAttachments = legacy
+	for _, n := range legacy {
+		sd.LegacyAttachmentsMovable = sd.LegacyAttachmentsMovable || n.Exists
+		sd.LegacyAttachmentsOrphaned = sd.LegacyAttachmentsOrphaned || !n.Exists
+	}
 	app.renderSettings(w, r, sd, "admin")
 }
 
