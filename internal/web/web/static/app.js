@@ -372,22 +372,6 @@
     onMainScroll();
   }
 
-  // ---- editor: toggle preview pane for more writing space ----
-  const togglePreviewBtn = $('#toggle-preview-btn');
-  const splitEl = $('.split');
-  if (togglePreviewBtn && splitEl) {
-    const applyPreviewState = hidden => {
-      splitEl.classList.toggle('no-preview', hidden);
-      togglePreviewBtn.setAttribute('aria-pressed', String(hidden));
-    };
-    applyPreviewState(localStorage.getItem('hmd-hide-preview') === '1');
-    togglePreviewBtn.addEventListener('click', () => {
-      const hidden = !splitEl.classList.contains('no-preview');
-      applyPreviewState(hidden);
-      localStorage.setItem('hmd-hide-preview', hidden ? '1' : '0');
-    });
-  }
-
   // ---- ctrl-k palette ----
   const paletteBackdrop = $('#palette-backdrop');
   const paletteInput = $('#palette-input');
@@ -800,7 +784,8 @@
       openPalette();
       return;
     }
-    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly) {
+    // The editor owns ctrl-e for its preview.
+    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly && !$('#edit-form')) {
       // A namespace listing has no page behind it — its slug is "ns/", which
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.
@@ -844,17 +829,19 @@
     let dirty = false;
     let draftTimeout;
 
-    // Zen mode state
+    // Zen mode state: focus hides everything but the writing and dims all
+    // but the current line.
     const zenState = {
-      manuscript: false,
-      typewriter: false,
       focus: false
     };
 
-    // Load saved zen state
+    // Load saved zen state. Focus took over the old full-screen mode, whose
+    // setting it inherits; the old dim-only focus has no setting of its own.
     try {
       const saved = JSON.parse(localStorage.getItem('hmd-zen'));
-      if (saved) Object.assign(zenState, saved);
+      if (saved) {
+        zenState.focus = Boolean(saved.manuscript ?? saved.focus);
+      }
     } catch (e) { /* ignore */ }
 
     function saveZenState() {
@@ -893,117 +880,160 @@
       if (breadcrumbDirty) breadcrumbDirty.hidden = false;
     }
 
-    // Typewriter scroll — keep cursor vertically centred (instant, not smooth)
-    function scrollCursorToCenter() {
-      if (!zenState.typewriter) return;
-      const cursorCoords = editor.coordsAtPos(editor.state.selection.main.head);
-      if (!cursorCoords) return;
-      const editorRect = cmHost.getBoundingClientRect();
-      const viewportHeight = editorRect.height;
-      const cursorRelativeY = cursorCoords.top - editorRect.top;
-      const targetY = viewportHeight / 2;
-      const scrollDelta = cursorRelativeY - targetY;
-      const scroller = cmHost.querySelector('.cm-scroller');
-      if (scroller) {
-        scroller.scrollBy({ top: scrollDelta, behavior: 'auto' });
-      }
-    }
+    // The editor grows with its document like a reading page, so the page's
+    // own scroller (main) moves through it rather than a box inside it.
+    const pageScroller = $('main') || document.scrollingElement;
 
     function applyZenState() {
-      document.body.classList.toggle('zen-manuscript', zenState.manuscript);
-      document.body.classList.toggle('zen-typewriter', zenState.typewriter);
       document.body.classList.toggle('zen-focus', zenState.focus);
 
-      $$('.zen-toolbar button[data-zen]').forEach(btn => {
+      $$('.toolbar button[data-zen]').forEach(btn => {
         btn.setAttribute('aria-pressed', String(Boolean(zenState[btn.dataset.zen])));
       });
-
-      if (zenState.typewriter) {
-        scrollCursorToCenter();
-      }
     }
 
     function toggleZen(mode) {
       zenState[mode] = !zenState[mode];
+      // Focus is for writing; it has no room for the preview.
+      if (mode === 'focus' && zenState.focus) setPreviewShown(false);
       saveZenState();
       applyZenState();
-      if (mode === 'manuscript') {
-        if (zenState.manuscript) startMousemoveListener();
+      if (mode === 'focus') {
+        if (zenState.focus) startMousemoveListener();
         else stopMousemoveListener();
       }
     }
 
-    // Word wrap — on by default, toggle persisted
-    let wrapEnabled = localStorage.getItem('hmd-wrap') !== '0';
+    const toolbar = $('.toolbar');
 
-    // Create editor — zenState defined before listener references it
-    function mountEditor() {
-      return new HMD.EditorView({
-        doc: textarea.value,
-        extensions: [
-          HMD.basicSetup,
-          HMD.markdown(),
-          HMD.EditorView.cspNonce.of(window.hmdCSPNonce),
-          ...(wrapEnabled ? [HMD.EditorView.lineWrapping] : []),
-          HMD.EditorView.updateListener.of(update => {
-            if (update.docChanged) {
-              textarea.value = update.state.doc.toString();
-              dirty = true;
-              markDirty();
-              schedulePreview();
-              updateWordCount();
-              scheduleDraft();
-            }
-            if (update.selectionSet) {
-              if (zenState.typewriter) scrollCursorToCenter();
-            }
-          })
-        ],
-        parent: cmHost
-      });
-    }
-    let editor = mountEditor();
-
-    const toggleWrapBtn = $('#toggle-wrap-btn');
-    if (toggleWrapBtn) {
-      toggleWrapBtn.setAttribute('aria-pressed', String(wrapEnabled));
-      toggleWrapBtn.addEventListener('click', () => {
-        wrapEnabled = !wrapEnabled;
-        localStorage.setItem('hmd-wrap', wrapEnabled ? '1' : '0');
-        toggleWrapBtn.setAttribute('aria-pressed', String(wrapEnabled));
-        editor.destroy();
-        editor = mountEditor();
-        editor.focus();
-      });
-    }
-
-    // Preview scheduling with error handling and loading indicator
-    function schedulePreview() {
-      clearTimeout(previewTimeout);
-      previewTimeout = setTimeout(() => {
-        preview.classList.add('preview-loading');
-        preview.classList.remove('preview-error');
-        fetch('/_/api/preview?slug=' + encodeURIComponent(document.body.dataset.slug || ''), {
-          method: 'POST',
-          body: textarea.value
-        })
-        .then(r => {
-          if (!r.ok) throw new Error('Preview request failed');
-          return r.text();
-        })
-        .then(html => {
-          preview.innerHTML = html;
-          preview.classList.remove('preview-loading');
-          if (window.mermaid) {
-            mermaid.run({querySelector: '#preview pre.mermaid'}).catch(() => {});
+    // Create editor — zenState defined before listener references it. Lines
+    // always wrap: the editor grows with the page, so a sideways scrollbar
+    // would sit below the end of the document.
+    const editor = new HMD.EditorView({
+      doc: textarea.value,
+      extensions: [
+        HMD.basicSetup,
+        HMD.markdown(),
+        HMD.EditorView.cspNonce.of(window.hmdCSPNonce),
+        // Keep the cursor clear of the sticky toolbar when scrolling to it.
+        HMD.EditorView.scrollMargins.of(() => ({ top: toolbar ? toolbar.offsetHeight : 0 })),
+        HMD.EditorView.lineWrapping,
+        HMD.EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            textarea.value = update.state.doc.toString();
+            dirty = true;
+            markDirty();
+            schedulePreview();
+            updateWordCount();
+            scheduleDraft();
           }
         })
-        .catch(err => {
-          preview.classList.remove('preview-loading');
-          preview.classList.add('preview-error');
-          preview.innerHTML = '<p>Preview unavailable</p>';
-        });
-      }, 300);
+      ],
+      parent: cmHost
+    });
+
+    // Focus mode text size, in tenths of the normal size, persisted.
+    const zenSmallerBtn = $('#zen-smaller');
+    const zenLargerBtn = $('#zen-larger');
+    const zenScaleMin = 10, zenScaleMax = 16;
+    let zenScale = Number(localStorage.getItem('hmd-zen-scale')) || 12;
+    function applyZenScale() {
+      zenScale = Math.min(zenScaleMax, Math.max(zenScaleMin, zenScale));
+      document.body.style.setProperty('--zen-scale', String(zenScale / 10));
+      if (zenSmallerBtn) zenSmallerBtn.disabled = zenScale <= zenScaleMin;
+      if (zenLargerBtn) zenLargerBtn.disabled = zenScale >= zenScaleMax;
+    }
+    [[zenSmallerBtn, -1], [zenLargerBtn, 1]].forEach(([btn, step]) => {
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        zenScale += step;
+        localStorage.setItem('hmd-zen-scale', String(zenScale));
+        applyZenScale();
+        editor.focus();
+      });
+    });
+    applyZenScale();
+
+    // Preview replaces the source in the same column, so turning it on moves
+    // nothing else on the page. It is only rendered while it is showing.
+    const togglePreviewBtn = $('#toggle-preview-btn');
+    const previewShown = () => Boolean(preview) && !preview.hidden;
+
+    // Fraction of el scrolled past the top of the page scroller, so a swap
+    // can land on the same part of the document.
+    function scrollProgress(el) {
+      const top = pageScroller.getBoundingClientRect().top;
+      const rect = el.getBoundingClientRect();
+      const range = rect.height - pageScroller.clientHeight;
+      return range > 0 ? Math.min(1, Math.max(0, (top - rect.top) / range)) : 0;
+    }
+
+    function setPreviewShown(show) {
+      if (show === previewShown() || (show && zenState.focus)) return;
+      const from = show ? cmHost : preview;
+      const to = show ? preview : cmHost;
+      const progress = scrollProgress(from);
+      from.hidden = true;
+      to.hidden = false;
+      if (togglePreviewBtn) togglePreviewBtn.setAttribute('aria-pressed', String(show));
+      // Formatting edits the source, so it waits while the preview shows.
+      $$('.toolbar button[data-action]').forEach(btn => { btn.disabled = show; });
+      const restore = () => {
+        if (progress === 0) return;
+        const rect = to.getBoundingClientRect();
+        const range = rect.height - pageScroller.clientHeight;
+        if (range > 0) pageScroller.scrollTop += rect.top - pageScroller.getBoundingClientRect().top + progress * range;
+      };
+      // Focus follows the swap, so it never sits on the hidden pane.
+      if (show) renderPreview().then(() => { restore(); preview.focus({ preventScroll: true }); });
+      else { restore(); editor.focus(); }
+    }
+
+    if (togglePreviewBtn) {
+      togglePreviewBtn.addEventListener('click', () => setPreviewShown(!previewShown()));
+    }
+
+    // Ctrl+E (Cmd+E on macOS) switches between writing and preview. On macOS
+    // Ctrl+E stays the editor's move-to-line-end.
+    const isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform || '');
+    document.addEventListener('keydown', e => {
+      if ((isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        setPreviewShown(!previewShown());
+      }
+    });
+
+    function schedulePreview() {
+      if (!previewShown()) return;
+      clearTimeout(previewTimeout);
+      previewTimeout = setTimeout(renderPreview, 300);
+    }
+
+    // Render the preview with error handling and a loading indicator.
+    function renderPreview() {
+      clearTimeout(previewTimeout);
+      preview.classList.add('preview-loading');
+      preview.classList.remove('preview-error');
+      return fetch('/_/api/preview?slug=' + encodeURIComponent(document.body.dataset.slug || ''), {
+        method: 'POST',
+        body: textarea.value
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('Preview request failed');
+        return r.text();
+      })
+      .then(html => {
+        preview.innerHTML = html;
+        preview.classList.remove('preview-loading');
+        if (window.mermaid) {
+          mermaid.run({querySelector: '#preview pre.mermaid'}).catch(() => {});
+        }
+      })
+      .catch(err => {
+        preview.classList.remove('preview-loading');
+        preview.classList.add('preview-error');
+        preview.innerHTML = '<p>Preview unavailable</p>';
+      });
     }
 
     // Draft auto-save (debounced)
@@ -1031,11 +1061,11 @@
     }
 
     // Zen mode button handlers
-    $$('.zen-toolbar button[data-zen]').forEach(btn => {
+    $$('.toolbar button[data-zen]').forEach(btn => {
       btn.addEventListener('click', () => toggleZen(btn.dataset.zen));
     });
 
-    // Exit manuscript mode on save, and convert the native form submit into a
+    // Leave focus mode on save, and convert the native form submit into a
     // JSON mutation so a conflict or validation error renders inline and the
     // user's draft survives.
     const editForm = $('#edit-form');
@@ -1106,7 +1136,7 @@
     if (editForm) {
       editForm.addEventListener('submit', e => {
         e.preventDefault();
-        if (zenState.manuscript) toggleZen('manuscript');
+        if (zenState.focus) toggleZen('focus');
         submitEditForm();
       });
       const overwriteBtn = $('#conflict-overwrite');
@@ -1136,15 +1166,6 @@
       }
     });
 
-    // Re-centre cursor on resize when typewriter mode is active
-    let resizeTimer;
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (zenState.typewriter) scrollCursorToCenter();
-      }, 100);
-    });
-
     // Unsaved changes warning
     window.addEventListener('beforeunload', e => {
       if (dirty) {
@@ -1156,34 +1177,6 @@
 
     // Restore saved zen state on load
     applyZenState();
-
-    // Scroll sync — editor scroll maps proportionally to preview
-    let syncScrollSource = null;
-    const scroller = cmHost.querySelector('.cm-scroller');
-    if (scroller && preview) {
-      scroller.addEventListener('scroll', () => {
-        if (syncScrollSource === 'preview') return;
-        syncScrollSource = 'editor';
-        const maxScroll = scroller.scrollHeight - scroller.clientHeight;
-        if (maxScroll > 0) {
-          const ratio = scroller.scrollTop / maxScroll;
-          const previewMax = preview.scrollHeight - preview.clientHeight;
-          preview.scrollTop = ratio * previewMax;
-        }
-        requestAnimationFrame(() => { syncScrollSource = null; });
-      });
-      preview.addEventListener('scroll', () => {
-        if (syncScrollSource === 'editor') return;
-        syncScrollSource = 'preview';
-        const maxScroll = preview.scrollHeight - preview.clientHeight;
-        if (maxScroll > 0) {
-          const ratio = preview.scrollTop / maxScroll;
-          const editorMax = scroller.scrollHeight - scroller.clientHeight;
-          scroller.scrollTop = ratio * editorMax;
-        }
-        requestAnimationFrame(() => { syncScrollSource = null; });
-      });
-    }
 
     // Toolbar actions — wrap selection in markers, or insert with cursor
     function wrapSelection(before, after) {
@@ -1288,8 +1281,7 @@
       });
     });
 
-    // Run preview and word count once on load
-    schedulePreview();
+    // Word count once on load; the preview renders when it is first shown.
     updateWordCount();
 
     // Handle attachment uploads, with paste and drop remaining image-only.
@@ -1370,20 +1362,8 @@
     cmHost.addEventListener('keydown', e => {
       const mod = e.ctrlKey || e.metaKey;
 
-      // Zen mode shortcuts (Ctrl+Shift+F/T/D)
+      // Focus mode shortcut (Ctrl+Shift+F)
       if (mod && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
-        e.preventDefault();
-        toggleZen('manuscript');
-        return;
-      }
-
-      if (mod && e.shiftKey && (e.key === 'T' || e.key === 't')) {
-        e.preventDefault();
-        toggleZen('typewriter');
-        return;
-      }
-
-      if (mod && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
         e.preventDefault();
         toggleZen('focus');
         return;
@@ -1413,13 +1393,13 @@
 
     // Document-level Escape handler (works even when editor isn't focused)
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && zenState.manuscript) {
+      if (e.key === 'Escape' && zenState.focus) {
         e.preventDefault();
-        toggleZen('manuscript');
+        toggleZen('focus');
       }
     });
 
-    // Floating status bar for manuscript mode — only active when manuscript is on
+    // Floating status bar for focus mode — only active when focus is on
     const zenStatusBar = $('#zen-status');
     const zenExitBtn = $('#zen-exit');
     let statusTimeout;
@@ -1427,7 +1407,7 @@
 
     // Exit button in the floating status bar
     if (zenExitBtn) {
-      zenExitBtn.addEventListener('click', () => toggleZen('manuscript'));
+      zenExitBtn.addEventListener('click', () => toggleZen('focus'));
     }
 
     function startMousemoveListener() {
@@ -1443,7 +1423,7 @@
     }
 
     function handleMousemove() {
-      if (!zenState.manuscript) {
+      if (!zenState.focus) {
         stopMousemoveListener();
         return;
       }
@@ -1454,8 +1434,8 @@
       }, 3000);
     }
 
-    // If manuscript mode is active on load, start listener
-    if (zenState.manuscript) {
+    // If focus mode is active on load, start listener
+    if (zenState.focus) {
       startMousemoveListener();
     }
   }
