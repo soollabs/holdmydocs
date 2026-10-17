@@ -1088,6 +1088,7 @@ aside h2 {
 
 /* Zen Mode — Manuscript (full-screen) */
 
+body.zen-manuscript .app-topbar,
 body.zen-manuscript .sidebar,
 body.zen-manuscript .statusline,
 body.zen-manuscript .edit-topbar,
@@ -1099,6 +1100,7 @@ body.zen-manuscript #preview {
 
 body.zen-manuscript.shell {
 	grid-template-columns: 1fr;
+	grid-template-rows: 1fr;
 	grid-template-areas: "main";
 }
 
