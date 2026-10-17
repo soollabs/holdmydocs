@@ -1727,6 +1727,9 @@
   }), () => { settingsReturn('wiki-saved=1'); });
   jsonForm($('form[action="/_/api/settings/setup"]'), () => ({}), () => { settingsReturn(); });
   jsonForm($('form[action="/_/api/settings/attachments/migrate"]'), () => ({}), () => { settingsReturn('attachments-moved=1'); });
+  $$('form[action="/_/api/settings/attachments/delete"]').forEach(form => {
+    jsonForm(form, f => ({ namespace: fieldValue(f, 'namespace') }), () => { settingsReturn('attachments-deleted=1'); });
+  });
   jsonForm($('form[action="/_/api/settings/help/reset"]'), () => ({}), () => { settingsReturn(); });
 
   // Namespace editor: save, reset and delete share one form; the

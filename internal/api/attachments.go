@@ -265,13 +265,40 @@ func (a *API) LegacyAttachments() bool {
 	return a.store != nil && !a.readOnly() && a.store.LegacyAttachments()
 }
 
-// LegacyAttachmentCounts counts the legacy attachments a migration would move
-// and those it would leave because their namespace no longer exists.
-func (a *API) LegacyAttachmentCounts() (movable, orphaned int, err error) {
+// OrphanedAttachments is a namespace that no longer exists but still has
+// attachments in the old top-level layout.
+type OrphanedAttachments struct {
+	Namespace string
+	Files     int
+}
+
+// LegacyAttachmentStatus counts the legacy attachments a migration would move
+// and lists the gone namespaces whose old attachments it would leave.
+func (a *API) LegacyAttachmentStatus() (movable int, orphans []OrphanedAttachments, err error) {
 	if a.store == nil {
-		return 0, 0, nil
+		return 0, nil, nil
 	}
-	return a.store.LegacyAttachmentCounts()
+	movable, found, err := a.store.LegacyAttachmentStatus()
+	for _, o := range found {
+		orphans = append(orphans, OrphanedAttachments{Namespace: o.Namespace, Files: o.Files})
+	}
+	return movable, orphans, err
+}
+
+// DeleteOrphanedAttachments deletes the old-layout attachments of a namespace
+// that no longer exists, in one commit.
+func (a *API) DeleteOrphanedAttachments(ctx context.Context, namespace string) (int, error) {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return 0, err
+	}
+	username, _ := Username(ctx)
+	name, email := a.authorFor(username)
+	deleted, err := a.store.DeleteLegacyAttachments(namespace, "Delete old attachments of "+namespace, name, email)
+	if err != nil {
+		return 0, InvalidInput(err.Error(), err)
+	}
+	slog.Info("orphaned attachments deleted", "namespace", namespace, "attachments", deleted, "author", name)
+	return deleted, nil
 }
 
 // MigrateAttachments moves legacy attachments into their namespaces'

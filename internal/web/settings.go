@@ -90,9 +90,10 @@ type SettingsData struct {
 	AllScopes       []string           // "read", "write", "settings" — the scope checkbox options
 	CurrentUser     string             // name of the logged-in user, so the users tab can block self-lockout
 	UserError       string             // create/scope-update validation error
-	// Legacy attachments a migration would move, and those it leaves because
-	// their namespace no longer exists.
-	LegacyAttachmentsMovable, LegacyAttachmentsOrphaned int
+	// Legacy attachments a migration would move, and the gone namespaces
+	// whose old attachments it leaves.
+	LegacyAttachmentsMovable  int
+	LegacyAttachmentsOrphaned []api.OrphanedAttachments
 }
 
 // TokenView is a PAT as listed on the settings page (metadata only).
@@ -327,7 +328,10 @@ func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("attachments-moved"); q == "1" {
 		sd.Flash = "Attachments moved into their namespaces"
 	}
-	movable, orphaned, err := app.apiClient().LegacyAttachmentCounts()
+	if q := r.URL.Query().Get("attachments-deleted"); q == "1" {
+		sd.Flash = "Old attachments deleted"
+	}
+	movable, orphaned, err := app.apiClient().LegacyAttachmentStatus()
 	if err != nil {
 		slog.Warn("counting legacy attachments", "err", err)
 	}

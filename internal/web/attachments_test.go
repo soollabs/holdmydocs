@@ -43,3 +43,36 @@ func TestLegacyAttachmentMigration(t *testing.T) {
 		t.Errorf("attachment URL after migration = %q", body)
 	}
 }
+
+// TestOrphanedAttachmentsListedAndDeleted checks that old attachments of a
+// namespace that no longer exists are listed in settings and can be deleted.
+func TestOrphanedAttachmentsListedAndDeleted(t *testing.T) {
+	app, server, client := newTestAppFull(t)
+	defer server.Close()
+
+	if _, err := app.Store.Save("attachments/gone/page/old.png", []byte("png"), "seed", "test", "test@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	page := getPage(t, client, server.URL+"/_/settings/wiki")
+	if !strings.Contains(page, `name="namespace" value="gone"`) || strings.Contains(page, `action="/_/api/settings/attachments/migrate"`) {
+		t.Fatal("settings should list the gone namespace without a move action")
+	}
+	if strings.Contains(page, "Attachments need moving.") {
+		t.Error("banner shown when nothing can be moved")
+	}
+
+	resp, err := postJSON(t, client, server.URL+"/_/api/settings/attachments/delete", map[string]string{"namespace": "gone"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete status = %d", resp.StatusCode)
+	}
+	if _, ok := app.Store.FindAttachment("gone/page", "old.png"); ok {
+		t.Error("orphaned attachment still present")
+	}
+	if page := getPage(t, client, server.URL+"/_/settings/wiki"); strings.Contains(page, `id="attachments"`) {
+		t.Error("attachments section still shown with nothing left")
+	}
+}
