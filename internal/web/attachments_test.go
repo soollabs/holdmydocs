@@ -20,8 +20,12 @@ func TestLegacyAttachmentMigration(t *testing.T) {
 	if page := getPage(t, client, server.URL+"/"+testHome); !strings.Contains(page, "Attachments need moving.") {
 		t.Fatal("banner missing while legacy attachments exist")
 	}
-	if page := getPage(t, client, server.URL+"/_/settings/wiki"); !strings.Contains(page, `action="/_/api/settings/attachments/migrate"`) {
+	page := getPage(t, client, server.URL+"/_/settings/wiki")
+	if !strings.Contains(page, `action="/_/api/settings/attachments/migrate"`) {
 		t.Fatal("settings lacks the move action")
+	}
+	if !strings.Contains(page, "<td><code>"+testNS+"/</code></td>") || !strings.Contains(page, "moves into the namespace") {
+		t.Error("settings does not list the namespace whose attachments move")
 	}
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/attachments/migrate", emptyJSON(url.Values{}))

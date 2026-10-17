@@ -130,26 +130,30 @@
 		</div>
 	</fieldset>
 
-	{{if or .Settings.LegacyAttachmentsMovable .Settings.LegacyAttachmentsOrphaned}}
+	{{if .Settings.LegacyAttachments}}
 	<fieldset class="settings-section" id="attachments">
 		<legend>attachments</legend>
-		<p class="settings-zone-desc">Attachments now live inside each namespace, in <code>&lt;namespace&gt;/.attachments/</code>.{{if .Settings.LegacyAttachmentsMovable}} {{.Settings.LegacyAttachmentsMovable}} still use the old top-level <code>attachments/</code> folder. They keep working where they are; moving them takes one commit, and links to them don't change. HMD instances older than this one only look in the old folder, so update every instance using this repository first.{{end}}</p>
-		{{if .Settings.LegacyAttachmentsMovable}}<div class="settings-row">
-			<label>old layout</label>
-			<form method="POST" action="/_/api/settings/attachments/migrate" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
-				{{template "ui-button" (button "Move attachments" "primary" "type" "submit")}}
-			</form>
-		</div>{{end}}
-		{{if .Settings.LegacyAttachmentsOrphaned}}
-		<p class="settings-note">These namespaces no longer exist, but their attachments are still in the old <code>attachments/</code> folder. Deleting them takes one commit; they stay in Git history.</p>
-		{{range .Settings.LegacyAttachmentsOrphaned}}
-		<form method="POST" action="/_/api/settings/attachments/delete" class="settings-row orphaned-attachments">{{template "csrf" $}}{{template "json-required" $}}
-			<input type="hidden" name="namespace" value="{{.Namespace}}">
-			<label>{{.Namespace}}/ ({{.Files}} {{if eq .Files 1}}file{{else}}files{{end}})</label>
-			{{template "ui-button" (button "Delete" "danger" "type" "submit" "aria-label" (printf "Delete the old attachments of %s" .Namespace) "confirm" (printf "Delete the %d old attachment(s) of %s? They stay in Git history." .Files .Namespace))}}
-		</form>
-		{{end}}
-		{{end}}
+		<p class="settings-zone-desc">These namespaces still keep attachments in the old top-level <code>attachments/</code> folder. Pages still show them from there.</p>
+		{{$legacyTable := component "table" "id" "legacy-attachments-table"}}{{template "ui-table-start" $legacyTable}}
+			<thead><tr><th>namespace</th><th>files</th><th>what happens</th></tr></thead>
+			<tbody>
+			{{range .Settings.LegacyAttachments}}<tr>
+				<td><code>{{.Namespace}}/</code></td>
+				<td>{{.Files}}</td>
+				{{if .Exists}}<td>moves into the namespace</td>
+				{{else}}<td><form method="POST" action="/_/api/settings/attachments/delete" class="settings-inline-form">{{template "csrf" $}}{{template "json-required" $}}
+					<input type="hidden" name="namespace" value="{{.Namespace}}">
+					namespace deleted
+					{{template "ui-button" (button "Delete" "danger" "size" "compact" "type" "submit" "aria-label" (printf "Delete the old attachments of %s" .Namespace) "confirm" (printf "Delete the %d old attachment(s) of %s? They stay in Git history." .Files .Namespace))}}
+				</form></td>{{end}}
+			</tr>{{end}}
+			</tbody>
+		{{template "ui-table-end" $legacyTable}}
+		{{if .Settings.LegacyAttachmentsOrphaned}}<p class="settings-note">A deleted namespace's files can't be moved. Deleting them takes one commit; they stay in Git history.</p>{{end}}
+		{{if .Settings.LegacyAttachmentsMovable}}<p class="settings-note">Moving puts each namespace's files in its own <code>.attachments/</code> folder in one commit, and links don't change. Update every HMD instance that uses this repository first: older versions only look in the old folder.</p>
+		<form method="POST" action="/_/api/settings/attachments/migrate" class="settings-actions">{{template "csrf" .}}{{template "json-required" .}}
+			{{template "ui-button" (button "Move attachments" "primary" "type" "submit")}}
+		</form>{{end}}
 	</fieldset>
 	{{end}}
 </section>

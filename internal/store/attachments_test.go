@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -137,8 +138,9 @@ func TestMigrateLegacyAttachments(t *testing.T) {
 	if !s.LegacyAttachments() {
 		t.Fatal("legacy attachments not detected")
 	}
-	if movable, orphans, err := s.LegacyAttachmentStatus(); err != nil || movable != 2 || len(orphans) != 1 || orphans[0] != (LegacyAttachmentOrphan{Namespace: "gone", Files: 1}) {
-		t.Fatalf("LegacyAttachmentStatus = %d, %+v, %v", movable, orphans, err)
+	want := []LegacyAttachmentNamespace{{Namespace: "gone", Files: 1}, {Namespace: "notes", Files: 2, Exists: true}}
+	if namespaces, err := s.LegacyAttachmentStatus(); err != nil || !slices.Equal(namespaces, want) {
+		t.Fatalf("LegacyAttachmentStatus = %+v, %v", namespaces, err)
 	}
 
 	moved, err := s.MigrateLegacyAttachments("migrate", "test", "test@hmd.local")
@@ -201,8 +203,8 @@ func TestDeleteLegacyAttachments(t *testing.T) {
 	if got := readAttachment(t, s, "notes/page", "kept.txt"); got != "kept" {
 		t.Errorf("another namespace's attachment touched: %q", got)
 	}
-	if _, orphans, err := s.LegacyAttachmentStatus(); err != nil || len(orphans) != 0 {
-		t.Errorf("orphans after delete = %+v, %v", orphans, err)
+	if namespaces, err := s.LegacyAttachmentStatus(); err != nil || slices.ContainsFunc(namespaces, func(n LegacyAttachmentNamespace) bool { return !n.Exists }) {
+		t.Errorf("gone namespaces after delete = %+v, %v", namespaces, err)
 	}
 	if commits, err := s.RecentCommits(1); err != nil || len(commits) != 1 || commits[0].Message != "delete" {
 		t.Errorf("latest commit = %+v, %v", commits, err)

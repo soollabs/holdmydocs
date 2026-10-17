@@ -1610,6 +1610,12 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	color: var(--accent);
 }
 
+/* Old-layout attachments: names and headings stay whole on a phone; the
+   last column takes the wrapping. */
+#legacy-attachments-table :is(th, td:first-child) {
+	white-space: nowrap;
+}
+
 /* Code blocks */
 
 #page-content pre {
@@ -2303,6 +2309,7 @@ h1.edit-title::after {
 
 .settings-form {
 	max-width: 48rem;
+	margin-bottom: 1.5rem;
 }
 
 /* OAuth: readable consent, compact client records and explicit danger actions. */
@@ -2427,7 +2434,7 @@ h1.edit-title::after {
    the fieldset and there is nothing to save. */
 .settings-view-only { display: contents; }
 .settings-view-only .settings-actions { display: none; }
-.settings-panels .settings-zone { max-width: none; }
+.settings-panels :is(.settings-zone, .settings-form) { max-width: none; }
 .settings-nav {
 	display: flex;
 	flex-direction: column;
