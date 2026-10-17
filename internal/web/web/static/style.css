@@ -419,9 +419,8 @@ body.shell.shell-public {
    and outline rail form one centred group, with the sidebar beside the text
    instead of pinned to the window edge. The gutter column is empty page
    background; it is zero until the window is wider than the group. Content
-   starts at the same place on every screen; the editor, which needs more room,
-   grows to the right from there. Settings put their own menu in the sidebar
-   column. */
+   starts at the same place on every screen, the editor included. Settings
+   put their own menu in the sidebar column. */
 @media (min-width: 900px) {
 	body.shell {
 		--shell-measure: calc(260px + var(--prose-measure) + var(--rail-w));
@@ -498,14 +497,6 @@ main {
 
 .content-col {
 	max-width: var(--prose-measure);
-	width: 100%;
-	padding: 40px 48px;
-}
-
-/* Editor needs far more room than reading-width prose — it's a two-pane
-   source/preview split, not a single text column. */
-.editor-col {
-	max-width: 1400px;
 	width: 100%;
 	padding: 40px 48px;
 }
@@ -928,47 +919,38 @@ aside h2 {
 	color: var(--fg-muted);
 }
 
-/* Editor */
-
-.edit-form > div:first-child {
-	margin-bottom: 1rem;
-}
-
-.split {
-	display: flex;
-	gap: 1rem;
-	margin-bottom: 1rem;
-}
-
-.split > * {
-	flex: 1;
-	min-width: 0;
-}
-
-#cm-host {
-	border: var(--field-border-w) solid var(--border-visible);
-	border-radius: var(--radius-lg);
-	overflow: hidden;
-}
+/* Editor: the source sits in the reading column at the reading width, so
+   editing looks like the page. It grows with its document and the page
+   scrolls, as on a reading page; the preview swaps into the same place. */
 
 #cm-host .cm-editor {
 	min-height: 24rem;
-	max-height: 70vh;
+	background: none;
+	color: var(--fg);
+}
+
+#cm-host .cm-editor.cm-focused {
+	outline: none;
 }
 
 #cm-host .cm-gutters {
-	background: var(--surface);
-	border-right: var(--border-w) solid var(--chrome-border);
-	color: var(--fg-muted);
+	display: none;
+}
+
+#cm-host .cm-content {
+	padding: 0 0 4rem;
+}
+
+#cm-host .cm-line {
+	padding: 0;
 }
 
 #preview {
-	border: var(--field-border-w) solid var(--border-visible);
-	border-radius: var(--radius-lg);
-	padding: 0.75rem;
 	min-height: 24rem;
-	max-height: 70vh;
-	overflow-y: auto;
+}
+
+#preview:focus {
+	outline: none;
 }
 
 #preview.preview-loading {
@@ -976,7 +958,6 @@ aside h2 {
 }
 
 #preview.preview-error {
-	border-color: var(--danger);
 	color: var(--danger);
 }
 
@@ -1015,21 +996,6 @@ aside h2 {
 
 /* CM6 dark theme */
 
-:root[data-theme="dark"] #cm-host .cm-editor {
-	background: var(--surface);
-	color: var(--fg);
-}
-
-:root[data-theme="dark"] #cm-host .cm-editor .cm-gutters {
-	background: var(--surface);
-	border-right: var(--border-w) solid var(--chrome-border);
-	color: var(--fg-muted);
-}
-
-:root[data-theme="dark"] #cm-host .cm-editor .cm-activeLineGutter {
-	background: var(--border);
-}
-
 :root[data-theme="dark"] #cm-host .cm-editor .cm-activeLine {
 	background: color-mix(in srgb, var(--border) 30%, transparent);
 }
@@ -1042,39 +1008,43 @@ aside h2 {
 	border-left-color: var(--fg);
 }
 
-/* Responsive: stack editor and preview on narrow screens */
-
-@media (max-width: 768px) {
-	.split {
-		flex-direction: column;
-	}
-
-	#cm-host .cm-editor,
-	#preview {
-		max-height: 40vh;
-	}
-}
-
 /* Editor toolbar */
 
+/* The toolbar stays in reach while the page scrolls through the document. */
 .toolbar {
+	position: sticky;
+	top: 0;
+	z-index: 2;
 	display: flex;
-	gap: 0.4rem;
-	margin-bottom: 0.5rem;
-	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--pad);
+	margin: 0 0 1.25rem;
+	padding: 0.5rem 0;
+	background: var(--bg);
+	border-bottom: var(--border-w) var(--rule-style) var(--chrome-border);
 }
 
-.toolbar button {
-	background: var(--surface);
-	color: var(--fg);
-	border: var(--field-border-w) solid var(--border-visible);
-	padding: 0.3rem 0.6rem;
-	font-size: 0.9rem;
+.toolbar-group {
+	display: flex;
+	flex: none;
+	gap: 0.3rem;
 }
 
-.toolbar button:hover {
-	filter: none;
-	background: var(--border);
+.toolbar-view {
+	margin-left: auto;
+}
+
+/* Small screens: the buttons flow and wrap as one set rather than scroll
+   sideways. */
+@media (max-width: 899px) {
+	.toolbar {
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+
+	.toolbar-group {
+		display: contents;
+	}
 }
 
 /* Tags */
@@ -1086,102 +1056,48 @@ aside h2 {
 	flex-wrap: wrap;
 }
 
-/* Zen Mode — Manuscript (full-screen) */
+/* Zen Mode — Focus: only the title and the writing stay, larger, with all
+   but the current line dimmed. Save stays on Ctrl/Cmd+S. */
 
-body.zen-manuscript .sidebar,
-body.zen-manuscript .statusline,
-body.zen-manuscript .edit-topbar,
-body.zen-manuscript .toolbar,
-body.zen-manuscript #editor-src,
-body.zen-manuscript #preview {
+body.zen-focus .app-topbar,
+body.zen-focus .sidebar,
+body.zen-focus .statusline,
+body.zen-focus main > :is(.restart-pending, .legacy-attachments, .settings-banner),
+body.zen-focus .editor-col > .breadcrumb,
+body.zen-focus .edit-meta,
+body.zen-focus .toolbar,
+body.zen-focus #editor-src,
+body.zen-focus #preview {
 	display: none !important;
 }
 
-body.zen-manuscript.shell {
+/* The shell collapses to its main area. */
+body.zen-focus.shell {
 	grid-template-columns: 1fr;
+	grid-template-rows: 1fr;
 	grid-template-areas: "main";
 }
 
-body.zen-manuscript main,
-body.zen-manuscript .content-col,
-body.zen-manuscript .editor-col {
-	max-width: 100%;
-	padding: 0;
-	margin: 0;
+body.zen-focus.shell > main {
+	align-items: center;
 }
 
-body.zen-manuscript .edit-form {
-	display: flex;
-	flex-direction: column;
-	height: 100vh;
+/* The text grows and the column with it, so lines keep their length. The
+   focus bar's size buttons set the scale on the body. */
+body.zen-focus {
+	--zen-scale: 1.2;
 }
 
-body.zen-manuscript .split {
-	flex: 1;
-	margin-bottom: 0;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
+body.zen-focus :is(.page-wrap, .page-wrap .content-col) {
+	max-width: calc(var(--prose-measure) * var(--zen-scale));
 }
 
-body.zen-manuscript #cm-host {
-	flex: 1;
-	border: none;
-	border-radius: 0;
-	overflow: visible;
-	height: 100%;
+body.zen-focus #cm-host .cm-editor {
+	font-size: calc(1em * var(--zen-scale));
 }
-
-body.zen-manuscript #cm-host .cm-editor {
-	height: 100%;
-	min-height: 0;
-	max-height: none;
-}
-
-/* Zen mode toggle buttons */
-
-.zen-toolbar {
-	display: flex;
-	gap: 0.3rem;
-	margin-left: auto;
-}
-
-.zen-toolbar button {
-	background: var(--surface);
-	color: var(--fg);
-	border: var(--border-w) solid var(--chrome-border);
-	padding: 0.25rem 0.5rem;
-	font-size: 0.8rem;
-	cursor: pointer;
-	border-radius: var(--radius);
-}
-
-.zen-toolbar button:hover {
-	background: var(--border);
-}
-
-.zen-toolbar button[aria-pressed="true"] {
-	background: var(--primary);
-	color: var(--accent-fg);
-	border-color: var(--primary);
-}
-
-/* Zen Mode — Focus (dim non-active paragraphs)
-   Uses CM6's built-in .cm-activeLine class (from basicSetup) — no JS needed. */
 
 body.zen-focus .cm-editor .cm-line:not(.cm-activeLine) {
 	opacity: 0.35;
-}
-
-/* Zen Mode — Typewriter (cursor centred) */
-
-body.zen-typewriter .cm-editor .cm-scroller {
-	scroll-padding-block: 50%;
-}
-
-body.zen-typewriter .cm-editor .cm-cursor {
-	/* Ensure cursor is visible when centred */
-	border-left-color: var(--accent);
 }
 
 /* Zen Mode — floating status bar */
@@ -1204,11 +1120,11 @@ body.zen-typewriter .cm-editor .cm-cursor {
 	gap: 0.5rem;
 }
 
-body.zen-manuscript .zen-status {
+body.zen-focus .zen-status {
 	display: flex;
 }
 
-body.zen-manuscript .zen-status.visible {
+body.zen-focus .zen-status.visible {
 	opacity: 1;
 }
 
@@ -1916,24 +1832,85 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 }
 
 /* ---------------------------------------------------------------
-   Editor top bar (edit.html)
+   Editor header (edit.html): the title edits in place of the page
+   title, with tags and the page details below it as on a reading page.
    --------------------------------------------------------------- */
 
-.edit-topbar {
+.editor-col > .breadcrumb .cancel-link {
+	margin-left: auto;
+	padding: 0;
+	color: var(--fg-muted);
+}
+
+.edit-title {
 	display: flex;
-	align-items: center;
-	gap: 24px;
-	padding: 12px 16px;
-	background: var(--surface);
-	border-bottom: var(--border-w) solid var(--chrome-border);
 	flex-wrap: wrap;
+	align-items: baseline;
+}
+
+/* Flex layout would trim the space the title marker ends with. */
+.edit-title .h {
+	white-space: pre;
+}
+
+/* The skin's title rule keeps its own line under the title: the margin
+   fills the rest of the row so it wraps there. */
+h1.edit-title::after {
+	margin-right: calc(100% - var(--title-rule-w));
+}
+
+.edit-title input {
+	flex: 1 1 60%;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	text-transform: inherit;
+}
+
+.edit-title input:focus-visible {
+	outline: none;
+}
+
+.edit-title input::placeholder {
+	color: var(--fg-faint);
+}
+
+.edit-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.5rem var(--pad);
+	margin-bottom: 1.25rem;
+	font-size: 13px;
+}
+
+.edit-meta > .ui-disclosure > summary {
+	color: var(--fg-muted);
+}
+
+.edit-meta > .ui-disclosure[open] {
+	flex-basis: 100%;
+	order: 1;
+}
+
+.edit-details {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem var(--pad);
+	padding-top: 0.75rem;
 }
 
 .edit-field {
 	display: flex;
-	align-items: center;
+	align-items: baseline;
 	gap: 6px;
-	flex: 1 1 auto;
+	flex: 1 1 16rem;
 	min-width: 0;
 }
 
@@ -1953,6 +1930,7 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	flex: 1 1 12rem;
 	min-width: 0;
 	width: auto;
+	font-size: inherit;
 }
 
 .edit-field-checkbox {
@@ -1965,29 +1943,6 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 
 .edit-field-checkbox input {
 	width: auto;
-}
-
-.edit-topbar .save-btn {
-	margin-left: auto;
-	background: var(--primary);
-	color: var(--accent-fg);
-	font-weight: 700;
-	border: none;
-	border-radius: 3px;
-	cursor: pointer;
-	padding: 6px 16px;
-}
-
-.edit-topbar .cancel-link {
-	color: var(--fg-faint);
-}
-
-
-
-
-/* Hiding the preview lets #cm-host expand to fill the freed flex space. */
-.split.no-preview #preview {
-	display: none;
 }
 
 /* ---------------------------------------------------------------

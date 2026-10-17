@@ -11,7 +11,7 @@ const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/
 
 class Element {
   constructor(value = '') {
-    Object.assign(this, { value, dataset: {}, style: {}, hidden: true, checked: false,
+    Object.assign(this, { value, dataset: {}, style: { setProperty(name, value) { this[name] = value; } }, hidden: true, checked: false,
       disabled: false, type: 'text', textContent: '', handlers: {}, children: [], selectors: new Map(), attributes: {} });
     this.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
   }
@@ -94,6 +94,7 @@ function fixture(kind, responses) {
   class EditorView {
     static cspNonce = { of: value => value };
     static updateListener = { of: callback => callback };
+    static scrollMargins = { of: () => ({}) };
     static lineWrapping = {};
     constructor(options) { editorOptions = options; }
   }

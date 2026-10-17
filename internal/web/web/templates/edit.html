@@ -1,9 +1,11 @@
 {{define "content"}}
-<div class="editor-col">
+<div class="page-wrap">
+<div class="content-col editor-col">
 <div class="breadcrumb">
 	<a href="/" class="breadcrumb-site">{{.SiteName}}</a>
 	<span class="sep">/</span>
 	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
+	<a href="{{.PageURL}}" class="cancel-link">cancel</a>
 </div>
 {{$remoteNotice := component "notice" "variant" "warning" "role" "status" "hidden" "true" "id" "remote-changed-banner"}}{{template "ui-notice-start" $remoteNotice}}Remote updated this page. Saving will conflict &mdash; you'll keep your version or discard it.{{template "ui-notice-end" $remoteNotice}}
 {{$saveError := component "notice" "variant" "danger" "role" "alert" "hidden" "true" "id" "save-error"}}{{template "ui-notice-start" $saveError}}{{template "ui-notice-end" $saveError}}
@@ -12,47 +14,47 @@
 	{{template "ui-button" (button "overwrite with mine" "danger" "size" "compact" "id" "conflict-overwrite")}}
 {{template "ui-notice-end" $conflictNotice}}
 <form method="GET" action="{{.PageURL}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
-	<div class="edit-topbar">
-		<div class="edit-field">
-			{{$slugField := component "field" "id" "new-slug" "layout" "bare" "label" "path:"}}{{template "ui-field-start" $slugField}}
-			<input type="text" id="new-slug" name="new_slug" value="{{.Slug}}" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]*" list="namespace-list" title="namespace/filename — changing the namespace moves the page">
-			<datalist id="namespace-list">{{range .NamespaceNames}}<option value="{{.}}/"></option>{{end}}</datalist>{{template "ui-field-end" $slugField}}
-		</div>
-		<div class="edit-field">
-			{{$titleField := component "field" "id" "title" "layout" "bare" "label" "title:"}}{{template "ui-field-start" $titleField}}<input type="text" id="title" name="title" value="{{.Title}}" required>{{template "ui-field-end" $titleField}}
-		</div>
+	<h1 class="page-title edit-title"><span class="h"></span><input type="text" id="title" name="title" value="{{.Title}}" required placeholder="Title" aria-label="Title" autocomplete="off"></h1>
+	<div class="edit-meta">
 		<div class="edit-field tags">
-			{{$tagsField := component "field" "id" "tags" "layout" "bare" "label" "tags:"}}{{template "ui-field-start" $tagsField}}<input type="text" id="tags" name="tags" value="{{.TagsInput}}">{{template "ui-field-end" $tagsField}}
+			{{$tagsField := component "field" "id" "tags" "layout" "bare" "label" "tags:"}}{{template "ui-field-start" $tagsField}}<input type="text" id="tags" name="tags" value="{{.TagsInput}}" placeholder="comma separated" autocomplete="off">{{template "ui-field-end" $tagsField}}
 		</div>
-		{{$choiceSlot1 := component "choice" "id" "edit-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
-			<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
-		</label>{{template "ui-choice-end" $choiceSlot1}}
-		<a href="{{.PageURL}}" class="cancel-link">cancel</a>
-		{{if ne .BaseHash ""}}{{template "ui-button" (button "delete" "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
+		{{$details := component "disclosure" "label" "page details"}}{{template "ui-disclosure-start" $details}}<div class="edit-details">
+			<div class="edit-field">
+				{{$slugField := component "field" "id" "new-slug" "layout" "bare" "label" "path:"}}{{template "ui-field-start" $slugField}}
+				<input type="text" id="new-slug" name="new_slug" value="{{.Slug}}" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]*" list="namespace-list" title="namespace/filename — changing the namespace moves the page" autocomplete="off">
+				<datalist id="namespace-list">{{range .NamespaceNames}}<option value="{{.}}/"></option>{{end}}</datalist>{{template "ui-field-end" $slugField}}
+			</div>
+			{{$choiceSlot1 := component "choice" "id" "edit-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="edit-field-checkbox" title="Hidden pages are excluded from the page list, search, tags, and backlinks">
+				<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> hidden
+			</label>{{template "ui-choice-end" $choiceSlot1}}
+			{{if ne .BaseHash ""}}{{template "ui-button" (button "delete page" "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
+		</div>{{template "ui-disclosure-end" $details}}
 	</div>
 
 	<div class="toolbar" role="toolbar" aria-label="Formatting">
-		{{$bold := button "Bold (Ctrl/Cmd+B)" "secondary" "size" "compact" "data-action" "bold" "title" "Bold (Ctrl/Cmd+B)"}}{{template "ui-button-start" $bold}}<strong>B</strong>{{template "ui-button-end" $bold}}
-		{{$italic := button "Italic (Ctrl/Cmd+I)" "secondary" "size" "compact" "data-action" "italic" "title" "Italic (Ctrl/Cmd+I)"}}{{template "ui-button-start" $italic}}<em>I</em>{{template "ui-button-end" $italic}}
-		{{template "ui-button" (button "H" "secondary" "size" "compact" "data-action" "header" "title" "Header")}}
-		{{template "ui-button" (button "[[link]]" "secondary" "size" "compact" "data-action" "link" "title" "Link (Ctrl/Cmd+Shift+K)")}}
-		{{template "ui-button" (button "`code`" "secondary" "size" "compact" "data-action" "code" "title" "Code")}}
-		{{template "ui-button" (button "table" "secondary" "size" "compact" "data-action" "table" "title" "Table")}}
-		{{template "ui-button" (button "img" "secondary" "size" "compact" "data-action" "image" "title" "Image")}}
-		{{template "ui-button" (button "attach" "secondary" "size" "compact" "data-action" "attachment" "title" "Upload attachment")}}
-		{{template "ui-button" (button "toc" "secondary" "size" "compact" "data-action" "toc" "title" "Table of contents")}}
-		{{template "ui-button" (button "preview" "secondary" "size" "compact" "id" "toggle-preview-btn" "title" "Hide preview for more writing space")}}
-		{{template "ui-button" (button "wrap" "secondary" "size" "compact" "id" "toggle-wrap-btn" "title" "Toggle word wrap")}}
-		<div class="zen-toolbar">
-			{{template "ui-button" (button "Full" "secondary" "size" "compact" "data-zen" "manuscript" "title" "Full screen (Ctrl+Shift+F)")}}
-			{{template "ui-button" (button "Type" "secondary" "size" "compact" "data-zen" "typewriter" "title" "Typewriter scroll (Ctrl+Shift+T)")}}
-			{{template "ui-button" (button "Focus" "secondary" "size" "compact" "data-zen" "focus" "title" "Focus mode (Ctrl+Shift+D)")}}
+		<div class="toolbar-group">
+			{{$bold := button "Bold (Ctrl/Cmd+B)" "secondary" "size" "compact" "data-action" "bold" "title" "Bold (Ctrl/Cmd+B)"}}{{template "ui-button-start" $bold}}<strong>B</strong>{{template "ui-button-end" $bold}}
+			{{$italic := button "Italic (Ctrl/Cmd+I)" "secondary" "size" "compact" "data-action" "italic" "title" "Italic (Ctrl/Cmd+I)"}}{{template "ui-button-start" $italic}}<em>I</em>{{template "ui-button-end" $italic}}
+			{{template "ui-button" (button "H" "secondary" "size" "compact" "data-action" "header" "title" "Heading")}}
+		</div>
+		<div class="toolbar-group">
+			{{template "ui-button" (button "link" "secondary" "size" "compact" "data-action" "link" "title" "Link (Ctrl/Cmd+Shift+K)")}}
+			{{template "ui-button" (button "code" "secondary" "size" "compact" "data-action" "code" "title" "Inline code")}}
+			{{template "ui-button" (button "table" "secondary" "size" "compact" "data-action" "table" "title" "Table")}}
+			{{template "ui-button" (button "img" "secondary" "size" "compact" "data-action" "image" "title" "Image")}}
+			{{template "ui-button" (button "attach" "secondary" "size" "compact" "data-action" "attachment" "title" "Upload attachment")}}
+			{{template "ui-button" (button "toc" "secondary" "size" "compact" "data-action" "toc" "title" "Table of contents")}}
+		</div>
+		<div class="toolbar-group toolbar-view">
+			{{template "ui-button" (button "focus" "secondary" "size" "compact" "data-zen" "focus" "title" "Hide everything but the writing (Ctrl+Shift+F)")}}
+			{{template "ui-button" (button "preview" "secondary" "size" "compact" "id" "toggle-preview-btn" "pressed" "false" "aria-controls" "preview" "title" "Preview the page (Ctrl/Cmd+E)")}}
 		</div>
 	</div>
 
-	<div class="split">
+	<div class="editor-panes">
 		<div id="cm-host" data-slug="{{.Slug}}"></div>
-		<div id="preview" class="split-pane"></div>
+		<div id="preview" tabindex="-1" hidden></div>
 	</div>
 
 	<textarea name="body" id="editor-src" rows="16" hidden>{{.Body}}</textarea>
@@ -64,7 +66,9 @@
 
 <div class="zen-status" id="zen-status">
 	<span class="zen-status-info" id="zen-save-status">0 words</span>
-	{{template "ui-button" (button "Exit" "secondary" "size" "compact" "id" "zen-exit" "hook" "zen-exit" "title" "Exit full screen (Esc)")}}
+	{{$zenSmaller := button "Smaller text" "secondary" "size" "icon" "id" "zen-smaller" "aria-label" "Smaller text" "title" "Smaller text"}}{{template "ui-button-start" $zenSmaller}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19l5-13 5 13M5 15h6M16 12h6"/></svg>{{template "ui-button-end" $zenSmaller}}
+	{{$zenLarger := button "Larger text" "secondary" "size" "icon" "id" "zen-larger" "aria-label" "Larger text" "title" "Larger text"}}{{template "ui-button-start" $zenLarger}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19l5-13 5 13M5 15h6M16 12h6M19 9v6"/></svg>{{template "ui-button-end" $zenLarger}}
+	{{template "ui-button" (button "Exit" "secondary" "size" "compact" "id" "zen-exit" "hook" "zen-exit" "title" "Leave focus (Esc)")}}
 </div>
 
 <noscript>
@@ -73,5 +77,6 @@
 </noscript>
 
 <script src="{{static "editor.js"}}"></script>
+</div>
 </div>
 {{end}}
