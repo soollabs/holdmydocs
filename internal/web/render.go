@@ -328,7 +328,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		_, _, data.SyncLastUnix = app.apiClient().SyncState()
 		if ts := data.SyncLastUnix; ts > 0 {
 			if d := time.Since(time.Unix(ts, 0)); d < time.Minute {
-				data.SyncAge = i18n.T("web.render.seconds_ago", "Seconds", int(d.Seconds()))
+				data.SyncAge = i18n.T("js.age.seconds", "Count", int(d.Seconds()))
 			} else {
 				data.SyncAge = wiki.RelativeTime(time.Unix(ts, 0))
 			}

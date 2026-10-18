@@ -2,12 +2,29 @@ package i18n
 
 import (
 	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestTranslateWithPlaceholder(t *testing.T) {
 	if got := T("error.back_to", "Site", "Docs"); got != "Back to Docs" {
 		t.Fatalf("T = %q", got)
+	}
+}
+
+func TestDates(t *testing.T) {
+	if got := MonthYear(time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC)); got != "January 2026" {
+		t.Errorf("MonthYear = %q", got)
+	}
+	if got := Date(time.Date(2026, time.September, 2, 0, 0, 0, 0, time.UTC)); got != "2 Sep 2026" {
+		t.Errorf("Date = %q", got)
+	}
+	for m := time.January; m <= time.December; m++ {
+		d := time.Date(2026, m, 1, 0, 0, 0, 0, time.UTC)
+		if got := MonthYear(d) + Date(d); strings.Contains(got, "date.") {
+			t.Errorf("%s: missing month message in %q", m, got)
+		}
 	}
 }
 

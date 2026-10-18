@@ -5,10 +5,9 @@
 package presentation
 
 // Skin is a structural presentation skin together with the palette it selects
-// by default and the statusline variant it uses.
+// by default and the statusline variant it uses. Skin names are shown as they
+// are; their descriptions live in the i18n catalogue as settings.skin.note.<name>.
 type Skin struct {
-	Label   string
-	Note    string
 	Palette string // Palette is applied when the skin is selected.
 	Status  string // statusline variant: full | write | quiet
 }
@@ -22,32 +21,22 @@ var SkinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
 // Skins maps each skin name to its definition.
 var Skins = map[string]Skin{
 	"phosphor": {
-		Label:   "phosphor",
-		Note:    "terminal green, monospace, # markers — the default",
 		Palette: "phosphor",
 		Status:  "full",
 	},
 	"newsprint": {
-		Label:   "newsprint",
-		Note:    "broadsheet — masthead, serif, justified columns, ink on paper",
 		Palette: "solarized",
 		Status:  "full",
 	},
 	"journal": {
-		Label:   "journal",
-		Note:    "writing first — serif, wide measure, no chrome",
 		Palette: "everforest",
 		Status:  "write",
 	},
 	"soft": {
-		Label:   "soft",
-		Note:    "rounded and low-contrast — warm sans, roomy leading, filled panels",
 		Palette: "rosé pine",
 		Status:  "full",
 	},
 	"bare": {
-		Label:   "bare",
-		Note:    "subtraction only — no borders, no markers, wide margins",
 		Palette: "one dark",
 		Status:  "quiet",
 	},

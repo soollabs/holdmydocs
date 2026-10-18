@@ -238,7 +238,7 @@
 		{{if .ReadOnly}}<div class="seg seg-read-only">{{t "base.statusline.read_only"}}</div>{{end}}
 		<div class="seg-spacer"></div>
 		<div class="seg seg-sync" id="status-sync" title="{{if .ReadOnly}}{{t "base.statusline.sync_remote_refresh"}}{{else}}{{t "base.statusline.sync_last_push"}}{{end}}" data-state="{{.SyncState}}" data-mode="{{.SyncMode}}" data-last-success="{{.SyncLastUnix}}">
-			<span class="sync-dot"></span>{{if not $quiet}}<span id="sync-text">{{if eq .SyncState "no remote"}}{{t "base.statusline.local_only"}}{{else}}{{if .ReadOnly}}⇣{{else if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{.SyncState}}{{end}}</span>{{end}}
+			<span class="sync-dot"></span>{{if not $quiet}}<span id="sync-text">{{if eq .SyncState "no remote"}}{{t "base.statusline.local_only"}}{{else}}{{if .ReadOnly}}⇣{{else if eq .SyncMode "bidirectional"}}⇣⇡{{else}}⇡{{end}} {{t (printf "js.sync.state.%s" .SyncState)}}{{end}}</span>{{end}}
 		</div>
 		{{if not $quiet}}<div class="seg seg-right seg-user">{{.Username}}</div>{{end}}
 	</div>

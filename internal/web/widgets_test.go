@@ -161,8 +161,8 @@ func TestResolveSkinFallback(t *testing.T) {
 	if got := skinName("journal"); got != "journal" {
 		t.Errorf("skinName(journal) = %q, want journal", got)
 	}
-	if got := resolveSkin("bogus").Label; got != skins[defaultSkin].Label {
-		t.Errorf("resolveSkin(bogus).Label = %q, want %q", got, skins[defaultSkin].Label)
+	if got := resolveSkin("bogus"); got != skins[defaultSkin] {
+		t.Errorf("resolveSkin(bogus) = %+v, want %+v", got, skins[defaultSkin])
 	}
 }
 

@@ -75,7 +75,6 @@ type SettingsData struct {
 	FontStacks      map[string]string // JSON-encoded for the live font preview
 	Skin            string
 	SkinNames       []string
-	Skins           map[string]skin
 	SkinPalettes    map[string]string // skin -> default palette, JSON-encoded to move the selection on change
 	HelpDrifted     bool
 	UserGitAuthor   string             // current user's per-user git author override
@@ -207,7 +206,6 @@ func buildSettingsData(cfg config.Config, prefs auth.UserRecord) SettingsData {
 		FontStacks:      fontStacks,
 		Skin:            activeName,
 		SkinNames:       skinNames,
-		Skins:           skins,
 		SkinPalettes:    skinPalettes(),
 		HasEnvOverrides: len(cfg.EnvOverrides) > 0,
 	}

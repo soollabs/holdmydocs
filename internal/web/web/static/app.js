@@ -245,7 +245,7 @@
         return;
       }
       const arrow = window.hmdReadOnly ? '⇣' : (bidi ? '⇣⇡' : '⇡');
-      syncText.textContent = arrow + ' ' + state + (last > 0 ? ' · ' + relativeAge(last) : '');
+      syncText.textContent = arrow + ' ' + window.hmdT('js.sync.state.' + state) + (last > 0 ? ' · ' + relativeAge(last) : '');
     }
 
     function updateSyncSeg(syncData) {

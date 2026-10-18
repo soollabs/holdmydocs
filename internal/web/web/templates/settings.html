@@ -18,7 +18,7 @@
 			<div class="settings-row">{{$fieldSlot1 := component "field" "id" "font-ui" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot1}}
 				{{$fontUI := component "field" "id" "font_ui" "label" (t "settings.font_ui.label") "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}{{template "ui-setting-info" (settinginfo "preferences" "font_ui")}}
 				<select id="font_ui" name="font_ui">
-					<option value="">{{t "settings.fonts.default_option"}}</option>
+					<option value="">{{t "js.settings.font_default" "Font" "jetbrains mono"}}</option>
 					<optgroup label="{{t "settings.fonts.group_sans"}}">
 						{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
@@ -33,7 +33,7 @@
 			<div class="settings-row">{{$fieldSlot2 := component "field" "id" "font-mono" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot2}}
 				{{$fontMono := component "field" "id" "font_mono" "label" (t "settings.font_mono.label") "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}{{template "ui-setting-info" (settinginfo "preferences" "font_mono")}}
 				<select id="font_mono" name="font_mono">
-					<option value="">{{t "settings.fonts.default_option"}}</option>
+					<option value="">{{t "js.settings.font_default" "Font" "jetbrains mono"}}</option>
 					<optgroup label="{{t "settings.fonts.group_sans"}}">
 						{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
@@ -50,11 +50,11 @@
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
 			<legend>{{t "settings.skin.legend"}}{{template "ui-setting-info" (settinginfo "preferences" "skin")}}</legend>
 			<div class="skin-picker">
-				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
+				{{range .Settings.SkinNames}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
 					<input type="radio" name="skin" value="{{.}}" {{if eq $.Settings.Skin .}}checked{{end}}>
-					<span class="skin-card-name">{{$s.Label}}</span>
-					<span class="skin-card-note">{{$s.Note}}</span>
+					<span class="skin-card-name">{{.}}</span>
+					<span class="skin-card-note">{{t (printf "settings.skin.note.%s" .)}}</span>
 				</label>
 				{{end}}
 			</div>
@@ -175,7 +175,7 @@
 		});
 	});
 
-	// Name the active skin's own font in each "(default — …)" option. skins.css
+	// Name the active skin's own font in each default option. skins.css
 	// stays the only source: briefly drop any previewed override to read it.
 	function syncFontDefaults() {
 		fontFields.forEach(function (pair) {
@@ -186,7 +186,7 @@
 			root.style.removeProperty(pair[1]);
 			var first = getComputedStyle(root).getPropertyValue(pair[1]).split(',')[0].trim().replace(/^["']|["']$/g, '');
 			if (override) root.style.setProperty(pair[1], override);
-			if (first) option.textContent = '(default: ' + first.toLowerCase() + ')';
+			if (first) option.textContent = window.hmdT('js.settings.font_default', { Font: first.toLowerCase() });
 		});
 	}
 	syncFontDefaults();

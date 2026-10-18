@@ -24,7 +24,7 @@
 			<legend>{{.Title}}</legend>
 			{{template "setting-groups" (settinggroups .Key $.Settings)}}
 			{{if eq .Key "git"}}<div class="settings-status" id="sync-status">
-				{{t "admin.sync.last_push"}} <span class="state-{{$.SyncState}}">{{if eq $.SyncState "no remote"}}{{t "admin.sync.not_applicable"}}{{else}}{{$.SyncState}}{{end}}</span> · {{$.SyncAge}} · {{t "admin.sync.last_fetch"}} {{if eq $.SyncMode "bidirectional"}}{{$.SyncAge}}{{else}}{{t "admin.sync.push_mode"}}{{end}}
+				{{t "admin.sync.last_push"}} <span class="state-{{$.SyncState}}">{{if eq $.SyncState "no remote"}}{{t "admin.sync.not_applicable"}}{{else}}{{t (printf "js.sync.state.%s" $.SyncState)}}{{end}}</span> · {{$.SyncAge}} · {{t "admin.sync.last_fetch"}} {{if eq $.SyncMode "bidirectional"}}{{$.SyncAge}}{{else}}{{t "admin.sync.push_mode"}}{{end}}
 			</div>{{end}}
 		</fieldset>
 		{{end}}

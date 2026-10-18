@@ -688,6 +688,110 @@
     "description": "Text under the heading when a wiki page does not exist yet.",
     "other": "This page does not exist yet."
   },
+  "date.day_month_year": {
+    "description": "A date. Day is the day of the month, Month an abbreviated month name, Year a four-digit year.",
+    "other": "{{.Day}} {{.Month}} {{.Year}}"
+  },
+  "date.month.april": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "April"
+  },
+  "date.month.august": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "August"
+  },
+  "date.month.december": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "December"
+  },
+  "date.month.february": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "February"
+  },
+  "date.month.january": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "January"
+  },
+  "date.month.july": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "July"
+  },
+  "date.month.june": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "June"
+  },
+  "date.month.march": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "March"
+  },
+  "date.month.may": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "May"
+  },
+  "date.month.november": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "November"
+  },
+  "date.month.october": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "October"
+  },
+  "date.month.september": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "September"
+  },
+  "date.month_short.april": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Apr"
+  },
+  "date.month_short.august": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Aug"
+  },
+  "date.month_short.december": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Dec"
+  },
+  "date.month_short.february": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Feb"
+  },
+  "date.month_short.january": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jan"
+  },
+  "date.month_short.july": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jul"
+  },
+  "date.month_short.june": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jun"
+  },
+  "date.month_short.march": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Mar"
+  },
+  "date.month_short.may": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "May"
+  },
+  "date.month_short.november": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Nov"
+  },
+  "date.month_short.october": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Oct"
+  },
+  "date.month_short.september": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Sep"
+  },
+  "date.month_year": {
+    "description": "Calendar heading. Month is a full month name, Year a four-digit year.",
+    "other": "{{.Month}} {{.Year}}"
+  },
   "edit.cancel_link": {
     "description": "Link in the editor breadcrumb that returns to the page view without saving.",
     "other": "cancel"
@@ -1212,6 +1316,10 @@
     "description": "Error shown when a request fails without a message. Status is the HTTP status code.",
     "other": "request failed ({{.Status}})"
   },
+  "js.settings.font_default": {
+    "description": "First option of both font selects, meaning the skin's default font. Font is that font's name in lower case.",
+    "other": "(default: {{.Font}})"
+  },
   "js.shutdown.close": {
     "description": "Shutdown dialog button once shutdown has begun.",
     "other": "Close"
@@ -1227,6 +1335,18 @@
   "js.sync.local_only": {
     "description": "Sync status when the wiki has no remote.",
     "other": "local only"
+  },
+  "js.sync.state.failed": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: the last push or fetch failed. Keep it to one short word.",
+    "other": "failed"
+  },
+  "js.sync.state.ok": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: the last push or fetch succeeded. Keep it to one short word.",
+    "other": "ok"
+  },
+  "js.sync.state.pending": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: changes are waiting to be pushed. Keep it to one short word.",
+    "other": "pending"
   },
   "js.sync.synced": {
     "description": "Sync status after a successful sync. Age is how long ago, e.g. \"5m ago\".",
@@ -1573,6 +1693,22 @@
   "namespace_edit.slug_custom_label": {
     "description": "Label of the custom slug pattern input.",
     "other": "custom pattern"
+  },
+  "namespace_edit.slug_preset.daily": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per day"
+  },
+  "namespace_edit.slug_preset.daily-per-user": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per day, per user"
+  },
+  "namespace_edit.slug_preset.monthly": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per month"
+  },
+  "namespace_edit.slug_preset.timestamped": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per keystroke, date and time"
   },
   "namespace_edit.slug_preset_custom": {
     "description": "Option in the slug preset select that enables a custom pattern.",
@@ -2121,10 +2257,6 @@
     "description": "Label of the select that picks the UI font.",
     "other": "ui font"
   },
-  "settings.fonts.default_option": {
-    "description": "First option of both font selects, meaning the skin's default font. The page script rewrites this text with the skin's font name; keep the '(default: ' prefix intact in translations.",
-    "other": "(default: jetbrains mono)"
-  },
   "settings.fonts.group_mono": {
     "description": "Option group label for monospace fonts in the font selects.",
     "other": "monospace"
@@ -2180,6 +2312,26 @@
   "settings.skin.legend": {
     "description": "Legend of the fieldset containing the skin picker.",
     "other": "skin"
+  },
+  "settings.skin.note.bare": {
+    "description": "Short description under the bare skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "subtraction only — no borders, no markers, wide margins"
+  },
+  "settings.skin.note.journal": {
+    "description": "Short description under the journal skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "writing first — serif, wide measure, no chrome"
+  },
+  "settings.skin.note.newsprint": {
+    "description": "Short description under the newsprint skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "broadsheet — masthead, serif, justified columns, ink on paper"
+  },
+  "settings.skin.note.phosphor": {
+    "description": "Short description under the phosphor skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "terminal green, monospace, # markers — the default"
+  },
+  "settings.skin.note.soft": {
+    "description": "Short description under the soft skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "rounded and low-contrast — warm sans, roomy leading, filled panels"
   },
   "settings.title.access_tokens": {
     "description": "Page heading of the access tokens settings panel (lowercase, shown when that panel is open).",
@@ -2461,6 +2613,10 @@
     "description": "Label before the list of pages that link to a missing page in the health report, shown after an em dash.",
     "other": "linked from"
   },
+  "web.pages.health_missing": {
+    "description": "Part of the health report status bar summary. Count is the number of links to pages that do not exist.",
+    "other": "{{.Count}} missing"
+  },
   "web.pages.health_missing_heading": {
     "description": "Heading of the missing pages section of the health report. Count is the number of missing pages.",
     "other": "Missing pages ({{.Count}})"
@@ -2468,6 +2624,11 @@
   "web.pages.health_missing_intro": {
     "description": "Introductory sentence under the missing pages heading in the health report.",
     "other": "Wiki-linked but not yet created:"
+  },
+  "web.pages.health_orphans": {
+    "description": "Part of the health report status bar summary. Count is the number of pages nothing links to.",
+    "one": "{{.Count}} orphan",
+    "other": "{{.Count}} orphans"
   },
   "web.pages.health_orphans_heading": {
     "description": "Heading of the orphaned pages section of the health report. Count is the number of orphaned pages.",
@@ -2477,6 +2638,10 @@
     "description": "Introductory sentence under the orphaned pages heading in the health report.",
     "other": "Pages with no incoming links:"
   },
+  "web.pages.health_stale": {
+    "description": "Part of the health report status bar summary. Count is the number of pages not updated for a long time.",
+    "other": "{{.Count}} stale"
+  },
   "web.pages.health_stale_heading": {
     "description": "Heading of the stale pages section of the health report. Count is the number of stale pages.",
     "other": "Stale pages ({{.Count}})"
@@ -2484,11 +2649,6 @@
   "web.pages.health_stale_intro": {
     "description": "Introductory sentence under the stale pages heading. Days is the staleness threshold in days.",
     "other": "No Git revision in at least {{.Days}} days:"
-  },
-  "web.pages.health_status": {
-    "description": "Status bar summary of the health report. Missing, Orphans and Stale are counts of each problem type; the plural form is chosen by Orphans.",
-    "one": "{{.Missing}} missing · {{.Orphans}} orphan · {{.Stale}} stale",
-    "other": "{{.Missing}} missing · {{.Orphans}} orphans · {{.Stale}} stale"
   },
   "web.pages.health_title": {
     "description": "Page title of the health report.",
@@ -2583,10 +2743,6 @@
   "web.render.not_found_title": {
     "description": "Title of the error page for a missing page.",
     "other": "Not found"
-  },
-  "web.render.seconds_ago": {
-    "description": "Relative age of the last sync when it is under a minute old. {{.Seconds}} is a whole number of seconds.",
-    "other": "{{.Seconds}}s ago"
   },
   "web.render.section_label": {
     "description": "Mobile settings section selector label while editing a namespace. {{.Name}} is the namespace name, {{.Section}} the section label.",

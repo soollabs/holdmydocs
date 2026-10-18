@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hmd/internal/api"
+	"hmd/internal/i18n"
 	"hmd/internal/presentation"
 	"hmd/internal/wiki"
 )
@@ -27,7 +28,7 @@ func slugPresetViews(user string) []slugPresetView {
 		if err != nil {
 			example = p.Pattern
 		}
-		views = append(views, slugPresetView{Key: p.Key, Label: p.Label, Example: example})
+		views = append(views, slugPresetView{Key: p.Key, Label: i18n.T("namespace_edit.slug_preset." + p.Key), Example: example})
 	}
 	return views
 }

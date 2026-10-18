@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"hmd/internal/i18n"
 	"hmd/internal/wiki"
 )
 
@@ -65,7 +66,7 @@ func buildCalendarMonth(ref time.Time, ns string, dates []string) CalendarMonth 
 		days = append(days, CalendarDay{})
 	}
 
-	return CalendarMonth{MonthName: first.Format("January 2006"), Days: days}
+	return CalendarMonth{MonthName: i18n.MonthYear(first), Days: days}
 }
 
 // WritingStats contains writing statistics.

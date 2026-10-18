@@ -603,7 +603,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 		Title:         i18n.T("web.pages.health_title"),
 		Slug:          "health-report",
 		Content:       content,
-		StatusContext: i18n.TN("web.pages.health_status", len(report.Orphans), "Missing", len(report.Missing), "Orphans", len(report.Orphans), "Stale", len(report.Stale)),
+		StatusContext: strings.Join([]string{i18n.TN("web.pages.health_missing", len(report.Missing)), i18n.TN("web.pages.health_orphans", len(report.Orphans)), i18n.TN("web.pages.health_stale", len(report.Stale))}, " · "),
 	})
 }
 
@@ -648,7 +648,7 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 				title = stale.Slug
 			}
 			fmt.Fprintf(&b, `<li><a href="%s">%s</a> — %s</li>`,
-				htmlEscape(wiki.PageURL(stale.Slug)), htmlEscape(title), htmlEscape(i18n.T("web.pages.health_last_updated", "Date", stale.LastUpdated.Format("2 Jan 2006"))))
+				htmlEscape(wiki.PageURL(stale.Slug)), htmlEscape(title), htmlEscape(i18n.T("web.pages.health_last_updated", "Date", i18n.Date(stale.LastUpdated))))
 		}
 		b.WriteString(`</ul></section>`)
 	}

@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
@@ -111,6 +112,20 @@ func data(args []any) map[string]any {
 	}
 	return m
 }
+
+// MonthYear formats t as a month heading, for example "January 2026". The
+// month is the standalone form, which some languages decline differently from
+// the form used inside a date.
+func MonthYear(t time.Time) string {
+	return T("date.month_year", "Month", T("date.month."+monthKey(t)), "Year", t.Year())
+}
+
+// Date formats t as a day, short month and year, for example "2 Jan 2026".
+func Date(t time.Time) string {
+	return T("date.day_month_year", "Day", t.Day(), "Month", T("date.month_short."+monthKey(t)), "Year", t.Year())
+}
+
+func monthKey(t time.Time) string { return strings.ToLower(t.Month().String()) }
 
 // entry is one catalogue message as stored in the JSON files.
 type entry map[string]string
