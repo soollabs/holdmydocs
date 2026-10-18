@@ -82,7 +82,7 @@ func isLocalURL(target string) bool {
 
 func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	if !app.apiClient().HasScope(r.Context(), api.ScopeWrite) {
-		http.Error(w, i18n.T("error.forbidden"), http.StatusForbidden)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	ns := r.URL.Query().Get("ns")
@@ -100,18 +100,18 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 
 	slugRel, err := api.RenderNewPageText(nsCfg.New.Slug, tmplData)
 	if err != nil {
-		http.Error(w, i18n.T("web.pages.invalid_slug_template"), http.StatusInternalServerError)
+		http.Error(w, "invalid slug template", http.StatusInternalServerError)
 		return
 	}
 	// The rendered slug is a trust boundary, like MCP input: validated
 	// after rendering so a template can never write outside its own
 	// namespace (no separators, no dot prefix, non-empty).
 	if !wiki.ValidPageSegment(slugRel) {
-		http.Error(w, i18n.T("web.pages.invalid_generated_slug"), http.StatusBadRequest)
+		http.Error(w, "invalid generated slug", http.StatusBadRequest)
 		return
 	}
 	if !wiki.ValidPageSegment(nsCfg.New.Template) {
-		http.Error(w, i18n.T("web.pages.invalid_template_page"), http.StatusBadRequest)
+		http.Error(w, "invalid template page", http.StatusBadRequest)
 		return
 	}
 	slug := wiki.NamespaceSlug(ns, slugRel)
@@ -122,7 +122,7 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	if _, err := app.apiClient().ViewPage(r.Context(), slug); err == nil {
 		target := wiki.PageURL(slug) + "?do=edit"
 		if !isLocalURL(target) {
-			http.Error(w, i18n.T("web.pages.invalid_redirect_target"), http.StatusInternalServerError)
+			http.Error(w, "invalid redirect target", http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, target, http.StatusSeeOther)
@@ -139,19 +139,19 @@ func (app *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 
 	title, err := api.RenderNewPageText(tplPage.Title, tmplData)
 	if err != nil {
-		http.Error(w, i18n.T("web.pages.invalid_title_template"), http.StatusInternalServerError)
+		http.Error(w, "invalid title template", http.StatusInternalServerError)
 		return
 	}
 	body, err := api.RenderNewPageText(tplPage.Body, tmplData)
 	if err != nil {
-		http.Error(w, i18n.T("web.pages.invalid_body_template"), http.StatusInternalServerError)
+		http.Error(w, "invalid body template", http.StatusInternalServerError)
 		return
 	}
 	tags := make([]string, 0, len(tplPage.Tags))
 	for _, tag := range tplPage.Tags {
 		rendered, err := api.RenderNewPageText(tag, tmplData)
 		if err != nil {
-			http.Error(w, i18n.T("web.pages.invalid_tag_template"), http.StatusInternalServerError)
+			http.Error(w, "invalid tag template", http.StatusInternalServerError)
 			return
 		}
 		tags = append(tags, rendered)
@@ -189,7 +189,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		case api.CategoryForbidden:
 			app.errorPage(w, r, http.StatusForbidden, i18n.T("web.pages.forbidden_title"), i18n.T("web.pages.forbidden_detail"))
 		default:
-			http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+			http.Error(w, "internal error", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -205,13 +205,13 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 	page.Body = app.injectTOC(r.Context(), page.Body, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	backlinkSummaries, err := app.apiClient().Backlinks(r.Context(), slug)
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	backlinks := make([]wiki.BacklinkEntry, 0, len(backlinkSummaries))
@@ -279,7 +279,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	isPublicLink := func(s string) bool { return app.apiClient().PageExists(r.Context(), s) && ns.IsPublic(s) }
 	renderedBody, err := app.Render.RenderPublic(page.Body, pageNS, isPublicLink)
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -311,7 +311,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		SidebarTreeNS:      sidebarTreeNS,
 		SidebarTreeEntries: sidebarTreeEntries,
 		// The outline widget builds its list from this page's own headings
-		// client-side (toc.js) — no auth-only data or endpoint involved, so
+		// client-side (toc.js) without auth-only data or endpoints, so
 		// it's safe for anonymous viewers same as the sidebar tree.
 		RailWidgets: widgetsForSlot(slotRail, cfg.Widgets),
 	})
@@ -442,7 +442,7 @@ func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	if !app.apiClient().HasScope(r.Context(), api.ScopeWrite) {
-		http.Error(w, i18n.T("error.forbidden"), http.StatusForbidden)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -457,7 +457,7 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, os.ErrNotExist):
 		// Missing page: start a blank edit form.
 	default:
-		http.Error(w, i18n.T("error.not_found"), http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -507,7 +507,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	elapsed := time.Since(start)
@@ -527,7 +527,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		if searchErr != nil {
 			if api.CategoryOf(searchErr) == api.CategoryBusy {
 				w.Header().Set("Retry-After", "1")
-				http.Error(w, i18n.T("web.pages.search_busy"), http.StatusTooManyRequests)
+				http.Error(w, "search is busy", http.StatusTooManyRequests)
 				return
 			}
 			slog.Warn("attachment search failed", "err", searchErr)
@@ -568,9 +568,9 @@ func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		case api.CategoryBusy:
 			w.Header().Set("Retry-After", "1")
-			http.Error(w, i18n.T("web.pages.search_busy"), http.StatusTooManyRequests)
+			http.Error(w, "search is busy", http.StatusTooManyRequests)
 		default:
-			http.Error(w, i18n.T("web.pages.attachment_search_unavailable"), http.StatusServiceUnavailable)
+			http.Error(w, "attachment search unavailable", http.StatusServiceUnavailable)
 		}
 		return
 	}
@@ -592,7 +592,7 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	report, err := app.apiClient().Health(r.Context(), "")
 	if err != nil {
 		slog.Error("building health report", "err", err, "cause", errors.Unwrap(err))
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -668,7 +668,7 @@ func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 	hashB := r.URL.Query().Get("b")
 
 	if hashA == "" || hashB == "" {
-		http.Error(w, i18n.T("web.pages.missing_hashes"), http.StatusBadRequest)
+		http.Error(w, "missing hashes", http.StatusBadRequest)
 		return
 	}
 
@@ -678,7 +678,7 @@ func (app *App) handlePageDiff(w http.ResponseWriter, r *http.Request) {
 			app.tokenNamespaceDenied(w, r)
 			return
 		}
-		http.Error(w, i18n.T("web.pages.diff_failed"), http.StatusInternalServerError)
+		http.Error(w, "diff failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -696,14 +696,14 @@ func (app *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	view, err := app.apiClient().ViewPage(r.Context(), slug)
 	if err != nil {
-		http.Error(w, i18n.T("error.not_found"), http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	history, err := app.apiClient().PageHistory(r.Context(), slug)
 	if err != nil {
 		slog.Error("reading page history", "slug", slug, "err", err)
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -744,7 +744,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 
 	revision, err := app.apiClient().RevisionPage(r.Context(), slug, hash)
 	if err != nil {
-		http.Error(w, i18n.T("error.not_found"), http.StatusNotFound)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -753,7 +753,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 	page.Body = app.injectTOC(r.Context(), page.Body, app.Namespaces().IndexSlug(ns), ns)
 	renderedBody, err := app.Render.Render(page.Body, ns)
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -775,7 +775,7 @@ func (app *App) handleViewRev(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 	summaries, err := app.apiClient().HiddenPages(r.Context())
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	pages := make([]wiki.BacklinkEntry, 0, len(summaries))
@@ -808,14 +808,14 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	hiddenNS, _ := wiki.NamespaceFor(slug)
 	renderedBody, err := app.Render.Render(view.Body, hiddenNS)
 	if err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -830,7 +830,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 	if !app.apiClient().HasScope(r.Context(), api.ScopeSettings) {
-		http.Error(w, i18n.T("error.forbidden"), http.StatusForbidden)
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -848,7 +848,7 @@ func (app *App) handleEditHidden(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, os.ErrNotExist):
 		// Missing hidden page: start a blank edit form.
 	default:
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 

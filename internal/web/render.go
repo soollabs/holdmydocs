@@ -198,7 +198,7 @@ type TemplateData struct {
 	PageFootWidgets         []*widget
 	StatusVariant           string // skin.Status: full | write | quiet
 
-	// Widget data — populated in app.render only when something on the page actually reads it (see
+	// Widget data, populated in app.render only when something on the page actually reads it (see
 	// populateWidgetData).
 	Calendar           CalendarMonth
 	WritingStats       WritingStats
@@ -458,7 +458,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
 		slog.Error("rendering template", "name", name, "err", err)
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -500,7 +500,7 @@ func (app *App) tokenNamespaceDenied(w http.ResponseWriter, r *http.Request) {
 		app.errorPage(w, r, http.StatusForbidden, i18n.T("web.render.forbidden_title"), i18n.T("web.render.forbidden_detail"))
 		return
 	}
-	http.Error(w, i18n.T("web.render.forbidden_namespace_error"), http.StatusForbidden)
+	http.Error(w, "403 Forbidden: namespace access denied", http.StatusForbidden)
 }
 
 func (app *App) requireTokenNamespace(w http.ResponseWriter, r *http.Request, namespace string) bool {

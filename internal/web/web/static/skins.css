@@ -97,7 +97,7 @@
 }
 
 /* ---------------------------------------------------------------
-   newsprint — broadsheet. Reading-first, rejects the terminal idiom.
+   newsprint: broadsheet. Reading-first, without the terminal idiom.
    Dense, justified, drop cap. Contrast with journal, which is the airy
    serif: this one is a column of type, journal is a page of margin.
    --------------------------------------------------------------- */
@@ -287,7 +287,7 @@
 }
 
 /* ---------------------------------------------------------------
-   journal — writing first. The point is the absence of everything else:
+   journal: writing first, with everything else taken away:
    serif, a wide relaxed measure, generous leading, no markers and no panel
    edges. Only the shell's own region rules survive, so you can
    still tell sidebar from page from statusline.
@@ -449,7 +449,7 @@
 	color: var(--fg-muted);
 }
 
-/* Ragged right, no hyphenation — a draft, not a printed column. */
+/* Ragged right without hyphenation, like a draft. */
 :root[data-skin="journal"] #page-content,
 :root[data-skin="journal"] #preview {
 	hyphens: none;
@@ -483,9 +483,9 @@
 }
 
 /* ---------------------------------------------------------------
-   soft — rounded and low-contrast. The one skin here that isn't austere:
+   soft: rounded and low-contrast, and the least austere skin here:
    generous radii, filled panels, roomy leading, and no markers or prompt
-   glyphs. Sans, not mono — the terminal idiom is what it's opting out of.
+   glyphs. It uses a sans face to drop the terminal idiom.
 
    It softens edges rather than deleting them (that's `bare`): every border
    stays, mixed back toward the panel so it reads as a seam, not a rule.
@@ -571,7 +571,7 @@
 }
 
 /* style.css marks code blocks with a lone 3px accent border-left. At this
-   radius that stroke curves away from the box on its own — the fill is
+   radius that stroke curves away from the box on its own. The fill is
    enough here, so drop it rather than round it. */
 :root[data-skin="soft"] #page-content pre,
 :root[data-skin="soft"] #preview pre {
@@ -626,7 +626,7 @@
 
 
 /* ---------------------------------------------------------------
-   bare — minimal. Subtraction only; no rule here may add a border,
+   bare: minimal. Subtraction only; no rule here may add a border,
    background or shadow. The shell's region rules stay: they are the only
    thing telling you where the page ends.
    --------------------------------------------------------------- */

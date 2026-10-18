@@ -85,9 +85,9 @@ type SettingsData struct {
 	TokenNamespaces []string           // selectable namespace names for new tokens
 	NewToken        string             // freshly minted token value, shown exactly once
 	TokenError      string             // token create/revoke validation error
-	HasEnvOverrides bool               // any field currently sourced from an env var — shows the "export to file" action
+	HasEnvOverrides bool               // any field currently sourced from an env var; shows the "export to file" action
 	Users           []auth.UserSummary // every user, for the users tab
-	AllScopes       []string           // "read", "write", "settings" — the scope checkbox options
+	AllScopes       []string           // the scope checkbox options: "read", "write", "settings"
 	CurrentUser     string             // name of the logged-in user, so the users tab can block self-lockout
 	UserError       string             // create/scope-update validation error
 	// Legacy attachments a migration would move, and the gone namespaces

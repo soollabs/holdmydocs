@@ -30,7 +30,7 @@
 	--settings-control-inset: calc(var(--settings-label-w) + var(--settings-info-slot) + 0.5rem);
 
 	/* Skins: structural tokens, orthogonal to the colour palette above.
-	   Defaults reproduce today's look byte-for-byte — see
+	   Defaults reproduce today's look byte-for-byte; see
 	   specs/2026-07-24-skins.md and web/static/skins.css. */
 	--marker-title:  "# ";
 	--marker-h2:     "## ";
@@ -39,9 +39,9 @@
 	--marker-colour: var(--primary);
 	--prompt-symbol: "$";
 	--tag-prefix:    "#";
-	--collapse-glyph: "\00ab";  /* « — the sidebar collapse control */
+	--collapse-glyph: "\00ab";  /* «, the sidebar collapse control */
 	--brand-prefix:  "~/";      /* before the site name in the topbar */
-	--brand-cursor:  "\258d";   /* ▍ — blinks after the site name on hover */
+	--brand-cursor:  "\258d";   /* ▍, blinks after the site name on hover */
 	--marker-glow:   0 0 10px color-mix(in srgb, var(--primary) 45%, transparent);
 	/* A short rule under the page title's left edge; `block` shows it. */
 	--title-rule:        none;
@@ -55,7 +55,7 @@
 	--field-border-w: 1px;       /* form field + editor pane edges. Not
 	                                skinnable: a field with no visible edge
 	                                also has no visible focus state. */
-	--chrome-border-w: 1px;      /* the shell's own region edges — sidebar rule,
+	--chrome-border-w: 1px;      /* the shell's own region edges: sidebar rule,
 	                                statusline rule, mobile topbar. Split from
 	                                --border-w so a skin can erase content
 	                                hairlines without dissolving the shell. */
@@ -84,7 +84,7 @@
 	--chrome-border: var(--border);
 	/* --border and --border-strong sit below the 3:1 non-text minimum in
 	   every palette. Anything the user must locate (fields, editor panes,
-	   data grids) uses this instead — anchored to --fg-muted, which is
+	   data grids) uses this instead. It is anchored to --fg-muted, which is
 	   itself held at >=4.5:1 against --bg. */
 	--border-visible: color-mix(in srgb, var(--fg-muted) 40%, var(--bg));
 	/* Scrollbars take the palette's colours; the track is clear so each
@@ -413,6 +413,21 @@ body.shell.shell-public {
    ("ctrl" / "j") is unreadable. */
 .sidebar-hints .hint {
 	white-space: nowrap;
+}
+
+/* Link to the public docs beside the version number. */
+.sidebar-hints .hint-docs {
+	color: inherit;
+	text-decoration: none;
+	border: var(--border-w) solid var(--chrome-border);
+	padding: 0 5px;
+	line-height: 1.4;
+}
+
+.sidebar-hints .hint-docs:hover,
+.sidebar-hints .hint-docs:focus-visible {
+	color: var(--accent);
+	border-color: var(--accent);
 }
 
 /* On wide screens every screen shares the reading layout: the sidebar, content
@@ -1056,7 +1071,7 @@ aside h2 {
 	flex-wrap: wrap;
 }
 
-/* Zen Mode — Focus: only the title and the writing stay, larger, with all
+/* Zen Mode focus: only the title and the writing stay, larger, with all
    but the current line dimmed. Save stays on Ctrl/Cmd+S. */
 
 body.zen-focus .app-topbar,
@@ -1100,7 +1115,7 @@ body.zen-focus .cm-editor .cm-line:not(.cm-activeLine) {
 	opacity: 0.35;
 }
 
-/* Zen Mode — floating status bar */
+/* Zen Mode floating status bar */
 
 .zen-status {
 	display: none;
@@ -1192,7 +1207,7 @@ h1.page-title:not(.settings-panels *)::after {
 
 /* Namespace index tree: folders are real filesystem directories under the
    namespace (see namespace.go's navNode), so the index shows that structure
-   instead of a flat alphabetical list — a folder's children get a guide
+   instead of a flat alphabetical list. A folder's children get a guide
    line down the left edge and a short connector into each row, the same
    shape "tree" would print. */
 ul.page-tree {
@@ -1245,7 +1260,7 @@ ul.page-tree.branch > li::before {
 
 /* Sidebar TREE widget: the same tree, but compact (13px, sidebar-list's
    rhythm) and collapsible as a whole via <details>, matching every other
-   sidebar section's uppercase h2 header — just interactive. */
+   sidebar section's uppercase h2 header, but interactive. */
 .sidebar-tree > summary {
 	cursor: pointer;
 	list-style: revert;
@@ -3153,8 +3168,8 @@ h1.edit-title::after {
 	font-weight: 700;
 }
 
-/* Health link in sidebar hints — fixed-width label, colour signals status,
-   full missing/orphan breakdown is in the title tooltip. */
+/* Health link in sidebar hints: a fixed-width label whose colour signals
+   status. The full missing/orphan breakdown is in the title tooltip. */
 .health-hint.has-missing {
 	color: var(--danger);
 }
@@ -3301,7 +3316,7 @@ h1.edit-title::after {
 }
 
 /* .widget-preview reuses .sidebar for its cosmetics (h2/section spacing,
-   prompt colours) — but .sidebar also carries the real sidebar's
+   prompt colours), but .sidebar also carries the real sidebar's
    positioning, including the off-canvas drawer transform under 900px.
    Two classes beats one, so this wins regardless of viewport width. */
 .widget-preview.sidebar {
@@ -3325,8 +3340,8 @@ h1.edit-title::after {
 	align-self: center;
 }
 
-/* Skin and palette pickers: radio cards. The radio itself is hidden — the
-   card is the control, .selected is kept in step by the settings script. */
+/* Skin and palette pickers: radio cards. The radio itself is hidden; the
+   card is the control, and .selected is kept in step by the settings script. */
 .skin-picker,
 .palette-picker {
 	display: grid;

@@ -1,6 +1,6 @@
 {{define "widget-keys"}}
 <div class="sidebar-hints">
 	<div class="hint-row">{{if .NewPageEnabled}}<span class="hint"><kbd>ctrl j</kbd> {{t "widget.keys.new"}}</span>{{end}}<span class="hint"><kbd>ctrl k</kbd> {{t "widget.keys.jump"}}</span></div>
-	<div class="hint-row sidebar-version">{{.Version}}</div>
+	<div class="hint-row sidebar-version">{{.Version}}<a class="hint-docs" href="https://hmd.sool.dev" target="_blank" rel="noopener" title="{{t "widget.keys.docs_label"}}" aria-label="{{t "widget.keys.docs_label"}}">?</a></div>
 </div>
 {{end}}

@@ -214,7 +214,7 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, i18n.T("web.export.settings_scope_required"), http.StatusForbidden)
+		http.Error(w, "settings scope required", http.StatusForbidden)
 		return
 	}
 	name := r.PathValue("name")
@@ -239,14 +239,14 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		defer func() { <-exportSemaphore }()
 	default:
 		w.Header().Set("Retry-After", "1")
-		http.Error(w, i18n.T("web.export.busy"), http.StatusTooManyRequests)
+		http.Error(w, "export is busy", http.StatusTooManyRequests)
 		return
 	}
 
 	tmpDir, err := os.MkdirTemp("", "hmd-export-*")
 	if err != nil {
 		slog.Error("creating export directory", "namespace", name, "err", err)
-		http.Error(w, i18n.T("web.export.failed"), http.StatusInternalServerError)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
 	defer func() {
@@ -257,7 +257,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 
 	if err := app.apiClient().ExportNamespace(r.Context(), name, tmpDir, webFS, "web/static", NewStaticExporter(app.Render), api.ExportOptions{BaseURL: baseURL}); err != nil {
 		slog.Error("exporting namespace", "namespace", name, "err", err)
-		http.Error(w, i18n.T("web.export.failed"), http.StatusInternalServerError)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
 

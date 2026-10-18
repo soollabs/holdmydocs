@@ -49,7 +49,7 @@ func (a *API) ListPages(ctx context.Context) ([]PageSummary, error) {
 }
 
 // PageExists reports whether the index holds a page with the slug. It serves
-// rendering decisions — index-page handoff and public wikilink filtering —
+// rendering decisions (index-page handoff and public wikilink filtering)
 // without exposing the index to adapters.
 func (a *API) PageExists(ctx context.Context, slug string) bool {
 	return a.canReadPage(ctx, slug) && a.index != nil && a.index.Exists(slug)

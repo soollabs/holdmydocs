@@ -18,7 +18,7 @@ func (app *App) handleOAuthAuthorizeGet(w http.ResponseWriter, r *http.Request) 
 	}
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		http.Error(w, i18n.T("error.method_not_allowed"), http.StatusMethodNotAllowed)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if !app.OAuth.CheckRateLimit(w, r) {
@@ -55,7 +55,7 @@ func (app *App) handleOAuthAuthorizeGet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if started.Prompt == nil {
-		http.Error(w, i18n.T("web.oauth.request_unavailable"), http.StatusBadRequest)
+		http.Error(w, "authorisation request unavailable", http.StatusBadRequest)
 		return
 	}
 	app.render(w, r, http.StatusOK, "oauth-consent", TemplateData{
@@ -76,7 +76,7 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Referrer-Policy", "same-origin")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, i18n.T("web.oauth.consent_form_invalid"), http.StatusBadRequest)
+		http.Error(w, "invalid consent form", http.StatusBadRequest)
 		return
 	}
 	handles := r.PostForm["request"]
@@ -84,22 +84,22 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 	modes := r.PostForm["namespace_mode"]
 	if len(handles) != 1 || len(decisions) != 1 || len(modes) != 1 ||
 		decisions[0] != "approve" && decisions[0] != "deny" {
-		http.Error(w, i18n.T("web.oauth.consent_form_invalid"), http.StatusBadRequest)
+		http.Error(w, "invalid consent form", http.StatusBadRequest)
 		return
 	}
 	sessionCookie, err := r.Cookie("hmd_session")
 	if err != nil || sessionCookie.Value == "" {
-		http.Error(w, i18n.T("web.oauth.sign_in_to_approve"), http.StatusUnauthorized)
+		http.Error(w, "sign in before approving a connection", http.StatusUnauthorized)
 		return
 	}
 	user, ok := app.Auth.UserFor(sessionCookie.Value)
 	if !ok {
-		http.Error(w, i18n.T("web.oauth.session_expired"), http.StatusUnauthorized)
+		http.Error(w, "browser session has expired", http.StatusUnauthorized)
 		return
 	}
 	flowCookie, err := r.Cookie("hmd_oauth_flow")
 	if err != nil || flowCookie.Value == "" {
-		http.Error(w, i18n.T("web.oauth.browser_binding_missing"), http.StatusBadRequest)
+		http.Error(w, "OAuth browser binding is missing", http.StatusBadRequest)
 		return
 	}
 	scopeValues := r.PostForm["scope"]
@@ -146,17 +146,17 @@ func (app *App) handleConnectionsGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "same-origin")
 	session, err := r.Cookie("hmd_session")
 	if err != nil || session.Value == "" {
-		http.Error(w, i18n.T("web.oauth.sign_in_to_view_connections"), http.StatusUnauthorized)
+		http.Error(w, "sign in to view connected applications", http.StatusUnauthorized)
 		return
 	}
 	user, ok := app.Auth.UserFor(session.Value)
 	if !ok {
-		http.Error(w, i18n.T("web.oauth.session_expired"), http.StatusUnauthorized)
+		http.Error(w, "browser session has expired", http.StatusUnauthorized)
 		return
 	}
 	connections, err := app.OAuth.Connections(user)
 	if err != nil {
-		http.Error(w, i18n.T("web.oauth.connections_read_failed"), http.StatusInternalServerError)
+		http.Error(w, "could not read connections", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -179,12 +179,12 @@ func (app *App) handleConnectionRevoke(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "same-origin")
 	session, err := r.Cookie("hmd_session")
 	if err != nil || session.Value == "" {
-		http.Error(w, i18n.T("web.oauth.sign_in_to_disconnect"), http.StatusUnauthorized)
+		http.Error(w, "sign in to disconnect an application", http.StatusUnauthorized)
 		return
 	}
 	user, ok := app.Auth.UserFor(session.Value)
 	if !ok {
-		http.Error(w, i18n.T("web.oauth.session_expired"), http.StatusUnauthorized)
+		http.Error(w, "browser session has expired", http.StatusUnauthorized)
 		return
 	}
 	if err := app.OAuth.RevokeConnection(user, r.PathValue("id")); err != nil {

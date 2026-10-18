@@ -969,22 +969,6 @@
     "description": "Button on the error page that returns to the home page. Site is the wiki's name.",
     "other": "Back to {{.Site}}"
   },
-  "error.forbidden": {
-    "description": "Shared plain-text 403 response body shown in the browser.",
-    "other": "forbidden"
-  },
-  "error.internal": {
-    "description": "Plain-text error shown in the browser when an internal failure occurs (shared key, used in oidc.go).",
-    "other": "internal error"
-  },
-  "error.method_not_allowed": {
-    "description": "Plain-text error shown in the browser when the HTTP method is not allowed (shared key, used in oauth.go).",
-    "other": "method not allowed"
-  },
-  "error.not_found": {
-    "description": "Shared plain-text 404 response body shown in the browser.",
-    "other": "not found"
-  },
   "export_options.export_title": {
     "description": "Heading of the static site export page.",
     "other": "Export static site"
@@ -2423,23 +2407,23 @@
   },
   "settings.skin.note.bare": {
     "description": "Short description under the bare skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "subtraction only — no borders, no markers, wide margins"
+    "other": "minimal: wide margins without borders or markers"
   },
   "settings.skin.note.journal": {
     "description": "Short description under the journal skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "writing first — serif, wide measure, no chrome"
+    "other": "writing first: serif, wide measure, no chrome"
   },
   "settings.skin.note.newsprint": {
     "description": "Short description under the newsprint skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "broadsheet — masthead, serif, justified columns, ink on paper"
+    "other": "broadsheet: masthead, serif, justified columns, ink on paper"
   },
   "settings.skin.note.phosphor": {
     "description": "Short description under the phosphor skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "terminal green, monospace, # markers — the default"
+    "other": "the default: terminal green, monospace, # markers"
   },
   "settings.skin.note.soft": {
     "description": "Short description under the soft skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "rounded and low-contrast — warm sans, roomy leading, filled panels"
+    "other": "rounded and low-contrast: warm sans, roomy leading, filled panels"
   },
   "settings.title.access_tokens": {
     "description": "Page heading of the access tokens settings panel (lowercase, shown when that panel is open).",
@@ -2565,10 +2549,6 @@
     "description": "Heading of the all tags page.",
     "other": "Tags"
   },
-  "web.auth.continuation_expired": {
-    "description": "Plain-text error shown in the browser after local sign-in when the pending OAuth connection can no longer continue; the person must restart it.",
-    "other": "OAuth login continuation expired; start the connection again"
-  },
   "web.auth.invalid_credentials": {
     "description": "Error message shown on the sign-in form when the username or password is wrong.",
     "other": "Invalid username or password"
@@ -2577,33 +2557,9 @@
     "description": "Page title of the sign-in page.",
     "other": "Login"
   },
-  "web.export.busy": {
-    "description": "Plain-text 429 body shown when too many exports or previews are running at once.",
-    "other": "export is busy"
-  },
-  "web.export.failed": {
-    "description": "Plain-text 500 body shown when a static site export fails.",
-    "other": "export failed"
-  },
   "web.export.index_empty": {
     "description": "Static export index page body shown when a namespace has no pages; HTML markup, shown in the exported site.",
     "other": "<p>Select a page from the sidebar.</p>"
-  },
-  "web.export.preview_capacity": {
-    "description": "Plain-text 429 body shown when the preview limit is reached; the 15 minutes figure matches the preview lifetime.",
-    "other": "preview capacity reached; wait up to 15 minutes for an existing preview to expire"
-  },
-  "web.export.preview_expired": {
-    "description": "Plain-text 410 body shown when a static preview link has expired or does not exist.",
-    "other": "preview expired or unavailable; generate a new preview"
-  },
-  "web.export.preview_failed": {
-    "description": "Plain-text 500 body shown when a static site preview cannot be generated.",
-    "other": "preview failed"
-  },
-  "web.export.settings_scope_required": {
-    "description": "Plain-text 403 body shown in the browser when the token lacks the settings scope for export or preview.",
-    "other": "settings scope required"
   },
   "web.export.title_export": {
     "description": "Page title of the static site export options page.",
@@ -2613,93 +2569,21 @@
     "description": "Page title of the static site preview options page.",
     "other": "Preview static site"
   },
-  "web.oauth.browser_binding_missing": {
-    "description": "Plain-text error shown in the browser when the OAuth flow cookie that binds the consent to this browser is missing.",
-    "other": "OAuth browser binding is missing"
-  },
   "web.oauth.connect_title": {
     "description": "Page title of the consent page where a person approves an MCP application connection.",
     "other": "Connect application"
-  },
-  "web.oauth.connections_read_failed": {
-    "description": "Plain-text error shown in the browser when the connected applications list cannot be loaded.",
-    "other": "could not read connections"
   },
   "web.oauth.connections_title": {
     "description": "Page title of the settings page listing applications connected to the account.",
     "other": "Connected applications"
   },
-  "web.oauth.consent_form_invalid": {
-    "description": "Plain-text error shown in the browser when the consent form submission is malformed.",
-    "other": "invalid consent form"
-  },
-  "web.oauth.request_unavailable": {
-    "description": "Plain-text error shown in the browser when the OAuth authorisation request can no longer be used, on the consent page.",
-    "other": "authorisation request unavailable"
-  },
   "web.oauth.return_title": {
     "description": "Page title shown after approving or denying a connection, before returning the person to the MCP client.",
     "other": "Return to MCP client"
   },
-  "web.oauth.session_expired": {
-    "description": "Plain-text error shown in the browser when the signed-in browser session has expired (used on several OAuth and connections pages).",
-    "other": "browser session has expired"
-  },
-  "web.oauth.sign_in_to_approve": {
-    "description": "Plain-text error shown in the browser when someone tries to approve a connection without being signed in.",
-    "other": "sign in before approving a connection"
-  },
-  "web.oauth.sign_in_to_disconnect": {
-    "description": "Plain-text error shown in the browser when someone tries to disconnect an application without being signed in.",
-    "other": "sign in to disconnect an application"
-  },
-  "web.oauth.sign_in_to_view_connections": {
-    "description": "Plain-text error shown in the browser when someone opens the connected applications page without being signed in.",
-    "other": "sign in to view connected applications"
-  },
-  "web.oauth_clients.admin_access_required": {
-    "description": "Plain-text error shown in the browser when the signed-in user lacks administrator access to manage OAuth clients.",
-    "other": "administrator access required"
-  },
-  "web.oauth_clients.admin_session_required": {
-    "description": "Plain-text error shown in the browser when the OAuth client admin page is opened without an administrator browser session.",
-    "other": "administrator browser session required"
-  },
-  "web.oauth_clients.delete_disabled_failed": {
-    "description": "Plain-text error shown in the browser when deleting all disabled MCP clients fails.",
-    "other": "could not delete disabled MCP clients"
-  },
-  "web.oauth_clients.disable_failed": {
-    "description": "Plain-text error shown in the browser when disabling an OAuth client fails.",
-    "other": "could not disable OAuth client"
-  },
-  "web.oauth_clients.form_invalid": {
-    "description": "Plain-text error shown in the browser when the create-client form submission is malformed.",
-    "other": "invalid client form"
-  },
-  "web.oauth_clients.read_failed": {
-    "description": "Plain-text error shown in the browser when the OAuth clients list cannot be loaded.",
-    "other": "could not read OAuth clients"
-  },
   "web.oauth_clients.title": {
     "description": "Page title of the settings page for managing MCP OAuth clients.",
     "other": "MCP OAuth clients"
-  },
-  "web.oidc.continuation_expired": {
-    "description": "Plain-text error shown in the browser after OIDC sign-in when the pending OAuth connection can no longer continue; the person must restart it.",
-    "other": "OAuth login continuation expired; start the connection again"
-  },
-  "web.oidc.login_failed": {
-    "description": "Plain-text error shown in the browser when OIDC sign-in fails at any step of the callback.",
-    "other": "OIDC login failed"
-  },
-  "web.pages.attachment_search_unavailable": {
-    "description": "Plain-text 503 response shown when attachment search is unavailable.",
-    "other": "attachment search unavailable"
-  },
-  "web.pages.diff_failed": {
-    "description": "Plain-text 500 response when a page diff cannot be produced.",
-    "other": "diff failed"
   },
   "web.pages.forbidden_detail": {
     "description": "Detail text of the error page shown when the user cannot access a namespace.",
@@ -2770,38 +2654,6 @@
     "description": "Warning shown after saving when the search index update is still pending.",
     "other": "Saved. Search indexing is pending and will be reconciled automatically."
   },
-  "web.pages.invalid_body_template": {
-    "description": "Plain-text 500 error when the new page body template fails to render.",
-    "other": "invalid body template"
-  },
-  "web.pages.invalid_generated_slug": {
-    "description": "Plain-text 400 error when the generated slug is not a valid page segment.",
-    "other": "invalid generated slug"
-  },
-  "web.pages.invalid_redirect_target": {
-    "description": "Plain-text 500 error when a redirect target is not a local URL.",
-    "other": "invalid redirect target"
-  },
-  "web.pages.invalid_slug_template": {
-    "description": "Plain-text 500 error when the namespace new-page slug template fails to render.",
-    "other": "invalid slug template"
-  },
-  "web.pages.invalid_tag_template": {
-    "description": "Plain-text 500 error when a new page tag template fails to render.",
-    "other": "invalid tag template"
-  },
-  "web.pages.invalid_template_page": {
-    "description": "Plain-text 400 error when the namespace template page name is invalid.",
-    "other": "invalid template page"
-  },
-  "web.pages.invalid_title_template": {
-    "description": "Plain-text 500 error when the new page title template fails to render.",
-    "other": "invalid title template"
-  },
-  "web.pages.missing_hashes": {
-    "description": "Plain-text 400 response when the diff request lacks its revision hashes.",
-    "other": "missing hashes"
-  },
   "web.pages.not_found_title": {
     "description": "Title of the page-not-found page, shown when a page does not exist.",
     "other": "Page not found"
@@ -2815,10 +2667,6 @@
     "description": "Status bar revision count of a page. Count is the number of revisions.",
     "one": "{{.Count}} revision",
     "other": "{{.Count}} revisions"
-  },
-  "web.pages.search_busy": {
-    "description": "Plain-text 429 response shown when search is temporarily busy.",
-    "other": "search is busy"
   },
   "web.pages.search_title": {
     "description": "Page title of the search page when no query has been entered.",
@@ -2835,10 +2683,6 @@
   "web.render.forbidden_detail": {
     "description": "Detail text on the error page shown when the user cannot access a namespace.",
     "other": "You don't have access to that namespace."
-  },
-  "web.render.forbidden_namespace_error": {
-    "description": "Plain-text response for a denied write to a namespace the token cannot reach, read by a fetch caller.",
-    "other": "403 Forbidden: namespace access denied"
   },
   "web.render.forbidden_title": {
     "description": "Title of the error page shown when the user cannot access a namespace.",
@@ -3072,6 +2916,10 @@
   "widget.health.title": {
     "description": "Heading of the sidebar health widget.",
     "other": "HEALTH"
+  },
+  "widget.keys.docs_label": {
+    "description": "Tooltip and accessible label of the link to the HMD documentation site in the sidebar.",
+    "other": "Documentation at hmd.sool.dev"
   },
   "widget.keys.jump": {
     "description": "Hint label after the ctrl k shortcut in the sidebar, meaning jump to a page or run a verb.",

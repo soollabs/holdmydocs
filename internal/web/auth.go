@@ -59,7 +59,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		if app.OAuth == nil || flowCookie == nil ||
 			app.OAuth.BindAuthorization(continuation, flowCookie.Value, username, token) != nil {
 			app.Auth.Logout(token)
-			http.Error(w, i18n.T("web.auth.continuation_expired"), http.StatusBadRequest)
+			http.Error(w, "OAuth login continuation expired; start the connection again", http.StatusBadRequest)
 			return
 		}
 		http.Redirect(w, r, "/_/oauth/authorize?request="+url.QueryEscape(continuation), http.StatusSeeOther)

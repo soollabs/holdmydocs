@@ -14,7 +14,6 @@ import (
 	internalauth "hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/httpmiddleware"
-	"hmd/internal/i18n"
 )
 
 type oidcClaims = internalauth.OIDCClaims
@@ -72,7 +71,7 @@ func (app *App) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	random := make([]byte, 32)
 	if _, err := rand.Read(random); err != nil {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	state := hex.EncodeToString(random)
@@ -103,14 +102,14 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil || stateCookie.Value == "" || len(states) != 1 ||
 		subtle.ConstantTimeCompare([]byte(states[0]), []byte(stateCookie.Value)) != 1 {
 		slog.Warn("OIDC callback state mismatch")
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusBadRequest)
+		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
 	continuation := ""
 	if continuationCookie != nil && continuationCookie.Value != "" {
 		state, handle, ok := strings.Cut(continuationCookie.Value, ".")
 		if !ok || handle == "" || subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 {
-			http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusBadRequest)
+			http.Error(w, "OIDC login failed", http.StatusBadRequest)
 			return
 		}
 		continuation = handle
@@ -118,35 +117,35 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	pkceCookie, err := r.Cookie("hmd_oidc_pkce")
 	codes := r.URL.Query()["code"]
 	if err != nil || pkceCookie.Value == "" || len(codes) != 1 || codes[0] == "" {
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusBadRequest)
+		http.Error(w, "OIDC login failed", http.StatusBadRequest)
 		return
 	}
 	claims, issuer, err := app.OIDC.Authenticate(r.Context(), codes[0], pkceCookie.Value)
 	if err != nil {
 		slog.Warn("OIDC authentication failed", "error", err)
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusBadGateway)
+		http.Error(w, "OIDC login failed", http.StatusBadGateway)
 		return
 	}
 	oidcConfig := app.config().OIDC
 	if !oidcAdmitted(claims, oidcConfig) {
 		slog.Warn("OIDC login rejected")
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusUnauthorized)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 	username := claims.Username()
 	if !internalauth.ValidUsername(username) {
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusUnauthorized)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 	username, err = app.Auth.EnsureOIDCUser(internalauth.OIDCIdentity{Issuer: issuer, Subject: claims.Subject}, username, claims.GitAuthor(), oidcConfig.DefaultScopes)
 	if err != nil {
 		slog.Warn("OIDC provisioning rejected", "error", err)
-		http.Error(w, i18n.T("web.oidc.login_failed"), http.StatusUnauthorized)
+		http.Error(w, "OIDC login failed", http.StatusUnauthorized)
 		return
 	}
 	sessionToken, ok := app.Auth.NewSession(username)
 	if !ok {
-		http.Error(w, i18n.T("error.internal"), http.StatusInternalServerError)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	slog.Info("OIDC login", "username", username)
@@ -156,7 +155,7 @@ func (app *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		if app.OAuth == nil || flowCookie == nil ||
 			app.OAuth.BindAuthorization(continuation, flowCookie.Value, username, sessionToken) != nil {
 			app.Auth.Logout(sessionToken)
-			http.Error(w, i18n.T("web.oidc.continuation_expired"), http.StatusBadRequest)
+			http.Error(w, "OAuth login continuation expired; start the connection again", http.StatusBadRequest)
 			return
 		}
 		http.Redirect(w, r, "/_/oauth/authorize?request="+url.QueryEscape(continuation), http.StatusSeeOther)

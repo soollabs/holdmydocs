@@ -65,7 +65,7 @@ func (app *App) expireExportPreview(id string) {
 func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, i18n.T("web.export.settings_scope_required"), http.StatusForbidden)
+		http.Error(w, "settings scope required", http.StatusForbidden)
 		return
 	}
 	name := r.PathValue("name")
@@ -90,7 +90,7 @@ func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Requ
 		defer func() { <-exportSemaphore }()
 	default:
 		w.Header().Set("Retry-After", "1")
-		http.Error(w, i18n.T("web.export.busy"), http.StatusTooManyRequests)
+		http.Error(w, "export is busy", http.StatusTooManyRequests)
 		return
 	}
 	app.previewMu.Lock()
@@ -105,12 +105,12 @@ func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Requ
 	app.previewMu.Unlock()
 	if full {
 		w.Header().Set("Retry-After", "60")
-		http.Error(w, i18n.T("web.export.preview_capacity"), http.StatusTooManyRequests)
+		http.Error(w, "preview capacity reached; wait up to 15 minutes for an existing preview to expire", http.StatusTooManyRequests)
 		return
 	}
 	dir, err := os.MkdirTemp("", "hmd-export-preview-")
 	if err != nil {
-		http.Error(w, i18n.T("web.export.preview_failed"), http.StatusInternalServerError)
+		http.Error(w, "preview failed", http.StatusInternalServerError)
 		return
 	}
 	retained := false
@@ -123,7 +123,7 @@ func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Requ
 	nonce := hex.EncodeToString(randBytes())
 	if err := app.apiClient().ExportNamespace(r.Context(), name, dir, webFS, "web/static", NewStaticExporter(app.Render), api.ExportOptions{BaseURL: baseURL, CSPNonce: nonce}); err != nil {
 		slog.Error("generating static preview", "namespace", name, "err", err)
-		http.Error(w, i18n.T("web.export.preview_failed"), http.StatusInternalServerError)
+		http.Error(w, "preview failed", http.StatusInternalServerError)
 		return
 	}
 	preview := &exportPreview{dir: dir, owner: owner, namespace: name, nonce: nonce, expires: time.Now().Add(exportPreviewTTL)}
@@ -166,7 +166,7 @@ func (app *App) handleExportPreviewFile(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, i18n.T("web.export.settings_scope_required"), http.StatusForbidden)
+		http.Error(w, "settings scope required", http.StatusForbidden)
 		return
 	}
 	owner, _ := api.Username(r.Context())
@@ -174,7 +174,7 @@ func (app *App) handleExportPreviewFile(w http.ResponseWriter, r *http.Request) 
 	preview := app.previews[r.PathValue("id")]
 	if preview == nil {
 		app.previewMu.Unlock()
-		http.Error(w, i18n.T("web.export.preview_expired"), http.StatusGone)
+		http.Error(w, "preview expired or unavailable; generate a new preview", http.StatusGone)
 		return
 	}
 	if preview.owner != owner || time.Now().After(preview.expires) {

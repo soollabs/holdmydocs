@@ -96,7 +96,7 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 		}
 	}
 	// The sidebar tree is server-rendered with no auth-only API calls behind
-	// it, so it's allowed for anonymous public viewers — everything else
+	// it, so it's allowed for anonymous public viewers; everything else
 	// (topbar, statusline, palette, app.js) stays authed-only.
 	if !strings.Contains(s, `class="sidebar"`) {
 		t.Errorf("anonymous public-namespace body should contain the sidebar tree: %s", s)
@@ -189,7 +189,7 @@ func TestAnonymousPublicPageGetsOutlineRail(t *testing.T) {
 	s := string(body)
 
 	// toc.js builds the "on this page" list client-side from this page's own
-	// (already public) headings — no auth-only endpoint involved — so it
+	// (already public) headings without any auth-only endpoint, so it
 	// should load for an anonymous viewer even though app.js does not.
 	if !strings.Contains(s, `id="toc-rail"`) {
 		t.Errorf("anonymous public page with headings should render the outline rail: %s", s)

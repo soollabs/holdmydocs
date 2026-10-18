@@ -110,8 +110,8 @@ func newPageTemplateBody(ns string) string {
 	}
 
 	return "This is the template page for " + where + ". Every page created here " +
-		"starts as a copy of it, so whatever you leave in it — headings, a " +
-		"checklist, tags — is what a new page begins with.\n\n" +
+		"starts as a copy of it, so whatever you leave in it (headings, a " +
+		"checklist, tags) is what a new page begins with.\n\n" +
 		"Wrap a field in double braces to have it filled in when the page is " +
 		"created; the title of this page does exactly that. Title, tags and " +
 		"body are all substituted, and these are the only fields there are:\n\n" +
@@ -120,7 +120,7 @@ func newPageTemplateBody(ns string) string {
 		"`2006-01-02 15:04` in the shape you want it, so `02/01/2006` gives " +
 		`{{.Now.Format "02/01/2006"}}` + " and `Jan 2` gives " +
 		`{{.Now.Format "Jan 2"}}` + ".\n\n" +
-		"This page is hidden — it never shows up in the page list, search, tags " +
+		"This page is hidden, so it never shows up in the page list, search, tags " +
 		"or backlinks. Delete all of this and make it yours.\n"
 }
 

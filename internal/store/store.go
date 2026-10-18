@@ -173,7 +173,7 @@ const rootReadmeMD = `# hold my docs (hmd)
 
 A wiki, stored as markdown. Each top-level directory is a namespace and each
 ` + "`.md`" + ` file inside one is a page; ` + "`[[Page Title]]`" + ` links pages together.
-Edit the files here directly or through the app — both are commits either way.
+Edit the files here directly or through the app. Both end up as commits.
 `
 
 const (
@@ -184,67 +184,67 @@ const (
 
 const defaultHelpMD = `# Help
 
+This page covers the basics. The full guide is at https://hmd.sool.dev.
+
 ## Finding pages
 
-Press ` + "`ctrl k`" + ` (or tap "search" on mobile) to open the jump palette: type
-to search, arrow keys to move, enter to open, ctrl-enter to open in edit mode.
-Press ` + "`/`" + ` outside any text field to open it too.
+Press ` + "`ctrl k`" + `, or the search icon in the top bar, to open the jump palette. Type to search, use the arrow keys to move and press enter to open. Ctrl-enter opens the page in the editor. Pressing ` + "`/`" + ` outside a text field opens the palette too.
+
+Start with ` + "`>`" + ` to run a command: ` + "`rename`" + `, ` + "`tag`" + `, ` + "`hist`" + ` (history), ` + "`new`" + `, ` + "`health`" + `, ` + "`ns`" + ` (namespaces and templates), ` + "`sync`" + ` (push now), ` + "`pin`" + ` and ` + "`delete`" + `.
 
 ## Creating a page
 
-Type a title into the palette that doesn't match an existing page and a
-"+ create page" row appears. Selecting it opens a blank editor for that
-title. The "+ New Document" button in the header opens the same palette
-straight into that create mode.
+Type a title into the palette that doesn't match an existing page and a "+ create page" row appears, naming the namespace it will use. Selecting it opens a blank editor for that title.
+
+When a namespace has a **Quick-create page** setting, ` + "`ctrl j`" + ` and the **New page** button in the top bar create a page from its template straight away. See Namespaces below.
+
+## Editing
+
+The editor shows one column at reading width, with the title and tags above the text. ` + "`ctrl e`" + ` switches between writing and preview. The page path, the hidden flag and delete are under **page details**.
+
+Focus mode (` + "`ctrl shift f`" + `) hides everything except the title and the text, and dims all but the current line. Its bar has buttons to make the text smaller or larger.
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| ` + "`ctrl k`" + ` | Open/close the jump palette |
+| ` + "`ctrl k`" + ` | Open or close the jump palette |
 | ` + "`/`" + ` | Open the jump palette (outside text fields) |
-| ` + "`ctrl e`" + ` | Edit the current page |
+| ` + "`ctrl j`" + ` | Quick-create a page, when the namespace allows it |
+| ` + "`ctrl e`" + ` | Edit the current page; in the editor, switch between writing and preview |
 | ` + "`ctrl s`" + ` | Save (while editing) |
-| ` + "`esc`" + ` | Close the palette, or exit full-screen mode |
 | ` + "`ctrl b`" + ` / ` + "`ctrl i`" + ` | Bold / italic (while editing) |
 | ` + "`ctrl shift k`" + ` | Insert a wiki-link (while editing) |
 | ` + "`alt 1`" + ` / ` + "`alt 2`" + ` / ` + "`alt 3`" + ` | Heading level 1 / 2 / 3 (while editing) |
-| ` + "`ctrl shift f`" + ` | Toggle full-screen editing |
-| ` + "`ctrl shift t`" + ` | Toggle typewriter scroll |
-| ` + "`ctrl shift d`" + ` | Toggle focus mode (dims inactive lines) |
+| ` + "`ctrl shift f`" + ` | Turn focus mode on or off (while editing) |
+| ` + "`esc`" + ` | Close the palette, or leave focus mode |
 
 Use ` + "`cmd`" + ` instead of ` + "`ctrl`" + ` on macOS.
 
 ## Hidden pages
 
-A filename starting with a dot (` + "`.help.md`" + `) is a "hidden page": excluded
-from the page list, search, tags, and backlinks, but still viewable and
-editable through the UI at ` + "`/_/hidden/<slug>`" + `. The ` + "`/_/hidden`" + ` index
-lists them all. Toggle the "hidden" checkbox in the editor to move a page in
-or out of this set.
+A filename starting with a dot (` + "`.help.md`" + `) is a hidden page. It is left out of the page list, search, tags and backlinks, but you can still view and edit it at ` + "`/_/hidden/<slug>`" + `, and ` + "`/_/hidden`" + ` lists them all. To hide or unhide a page, tick **hidden** under **page details** in the editor.
 
 ## Settings
 
-Settings live under ` + "`/_/settings/<section>`" + `. Appearance, git author and access tokens are personal. Server, git remote, behaviour, users and namespace administration require the "settings" scope.
+Settings open from the menu at the right of the top bar. Your own settings are ` + "`/_/settings/appearance`" + ` (skin, palette and fonts), ` + "`/_/settings/git-author`" + ` and ` + "`/_/settings/access-tokens`" + `. With the "settings" scope you also see server, Git, MCP, OIDC single sign-on, document search, wiki, users and environment overrides.
 
-` + "`/_/settings/behaviour`" + ` also edits the repository's ` + "`.wiki.yaml`" + ` (site name and landing page). "Re-run setup" reopens the first-namespace setup prompt if you ever need it again.
+` + "`/_/settings/wiki`" + ` edits the repository's ` + "`.wiki.yaml`" + ` (site name and landing page). Its **Re-run setup** button brings back the first-namespace prompt. When this help page differs from the built-in text for your version, the admin settings show a notice with a button to reset it.
 
 Manage namespaces at ` + "`/_/settings/namespaces`" + `. Connected applications appear under ` + "`/_/settings/connections`" + ` when OAuth is enabled.
 
-Everything else the app owns lives under ` + "`/_/`" + ` too — no page can ever
-take those URLs.
+Everything else the app owns also lives under ` + "`/_/`" + `, so no page can take those URLs.
 
-## Sync status
+## Saving and sync
 
-The bottom-right of the statusline shows git sync state: pending, ok, or
-failed, since every save is an auto-pushed commit.
+Every save is a Git commit, and reverting creates a new commit, so history is never rewritten. When a Git remote is configured, the wiki pushes after each save; with ` + "`sync_mode: bidirectional`" + ` it also pulls changes from the remote. The sync segment at the bottom right of the statusline shows whether the last sync is pending, ok or failed.
 
 ## File names
 
 - One page per Markdown file, lowercase, hyphenated: ` + "`docs/running-the-app.md`" + `.
-- Every page lives in a namespace directory; the slug is the path without the ` + "`.md`" + ` suffix, e.g. ` + "`docs/running-the-app`" + `.
-- A namespace's ` + "`index`" + ` setting names the page that serves ` + "`/<namespace>/`" + `; ` + "`/`" + ` itself goes wherever ` + "`.wiki.yaml`" + `'s ` + "`landing`" + ` key points.
-- ` + "`.wiki.yaml`" + ` sits at the repository root and sets the wiki's ` + "`site_name`" + ` and ` + "`landing`" + `; it travels with the content to another hmd instance.
+- Every page lives in a namespace directory; the slug is the path without the ` + "`.md`" + ` suffix, for example ` + "`docs/running-the-app`" + `.
+- A namespace's ` + "`index`" + ` setting names the page that serves ` + "`/<namespace>/`" + `; ` + "`/`" + ` itself goes wherever the ` + "`landing`" + ` key in ` + "`.wiki.yaml`" + ` points.
+- ` + "`.wiki.yaml`" + ` sits at the repository root and sets the wiki's ` + "`site_name`" + ` and ` + "`landing`" + `. It moves with the content to another hmd instance.
 - Attachments live in their namespace under ` + "`<namespace>/.attachments/<page>/<file>`" + `.
 
 ## Frontmatter
@@ -258,23 +258,16 @@ Every page starts with a frontmatter block:
 
 ` + "`title`" + ` is the display heading. ` + "`tags`" + ` is a comma-separated list.
 
-Optional keys, read by specific widgets — ignored everywhere else, and
-untouched by an ordinary editor save even though there's no dedicated UI
-for them yet:
-
-- ` + "`pin: true`" + ` — surfaces the page in the pinned sidebar widget.
+` + "`pin: true`" + ` puts the page in the pinned sidebar widget for everyone, and an ordinary editor save keeps it. The palette's ` + "`pin`" + ` command is separate: it pins the page for you only, in this browser, at the top of the pages widget.
 
 ## Body
 
-- Use ` + "`#`" + ` for the title only; start sections at ` + "`##`" + ` (h2), subsections at ` + "`###`" + ` (h3).
+- Use ` + "`#`" + ` for the title only; start sections at ` + "`##`" + ` (h2) and subsections at ` + "`###`" + ` (h3).
 - Link other pages with wiki-links: ` + "`[[Page Title]]`" + ` resolves to the matching slug.
 
 ## Table of contents
 
-Insert ` + "`<!-- hmd:toc -->`" + ` anywhere to list every page in the current
-page's namespace, or ` + "`<!-- hmd:toc:tag1,tag2 -->`" + ` to list only pages
-in that namespace matching any of the given tags (OR). The list never
-reaches into other namespaces.
+Insert ` + "`<!-- hmd:toc -->`" + ` anywhere to list every page in the current page's namespace, or ` + "`<!-- hmd:toc:tag1,tag2 -->`" + ` to list only the pages in that namespace that have any of the given tags. The list never reaches into other namespaces.
 
 ## Diagrams
 
@@ -284,94 +277,50 @@ Mermaid code fences render as diagrams:
 
 ## Attachments
 
-Permitted types: png, jpg, jpeg, gif, webp, pdf, doc, docx, xls, xlsx, ppt,
-pptx, odt, ods and odp. SVG is excluded (XSS risk).
-Paste or drag an image into the editor to upload it, or reference one
-already uploaded by its served URL: ` + "`/_/attachments/<slug>/<file>`" + `.
+Permitted types are png, jpg, jpeg, gif, webp, pdf, doc, docx, xls, xlsx, ppt, pptx, odt, ods and odp. SVG is excluded because of the XSS risk. Paste or drag an image into the editor to upload it, or reference one already uploaded by its URL: ` + "`/_/attachments/<slug>/<file>`" + `.
 
-Editing the repo directly (agents, scripts): commit the file straight to
-` + "`<namespace>/.attachments/<page>/<file>`" + `, no upload API call needed. The type
-whitelist and SVG exclusion above are only enforced by the upload
-endpoint, not when serving, so stick to them by convention on direct
-writes too.
+Agents and scripts that edit the repository directly can commit a file straight to ` + "`<namespace>/.attachments/<page>/<file>`" + ` without the upload API. Only the upload endpoint enforces the type list and the SVG exclusion, so follow them by convention for direct writes too.
 
 ## Namespaces
 
-A namespace is a top-level directory in the repo, and every page lives in
-one: ` + "`blog/post.md`" + ` is in the ` + "`blog`" + ` namespace. Anything
-deeper (` + "`blog/drafts/post.md`" + `) is just filing — namespaces are exactly
-one level deep.
+A namespace is a top-level directory in the repo, and every page lives in one: ` + "`blog/post.md`" + ` is in the ` + "`blog`" + ` namespace. Anything deeper (` + "`blog/drafts/post.md`" + `) is a plain subfolder; namespaces are exactly one level deep.
 
-The namespace index is ` + "`/<namespace>/`" + ` (or the bare
-` + "`/<namespace>`" + `, which serves the same thing) and a page is
-` + "`/<namespace>/<page>`" + `. Public namespaces are visible without signing
-in; private and unknown namespace indexes both return the same not-found page.
+The namespace index is ` + "`/<namespace>/`" + ` (or the bare ` + "`/<namespace>`" + `, which serves the same thing) and a page is ` + "`/<namespace>/<page>`" + `. Public namespaces are visible without signing in; private and unknown namespace indexes both return the same not-found page.
 
-A namespace decides three things for the pages in it, via an optional
-` + "`.namespace.yaml`" + ` beside them:
+An optional ` + "`.namespace.yaml`" + ` beside the pages configures the namespace, for example:
 
-    widgets: [search, pages, tags, log, outline, page-meta, backlinks]
+    title: Blog
     public: true
+    widgets: [pages, tags, log, page-meta, backlinks]
     new:
-      template: entry
+      template: template
       slug: '{{.Now.Format "2006-01-02"}}'
 
-- ` + "`widgets`" + ` — which widgets mount, in this order within each slot.
-  Omit it for the built-in set.
-- ` + "`public: true`" + ` — pages here are readable without logging in.
-  Everything is private by default, and a private page is indistinguishable
-  from one that doesn't exist to an anonymous visitor.
-- ` + "`new`" + ` — what the **Quick-create page** setting (ctrl-j) creates here:
-  ` + "`template`" + ` names a hidden page in the namespace to copy, ` + "`slug`" + `
-  names the page it creates.
+- ` + "`title`" + ` and ` + "`description`" + ` name and describe the namespace for readers and static exports.
+- ` + "`public: true`" + ` makes pages readable without signing in. Everything is private by default, and to an anonymous visitor a private page looks the same as one that doesn't exist.
+- ` + "`index`" + ` names a page to show at ` + "`/<namespace>/`" + ` instead of the page list, and ` + "`tree`" + ` sets the order of pages and folders in the sidebar.
+- ` + "`widgets`" + ` lists the widgets to mount, in order within each slot. Omit it for the built-in set. The choices are ` + "`pages`" + `, ` + "`namespaces`" + `, ` + "`pinned`" + `, ` + "`tags`" + `, ` + "`log`" + `, ` + "`health`" + `, ` + "`page-meta`" + `, ` + "`backlinks`" + ` and ` + "`prev-entries`" + `; search, the page tree and the on-this-page outline are always shown.
+- ` + "`skin`" + ` and ` + "`palette`" + ` set what anonymous readers and static exports see.
+- ` + "`new`" + ` sets what the **Quick-create page** setting (` + "`ctrl j`" + `) creates here: ` + "`template`" + ` names a hidden page in the namespace to copy, and ` + "`slug`" + ` names the page it creates.
+- ` + "`export`" + ` configures static export, which the docs site explains.
 
 ## Template pages
 
-Every namespace made from the settings page gets a hidden template page
-(` + "`template`" + `, so ` + "`.blog/template.md`" + ` for ` + "`blog`" + `). Pages
-created in that namespace start as a copy of it, with its **title, tags and
-body** substituted through Go's ` + "`text/template`" + `. Three fields exist,
-and nothing else:
+Creating a namespace from the settings page also creates a hidden template page (` + "`template`" + `, so ` + "`.blog/template.md`" + ` for ` + "`blog`" + `). Pages created in that namespace start as a copy of it, with its **title, tags and body** substituted through Go's ` + "`text/template`" + `. Three fields are available:
 
-- ` + "`{{.Now}}`" + ` — the moment the page is created. Format it with Go's
-  layout syntax, which is the reference time written in the shape you want:
-  ` + "`{{.Now.Format \"2006-01-02\"}}`" + ` for 2026-07-28,
-  ` + "`{{.Now.Format \"Monday, 2 January 2006\"}}`" + ` for the long date,
-  ` + "`{{.Now.Format \"15:04\"}}`" + ` for the time.
-- ` + "`{{.User}}`" + ` — who pressed ctrl-j.
-- ` + "`{{.Namespace}}`" + ` — the namespace name.
+- ` + "`{{.Now}}`" + ` is the moment the page is created. Format it with Go's layout syntax, which is the reference time written in the shape you want: ` + "`{{.Now.Format \"2006-01-02\"}}`" + ` for 2026-07-28, ` + "`{{.Now.Format \"Monday, 2 January 2006\"}}`" + ` for the long date, ` + "`{{.Now.Format \"15:04\"}}`" + ` for the time.
+- ` + "`{{.User}}`" + ` is the user who pressed ctrl-j.
+- ` + "`{{.Namespace}}`" + ` is the namespace name.
 
-The same fields name the page itself, via the namespace's slug pattern. The
-seeded template documents all of this in its own body — read it, then delete
-it and write yours.
+The same fields name the page itself, through the namespace's slug pattern. The seeded template explains all of this in its own body. Read it, then delete it and write your own.
 
-Manage namespaces at ` + "`/_/settings/namespaces`" + `. Saving a new name creates its
-configuration. **Reset namespace settings** removes only ` + "`.namespace.yaml`" + `;
-it keeps every page and hidden template. True deletion is available only when
-there are no pages or hidden files, so move or remove those first. Writing
-` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
+Manage namespaces at ` + "`/_/settings/namespaces`" + `. Saving a new name creates its configuration. **Reset namespace settings** removes only ` + "`.namespace.yaml`" + `; it keeps every page and hidden template. True deletion is available only when there are no pages or hidden files, so move or remove those first. Writing ` + "`.namespace.yaml`" + ` by hand works too; the app rescans on a timer.
 
-MCP clients can access ordinary pages only by default; when document search is
-enabled they also get attachment search. Page tools accept a
-` + "`namespace/page`" + ` slug, reads require read scope, and writes require write
-scope. Wiki settings, namespace settings, hidden templates and attachment
-source files are never exposed through MCP.
+MCP clients can access ordinary pages only by default; when document search is enabled they can also search attachments. Page tools accept a ` + "`namespace/page`" + ` slug, reads require read scope, and writes require write scope. Wiki settings, namespace settings, hidden templates and attachment source files are never exposed through MCP.
 
 ## Skins
 
-A skin is how the app looks: typography, spacing, markers and what the
-statusline shows. It does not decide which widgets mount — that's the
-namespace — and it never changes how or where pages are stored, so the same
-repo opens correctly under any of them. Pick one on ` + "`/_/settings`" + `:
-` + "`phosphor`" + ` (default, terminal), ` + "`newsprint`" + ` (broadsheet
-serif), ` + "`journal`" + ` (writing first — serif, wide measure),
-` + "`soft`" + ` (rounded, low-contrast sans), ` + "`bare`" + ` (stripped down). Each skin arrives in the colour
-**palette** it was designed for; you can pick a different one afterwards.
-
-## History
-
-Every save is a git commit. The wiki auto-pushes to the configured remote after
-each save. Reverting creates a new commit; history is never rewritten.
+A skin is how the app looks: typography, spacing, markers and what the statusline shows. The namespace decides which widgets mount, and a skin never changes how or where pages are stored, so the same repo opens correctly under any of them. Pick one on ` + "`/_/settings/appearance`" + `: ` + "`phosphor`" + ` (default, terminal), ` + "`newsprint`" + ` (broadsheet serif), ` + "`journal`" + ` (writing first: serif, wide measure), ` + "`soft`" + ` (rounded, low-contrast sans) or ` + "`bare`" + ` (stripped down). Each skin comes with the colour **palette** it was designed for, and you can pick a different one afterwards.
 `
 
 const DefaultHelpMD = defaultHelpMD

@@ -11,14 +11,14 @@ Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown
 
 ## Features
 
-- **Git is the source of truth.** Every save is a commit; optionally push to and pull from a remote.
-- **Read-only mode.** Clone a public docs repo without a Git token, browse it, and pull updates.
-- **Namespaces** for per-area visibility, navigation, appearance, and page-creation defaults.
-- **A real editing experience.** Split-pane Markdown editor with live preview, wiki-links, backlinks, full-text search, Mermaid diagrams, attachments, history, and revert.
-- **Documents, not just text.** With an operator-supplied Apache Tika Server, PDF and Office attachments get local hybrid keyword and semantic search.
-- **Flexible access.** Local accounts, OIDC single sign-on, access scopes, and personal access tokens.
-- **Agent-ready.** An MCP server lets authorised agents read and write ordinary pages, with optional namespace-filtered attachment search.
-- **Publish anywhere.** Static export publishes a namespace without a running HMD instance.
+- Every save is a Git commit, and the wiki can push to and pull from a remote you configure.
+- Read-only mode clones a public docs repository without a Git token, so you can browse it and pull updates.
+- Namespaces give each area of the wiki its own visibility, navigation, appearance and page-creation defaults.
+- The Markdown editor has a preview, wiki-links, backlinks, Mermaid diagrams, attachments, history and revert, and full-text search covers every page.
+- With an operator-supplied Apache Tika Server, HMD also searches PDF and Office attachments locally, combining keyword and semantic search.
+- People sign in with local accounts or OIDC single sign-on; access scopes and personal access tokens limit what each user or tool can do.
+- An MCP server lets authorised agents read and write ordinary pages, with optional attachment search limited to chosen namespaces.
+- Static export publishes a namespace as a site that runs without HMD.
 
 ## Quick start
 
@@ -56,9 +56,7 @@ More screenshots are in [`docs/screenshots/`](docs/screenshots/).
 
 ## Documentation
 
-Full documentation — installation, configuration, operations, MCP, and development guides — lives on the HMD docs site.
-
-**Docs site:** <https://hmd.sool.dev>
+The [HMD docs site](https://hmd.sool.dev) covers installation, configuration, operations, MCP, and development.
 
 ## AI use
 

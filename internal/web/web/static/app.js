@@ -51,7 +51,7 @@
         });
         if (!res.ok) break;
       } catch (e) {
-        break; // still offline (or server unreachable) — retry next 'online' event
+        break; // still offline (or server unreachable); retry on the next 'online' event
       }
       queue.shift();
       saveQueue(queue);
@@ -118,7 +118,7 @@
   let pageContent = $('#page-content');
 
   // ---- Pages sidebar: merged pinned + recent (client-side, localStorage) ----
-  // Content owns the root, and every app route lives under /_/ — so any
+  // Content owns the root, and every app route lives under /_/, so any
   // path outside /_/ is a real page's own URL, and the slug is just the
   // path with its leading slash stripped.
   const recentList = $('#recent-list');
@@ -384,7 +384,7 @@
   let paletteRows = [];
   let paletteSelected = 0;
   let paletteCreateMode = false;
-  let paletteVerbMode = false;  // input starts with ">" — rows are verbs
+  let paletteVerbMode = false;  // input starts with ">", so rows are verbs
   let paletteVerbInput = null;  // a verb ('rename'|'tag') is awaiting its argument
   let searchTimer;
   const paletteMatchLimit = 5;
@@ -433,7 +433,7 @@
     renderPaletteRows('');
   }
 
-  // :hidden: and settings are generic navigation shortcuts — out of place
+  // :hidden: and settings are generic navigation shortcuts, out of place
   // when the palette was opened specifically to create a new document.
   function builtinCount() {
     return (paletteCreateMode || paletteVerbMode) ? 0 : 2;
@@ -786,7 +786,7 @@
     }
     // The editor owns ctrl-e for its preview.
     if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly && !$('#edit-form')) {
-      // A namespace listing has no page behind it — its slug is "ns/", which
+      // A namespace listing has no page behind it. Its slug is "ns/", which
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.
       const slug = window.hmdNamespaceIndex ? '' : document.body.dataset.slug;
@@ -848,7 +848,7 @@
       localStorage.setItem('hmd-zen', JSON.stringify(zenState));
     }
 
-    // Draft restoration — check for saved draft on load
+    // Draft restoration: check for a saved draft on load
     const draftKey = 'hmd-draft-' + cmHost.dataset.slug;
     const savedDraft = localStorage.getItem(draftKey);
     if (savedDraft && savedDraft !== textarea.value) {
@@ -863,7 +863,7 @@
       localStorage.setItem(draftKey, textarea.value);
     }
 
-    // Word count — updates both the statusline context segment and zen status
+    // Word count: updates both the statusline context segment and zen status
     function updateWordCount() {
       const text = textarea.value;
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -928,7 +928,7 @@
       return EditorState.phrases.of(phrases);
     })();
 
-    // Create editor — zenState defined before listener references it. Lines
+    // Create the editor. zenState is defined before the listener references it. Lines
     // always wrap: the editor grows with the page, so a sideways scrollbar
     // would sit below the end of the document.
     const editor = new HMD.EditorView({
@@ -1201,7 +1201,7 @@
     // Restore saved zen state on load
     applyZenState();
 
-    // Toolbar actions — wrap selection in markers, or insert with cursor
+    // Toolbar actions: wrap selection in markers, or insert with cursor
     function wrapSelection(before, after) {
       const { from, to } = editor.state.selection.main;
       const selected = editor.state.sliceDoc(from, to);
@@ -1422,7 +1422,7 @@
       }
     });
 
-    // Floating status bar for focus mode — only active when focus is on
+    // Floating status bar for focus mode, only active when focus is on
     const zenStatusBar = $('#zen-status');
     const zenExitBtn = $('#zen-exit');
     let statusTimeout;

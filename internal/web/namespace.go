@@ -164,7 +164,7 @@ type NamespaceListEntry struct {
 	Description string   // brief namespace summary
 	Skin        string   // structural skin shown to public viewers; empty = default
 	Palette     string   // colour preset shown to public viewers; empty = skin's own default
-	Configured  bool     // has a .namespace.yaml — i.e. there is something to remove
+	Configured  bool     // has a .namespace.yaml, so there is something to remove
 	LoadError   string   // why an existing .namespace.yaml was ignored, if it was
 	Index       string   // page name that replaces the page-list view at /{namespace}/, if any
 	Tree        []string // explicit page or folder order in the rendered tree

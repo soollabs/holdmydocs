@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"hmd/internal/httpmiddleware"
-	"hmd/internal/i18n"
 )
 
 // StartupHandler serves the page a browser gets while the server is still
@@ -30,7 +29,7 @@ func StartupHandler() (http.Handler, error) {
 		data := TemplateData{Version: version, CSPNonce: httpmiddleware.CspNonce(r.Context())}
 		if err := page.ExecuteTemplate(&body, "starting", data); err != nil {
 			slog.Error("rendering starting page", "err", err)
-			http.Error(w, i18n.T("starting.title"), http.StatusServiceUnavailable)
+			http.Error(w, "starting", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

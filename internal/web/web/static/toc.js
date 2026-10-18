@@ -1,6 +1,6 @@
 // TOC rail (page view, >= 1200px via CSS; inline disclosure 900-1199px).
-// Standalone so it can load for anonymous public-namespace views too — it
-// only reads the DOM, no authenticated fetches — while the rest of app.js
+// Standalone so it can load for anonymous public-namespace views too: it
+// only reads the DOM and makes no authenticated fetches, while the rest of app.js
 // (auth-only chrome) stays behind login.
 (function() {
   const $ = (s, p) => (p || document).querySelector(s);
@@ -81,7 +81,7 @@
   update();
 
   // Click handler: scrollIntoView on the heading, not default anchor
-  // jump — main is the scroll container (overflow-y: auto in the grid),
+  // jump, because main is the scroll container (overflow-y: auto in the grid),
   // so default #hash scrolling targets the document, not main.
   links.forEach(a => {
     a.addEventListener('click', e => {

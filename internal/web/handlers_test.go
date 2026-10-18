@@ -1376,7 +1376,7 @@ func TestTitleEscaped(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	if bytes.Contains(body, []byte("<script>alert(1)</script>")) {
-		t.Error("Page title rendered unescaped — stored XSS")
+		t.Error("Page title rendered unescaped: stored XSS")
 	}
 }
 

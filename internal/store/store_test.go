@@ -74,7 +74,7 @@ func TestInitNoRemote(t *testing.T) {
 	}
 
 	if !store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be true for a fresh repo — nothing is auto-seeded")
+		t.Errorf("NeedsSetup should be true for a fresh repo: nothing is auto-seeded")
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
 		t.Errorf("readme.md should not be auto-seeded")
@@ -438,7 +438,7 @@ func TestEmptyRepoNeedsSetup(t *testing.T) {
 	}
 
 	if !store.NeedsSetup.Load() {
-		t.Errorf("NeedsSetup should be true for empty repo — nothing is auto-seeded")
+		t.Errorf("NeedsSetup should be true for empty repo: nothing is auto-seeded")
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "readme.md")); err == nil {
 		t.Errorf("readme.md should not be auto-seeded on empty repo")
@@ -744,7 +744,7 @@ func TestPushTimeoutReleasesLock(t *testing.T) {
 
 	state, _ := store.SyncState()
 	if state != "failed" {
-		t.Fatalf("SyncState = %q, want %q — push should have timed out", state, "failed")
+		t.Fatalf("SyncState = %q, want %q: push should have timed out", state, "failed")
 	}
 	if elapsed > 2*time.Second {
 		t.Errorf("push held s.mu for %v, want it bounded by gitNetworkTimeout (%v)", elapsed, timeout)

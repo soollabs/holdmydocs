@@ -505,7 +505,7 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 		srcNS, _ := wiki.NamespaceFor(src)
 		updated := wikiLinkRe.ReplaceAllStringFunc(srcPage.Body, func(m string) string {
 			// Mirror Index.ResolveLink: the link pointed at the old page by
-			// title, or — for casing that didn't match — by namespaced slug.
+			// title or, for casing that didn't match, by namespaced slug.
 			inner := m[2 : len(m)-2]
 			if inner == oldTitle || wiki.NamespaceSlug(srcNS, wiki.Slugify(inner)) == in.Slug || wiki.Slugify(inner) == in.Slug {
 				return "[[" + newTitle + "]]"
