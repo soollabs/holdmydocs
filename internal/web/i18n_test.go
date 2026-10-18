@@ -83,7 +83,12 @@ func TestGoMessageKeysExist(t *testing.T) {
 	}
 }
 
-// Skin descriptions, slug preset labels and sync states are looked up by a key built from
+var (
+	editorPhraseMap = regexp.MustCompile(`(?s)const keys = \{(.*?)\};`)
+	editorPhraseKey = regexp.MustCompile(`': '([^']+)'`)
+)
+
+// Skin descriptions, slug preset labels, sync states and editor phrases are looked up by a key built from
 // their identifier, which the literal-key tests cannot see.
 func TestBuiltMessageKeysExist(t *testing.T) {
 	known := i18n.Keys(i18n.Default)
@@ -96,6 +101,17 @@ func TestBuiltMessageKeysExist(t *testing.T) {
 	}
 	for _, state := range []string{"ok", "pending", "failed"} {
 		keys = append(keys, "js.sync.state."+state)
+	}
+	app, err := fs.ReadFile(webFS, "web/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	phrases := editorPhraseMap.FindSubmatch(app)
+	if phrases == nil {
+		t.Fatal("editor phrase map not found in app.js")
+	}
+	for _, m := range editorPhraseKey.FindAllSubmatch(phrases[1], -1) {
+		keys = append(keys, "js.editor."+string(m[1]))
 	}
 	for _, key := range keys {
 		if !slices.Contains(known, key) {

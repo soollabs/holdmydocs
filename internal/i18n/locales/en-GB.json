@@ -1150,30 +1150,138 @@
     "description": "History diff status with two revisions selected. A and B are short revision ids.",
     "other": "{{.A}} ↔ {{.B}} selected"
   },
+  "js.editor.all": {
+    "description": "Find panel button: select every match.",
+    "other": "all"
+  },
   "js.editor.attach": {
     "description": "Editor toolbar attach button label.",
     "other": "attach"
+  },
+  "js.editor.by_word": {
+    "description": "Find panel checkbox: match whole words only.",
+    "other": "by word"
   },
   "js.editor.chars": {
     "description": "Editor status character count.",
     "one": "{{.Count}} char",
     "other": "{{.Count}} chars"
   },
+  "js.editor.close": {
+    "description": "Accessible label of the button that closes the editor's find panel.",
+    "other": "close"
+  },
+  "js.editor.completions": {
+    "description": "Accessible label of the editor's autocomplete list.",
+    "other": "Completions"
+  },
   "js.editor.conflict": {
     "description": "Banner when the page changed while editing. Hash is the short id of the other version.",
     "other": "This page changed while you were editing (theirs: {{.Hash}}). Your draft is preserved."
+  },
+  "js.editor.control_character": {
+    "description": "Tooltip on an invisible control character shown in the editor.",
+    "other": "Control character"
+  },
+  "js.editor.current_match": {
+    "description": "Screen reader notice in the editor when the cursor lands on a search match.",
+    "other": "current match"
   },
   "js.editor.draft_saved": {
     "description": "Editor status after a draft is kept locally. Seconds is how long ago.",
     "other": "draft saved {{.Seconds}}s ago"
   },
+  "js.editor.find": {
+    "description": "Placeholder of the search field in the editor's find panel.",
+    "other": "Find"
+  },
+  "js.editor.fold_line": {
+    "description": "Tooltip of the editor gutter marker that folds a section.",
+    "other": "Fold line"
+  },
+  "js.editor.folded_code": {
+    "description": "Accessible label of the placeholder shown for folded text in the editor.",
+    "other": "folded code"
+  },
+  "js.editor.folded_lines": {
+    "description": "Screen reader notice after folding: 'Folded lines 3 to 9'.",
+    "other": "Folded lines"
+  },
+  "js.editor.go": {
+    "description": "Button in the editor's go-to-line panel.",
+    "other": "go"
+  },
+  "js.editor.go_to_line": {
+    "description": "Label of the editor's go-to-line panel (Ctrl+Alt+G).",
+    "other": "Go to line"
+  },
+  "js.editor.match_case": {
+    "description": "Find panel checkbox: case-sensitive search.",
+    "other": "match case"
+  },
+  "js.editor.next": {
+    "description": "Find panel button: go to the next match.",
+    "other": "next"
+  },
   "js.editor.offline": {
     "description": "Editor status when saving while offline.",
     "other": "offline: save queued, will sync when back online"
   },
+  "js.editor.on_line": {
+    "description": "Screen reader notice in the editor: a match is on the given line, as in 'current match on line 4'.",
+    "other": "on line"
+  },
+  "js.editor.previous": {
+    "description": "Find panel button: go to the previous match.",
+    "other": "previous"
+  },
+  "js.editor.regexp": {
+    "description": "Find panel checkbox: treat the search as a regular expression.",
+    "other": "regexp"
+  },
+  "js.editor.replace": {
+    "description": "Find panel button: replace the current match.",
+    "other": "replace"
+  },
+  "js.editor.replace_all": {
+    "description": "Find panel button: replace every match.",
+    "other": "replace all"
+  },
+  "js.editor.replace_field": {
+    "description": "Placeholder of the replacement field in the editor's find panel.",
+    "other": "Replace"
+  },
+  "js.editor.replaced_match_on_line": {
+    "description": "Screen reader notice after replacing one match. $ is the line number; keep the $ sign.",
+    "other": "replaced match on line $"
+  },
+  "js.editor.replaced_matches": {
+    "description": "Screen reader notice after replacing every match. $ is the number of matches; keep the $ sign.",
+    "other": "replaced $ matches"
+  },
   "js.editor.restore_draft": {
     "description": "Confirmation offered when a locally saved draft exists.",
     "other": "A saved draft was found for this page. Restore it?"
+  },
+  "js.editor.selection_deleted": {
+    "description": "Screen reader notice after deleting a selection in the editor.",
+    "other": "Selection deleted"
+  },
+  "js.editor.to": {
+    "description": "Joins two line numbers in the folding notices, as in 'Folded lines 3 to 9'.",
+    "other": "to"
+  },
+  "js.editor.unfold": {
+    "description": "Tooltip of the placeholder shown for folded text in the editor.",
+    "other": "unfold"
+  },
+  "js.editor.unfold_line": {
+    "description": "Tooltip of the editor gutter marker that unfolds a section.",
+    "other": "Unfold line"
+  },
+  "js.editor.unfolded_lines": {
+    "description": "Screen reader notice after unfolding: 'Unfolded lines 3 to 9'.",
+    "other": "Unfolded lines"
   },
   "js.editor.upload_failed": {
     "description": "Alert when an attachment upload fails. Name is the file name.",

@@ -906,6 +906,28 @@
 
     const toolbar = $('.toolbar');
 
+    // CodeMirror's own text (search panel, folding, screen reader notices) is
+    // looked up by its English phrase. The bundle does not export EditorState,
+    // so a detached editor lends its state's class for the phrases facet.
+    const editorPhrases = (() => {
+      const probe = new HMD.EditorView({ extensions: [HMD.EditorView.cspNonce.of(window.hmdCSPNonce)] });
+      const EditorState = probe.state.constructor;
+      probe.destroy();
+      const keys = {
+        'Find': 'find', 'Replace': 'replace_field', 'next': 'next', 'previous': 'previous', 'all': 'all',
+        'match case': 'match_case', 'regexp': 'regexp', 'by word': 'by_word', 'replace': 'replace',
+        'replace all': 'replace_all', 'close': 'close', 'current match': 'current_match',
+        'replaced $ matches': 'replaced_matches', 'replaced match on line $': 'replaced_match_on_line',
+        'on line': 'on_line', 'Go to line': 'go_to_line', 'go': 'go',
+        'Folded lines': 'folded_lines', 'Unfolded lines': 'unfolded_lines', 'to': 'to',
+        'Fold line': 'fold_line', 'Unfold line': 'unfold_line', 'folded code': 'folded_code', 'unfold': 'unfold',
+        'Control character': 'control_character', 'Selection deleted': 'selection_deleted', 'Completions': 'completions'
+      };
+      const phrases = {};
+      for (const [phrase, key] of Object.entries(keys)) phrases[phrase] = window.hmdT('js.editor.' + key);
+      return EditorState.phrases.of(phrases);
+    })();
+
     // Create editor — zenState defined before listener references it. Lines
     // always wrap: the editor grows with the page, so a sideways scrollbar
     // would sit below the end of the document.
@@ -915,6 +937,7 @@
         HMD.basicSetup,
         HMD.markdown(),
         HMD.EditorView.cspNonce.of(window.hmdCSPNonce),
+        editorPhrases,
         // Keep the cursor clear of the sticky toolbar when scrolling to it.
         HMD.EditorView.scrollMargins.of(() => ({ top: toolbar ? toolbar.offsetHeight : 0 })),
         HMD.EditorView.lineWrapping,

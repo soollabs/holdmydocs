@@ -92,12 +92,14 @@ function fixture(kind, responses) {
   if (kind === 'revert') form.dataset.slug = 'notes/page';
 
   let editorOptions;
+  class EditorState { static phrases = { of: value => value }; }
   class EditorView {
     static cspNonce = { of: value => value };
     static updateListener = { of: callback => callback };
     static scrollMargins = { of: () => ({}) };
     static lineWrapping = {};
-    constructor(options) { editorOptions = options; }
+    constructor(options) { editorOptions = options; this.state = new EditorState(); }
+    destroy() {}
   }
   if (kind === 'page') {
     add('#cm-host').dataset.slug = 'notes/page';
