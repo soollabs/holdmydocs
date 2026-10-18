@@ -7,15 +7,15 @@
 	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
 
 	{{if .Settings.HelpDrifted}}{{$helpNotice := component "notice" "variant" "warning" "role" "status"}}{{template "ui-notice-start" $helpNotice}}
-		<code>.help.md</code> differs from hmd's built-in help text for this version. It may have been edited locally.
+		{{tl "admin.help_drifted" "File" (code ".help.md")}}
 		<form method="POST" action="/_/api/settings/help/reset" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
-			{{template "ui-button" (button "Reset to built-in" "secondary" "type" "submit")}}
+			{{template "ui-button" (button (t "admin.help_drifted_reset") "secondary" "type" "submit")}}
 		</form>{{template "ui-notice-end" $helpNotice}}
 	{{end}}
 
 <section class="settings-zone"{{if eq .SettingsPanel "wiki"}} hidden{{end}}>
-	<h2 class="settings-zone-title"><span class="h"></span>system configuration</h2>
-	<p class="settings-zone-desc">Instance-wide. Applies to every user, stored in <code>{{.Settings.ConfigPath}}</code>.</p>
+	<h2 class="settings-zone-title"><span class="h"></span>{{t "admin.zone.system_config"}}</h2>
+	<p class="settings-zone-desc">{{t "admin.zone.system_config_desc"}} <code>{{.Settings.ConfigPath}}</code>.</p>
 
 	<form method="POST" action="/_/api/settings/server" class="settings-form"{{if or (eq .SettingsPanel "users") (eq .SettingsPanel "advanced")}} hidden{{end}}>{{template "csrf" .}}{{template "json-required" .}}
 
@@ -24,74 +24,69 @@
 			<legend>{{.Title}}</legend>
 			{{template "setting-groups" (settinggroups .Key $.Settings)}}
 			{{if eq .Key "git"}}<div class="settings-status" id="sync-status">
-				last push: <span class="state-{{$.SyncState}}">{{if eq $.SyncState "no remote"}}n/a{{else}}{{$.SyncState}}{{end}}</span> · {{$.SyncAge}} · last fetch: {{if eq $.SyncMode "bidirectional"}}{{$.SyncAge}}{{else}}n/a (push mode){{end}}
+				{{t "admin.sync.last_push"}} <span class="state-{{$.SyncState}}">{{if eq $.SyncState "no remote"}}{{t "admin.sync.not_applicable"}}{{else}}{{$.SyncState}}{{end}}</span> · {{$.SyncAge}} · {{t "admin.sync.last_fetch"}} {{if eq $.SyncMode "bidirectional"}}{{$.SyncAge}}{{else}}{{t "admin.sync.push_mode"}}{{end}}
 			</div>{{end}}
 		</fieldset>
 		{{end}}
 
 		<div class="settings-actions settings-actions-sticky">
-			{{template "ui-button" (button "Save system config" "primary" "type" "submit")}}
-			{{template "ui-button" (button "Cancel" "secondary" "href" "/")}}
+			{{template "ui-button" (button (t "admin.system_config.save") "primary" "type" "submit")}}
+			{{template "ui-button" (button (t "common.cancel") "secondary" "href" "/")}}
 		</div>
 
 	</form>
 
 	<fieldset class="settings-section settings-panel" data-panel="users"{{if ne .SettingsPanel "users"}} hidden{{end}}>
-		<legend>users</legend>
+		<legend>{{t "admin.legend.users"}}</legend>
 		{{if .Settings.UserError}}{{$userError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $userError}}{{.Settings.UserError}}{{template "ui-notice-end" $userError}}{{end}}
 
-		<p class="settings-note">Admin created during bootstrap is managed <a href="/_/settings/server#server.admin">here</a>.</p>
+		<p class="settings-note">{{tl "admin.users.bootstrap_note" "Link" (link "/_/settings/server#server.admin" (t "admin.users.bootstrap_link"))}}</p>
 
 		{{range .Settings.Users}}
 		{{$u := .}}
 		{{if ne $u.Name (index $.Settings.Fields "server.admin.user").Value}}
 		<form method="POST" action="/_/api/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="name" value="{{$u.Name}}">
-			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} (you){{end}}</label>
+			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} {{t "admin.users.you"}}{{end}}</label>
 			<span class="scope-checks">
 				{{range $.Settings.AllScopes}}
 				{{$choiceSlot2 := component "choice" "id" "admin-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>{{template "ui-choice-end" $choiceSlot2}}
 				{{end}}
 			</span>
-			{{template "ui-button" (button "Save" "secondary" "type" "submit")}}
+			{{template "ui-button" (button (t "common.save") "secondary" "type" "submit")}}
 		</form>
 		{{end}}
 		{{end}}
 
 		<form method="POST" action="/_/api/settings/users" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">{{$fieldSlot36 := component "field" "id" "new-user-name" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot36}}
-				<label for="new_user_name">new user</label>
-				<input type="text" id="new_user_name" name="name" placeholder="username" autocomplete="off">
-				<input type="password" name="password" placeholder="password" autocomplete="new-password">
+				<label for="new_user_name">{{t "admin.users.new_user_label"}}</label>
+				<input type="text" id="new_user_name" name="name" placeholder="{{t "admin.users.username_placeholder"}}" autocomplete="off">
+				<input type="password" name="password" placeholder="{{t "admin.users.password_placeholder"}}" autocomplete="new-password">
 			{{template "ui-field-end" $fieldSlot36}}</div>
 			<div class="settings-row">{{$fieldSlot37 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot37}}
-				<label>scopes</label>
+				<label>{{t "admin.users.scopes_label"}}</label>
 				<span class="scope-checks">
 					{{range .Settings.AllScopes}}
 					{{$choiceSlot1 := component "choice" "id" "admin-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $choiceSlot1}}
 					{{end}}
 				</span>
 			{{template "ui-field-end" $fieldSlot37}}</div>
-			<p class="settings-note">Leave every scope unchecked for full access.</p>
+			<p class="settings-note">{{t "admin.users.scopes_note"}}</p>
 			<div class="settings-actions">
-				{{template "ui-button" (button "Create user" "primary" "type" "submit")}}
+				{{template "ui-button" (button (t "admin.users.create") "primary" "type" "submit")}}
 			</div>
 		</form>
 	</fieldset>
 
-	{{if and (eq .SettingsPanel "advanced") (not .Settings.HasEnvOverrides)}}<p class="settings-note">No settings are overridden by environment variables.</p>{{end}}
+	{{if and (eq .SettingsPanel "advanced") (not .Settings.HasEnvOverrides)}}<p class="settings-note">{{t "admin.env.none_overridden"}}</p>{{end}}
 	{{if .Settings.HasEnvOverrides}}
 	<fieldset class="settings-section settings-panel" data-panel="advanced"{{if ne .SettingsPanel "advanced"}} hidden{{end}}>
-		<legend>environment overrides</legend>
-		<p class="settings-note">
-			Some settings are set by <code>HMD_*</code> environment variables, which are read-only here; each one's info icon names the variable. Exporting writes
-			the values currently in effect &mdash; including those env-set ones &mdash; into
-			<code>{{.Settings.ConfigPath}}</code>, so you can drop the env vars and manage
-			everything from this page afterwards.
-		</p>
+		<legend>{{t "admin.legend.environment_overrides"}}</legend>
+		<p class="settings-note">{{tl "admin.env_overrides_note" "Pattern" (code "HMD_*") "File" (code .Settings.ConfigPath)}}</p>
 		<form method="POST" action="/_/api/settings/export" id="export-config-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-actions">
-				{{template "ui-button" (button "Export current config to file" "secondary" "type" "submit" "id" "export-config-btn")}}
+				{{template "ui-button" (button (t "admin.env.export") "secondary" "type" "submit" "id" "export-config-btn")}}
 			</div>
 		</form>
 	</fieldset>
@@ -100,59 +95,59 @@
 </section>
 
 <section class="settings-zone"{{if ne .SettingsPanel "wiki"}} hidden{{end}}>
-	<h2 class="settings-zone-title"><span class="h"></span>wiki configuration</h2>
-	<p class="settings-zone-desc">Travels with the content repository. Saved in <code>{{.Settings.WikiConfigPath}}</code>, committed to git and available to every hmd instance using this repo; it is not part of <code>{{.Settings.ConfigPath}}</code>.</p>
+	<h2 class="settings-zone-title"><span class="h"></span>{{t "admin.zone.wiki_config"}}</h2>
+	<p class="settings-zone-desc">{{tl "admin.wiki_config_desc" "WikiFile" (code .Settings.WikiConfigPath) "ConfigFile" (code .Settings.ConfigPath)}}</p>
 
 	<form method="POST" action="/_/api/settings/wiki" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 		<fieldset class="settings-section">
 			<legend>{{.Settings.WikiConfigPath}}</legend>
 			<div class="settings-row">{{$fieldSlot38 := component "field" "id" "wiki-site-name" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot38}}
-				<label for="wiki_site_name">site name</label>{{template "ui-setting-info" (settinginfo "wiki" "site_name")}}
+				<label for="wiki_site_name">{{t "admin.wiki.site_name"}}</label>{{template "ui-setting-info" (settinginfo "wiki" "site_name")}}
 				<input type="text" id="wiki_site_name" name="site_name" value="{{.Settings.WikiSiteName}}">
 			{{template "ui-field-end" $fieldSlot38}}</div>
 			<div class="settings-row">{{$fieldSlot39 := component "field" "id" "landing" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot39}}
-				<label for="landing">landing page</label>{{template "ui-setting-info" (settinginfo "wiki" "landing")}}
+				<label for="landing">{{t "admin.wiki.landing_page"}}</label>{{template "ui-setting-info" (settinginfo "wiki" "landing")}}
 				<input type="text" id="landing" name="landing" value="{{.Settings.WikiLanding}}" placeholder="notes/">
 			{{template "ui-field-end" $fieldSlot39}}</div>
 		</fieldset>
 		<div class="settings-actions">
-			{{template "ui-button" (button "Save wiki configuration" "primary" "type" "submit")}}
+			{{template "ui-button" (button (t "admin.wiki.save") "primary" "type" "submit")}}
 		</div>
 	</form>
 
 	<fieldset class="settings-section">
-		<legend>wiki setup</legend>
+		<legend>{{t "admin.legend.wiki_setup"}}</legend>
 		<div class="settings-row">
-			<label>re-seed setup</label>
+			<label>{{t "admin.wiki.reseed_label"}}</label>
 			<form method="POST" action="/_/api/settings/setup" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
-				{{template "ui-button" (button "Re-run setup" "secondary" "type" "submit")}}
+				{{template "ui-button" (button (t "admin.wiki.rerun_setup") "secondary" "type" "submit")}}
 			</form>
 		</div>
 	</fieldset>
 
 	{{if .Settings.LegacyAttachments}}
 	<fieldset class="settings-section" id="attachments">
-		<legend>attachments</legend>
-		<p class="settings-zone-desc">These namespaces still keep attachments in the old top-level <code>attachments/</code> folder. Pages still show them from there.</p>
+		<legend>{{t "admin.legend.attachments"}}</legend>
+		<p class="settings-zone-desc">{{tl "admin.legacy_attachments_desc" "Folder" (code "attachments/")}}</p>
 		{{$legacyTable := component "table" "id" "legacy-attachments-table"}}{{template "ui-table-start" $legacyTable}}
-			<thead><tr><th>namespace</th><th>files</th><th>what happens</th></tr></thead>
+			<thead><tr><th>{{t "admin.attachments.col_namespace"}}</th><th>{{t "admin.attachments.col_files"}}</th><th>{{t "admin.attachments.col_what"}}</th></tr></thead>
 			<tbody>
 			{{range .Settings.LegacyAttachments}}<tr>
 				<td><code>{{.Namespace}}/</code></td>
 				<td>{{.Files}}</td>
-				{{if .Exists}}<td>moves into the namespace</td>
+				{{if .Exists}}<td>{{t "admin.attachments.moves"}}</td>
 				{{else}}<td><form method="POST" action="/_/api/settings/attachments/delete" class="settings-inline-form">{{template "csrf" $}}{{template "json-required" $}}
 					<input type="hidden" name="namespace" value="{{.Namespace}}">
-					namespace deleted
-					{{template "ui-button" (button "Delete" "danger" "size" "compact" "type" "submit" "aria-label" (printf "Delete the old attachments of %s" .Namespace) "confirm" (printf "Delete the %d old attachment(s) of %s? They stay in Git history." .Files .Namespace))}}
+					{{t "admin.attachments.deleted"}}
+					{{template "ui-button" (button (t "common.delete") "danger" "size" "compact" "type" "submit" "aria-label" (t "admin.attachments.delete_aria" "Namespace" .Namespace) "confirm" (tn "admin.attachments.delete_confirm" .Files "Count" .Files "Namespace" .Namespace))}}
 				</form></td>{{end}}
 			</tr>{{end}}
 			</tbody>
 		{{template "ui-table-end" $legacyTable}}
-		{{if .Settings.LegacyAttachmentsOrphaned}}<p class="settings-note">A deleted namespace's files can't be moved. Deleting them takes one commit; they stay in Git history.</p>{{end}}
-		{{if .Settings.LegacyAttachmentsMovable}}<p class="settings-note">Moving puts each namespace's files in its own <code>.attachments/</code> folder in one commit, and links don't change. Update every HMD instance that uses this repository first: older versions only look in the old folder.</p>
+		{{if .Settings.LegacyAttachmentsOrphaned}}<p class="settings-note">{{t "admin.attachments.orphaned_note"}}</p>{{end}}
+		{{if .Settings.LegacyAttachmentsMovable}}<p class="settings-note">{{tl "admin.legacy_attachments_move_note" "Folder" (code ".attachments/")}}</p>
 		<form method="POST" action="/_/api/settings/attachments/migrate" class="settings-actions">{{template "csrf" .}}{{template "json-required" .}}
-			{{template "ui-button" (button "Move attachments" "primary" "type" "submit")}}
+			{{template "ui-button" (button (t "admin.attachments.move") "primary" "type" "submit")}}
 		</form>{{end}}
 	</fieldset>
 	{{end}}
@@ -164,8 +159,8 @@
 	var exportForm = document.getElementById('export-config-form');
 	if (exportForm) {
 		exportForm.addEventListener('submit', function (e) {
-			var msg = 'This overwrites {{.Settings.ConfigPath}} with the settings currently in effect, including any set via environment variables.';
-			if (!confirm(msg + ' Continue?')) {
+			var msg = {{t "admin.export_confirm" "Path" .Settings.ConfigPath}};
+			if (!confirm(msg)) {
 				e.preventDefault();
 			}
 		});

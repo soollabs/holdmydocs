@@ -2,12 +2,12 @@
 {{if .AllTags}}
 <div class="sidebar-section sidebar-tags-section">
 	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
-	<h2>TAGS</h2>
+	<h2>{{t "widget.tags.title"}}</h2>
 	<ul class="tag-chips">
 		{{range .AllTags}}
 		<li><a href="/_/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
 		{{end}}
-		<li><a href="/_/tags" class="all-link">▸ all</a></li>
+		<li><a href="/_/tags" class="all-link">{{t "widget.tags.all"}}</a></li>
 	</ul>
 	{{template "ui-panel-end" $widgetPanel}}
 </div>

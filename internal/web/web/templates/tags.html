@@ -1,8 +1,8 @@
 {{define "content"}}
 <div class="content-col">
 {{if .TagName}}
-<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><a href="/_/tags">tags</a><span class="sep">/</span><span class="current" aria-current="page">{{.TagName}}</span></nav>
-<h1 class="page-title"><span class="h"></span>Tag: {{.TagName}}</h1>
+<nav class="breadcrumb" aria-label="{{t "tags.breadcrumb_label"}}"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><a href="/_/tags">{{t "tags.breadcrumb"}}</a><span class="sep">/</span><span class="current" aria-current="page">{{.TagName}}</span></nav>
+<h1 class="page-title"><span class="h"></span>{{t "tags.tag_heading" "Name" .TagName}}</h1>
 {{if .TagPages}}
 <ul>
 	{{range .TagPages}}
@@ -10,11 +10,11 @@
 	{{end}}
 </ul>
 {{else}}
-{{$empty := component "empty" "label" "No pages with this tag"}}{{template "ui-empty-start" $empty}}<p>Pages carrying this tag will appear here.</p>{{template "ui-empty-end" $empty}}
+{{$empty := component "empty" "label" (t "tags.no_pages_label")}}{{template "ui-empty-start" $empty}}<p>{{t "tags.pages_appear"}}</p>{{template "ui-empty-end" $empty}}
 {{end}}
 {{else}}
-<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><span class="current" aria-current="page">tags</span></nav>
-<h1 class="page-title"><span class="h"></span>Tags</h1>
+<nav class="breadcrumb" aria-label="{{t "tags.breadcrumb_label"}}"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><span class="current" aria-current="page">{{t "tags.breadcrumb"}}</span></nav>
+<h1 class="page-title"><span class="h"></span>{{t "tags.title"}}</h1>
 {{if .AllTags}}
 <ul class="tag-list">
 	{{range .AllTags}}
@@ -22,7 +22,7 @@
 	{{end}}
 </ul>
 {{else}}
-{{$empty := component "empty" "label" "No tags yet"}}{{template "ui-empty-start" $empty}}<p>Tags appear when pages are assigned them.</p>{{template "ui-empty-end" $empty}}
+{{$empty := component "empty" "label" (t "tags.no_tags_label")}}{{template "ui-empty-start" $empty}}<p>{{t "tags.tags_appear"}}</p>{{template "ui-empty-end" $empty}}
 {{end}}
 {{end}}
 </div>

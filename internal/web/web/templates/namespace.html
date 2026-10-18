@@ -7,10 +7,10 @@
 </div>
 <h1 class="page-title" data-title="{{.Namespace}}"><span class="h"></span>{{.Namespace}}</h1>
 <p class="namespace-index-meta">
-	{{len .TagPages}} page{{if ne (len .TagPages) 1}}s{{end}}{{if .NamespacePublic}} · public{{end}}
-	{{if .CanSettings}} · <a href="/_/settings/namespaces/{{.Namespace}}/edit">Edit namespace</a>{{end}}
+	{{tn "namespace.page_count" (len .TagPages) "Count" (len .TagPages)}}{{if .NamespacePublic}} · {{t "namespace.public"}}{{end}}
+	{{if .CanSettings}} · <a href="/_/settings/namespaces/{{.Namespace}}/edit">{{t "namespace.edit_link"}}</a>{{end}}
 </p>
-{{if not .TagPages}}{{$empty := component "empty" "label" "No pages in this namespace yet"}}{{template "ui-empty-start" $empty}}<p>New pages will appear here.</p>{{template "ui-empty-end" $empty}}{{else}}
+{{if not .TagPages}}{{$empty := component "empty" "label" (t "namespace.empty_label")}}{{template "ui-empty-start" $empty}}<p>{{t "namespace.empty_text"}}</p>{{template "ui-empty-end" $empty}}{{else}}
 {{.PageTree}}
 {{end}}
 </div>

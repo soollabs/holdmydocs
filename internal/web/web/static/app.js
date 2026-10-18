@@ -74,7 +74,7 @@
     if (!res.ok) {
       let detail = {};
       try { detail = await res.json(); } catch (e) { /* non-JSON error body */ }
-      const err = new Error(detail.error || ('request failed (' + res.status + ')'));
+      const err = new Error(detail.error || window.hmdT('js.request_failed', { Status: res.status }));
       err.status = res.status;
       err.detail = detail;
       throw err;
@@ -195,7 +195,7 @@
               previewCard.innerHTML = `
                 <h3><span class="h"></span>${escapeHtml(data.title)}</h3>
                 <div class="snippet">${escapeHtml(data.snippet)}</div>
-                <div class="meta">${tags ? tags + ' · ' : ''}edited ${escapeHtml(data.age)}</div>
+                <div class="meta">${tags ? tags + ' · ' : ''}${escapeHtml(window.hmdT('js.preview_card.edited', { Age: data.age }))}</div>
               `;
               previewCard.style.top = (rect.bottom + 10 + window.scrollY) + 'px';
               previewCard.style.left = (rect.left) + 'px';
@@ -221,7 +221,7 @@
     const text = pageContent.textContent || '';
     const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
     const readingTime = Math.max(1, Math.ceil(words / 200));
-    wordCountSeg.textContent = words + 'w · ' + readingTime + ' min';
+    wordCountSeg.textContent = window.hmdT('js.reading_summary', { Words: words, Minutes: readingTime });
   }
 
   // ---- Sync polling ----
@@ -237,11 +237,11 @@
       const state = syncSeg.dataset.state || 'unknown';
       const last = parseInt(syncSeg.dataset.lastSuccess || '0');
       if (state === 'no remote') {
-        syncText.textContent = 'local only';
+        syncText.textContent = window.hmdT('js.sync.local_only');
         return;
       }
       if (state === 'ok' && last > 0) {
-        syncText.textContent = 'synced ' + relativeAge(last);
+        syncText.textContent = window.hmdT('js.sync.synced', { Age: relativeAge(last) });
         return;
       }
       const arrow = window.hmdReadOnly ? '⇣' : (bidi ? '⇣⇡' : '⇡');
@@ -398,7 +398,7 @@
     paletteVerbInput = null;
     paletteBackdrop.classList.add('open');
     paletteInput.value = '';
-    paletteInput.placeholder = paletteCreateMode ? 'title for new document…' : 'jump to a page…';
+    paletteInput.placeholder = window.hmdT(paletteCreateMode ? 'js.palette.title_placeholder' : 'js.palette.jump_placeholder');
     paletteCount.textContent = '';
     paletteSelected = 0;
     if (paletteCreateMode) {
@@ -443,10 +443,10 @@
     if (!paletteResults) return;
     const builtinHtml = (paletteCreateMode || paletteVerbMode) ? '' :
       `<a href="/_/hidden" class="palette-row palette-builtin${paletteSelected === paletteRows.length ? ' selected' : ''}"><span class="filetype">hid</span><span class="title">:hidden:</span></a>` +
-      `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">settings</span></a>`;
+      `<a href="/_/settings" class="palette-row palette-settings${paletteSelected === paletteRows.length + 1 ? ' selected' : ''}"><span class="filetype">cfg</span><span class="title">${escapeHtml(window.hmdT('js.palette.settings'))}</span></a>`;
     if (paletteShortcuts) paletteShortcuts.innerHTML = builtinHtml;
     if (paletteRows.length === 0 && !query) {
-      const emptyMsg = paletteCreateMode ? 'Type a title for the new document…' : 'No recent pages';
+      const emptyMsg = window.hmdT(paletteCreateMode ? 'js.palette.empty_create' : 'js.palette.empty_recent');
       paletteResults.innerHTML = '<div class="palette-row" style="color:var(--fg-faint)">' + emptyMsg + '</div>';
       paletteCount.textContent = '';
       return;
@@ -470,11 +470,11 @@
       </a>`;
     }).join('');
     const createRow = (query && !paletteVerbMode && createNamespace())
-      ? `<a href="${escapeHtml(createHref(query))}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">+ create page "${escapeHtml(query)}" in ${escapeHtml(createNamespace())}</a>`
+      ? `<a href="${escapeHtml(createHref(query))}" class="palette-row palette-create${paletteSelected === paletteRows.length + builtinCount() ? ' selected' : ''}">${escapeHtml(window.hmdT('js.palette.create', { Title: query, Namespace: createNamespace() }))}</a>`
       : '';
     paletteResults.innerHTML = rowsHtml + createRow;
     if (!paletteVerbMode) {
-      paletteCount.textContent = paletteRows.length > 0 ? paletteRows.length + (query ? ' matches' : ' recent') : '';
+      paletteCount.textContent = paletteRows.length > 0 ? (query ? window.hmdT('js.palette.matches', {}, paletteRows.length) : window.hmdT('js.palette.recent', { Count: paletteRows.length })) : '';
     }
   }
 
@@ -517,22 +517,22 @@
 
   function relativeAge(unixSeconds) {
     const diff = Math.floor(Date.now() / 1000) - unixSeconds;
-    if (diff < 60) return diff + 's ago';
-    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-    return Math.floor(diff / 86400) + 'd ago';
+    if (diff < 60) return window.hmdT('js.age.seconds', { Count: diff });
+    if (diff < 3600) return window.hmdT('js.age.minutes', { Count: Math.floor(diff / 60) });
+    if (diff < 86400) return window.hmdT('js.age.hours', { Count: Math.floor(diff / 3600) });
+    return window.hmdT('js.age.days', { Count: Math.floor(diff / 86400) });
   }
 
   const verbs = [
-    { name: 'rename', desc: 'rename this page', action: 'rename' },
-    { name: 'tag', desc: 'edit tags', action: 'tag' },
-    { name: 'hist', desc: 'view history', action: 'hist' },
-    { name: 'new', desc: 'new page in this namespace', action: 'new' },
-    { name: 'health', desc: 'wiki health', action: 'health' },
-    { name: 'ns', desc: 'namespaces & templates', action: 'ns' },
-    { name: 'sync', desc: 'push now', action: 'sync' },
-    { name: 'pin', desc: 'pin this page', action: 'pin' },
-    { name: 'delete', desc: 'delete this page', action: 'delete' },
+    { name: 'rename', descKey: 'js.verb.rename', action: 'rename' },
+    { name: 'tag', descKey: 'js.verb.tag', action: 'tag' },
+    { name: 'hist', descKey: 'js.verb.hist', action: 'hist' },
+    { name: 'new', descKey: 'js.verb.new', action: 'new' },
+    { name: 'health', descKey: 'js.verb.health', action: 'health' },
+    { name: 'ns', descKey: 'js.verb.ns', action: 'ns' },
+    { name: 'sync', descKey: 'js.verb.sync', action: 'sync' },
+    { name: 'pin', descKey: 'js.verb.pin', action: 'pin' },
+    { name: 'delete', descKey: 'js.verb.delete', action: 'delete' },
   ].filter(v => {
     if (window.hmdReadOnly && ['rename', 'tag', 'new', 'sync', 'pin', 'delete'].includes(v.action)) return false;
     if (v.action === 'new') return window.hmdNewEnabled;
@@ -542,8 +542,8 @@
   function syncVerbDesc() {
     const seg = $('#status-sync');
     const last = seg ? parseInt(seg.dataset.lastSuccess || '0') : 0;
-    if (!last) return 'push now';
-    return `push now · last push ${relativeAge(last)} (${seg.dataset.state || 'unknown'})`;
+    if (!last) return window.hmdT('js.verb.sync');
+    return window.hmdT('js.verb.sync_last', { Age: relativeAge(last), State: seg.dataset.state || 'unknown' });
   }
 
   function searchPalette(q) {
@@ -557,13 +557,13 @@
           slug: v.action,
           title: '>' + v.name,
           snippet: v.action === 'new'
-            ? `new page in the ${window.hmdNewNamespace || 'current'} namespace`
-            : v.action === 'sync' ? syncVerbDesc() : v.desc,
+            ? window.hmdT('js.verb.new_in', { Namespace: window.hmdNewNamespace || window.hmdT('js.verb.current_namespace') })
+            : v.action === 'sync' ? syncVerbDesc() : window.hmdT(v.descKey),
           verb: true
         }));
       paletteSelected = 0;
       renderPaletteRows(q);
-      paletteCount.textContent = paletteRows.length + ' verb' + (paletteRows.length === 1 ? '' : 's');
+      paletteCount.textContent = window.hmdT('js.palette.verbs', {}, paletteRows.length);
       return;
     }
 
@@ -582,7 +582,7 @@
           })));
           paletteRows = rows.slice(0, paletteMatchLimit);
           if (rows.length > paletteMatchLimit) {
-            paletteRows.push({ href: '/_/search?q=' + encodeURIComponent(q), title: 'search all results', snippet: '' });
+            paletteRows.push({ href: '/_/search?q=' + encodeURIComponent(q), title: window.hmdT('js.palette.search_all'), snippet: '' });
           }
           paletteSelected = 0;
           renderPaletteRows(q);
@@ -642,10 +642,10 @@
         break;
       case 'delete':
         closePalette();
-        if (!slug || !window.confirm(`Delete "${slug}"? Its history stays in git, but it disappears from the wiki.`)) return;
+        if (!slug || !window.confirm(window.hmdT('js.delete_confirm', { Slug: slug }))) return;
         mutateJSON('/_/api/pages/delete/' + encodeURIComponent(slug), { hidden: isHiddenPage() })
           .then(() => { window.location.href = isHiddenPage() ? '/_/hidden' : '/'; })
-          .catch(err => alert(err.message || 'delete failed'));
+          .catch(err => alert(err.message || window.hmdT('js.error.delete_failed')));
         break;
     }
   }
@@ -661,11 +661,11 @@
     if (action === 'rename') {
       const titleEl = document.querySelector('.page-title');
       paletteInput.value = (titleEl && titleEl.dataset.title) || '';
-      paletteInput.placeholder = 'new title…';
+      paletteInput.placeholder = window.hmdT('js.palette.rename_placeholder');
     } else {
       paletteInput.value = [...document.querySelectorAll('.page-meta .meta-tag')]
         .map(a => a.textContent.replace(/^#/, '')).join(', ');
-      paletteInput.placeholder = 'tags, comma separated…';
+      paletteInput.placeholder = window.hmdT('js.palette.tags_placeholder');
     }
     paletteCount.textContent = '>' + action;
     paletteInput.focus();
@@ -806,7 +806,7 @@
       const hashInput = form.querySelector('input[name="hash"]');
       mutateJSON('/_/api/pages/revert/' + encodeURIComponent(slug), { hash: hashInput ? hashInput.value : '' })
         .then(d => { window.location.href = viewHref(d.slug, false) + (d.index_warning ? '?index=pending' : ''); })
-        .catch(err => alert(err.message || 'revert failed'));
+        .catch(err => alert(err.message || window.hmdT('js.error.revert_failed')));
     });
   });
 
@@ -852,7 +852,7 @@
     const draftKey = 'hmd-draft-' + cmHost.dataset.slug;
     const savedDraft = localStorage.getItem(draftKey);
     if (savedDraft && savedDraft !== textarea.value) {
-      if (confirm('A saved draft was found for this page. Restore it?')) {
+      if (confirm(window.hmdT('js.editor.restore_draft'))) {
         textarea.value = savedDraft;
       } else {
         localStorage.removeItem(draftKey);
@@ -868,8 +868,8 @@
       const text = textarea.value;
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       const chars = text.length;
-      if (statusContext) statusContext.textContent = words + ' words · ' + chars + ' chars';
-      if (zenStatus) zenStatus.textContent = words + ' words';
+      if (statusContext) statusContext.textContent = window.hmdT('js.editor.words', {}, words) + ' · ' + window.hmdT('js.editor.chars', {}, chars);
+      if (zenStatus) zenStatus.textContent = window.hmdT('js.editor.words', {}, words);
     }
 
     const breadcrumbDirty = $('#breadcrumb-dirty');
@@ -1032,7 +1032,7 @@
       .catch(err => {
         preview.classList.remove('preview-loading');
         preview.classList.add('preview-error');
-        preview.innerHTML = '<p>Preview unavailable</p>';
+        preview.innerHTML = '<p>' + escapeHtml(window.hmdT('js.preview.unavailable')) + '</p>';
       });
     }
 
@@ -1053,7 +1053,7 @@
       if (!draftSavedAt) return;
       const secs = Math.floor((Date.now() - draftSavedAt) / 1000);
       if (dirty) {
-        statusContext.textContent = 'draft saved ' + secs + 's ago';
+        statusContext.textContent = window.hmdT('js.editor.draft_saved', { Seconds: secs });
         setTimeout(updateDraftStatus, 5000);
       } else {
         updateWordCount();
@@ -1101,7 +1101,7 @@
       const banner = $('#conflict-banner');
       if (!banner) return;
       const text = $('#conflict-text');
-      if (text) text.textContent = 'This page changed while you were editing (theirs: ' + (conflict.current_hash || '').slice(0, 8) + '). Your draft is preserved.';
+      if (text) text.textContent = window.hmdT('js.editor.conflict', { Hash: (conflict.current_hash || '').slice(0, 8) });
       banner.hidden = false;
     }
 
@@ -1115,7 +1115,7 @@
         queueMutation(url, payload);
         dirty = false;
         localStorage.removeItem(draftKey);
-        if (statusContext) statusContext.textContent = 'offline — save queued, will sync when back online';
+        if (statusContext) statusContext.textContent = window.hmdT('js.editor.offline');
         return;
       }
       mutateJSON(url, payload)
@@ -1129,7 +1129,7 @@
             showConflict(err.detail.conflict);
             return;
           }
-          showSaveError(err.message || 'save failed');
+          showSaveError(err.message || window.hmdT('js.error.save_failed'));
         });
     }
 
@@ -1152,7 +1152,7 @@
         const slug = cmHost.dataset.slug || document.body.dataset.slug || '';
         mutateJSON('/_/api/pages/delete/' + encodeURIComponent(slug), { hidden: isHiddenPage() })
           .then(() => { window.location.href = isHiddenPage() ? '/_/hidden' : '/'; })
-          .catch(err => showSaveError(err.message || 'delete failed'));
+          .catch(err => showSaveError(err.message || window.hmdT('js.error.delete_failed')));
       });
     }
 
@@ -1260,7 +1260,7 @@
 
     function updateAttachmentUploadStatus() {
       attachmentButton.disabled = attachmentUploads > 0;
-      attachmentButton.textContent = attachmentUploads ? `uploading (${attachmentUploads})` : 'attach';
+      attachmentButton.textContent = attachmentUploads ? window.hmdT('js.editor.uploading', { Count: attachmentUploads }) : window.hmdT('js.editor.attach');
     }
     const toolbarActions = {
       bold: () => wrapSelection('**', '**'),
@@ -1318,7 +1318,7 @@
           });
         })
         .catch(err => {
-          alert('Failed to upload attachment: ' + file.name);
+          alert(window.hmdT('js.editor.upload_failed', { Name: file.name }));
         })
         .finally(() => {
           attachmentUploads--;
@@ -1473,20 +1473,20 @@
 
       if (checked.length === 1) {
         diffPanel.hidden = true;
-        diffStatus.textContent = checked[0].value.slice(0, 7) + ' selected';
+        diffStatus.textContent = window.hmdT('js.diff.selected_one', { Hash: checked[0].value.slice(0, 7) });
         return;
       }
 
       // Two checked: show diff
       const hashA = checked[0].value;
       const hashB = checked[1].value;
-      diffStatus.textContent = hashA.slice(0, 7) + ' ↔ ' + hashB.slice(0, 7) + ' selected';
+      diffStatus.textContent = window.hmdT('js.diff.selected_two', { A: hashA.slice(0, 7), B: hashB.slice(0, 7) });
 
       const slug = document.body.dataset.slug;
       fetch(viewHref(slug) + `?do=diff&a=${hashA}&b=${hashB}`)
         .then(r => r.text())
         .then(diff => {
-          diffHeader.textContent = `diff ${hashA.slice(0, 7)}..${hashB.slice(0, 7)}`;
+          diffHeader.textContent = window.hmdT('js.diff.header', { A: hashA.slice(0, 7), B: hashB.slice(0, 7) });
           renderDiff(diff);
           diffPanel.hidden = false;
         })
@@ -1569,10 +1569,10 @@
           if (err.status === 409 && err.detail && err.detail.conflict) {
             const base = form.querySelector('[name="basehash"]');
             if (base && err.detail.conflict.current_hash) base.value = err.detail.conflict.current_hash;
-            showFormError(form, 'This namespace changed since you opened the form, or was created by someone else. Review the settings below and save again; nothing has been overwritten.');
+            showFormError(form, window.hmdT('js.namespace.conflict'));
             return;
           }
-          showFormError(form, err.message || 'save failed');
+          showFormError(form, err.message || window.hmdT('js.error.save_failed'));
         });
     });
   }
@@ -1642,14 +1642,14 @@
       confirmBtn.disabled = true;
       mutateJSON('/_/api/settings/shutdown', {})
         .then(() => {
-          $('#shutdown-dialog-title').textContent = 'Shutting down';
-          message.textContent = 'HMD is shutting down. It may restart automatically if it runs under Docker or systemd; otherwise start it again manually.';
+          $('#shutdown-dialog-title').textContent = window.hmdT('js.shutdown.title');
+          message.textContent = window.hmdT('js.shutdown.message');
           confirmBtn.hidden = true;
-          cancelBtn.textContent = 'Close';
+          cancelBtn.textContent = window.hmdT('js.shutdown.close');
         })
         .catch(err => {
           confirmBtn.disabled = false;
-          error.textContent = err.message || 'shutdown failed';
+          error.textContent = err.message || window.hmdT('js.error.shutdown_failed');
           error.hidden = false;
         });
     });

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const { hmdT } = require('./strings.cjs');
 const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/export.js'), 'utf8');
 const components = require('../../internal/web/web/static/components.js');
 
@@ -37,6 +38,7 @@ function fixture() {
   const context = { document, HMDComponents: components, HMDSearchIndex: [], URL,
     ResizeObserver: undefined, console, setTimeout, window: null };
   context.window = context;
+  context.hmdT = hmdT;
   vm.runInNewContext(source, context);
   return { dialog, toggle, input, close, context };
 }

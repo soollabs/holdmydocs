@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"hmd/internal/api"
+	"hmd/internal/i18n"
 	"hmd/internal/oauthserver"
 )
 
@@ -18,7 +19,7 @@ func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 	}
 	cookie, err := r.Cookie("hmd_session")
 	if err != nil || r.Header.Get("Authorization") != "" {
-		http.Error(w, "administrator browser session required", http.StatusUnauthorized)
+		http.Error(w, i18n.T("web.oauth_clients.admin_session_required"), http.StatusUnauthorized)
 		return false
 	}
 	_, ok := app.Auth.UserFor(cookie.Value)
@@ -27,7 +28,7 @@ func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 		allowed = app.apiClient().CanViewSettings(r.Context())
 	}
 	if !ok || !allowed {
-		http.Error(w, "administrator access required", http.StatusForbidden)
+		http.Error(w, i18n.T("web.oauth_clients.admin_access_required"), http.StatusForbidden)
 		return false
 	}
 	return true
@@ -41,7 +42,7 @@ func (app *App) renderOAuthClients(w http.ResponseWriter, r *http.Request, statu
 	w.Header().Set("Referrer-Policy", "same-origin")
 	clients, err := app.OAuth.Clients()
 	if err != nil {
-		http.Error(w, "could not read OAuth clients", http.StatusInternalServerError)
+		http.Error(w, i18n.T("web.oauth_clients.read_failed"), http.StatusInternalServerError)
 		return
 	}
 	disabled := 0
@@ -55,7 +56,7 @@ func (app *App) renderOAuthClients(w http.ResponseWriter, r *http.Request, statu
 		form = nil
 	}
 	app.render(w, r, status, "oauth-clients", TemplateData{
-		Authed: true, Title: "MCP OAuth clients", OAuthClients: clients,
+		Authed: true, Title: i18n.T("web.oauth_clients.title"), OAuthClients: clients,
 		OAuthCreatedClient: created, Error: message,
 		OAuthClientForm: form, OAuthClientRead: form == nil || slices.Contains(form["scope"], "read"),
 		OAuthClientWrite: slices.Contains(form["scope"], "write"), OAuthDisabledClients: disabled,
@@ -73,7 +74,7 @@ func (app *App) handleOAuthClientCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid client form", http.StatusBadRequest)
+		http.Error(w, i18n.T("web.oauth_clients.form_invalid"), http.StatusBadRequest)
 		return
 	}
 	redirects := strings.Fields(r.PostForm.Get("redirect_uris"))
@@ -92,7 +93,7 @@ func (app *App) handleOAuthClientDisable(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := app.OAuth.DisableClient(r.PathValue("id")); err != nil {
-		http.Error(w, "could not disable OAuth client", http.StatusBadRequest)
+		http.Error(w, i18n.T("web.oauth_clients.disable_failed"), http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, r, "/_/settings/oauth-clients", http.StatusSeeOther)
@@ -114,7 +115,7 @@ func (app *App) handleOAuthClientsDeleteDisabled(w http.ResponseWriter, r *http.
 		return
 	}
 	if err := app.OAuth.DeleteDisabledClients(); err != nil {
-		http.Error(w, "could not delete disabled MCP clients", http.StatusInternalServerError)
+		http.Error(w, i18n.T("web.oauth_clients.delete_disabled_failed"), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/_/settings/oauth-clients", http.StatusSeeOther)

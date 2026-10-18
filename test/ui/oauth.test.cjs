@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const { hmdT } = require('./strings.cjs');
 const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/oauth.js'), 'utf8');
 const components = require('../../internal/web/web/static/components.js');
 
@@ -27,7 +28,7 @@ function consentFixture() {
     'oauth-consent-form': form, 'oauth-consent-validation': validation,
     'oauth-namespace-access': namespaces, 'oauth-admin-warning': warning, 'oauth-namespace-list': list
   };
-  vm.runInNewContext(source, { window: { HMDComponents: components }, document: { getElementById: id => nodes[id], querySelectorAll: () => [] } });
+  vm.runInNewContext(source, { window: { HMDComponents: components, hmdT }, document: { getElementById: id => nodes[id], querySelectorAll: () => [] } });
   function submit(value) {
     let prevented = false;
     events.submit({ submitter: value ? { value } : null, preventDefault() { prevented = true; } });
@@ -88,7 +89,7 @@ for (const mode of ['available', 'denied', 'absent']) {
     const input = { value: 'synthetic-credential', focus() { this.focused = true; }, select() { this.selected = true; } };
     const button = { hidden: true, dataset: { oauthCopy: 'credential' }, addEventListener(name, callback) { events[name] = callback; } };
     vm.runInNewContext(source, {
-      window: { HMDComponents: components },
+      window: { HMDComponents: components, hmdT },
       document: {
         getElementById: id => id === 'credential' ? input : null,
         querySelector: () => status,

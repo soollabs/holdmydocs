@@ -4,7 +4,7 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<meta http-equiv="refresh" content="2">
-	<title>Starting…</title>
+	<title>{{t "starting.title"}}</title>
 	<link rel="stylesheet" href="{{static "style.css"}}">
 	<link rel="stylesheet" href="{{static "skins.css"}}">
 	<link rel="stylesheet" href="{{static "components.css"}}">
@@ -18,8 +18,8 @@
 <main id="main-content">
 <div class="login-card">
 	{{$startingPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $startingPanel}}
-	<div class="login-intro">hold my docs (hmd) {{.Version}} &middot; homelab wiki</div>
-	<div class="login-form" role="status">starting…<br>this page reloads when ready.</div>
+	<div class="login-intro">{{t "starting.intro" "Version" .Version}} &middot; {{t "starting.tagline"}}</div>
+	<div class="login-form" role="status">{{t "starting.status"}}<br>{{t "starting.reloads"}}</div>
 {{template "ui-panel-end" $startingPanel}}
 </div>
 </main>

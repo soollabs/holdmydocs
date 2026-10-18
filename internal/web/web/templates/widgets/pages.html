@@ -1,7 +1,7 @@
 {{define "widget-pages"}}
 <div class="sidebar-section sidebar-pages">
 	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
-	<h2>PAGES</h2>
+	<h2>{{t "widget.pages.title"}}</h2>
 	<ul class="sidebar-list" id="recent-list"></ul>
 	{{template "ui-panel-end" $widgetPanel}}
 </div>

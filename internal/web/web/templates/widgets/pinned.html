@@ -2,7 +2,7 @@
 {{if .PinnedPages}}
 <div class="sidebar-section sidebar-pinned">
 	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
-	<h2>PINNED</h2>
+	<h2>{{t "widget.pinned.title"}}</h2>
 	<ul class="sidebar-list">
 		{{range .PinnedPages}}
 		<li><a href="{{pageurl .Slug}}">{{.Title}}</a></li>

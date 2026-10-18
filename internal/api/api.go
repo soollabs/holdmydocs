@@ -11,6 +11,7 @@ import (
 
 	"hmd/internal/auth"
 	"hmd/internal/config"
+	"hmd/internal/i18n"
 	"hmd/internal/search"
 	"hmd/internal/store"
 	"hmd/internal/wiki"
@@ -77,6 +78,9 @@ func (a *API) HasConfig() bool { return a.cfg.Load() != nil }
 // SetConfig stores a new configuration value atomically.
 func (a *API) SetConfig(cfg config.Config) {
 	a.cfg.Store(&cfg)
+	// The language is server-wide, so the process-wide translator follows it.
+	// Config validation already limited it to a known catalogue.
+	_ = i18n.SetLanguage(cfg.Language)
 }
 
 // SavedConfig returns the configuration as saved, which can differ from

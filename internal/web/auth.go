@@ -6,12 +6,13 @@ import (
 	"net/url"
 
 	"hmd/internal/httpmiddleware"
+	"hmd/internal/i18n"
 )
 
 func (app *App) loginData(errMsg, continuation string) TemplateData {
 	cfg := app.config()
 	return TemplateData{
-		Title:          "Login",
+		Title:          i18n.T("web.auth.login_title"),
 		Error:          errMsg,
 		OAuthContinue:  continuation,
 		OIDCEnabled:    cfg.OIDC.Issuer != "",
@@ -34,7 +35,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	token, ok := app.Auth.LoginLimited(r.RemoteAddr, username, r.FormValue("password"))
 	if !ok {
 		slog.Warn("login failed", "username", username)
-		app.render(w, r, http.StatusUnauthorized, "login", app.loginData("Invalid username or password", r.FormValue("oauth_continue")))
+		app.render(w, r, http.StatusUnauthorized, "login", app.loginData(i18n.T("web.auth.invalid_credentials"), r.FormValue("oauth_continue")))
 		return
 	}
 
@@ -58,7 +59,7 @@ func (app *App) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		if app.OAuth == nil || flowCookie == nil ||
 			app.OAuth.BindAuthorization(continuation, flowCookie.Value, username, token) != nil {
 			app.Auth.Logout(token)
-			http.Error(w, "OAuth login continuation expired; start the connection again", http.StatusBadRequest)
+			http.Error(w, i18n.T("web.auth.continuation_expired"), http.StatusBadRequest)
 			return
 		}
 		http.Redirect(w, r, "/_/oauth/authorize?request="+url.QueryEscape(continuation), http.StatusSeeOther)

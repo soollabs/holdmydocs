@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"hmd/internal/config"
+	"hmd/internal/i18n"
 )
 
 // settingInfoProps is the help shown beside a setting's label. Everything
@@ -20,11 +21,12 @@ type settingInfoProps struct {
 	EnvOnly                              bool // exists only in the environment, never on this page
 }
 
+// storedIn maps a store to the message key naming the file or place it lives in.
 var storedIn = map[string]string{
-	config.StoreConfig:      "config.yaml",
-	config.StoreWiki:        ".wiki.yaml, committed with the content",
-	config.StoreNamespace:   ".namespace.yaml, committed with the namespace",
-	config.StorePreferences: "your account",
+	config.StoreConfig:      "web.setting_info.stored_in.config",
+	config.StoreWiki:        "web.setting_info.stored_in.wiki",
+	config.StoreNamespace:   "web.setting_info.stored_in.namespace",
+	config.StorePreferences: "web.setting_info.stored_in.preferences",
 }
 
 // makeSettingInfo resolves a schema setting for the setting-info component.
@@ -35,7 +37,7 @@ func makeSettingInfo(store, key string, state ...*SettingsData) (settingInfoProp
 	p := settingInfoProps{
 		ID:       "info-" + store + "-" + strings.NewReplacer(".", "-", "_", "-").Replace(strings.ToLower(key)),
 		Name:     key,
-		StoredIn: storedIn[store],
+		StoredIn: i18n.T(storedIn[store]),
 	}
 	s, ok := config.LookupIn(store, key)
 	if !ok {
@@ -94,7 +96,7 @@ func makeSettingAttrs(store, key string) (template.HTMLAttr, error) {
 		attr("maxlength", strconv.Itoa(*r.MaxLength))
 	}
 	if hint := r.Hint(); hint != "" {
-		attr("title", "Accepts "+hint)
+		attr("title", i18n.T("web.setting_info.accepts", "Hint", hint))
 	}
 	return template.HTMLAttr(b.String()), nil
 }

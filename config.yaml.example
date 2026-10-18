@@ -30,6 +30,8 @@ server:
   # Install-wide default skin: phosphor | newsprint | journal | soft | bare.
   # Users can override it from /settings.
   # skin: phosphor
+  # Interface language for the whole server. Wiki content is not translated.
+  # language: en-GB
 
 git:
   # HTTPS only (git@ SSH remotes are not supported).

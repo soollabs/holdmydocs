@@ -15,6 +15,7 @@ import (
 	"hmd/internal/api"
 	"hmd/internal/auth"
 	staticexport "hmd/internal/export"
+	"hmd/internal/i18n"
 	"hmd/internal/wiki"
 )
 
@@ -167,7 +168,7 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 		}
 	}
 	if indexPage == "" {
-		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: "<p>Select a page from the sidebar.</p>", RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
+		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: template.HTML(i18n.T("web.export.index_empty")), RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
 		stub.ExportLinks, stub.ExportTopbarLinks, stub.ExportIcons = sidebarLinks, topbarLinks, hasExportIcons(cfg.Export.Links)
 		stub.CSPNonce = request.CSPNonce
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {
@@ -213,7 +214,7 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, "settings scope required", http.StatusForbidden)
+		http.Error(w, i18n.T("web.export.settings_scope_required"), http.StatusForbidden)
 		return
 	}
 	name := r.PathValue("name")
@@ -230,7 +231,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		baseURL = app.config().BaseURL
 	}
 	if baseURL == "" {
-		app.render(w, r, http.StatusOK, "export-options", TemplateData{Authed: true, Title: "Export static site", Namespace: name, ExportMainBaseURL: app.config().BaseURL})
+		app.render(w, r, http.StatusOK, "export-options", TemplateData{Authed: true, Title: i18n.T("web.export.title_export"), Namespace: name, ExportMainBaseURL: app.config().BaseURL})
 		return
 	}
 	select {
@@ -238,14 +239,14 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 		defer func() { <-exportSemaphore }()
 	default:
 		w.Header().Set("Retry-After", "1")
-		http.Error(w, "export is busy", http.StatusTooManyRequests)
+		http.Error(w, i18n.T("web.export.busy"), http.StatusTooManyRequests)
 		return
 	}
 
 	tmpDir, err := os.MkdirTemp("", "hmd-export-*")
 	if err != nil {
 		slog.Error("creating export directory", "namespace", name, "err", err)
-		http.Error(w, "export failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T("web.export.failed"), http.StatusInternalServerError)
 		return
 	}
 	defer func() {
@@ -256,7 +257,7 @@ func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
 
 	if err := app.apiClient().ExportNamespace(r.Context(), name, tmpDir, webFS, "web/static", NewStaticExporter(app.Render), api.ExportOptions{BaseURL: baseURL}); err != nil {
 		slog.Error("exporting namespace", "namespace", name, "err", err)
-		http.Error(w, "export failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T("web.export.failed"), http.StatusInternalServerError)
 		return
 	}
 

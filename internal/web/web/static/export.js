@@ -55,7 +55,7 @@
     results.replaceChildren();
     var query = input.value.trim().toLocaleLowerCase();
     if (!query) {
-      status.textContent = 'Search titles and page text. No data leaves your browser.';
+      status.textContent = window.hmdT('js.export.search_hint');
       return;
     }
     var terms = query.split(/\s+/);
@@ -69,8 +69,8 @@
       }
       return score(b) - score(a) || a.title.localeCompare(b.title);
     });
-    status.textContent = matches.length ? matches.length + ' matching page' + (matches.length === 1 ? '' : 's') +
-      (matches.length > 30 ? ' (showing the first 30).' : '.') : 'No matching pages. Try fewer words or a different term.';
+    status.textContent = !matches.length ? window.hmdT('js.export.no_matches')
+      : window.hmdT(matches.length > 30 ? 'js.export.matches_limited' : 'js.export.matches', { Limit: 30 }, matches.length);
     matches.slice(0, 30).forEach(function(entry) {
       var item = document.createElement('li');
       var link = document.createElement('a');

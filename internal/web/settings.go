@@ -14,6 +14,7 @@ import (
 	"hmd/internal/api"
 	"hmd/internal/auth"
 	"hmd/internal/config"
+	"hmd/internal/i18n"
 	"hmd/internal/presentation"
 	"hmd/internal/wiki"
 )
@@ -135,7 +136,7 @@ func settingFields(cfg config.Config) map[string]FieldState {
 	for _, s := range config.Settings() {
 		value := settingText(config.SettingValue(cfg, s.Key))
 		if s.Secret {
-			value = map[bool]string{true: "set", false: "not set"}[value != ""]
+			value = map[bool]string{true: i18n.T("web.settings.secret_set"), false: i18n.T("web.settings.secret_not_set")}[value != ""]
 		}
 		env := cfg.EnvOverrides[s.Key]
 		if s.EnvOnly && os.Getenv(s.Env) != "" {
@@ -232,20 +233,20 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
 	}
 	for _, t := range app.Auth.TokensFor(user) {
-		expires := "never"
+		expires := i18n.T("web.settings.expires_never")
 		switch {
 		case t.Expired():
-			expires = "expired"
+			expires = i18n.T("web.settings.expires_expired")
 		case !t.Expires.IsZero():
 			expires = t.Expires.Format("2006-01-02")
 		}
 		effectiveScopes := auth.EffectiveTokenScopes(prefs.Scopes, t.Scopes)
 		isAdmin := auth.UserRecord{Scopes: effectiveScopes}.HasScope(auth.ScopeSettings)
-		namespaceLabel := "All namespaces"
+		namespaceLabel := i18n.T("web.settings.namespaces_all")
 		if isAdmin {
-			namespaceLabel = "Administrator"
+			namespaceLabel = i18n.T("web.settings.namespaces_administrator")
 		} else if len(t.Namespaces) > 0 {
-			namespaceLabel = strings.Join(t.Namespaces, ", ") + " only"
+			namespaceLabel = i18n.T("web.settings.namespaces_only", "Names", strings.Join(t.Namespaces, ", "))
 		}
 		scopeLabel := strings.Join(t.Scopes, ", ")
 		sd.Tokens = append(sd.Tokens, TokenView{
@@ -264,9 +265,9 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 func (app *App) renderSettings(w http.ResponseWriter, r *http.Request, sd SettingsData, tmpl string) {
 	data := TemplateData{
 		Authed:        true,
-		Title:         "Settings",
+		Title:         i18n.T("web.settings.title"),
 		StatusMode:    "settings",
-		StatusContext: "config",
+		StatusContext: i18n.T("web.settings.status_context"),
 		Settings:      &sd,
 	}
 	app.render(w, r, http.StatusOK, tmpl, data)
@@ -280,20 +281,20 @@ type settingsPanel struct {
 }
 
 var settingsPanels = map[string]settingsPanel{
-	"appearance":      {"Appearance", "settings"},
-	"git-author":      {"Git author", "settings"},
-	"access-tokens":   {"Access tokens", "settings"},
-	"server":          {"Server", "admin"},
-	"git":             {"Git", "admin"},
-	"mcp":             {"MCP", "admin"},
-	"oidc":            {"OIDC single sign-on", "admin"},
-	"document-search": {"Document search", "admin"},
-	"wiki":            {"Wiki", "admin"},
-	"users":           {"Users", "admin"},
-	"advanced":        {"Environment overrides", "admin"},
-	"namespaces":      {"Namespaces", ""},
-	"connections":     {"Connected applications", ""},
-	"oauth-clients":   {"MCP OAuth clients", ""},
+	"appearance":      {"web.settings.panel.appearance", "settings"},
+	"git-author":      {"web.settings.panel.git_author", "settings"},
+	"access-tokens":   {"web.settings.panel.access_tokens", "settings"},
+	"server":          {"web.settings.panel.server", "admin"},
+	"git":             {"web.settings.panel.git", "admin"},
+	"mcp":             {"web.settings.panel.mcp", "admin"},
+	"oidc":            {"web.settings.panel.oidc", "admin"},
+	"document-search": {"web.settings.panel.document_search", "admin"},
+	"wiki":            {"web.settings.panel.wiki", "admin"},
+	"users":           {"web.settings.panel.users", "admin"},
+	"advanced":        {"web.settings.panel.advanced", "admin"},
+	"namespaces":      {"web.settings.panel.namespaces", ""},
+	"connections":     {"web.settings.panel.connections", ""},
+	"oauth-clients":   {"web.settings.panel.oauth_clients", ""},
 }
 
 func (app *App) handleSettingsPanelGet(w http.ResponseWriter, r *http.Request) {
@@ -310,7 +311,7 @@ func (app *App) handleSettingsPanelGet(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleAccountSettingsGet(w http.ResponseWriter, r *http.Request) {
 	sd := app.settingsData(r)
 	if q := r.URL.Query().Get("saved"); q == "1" {
-		sd.Flash = "Settings saved"
+		sd.Flash = i18n.T("web.settings.flash_saved")
 	}
 	app.renderSettings(w, r, sd, "settings")
 }
@@ -318,19 +319,19 @@ func (app *App) handleAccountSettingsGet(w http.ResponseWriter, r *http.Request)
 func (app *App) handleAdminGet(w http.ResponseWriter, r *http.Request) {
 	sd := app.settingsData(r)
 	if q := r.URL.Query().Get("saved"); q == "1" {
-		sd.Flash = "Settings saved"
+		sd.Flash = i18n.T("web.settings.flash_saved")
 	}
 	if q := r.URL.Query().Get("exported"); q == "1" {
-		sd.Flash = "Config exported to " + sd.ConfigPath
+		sd.Flash = i18n.T("web.settings.flash_exported", "Path", sd.ConfigPath)
 	}
 	if q := r.URL.Query().Get("wiki-saved"); q == "1" {
-		sd.Flash = "Wiki settings saved to " + sd.WikiConfigPath
+		sd.Flash = i18n.T("web.settings.flash_wiki_saved", "Path", sd.WikiConfigPath)
 	}
 	if q := r.URL.Query().Get("attachments-moved"); q == "1" {
-		sd.Flash = "Attachments moved into their namespaces"
+		sd.Flash = i18n.T("web.settings.flash_attachments_moved")
 	}
 	if q := r.URL.Query().Get("attachments-deleted"); q == "1" {
-		sd.Flash = "Old attachments deleted"
+		sd.Flash = i18n.T("web.settings.flash_attachments_deleted")
 	}
 	legacy, err := app.apiClient().LegacyAttachmentStatus()
 	if err != nil {
@@ -473,7 +474,7 @@ func namespaceTreeEditor(titles map[string]string, namespace, index string, tree
 func (app *App) handleNamespacesGet(w http.ResponseWriter, r *http.Request) {
 	data := app.namespaceManagementData(r, "", "")
 	if r.URL.Query().Get("saved") == "1" {
-		data.Flash = "Namespace settings saved"
+		data.Flash = i18n.T("web.settings.flash_namespace_saved")
 	}
 	app.render(w, r, http.StatusOK, "namespaces", TemplateData{Authed: true, Title: "Namespaces", StatusMode: "settings", NamespaceManagement: &data})
 }
@@ -482,7 +483,7 @@ func (app *App) handleNamespaceNewGet(w http.ResponseWriter, r *http.Request) {
 	data := app.namespaceManagementData(r, "", "")
 	data.Form = NamespaceListEntry{Template: wiki.DefaultNewPageTemplate, SlugPreset: presentation.SlugPresets[0].Key}
 	data.Section = "general"
-	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: "New namespace", StatusMode: "settings", NamespaceManagement: &data})
+	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: i18n.T("web.settings.title_new_namespace"), StatusMode: "settings", NamespaceManagement: &data})
 }
 
 func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
@@ -505,11 +506,11 @@ func (app *App) handleNamespaceEditGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Section = section.Key
-	data.Sections = namespaceSections
+	data.Sections = localizedNamespaceSections()
 	if r.URL.Query().Get("saved") == "1" {
-		data.Flash = "Namespace settings saved"
+		data.Flash = i18n.T("web.settings.flash_namespace_saved")
 	}
-	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: name + " namespace", StatusMode: "settings", NamespaceManagement: &data})
+	app.render(w, r, http.StatusOK, "namespace-edit", TemplateData{Authed: true, Title: i18n.T("web.settings.namespace_title", "Name", name), StatusMode: "settings", NamespaceManagement: &data})
 }
 
 // namespaceSection is one page of the namespace editor. The editor keeps a
@@ -519,10 +520,10 @@ type namespaceSection struct {
 }
 
 var namespaceSections = []namespaceSection{
-	{"general", "general", ""},
-	{"published", "published view", "/published"},
-	{"static-site", "static site", "/static-site"},
-	{"widgets", "widgets", "/widgets"},
+	{"general", "web.settings.namespace_section.general", ""},
+	{"published", "web.settings.namespace_section.published", "/published"},
+	{"static-site", "web.settings.namespace_section.static_site", "/static-site"},
+	{"widgets", "web.settings.namespace_section.widgets", "/widgets"},
 }
 
 // namespaceSectionByKey resolves an editor section; an empty key is general.
@@ -536,4 +537,14 @@ func namespaceSectionByKey(key string) (namespaceSection, bool) {
 		}
 	}
 	return namespaceSection{}, false
+}
+
+// localizedNamespaceSections returns the editor pages with their labels translated for this request.
+func localizedNamespaceSections() []namespaceSection {
+	sections := make([]namespaceSection, len(namespaceSections))
+	for i, s := range namespaceSections {
+		s.Label = i18n.T(s.Label)
+		sections[i] = s
+	}
+	return sections
 }

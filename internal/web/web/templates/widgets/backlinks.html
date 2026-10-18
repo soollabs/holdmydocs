@@ -1,7 +1,7 @@
 {{define "widget-backlinks"}}
 {{if .Backlinks}}
 {{$linksPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $linksPanel}}<footer class="backlinks-footer">
-	<div class="backlinks-label">linked from</div>
+	<div class="backlinks-label">{{t "widget.backlinks.label"}}</div>
 	<div class="backlinks-row">
 	{{range .Backlinks}}
 		<a href="{{pageurl .Slug}}">{{.Title}}</a>

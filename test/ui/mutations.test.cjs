@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const { hmdT } = require('./strings.cjs');
 const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/app.js'), 'utf8');
 
 class Element {
@@ -134,6 +135,7 @@ function fixture(kind, responses) {
     }
   };
   context.window = context;
+  context.hmdT = hmdT;
   vm.runInNewContext(source, context, { filename: 'app.js' });
   if (kind === 'page') {
     const listener = editorOptions.extensions.find(value => typeof value === 'function');

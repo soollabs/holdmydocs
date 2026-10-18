@@ -3,7 +3,7 @@
 	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
 	<h2>{{.Calendar.MonthName}}</h2>
 	<div class="cal">
-		<div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div><div class="cal-dow">S</div>
+		<div class="cal-dow">{{t "widget.calendar.dow_mon"}}</div><div class="cal-dow">{{t "widget.calendar.dow_tue"}}</div><div class="cal-dow">{{t "widget.calendar.dow_wed"}}</div><div class="cal-dow">{{t "widget.calendar.dow_thu"}}</div><div class="cal-dow">{{t "widget.calendar.dow_fri"}}</div><div class="cal-dow">{{t "widget.calendar.dow_sat"}}</div><div class="cal-dow">{{t "widget.calendar.dow_sun"}}</div>
 		{{range .Calendar.Days}}
 		{{if .Date}}
 		<a href="{{pageurl .Slug}}" class="cal-day{{if .Lit}} lit{{end}}{{if .Today}} today{{end}}">{{.Day}}</a>

@@ -1,14 +1,14 @@
 {{define "content"}}
 <div class="content-col">
 <div class="create-page">
-	<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><span class="current" aria-current="page">hidden</span></nav>
-	<h1 class="page-title"><span class="h"></span>Hidden</h1>
-	<p>Hidden pages, not in the page list, search, or tags.</p>
+	<nav class="breadcrumb" aria-label="{{t "hidden.breadcrumb_label"}}"><a href="/" class="breadcrumb-site">{{.SiteName}}</a><span class="sep">/</span><span class="current" aria-current="page">{{t "hidden.breadcrumb"}}</span></nav>
+	<h1 class="page-title"><span class="h"></span>{{t "hidden.title"}}</h1>
+	<p>{{t "hidden.description"}}</p>
 	{{if .TagPages}}<ul>
 	{{range .TagPages}}
 		<li><a href="{{hiddenpageurl .Slug}}">{{.Slug}}</a></li>
 	{{end}}
-	</ul>{{else}}{{$empty := component "empty" "label" "No hidden pages"}}{{template "ui-empty-start" $empty}}<p>Pages marked hidden will appear here.</p>{{template "ui-empty-end" $empty}}{{end}}
+	</ul>{{else}}{{$empty := component "empty" "label" (t "hidden.no_pages_label")}}{{template "ui-empty-start" $empty}}<p>{{t "hidden.pages_appear"}}</p>{{template "ui-empty-end" $empty}}{{end}}
 </div>
 </div>
 {{end}}

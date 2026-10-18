@@ -1,8 +1,8 @@
 {{define "widget-log"}}
 {{if .RecentCommits}}
 <div class="sidebar-log" id="sidebar-log">
-	{{$logDisclosure := component "disclosure" "id" "log-details" "label" "LOG" "open" "true"}}{{template "ui-disclosure-slot-start" $logDisclosure}}
-		<summary>LOG</summary>
+	{{$logDisclosure := component "disclosure" "id" "log-details" "label" (t "widget.log.title") "open" "true"}}{{template "ui-disclosure-slot-start" $logDisclosure}}
+		<summary>{{t "widget.log.title"}}</summary>
 		<div id="log-entries">
 			{{range .RecentCommits}}
 			<div class="log-entry"><a href="{{$.PageURL}}?do=history"><span class="age">{{.Age}}</span> {{.Message}}</a></div>
