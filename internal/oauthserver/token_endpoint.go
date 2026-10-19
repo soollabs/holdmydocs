@@ -428,7 +428,7 @@ func (s *Service) currentTokenScopes(state *oauthState, token TokenRecord, clien
 	}
 	clientScopes := client.AllowedScopes
 	if !s.options.AllowAdminDelegation {
-		clientScopes = withoutSettings(clientScopes)
+		clientScopes = withoutAdmin(clientScopes)
 	}
 	effective := EffectiveScopes(token.Scopes, grant.Scopes, s.auth.Prefs(token.User).Scopes, clientScopes)
 	if len(effective) == 0 {

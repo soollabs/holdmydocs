@@ -472,7 +472,7 @@
     "name": "read_namespace",
     "title": "Read namespace",
     "description": "Read a namespace's full settings and hash. Pass the hash as basehash to save_namespace.",
-    "x-scope": "settings",
+    "x-scope": "admin",
     "annotations": {
       "idempotentHint": false,
       "openWorldHint": false,
@@ -782,7 +782,7 @@
     "name": "save_namespace",
     "title": "Save namespace",
     "description": "Create a namespace's settings, or update them with the basehash from read_namespace. Each save is one Git commit and never changes pages. On update, fields you omit keep their current values; lists and objects replace the stored value whole. A conflict error returns the current hash: re-read and retry.",
-    "x-scope": "settings",
+    "x-scope": "admin",
     "annotations": {
       "destructiveHint": true,
       "idempotentHint": true,

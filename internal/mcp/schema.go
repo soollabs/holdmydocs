@@ -65,7 +65,7 @@ func loadTools(data []byte) (map[string]toolDefinition, error) {
 		switch {
 		case def.Name == "" || def.Title == "" || def.Description == "":
 			return nil, fmt.Errorf("tool %q needs a name, title and description", def.Name)
-		case def.Scope != api.ScopeRead && def.Scope != api.ScopeWrite && def.Scope != api.ScopeSettings:
+		case def.Scope != api.ScopeRead && def.Scope != api.ScopeWrite && def.Scope != api.ScopeAdmin:
 			return nil, fmt.Errorf("tool %s has unknown x-scope %q", def.Name, def.Scope)
 		case def.Annotations == nil || def.InputSchema == nil || def.OutputSchema == nil:
 			return nil, fmt.Errorf("tool %s needs annotations, inputSchema and outputSchema", def.Name)

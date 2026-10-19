@@ -11,7 +11,7 @@
     const list = document.getElementById('oauth-namespace-list');
     function validate() {
       const hasScope = !!form.querySelector('input[name="scope"]:checked');
-      const admin = !!form.querySelector('input[name="scope"][value="settings"]:checked');
+      const admin = !!form.querySelector('input[name="scope"][value="admin"]:checked');
       const mode = form.querySelector('input[name="namespace_mode"]:checked');
       // Keep the selected namespace mode in the submitted form. Settings is
       // unrestricted on the server, but removing it must restore the user's

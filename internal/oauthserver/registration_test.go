@@ -135,7 +135,7 @@ func TestDynamicRegistrationRejectsInvalidMetadata(t *testing.T) {
 		`{"redirect_uris":["https://client.example/cb#"]}`,
 		`{"redirect_uris":["https://user:password@client.example/cb"]}`,
 		`{"redirect_uris":[]}`,
-		`{"redirect_uris":["https://client.example/cb"],"scope":"settings"}`,
+		`{"redirect_uris":["https://client.example/cb"],"scope":"admin"}`,
 		`{"redirect_uris":["https://client.example/cb"],"grant_types":["client_credentials"]}`,
 		`{"redirect_uris":["https://client.example/cb"],"response_types":["token"]}`,
 		`{"redirect_uris":["https://client.example/cb"],"token_endpoint_auth_method":"invalid"}`,

@@ -111,7 +111,7 @@ func TestExportPreviewSnapshotSecurityAndLifecycle(t *testing.T) {
 		t.Fatal("active attachment served with script permission")
 	}
 	// Other users cannot use a snapshot URL, even if they have settings access.
-	if err := app.Auth.AddUserWithScopes("other", "password12345", []string{"settings"}); err != nil {
+	if err := app.Auth.AddUserWithScopes("other", "password12345", []string{"admin"}); err != nil {
 		t.Fatal(err)
 	}
 	login, err := testhttp.PostForm(t, client, server.URL+"/_/login", url.Values{"username": {"other"}, "password": {"password12345"}})

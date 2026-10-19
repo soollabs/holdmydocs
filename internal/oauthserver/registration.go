@@ -76,12 +76,12 @@ func (s *Service) RegistrationHandler() http.Handler {
 		if input.Scope == "" {
 			// MCP clients such as ChatGPT may omit scope during dynamic client
 			// registration, then request read and write at authorization time.
-			// Both remain subject to explicit user consent; settings is never
+			// Both remain subject to explicit user consent; admin is never
 			// available to dynamically registered clients.
 			input.Scope = "read write"
 		}
 		scopes := strings.Fields(input.Scope)
-		if slices.Contains(scopes, "settings") {
+		if slices.Contains(scopes, adminScope) {
 			writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata", "dynamic clients cannot request administrator access")
 			return
 		}

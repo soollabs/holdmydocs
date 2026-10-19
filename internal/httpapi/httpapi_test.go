@@ -104,7 +104,7 @@ func newTestEnv(t *testing.T, documents bool) (*testEnv, *http.Client) {
 	env.server = httptest.NewServer(httpmiddleware.SecurityHeaders(authn.Middleware(mux)))
 	t.Cleanup(env.server.Close)
 
-	env.token, err = authn.AddToken("admin", "test", time.Time{}, []string{"read", "write", "settings"}, nil)
+	env.token, err = authn.AddToken("admin", "test", time.Time{}, []string{"read", "write", "admin"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}

@@ -216,7 +216,7 @@ func (a *API) ListNamespaces(ctx context.Context) []NamespaceSummary {
 	summaries := a.namespaceSummaries()
 	filtered := make([]NamespaceSummary, 0, len(summaries))
 	for _, summary := range summaries {
-		if !a.HasScope(ctx, ScopeRead) && !a.HasScope(ctx, ScopeSettings) {
+		if !a.HasScope(ctx, ScopeRead) && !a.HasScope(ctx, ScopeAdmin) {
 			if _, authenticated := Username(ctx); authenticated || !a.Namespaces()[summary.Name].Public {
 				continue
 			}
@@ -258,7 +258,7 @@ type NamespaceDetail struct {
 // ReadNamespace reads one namespace's settings and current config hash. The
 // caller must be allowed the namespace; an unknown namespace is not found.
 func (a *API) ReadNamespace(ctx context.Context, name string) (*NamespaceDetail, error) {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return nil, err
 	}
 	if !wiki.ValidNamespaceName(name) {
@@ -306,7 +306,7 @@ func (a *API) SaveNamespace(ctx context.Context, in SaveNamespaceInput) (*Namesp
 	if !wiki.ValidNamespaceName(in.Name) {
 		return nil, InvalidInput("invalid namespace", nil)
 	}
-	if err := a.RequireScope(ctx, auth.ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, auth.ScopeAdmin); err != nil {
 		return nil, err
 	}
 	if !AllowNamespace(ctx, in.Name) {
@@ -367,7 +367,7 @@ func (a *API) ResetNamespace(ctx context.Context, name string) error {
 	if !wiki.ValidNamespaceName(name) {
 		return InvalidInput("invalid namespace", nil)
 	}
-	if err := a.RequireScope(ctx, auth.ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, auth.ScopeAdmin); err != nil {
 		return err
 	}
 	if !AllowNamespace(ctx, name) {
@@ -388,7 +388,7 @@ func (a *API) DeleteNamespace(ctx context.Context, name string) error {
 	if !wiki.ValidNamespaceName(name) {
 		return InvalidInput("invalid namespace", nil)
 	}
-	if err := a.RequireScope(ctx, auth.ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, auth.ScopeAdmin); err != nil {
 		return err
 	}
 	if !AllowNamespace(ctx, name) {

@@ -46,7 +46,7 @@ func MetadataHandler(opts ServerOptions) http.Handler {
 		AuthorizationResponseIssuerSupported:   true,
 	}
 	if opts.AllowAdminDelegation {
-		as.ScopesSupported = append(as.ScopesSupported, "settings")
+		as.ScopesSupported = append(as.ScopesSupported, adminScope)
 	}
 	if opts.DynamicRegistration {
 		as.RegistrationEndpoint = opts.Issuer + registerPath

@@ -244,7 +244,7 @@ func (s *Service) parseAuthorizationRequest(values url.Values) (authorizationReq
 		}
 	}
 	if !scopeSubset(scopes, client.AllowedScopes) ||
-		!s.options.AllowAdminDelegation && slices.Contains(scopes, "settings") {
+		!s.options.AllowAdminDelegation && slices.Contains(scopes, adminScope) {
 		return authorizationRequest{}, redirectable(&ProtocolError{Code: "invalid_scope", Description: "requested action scope is not allowed for this client", Status: http.StatusBadRequest})
 	}
 	return authorizationRequest{
@@ -299,15 +299,15 @@ func redirectQuerySafe(raw string) bool {
 }
 
 func (s *Service) prompt(handle string, pending *pendingAuthorization, user string, namespaceNames []string) *AuthorizationPrompt {
-	userScopes := expandSettings(s.auth.Prefs(user).Scopes)
+	userScopes := expandAdmin(s.auth.Prefs(user).Scopes)
 	available := make([]string, 0, len(pending.request.Scopes))
 	state, err := s.store.Snapshot()
 	if err == nil {
 		client := state.Clients[pending.request.ClientID]
-		clientScopes := expandSettings(client.AllowedScopes)
+		clientScopes := expandAdmin(client.AllowedScopes)
 		for _, scope := range pending.request.Scopes {
 			if slices.Contains(userScopes, scope) && slices.Contains(clientScopes, scope) &&
-				(scope != "settings" || s.options.AllowAdminDelegation) {
+				(scope != adminScope || s.options.AllowAdminDelegation) {
 				available = append(available, scope)
 			}
 		}
@@ -324,7 +324,7 @@ func (s *Service) prompt(handle string, pending *pendingAuthorization, user stri
 		RequestedScopes:     append([]string(nil), pending.request.Scopes...),
 		AvailableScopes:     available,
 		NamespaceNames:      append([]string(nil), namespaceNames...),
-		AdminScopeRequested: slices.Contains(available, "settings"),
+		AdminScopeRequested: slices.Contains(available, adminScope),
 	}
 }
 
@@ -392,14 +392,14 @@ func (s *Service) CompleteAuthorization(handle, flowCookie, user, session string
 	}
 	client, ok := state.Clients[pending.request.ClientID]
 	if !ok || client.Disabled || !scopeSubset(grantedScopes, client.AllowedScopes) ||
-		!s.options.AllowAdminDelegation && slices.Contains(grantedScopes, "settings") {
+		!s.options.AllowAdminDelegation && slices.Contains(grantedScopes, adminScope) {
 		return "", &ProtocolError{Code: "invalid_scope", Description: "client policy no longer permits these scopes", Status: http.StatusBadRequest}
 	}
 	if !scopeSubset(grantedScopes, s.auth.Prefs(user).Scopes) {
 		return "", &ProtocolError{Code: "invalid_scope", Description: "your current HMD permissions do not allow these scopes", Status: http.StatusBadRequest}
 	}
-	if slices.Contains(grantedScopes, "settings") {
-		// The settings scope is an explicit administrator grant and always
+	if slices.Contains(grantedScopes, adminScope) {
+		// The admin scope is an explicit administrator grant and always
 		// carries unrestricted namespace access, regardless of browser fields.
 		namespaceMode = "all"
 		namespaces = nil

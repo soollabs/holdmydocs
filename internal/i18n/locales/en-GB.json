@@ -316,6 +316,10 @@
     "description": "Text of the read-only banner. {{.Name}} is the environment variable name that makes the server read-only.",
     "other": "Settings can be viewed but not changed. To change them, unset {{.Name}} and restart HMD."
   },
+  "base.read_only_banner.message_own": {
+    "description": "Text of the read-only banner on a user's own settings pages. Shown to users who cannot change the server.",
+    "other": "Your settings can be viewed but not changed."
+  },
   "base.restart.heading": {
     "description": "Bold heading of the notice shown when saved settings need a restart.",
     "other": "Restart needed."
@@ -2567,11 +2571,15 @@
     "other": "Revoke"
   },
   "settings.tokens.scopes_help": {
-    "description": "First sentence of the help note under the new token form, explaining scope and namespace selection. Followed in the page by a <code>settings</code> element and settings.tokens.settings_grants.",
+    "description": "First sentence of the help note under the new token form, explaining scope and namespace selection. Followed in the page by an <code>admin</code> element and settings.tokens.admin_grants.",
     "other": "Select one or more scopes. Check namespaces to restrict access, or leave every box unchecked for all namespaces."
   },
-  "settings.tokens.settings_grants": {
-    "description": "Second sentence of the token scope help. Scope is the settings scope name shown as code.",
+  "settings.tokens.preferences_grants": {
+    "description": "Sentence in the token scope help after settings.tokens.scopes_help. Scope is the preferences scope name shown as code.",
+    "other": "{{.Scope}} lets the token change your appearance, git author and access tokens."
+  },
+  "settings.tokens.admin_grants": {
+    "description": "Second sentence of the token scope help. Scope is the admin scope name shown as code.",
     "other": "{{.Scope}} grants Administrator access to every namespace."
   },
   "starting.intro": {

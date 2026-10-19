@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/wiki"
 )
 
 const (
-	storeSchemaVersion = 1
+	storeSchemaVersion = 2
 	maxOAuthClients    = 256
 	maxOAuthGrants     = 10000
 	maxOAuthTokens     = 50000
@@ -220,6 +221,10 @@ func (s *Store) load() error {
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return fmt.Errorf("OAuth state contains trailing data")
 	}
+	migrated := state.Version == 1
+	if migrated {
+		migrateAdminScope(&state)
+	}
 	if state.Version != storeSchemaVersion {
 		return fmt.Errorf("unsupported OAuth state schema version %d", state.Version)
 	}
@@ -229,8 +234,38 @@ func (s *Store) load() error {
 	if err := validateState(state); err != nil {
 		return fmt.Errorf("invalid OAuth state: %w", err)
 	}
+	if migrated {
+		if _, err := s.save(state); err != nil {
+			return fmt.Errorf("saving migrated OAuth state: %w", err)
+		}
+	}
 	s.state = state
 	return nil
+}
+
+// migrateAdminScope moves version 1 state to version 2, where the
+// administrator scope is called admin instead of settings.
+func migrateAdminScope(state *oauthState) {
+	rename := func(scopes []string) []string {
+		renamed, _ := auth.MigrateLegacyScopes(scopes)
+		if normalised, err := NormaliseScopes(renamed); err == nil {
+			return normalised
+		}
+		return renamed
+	}
+	for id, client := range state.Clients {
+		client.AllowedScopes = rename(client.AllowedScopes)
+		state.Clients[id] = client
+	}
+	for id, grant := range state.Grants {
+		grant.Scopes = rename(grant.Scopes)
+		state.Grants[id] = grant
+	}
+	for key, token := range state.Tokens {
+		token.Scopes = rename(token.Scopes)
+		state.Tokens[key] = token
+	}
+	state.Version = storeSchemaVersion
 }
 
 func validateState(state oauthState) error {

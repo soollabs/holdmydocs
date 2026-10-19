@@ -13,9 +13,10 @@ type Scope = auth.Scope
 // Scope constants are re-exported so callers that depend only on api can name
 // the built-in scopes without importing auth.
 const (
-	ScopeRead     = auth.ScopeRead
-	ScopeWrite    = auth.ScopeWrite
-	ScopeSettings = auth.ScopeSettings
+	ScopeRead        = auth.ScopeRead
+	ScopeWrite       = auth.ScopeWrite
+	ScopeAdmin       = auth.ScopeAdmin
+	ScopePreferences = auth.ScopePreferences
 )
 
 // Username returns the authenticated principal's username from ctx. It never
@@ -45,17 +46,17 @@ func AllowSlug(ctx context.Context, slug string) bool {
 // scopes come from the token principal; session scopes come from the user
 // record. Direct calls are checked here, not left to HTTP middleware.
 func (a *API) HasScope(ctx context.Context, scope Scope) bool {
-	if a.readOnly() && (scope == ScopeWrite || scope == ScopeSettings) {
+	if a.readOnly() && (scope == ScopeWrite || scope == ScopeAdmin) {
 		return false
 	}
 	return a.grantedScope(ctx, scope)
 }
 
-// CanViewSettings reports whether the caller holds the settings scope,
+// CanViewSettings reports whether the caller holds the admin scope,
 // ignoring read-only mode. A read-only instance still shows administrators
 // its settings pages, but nothing on them can be saved.
 func (a *API) CanViewSettings(ctx context.Context) bool {
-	return a.grantedScope(ctx, ScopeSettings)
+	return a.grantedScope(ctx, ScopeAdmin)
 }
 
 // CanViewEditor reports whether the caller holds the write scope, ignoring
@@ -125,7 +126,7 @@ func (a *API) requireGlobalScope(ctx context.Context, scope Scope) error {
 // RequireScope returns an unauthenticated or forbidden error unless the caller
 // holds the required scope.
 func (a *API) RequireScope(ctx context.Context, scope Scope) error {
-	if a.readOnly() && (scope == ScopeWrite || scope == ScopeSettings) {
+	if a.readOnly() && (scope == ScopeWrite || scope == ScopeAdmin) {
 		return Forbidden("instance is read-only")
 	}
 	if a.HasScope(ctx, scope) {
@@ -135,6 +136,38 @@ func (a *API) RequireScope(ctx context.Context, scope Scope) error {
 		return Unauthenticated("authentication required")
 	}
 	return Forbidden("insufficient scope")
+}
+
+// RequireOwnSettings gates changes to the caller's own account: appearance,
+// git author and personal access tokens. Any signed-in browser session may
+// make them, whatever its scopes; the admin scope only adds the server panels.
+// A token also needs the preferences scope, so by default a token cannot
+// change the account or mint more tokens. Read-only mode refuses them all.
+func (a *API) RequireOwnSettings(ctx context.Context) error {
+	if a.readOnly() {
+		return Forbidden("instance is read-only")
+	}
+	if !a.signedIn(ctx) {
+		return Unauthenticated("authentication required")
+	}
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok && !principal.HasScope(ScopePreferences) {
+		return Forbidden("insufficient scope")
+	}
+	return nil
+}
+
+// CanChangeOwnSettings reports whether RequireOwnSettings would let the
+// caller save their own account settings.
+func (a *API) CanChangeOwnSettings(ctx context.Context) bool {
+	return a.RequireOwnSettings(ctx) == nil
+}
+
+func (a *API) signedIn(ctx context.Context) bool {
+	if principal, ok := auth.TokenPrincipalFromContext(ctx); ok {
+		return principal.User != ""
+	}
+	name := auth.UserFromContext(ctx)
+	return name != "" && a.auth != nil && a.auth.UserExists(name)
 }
 
 func (a *API) readOnly() bool {

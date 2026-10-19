@@ -21,7 +21,7 @@ type ExportOptions struct {
 // HTML rendering to the supplied presentation renderer. Assets names the
 // browser asset tree copied alongside the HTML.
 func (a *API) ExportNamespace(ctx context.Context, name, outDir string, assets fs.FS, assetsRoot string, renderer export.NamespaceRenderer, options ...ExportOptions) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if !AllowNamespace(ctx, name) {

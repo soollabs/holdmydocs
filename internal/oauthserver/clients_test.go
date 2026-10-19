@@ -80,11 +80,11 @@ func TestProvisionClientAdministratorPolicy(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 	if _, err := store.ProvisionClient("Admin", []string{"https://client.example.test/cb"},
-		clientAuthNone, []string{"settings"}, false); err == nil {
+		clientAuthNone, []string{"admin"}, false); err == nil {
 		t.Fatal("administrator scope provisioned while disabled")
 	}
 	client, err := store.ProvisionClient("Admin", []string{"https://client.example.test/cb"},
-		clientAuthNone, []string{"settings"}, true)
+		clientAuthNone, []string{"admin"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestProvisionClientAdministratorPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(state.Clients[client.ClientID].AllowedScopes, "settings") {
+	if !slices.Contains(state.Clients[client.ClientID].AllowedScopes, "admin") {
 		t.Fatal("administrator policy was not persisted when explicitly enabled")
 	}
 }

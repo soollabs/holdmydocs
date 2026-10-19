@@ -27,7 +27,7 @@
 			<p class="oauth-help">{{t "oauth_consent.allow_only"}}</p>
 			{{range .OAuthPrompt.AvailableScopes}}
 			{{$choiceSlot4 := component "choice" "id" "oauth-consent-choice-4" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot4}}<label class="oauth-choice">
-				<input type="checkbox" name="scope" value="{{.}}"{{if ne . "settings"}} checked{{end}}>
+				<input type="checkbox" name="scope" value="{{.}}"{{if ne . "admin"}} checked{{end}}>
 				<span>{{if eq . "read"}}<strong>{{t "oauth_consent.scope_read"}}</strong><small>{{t "oauth_consent.scope_read_help"}}</small>{{else if eq . "write"}}<strong>{{t "oauth_consent.scope_write"}}</strong><small>{{t "oauth_consent.scope_write_help"}}</small>{{else}}<strong>{{t "oauth_consent.scope_admin"}}</strong><small>{{t "oauth_consent.scope_admin_help"}}</small>{{end}}</span>
 			</label>{{template "ui-choice-end" $choiceSlot4}}
 			{{else}}

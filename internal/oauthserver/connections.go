@@ -124,13 +124,13 @@ func (s *Service) AuthorizeUpload(_ context.Context, grantID, familyID, user, sl
 	}
 	clientScopes := client.AllowedScopes
 	if !s.options.AllowAdminDelegation {
-		clientScopes = withoutSettings(clientScopes)
+		clientScopes = withoutAdmin(clientScopes)
 	}
 	effective := EffectiveScopes(issuedScopes, grant.Scopes, s.auth.Prefs(user).Scopes, clientScopes)
 	if !scopeSubset([]string{"write"}, effective) {
 		return false
 	}
-	if grant.NamespaceMode == "all" || slices.Contains(grant.Scopes, "settings") {
+	if grant.NamespaceMode == "all" || slices.Contains(grant.Scopes, adminScope) {
 		return true
 	}
 	if grant.NamespaceMode != "selected" {

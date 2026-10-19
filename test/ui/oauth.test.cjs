@@ -17,7 +17,7 @@ function consentFixture() {
     querySelector(selector) {
       if (selector === 'button[value="approve"]') return approve;
       if (selector === 'input[name="scope"]:checked') return state.scope || state.admin ? {} : null;
-      if (selector === 'input[name="scope"][value="settings"]:checked') return state.admin ? {} : null;
+      if (selector === 'input[name="scope"][value="admin"]:checked') return state.admin ? {} : null;
       if (selector === 'input[name="namespace_mode"]:checked') return { value: state.all ? 'all' : 'selected' };
       if (selector === 'input[name="namespace"]:checked') return state.selected ? {} : null;
       throw Error(selector);

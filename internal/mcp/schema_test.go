@@ -138,7 +138,7 @@ func TestLoadToolsRejects(t *testing.T) {
 	for name, definition := range map[string]string{
 		"unknown field":   strings.Replace(valid, `"title"`, `"titel":"X","title"`, 1),
 		"unknown keyword": strings.Replace(valid, `{"type":"object"},"output`, `{"type":"object","maxLenght":3},"output`, 1),
-		"unknown scope":   strings.Replace(valid, `"read"`, `"admin"`, 1),
+		"unknown scope":   strings.Replace(valid, `"read"`, `"settings"`, 1),
 		"no output":       strings.Replace(valid, `,"outputSchema":{"type":"object"}`, ``, 1),
 		"duplicate":       valid + "," + valid,
 	} {

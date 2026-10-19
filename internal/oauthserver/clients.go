@@ -64,7 +64,7 @@ func (s *Store) provisionClient(name string, redirectURIs []string, authMethod s
 	if err != nil || len(scopes) == 0 {
 		return ProvisionedClient{}, errors.New("client must allow at least one valid action scope")
 	}
-	if !allowAdmin && slices.Contains(scopes, "settings") {
+	if !allowAdmin && slices.Contains(scopes, adminScope) {
 		return ProvisionedClient{}, errors.New("administrator scope is disabled")
 	}
 
