@@ -513,21 +513,16 @@
 	/* Keep a low-contrast border so the panel edge remains visible. */
 	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
 	--brand-prefix: "";
-	--topbar-inset: calc(var(--pad) - 8px);  /* the floating topbar already sits 8px in, and the name's pill is the box that lines up */
+	--topbar-inset: calc(var(--pad) - 8px);  /* the floating topbar already sits 8px in */
 	--brand-cursor: "";
 	--title-rule:        block;
 	--title-rule-h:      3px;
 	--title-rule-colour: var(--primary);
 }
 
-/* The site name sits on the same rounded fill as the active page. It no
-   longer stretches, so the auto margin keeps the actions on the right. */
+/* The site name is plain bold text: the floating topbar already sets it
+   apart, and a fill would compete with the active page's. */
 :root[data-skin="soft"] .topbar-site {
-	flex: 0 1 auto;
-	margin-right: auto;
-	padding: 2px 10px;
-	border-radius: var(--radius);
-	background: color-mix(in srgb, var(--primary) 14%, transparent);
 	font-weight: 600;
 }
 
@@ -594,8 +589,8 @@
 	background: var(--surface-raised);
 }
 
-/* The name's pill lines up with the content's edge, allowing for the island's
-   own margin. */
+/* The name lines up with the content's edge, allowing for the island's own
+   margin. */
 @media (max-width: 899px) {
 	:root[data-skin="soft"] body.no-sidebar .app-topbar {
 		padding-left: calc(var(--settings-pad) - 8px);
