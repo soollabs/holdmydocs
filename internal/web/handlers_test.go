@@ -1188,6 +1188,9 @@ func TestMermaidConditionalLoad(t *testing.T) {
 	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script missing on page with mermaid content")
 	}
+	if !bytes.Contains(body, []byte("window.HMDRunMermaid")) {
+		t.Error("Mermaid runner missing on page with mermaid content")
+	}
 
 	resp, err = testhttp.Get(t, client, server.URL+"/"+testNS+"/mermaid-test?do=edit")
 	if err != nil {
@@ -1205,6 +1208,9 @@ func TestMermaidConditionalLoad(t *testing.T) {
 
 	if !bytes.Contains(body, []byte(`src="`+staticURL("mermaid.min.js")+`"`)) {
 		t.Error("Mermaid script missing on edit page when body contains mermaid")
+	}
+	if !bytes.Contains(body, []byte("window.HMDRunMermaid")) {
+		t.Error("Mermaid runner missing on edit page when body contains mermaid")
 	}
 }
 

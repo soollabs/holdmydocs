@@ -1049,7 +1049,7 @@
         preview.innerHTML = html;
         preview.classList.remove('preview-loading');
         if (window.mermaid) {
-          mermaid.run({querySelector: '#preview pre.mermaid'}).catch(() => {});
+          window.HMDRunMermaid(preview.querySelectorAll('pre.mermaid')).catch(() => {});
         }
       })
       .catch(err => {
