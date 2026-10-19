@@ -2540,6 +2540,8 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
    the fieldset and there is nothing to save. */
 .settings-view-only { display: contents; }
 .settings-view-only .settings-actions { display: none; }
+.settings-view-only .tree-order-item,
+.settings-view-only .tree-order-handle { cursor: default; }
 .settings-panels :is(.settings-zone, .settings-form) { max-width: none; }
 .settings-nav {
 	display: flex;

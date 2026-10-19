@@ -35,18 +35,29 @@ func TestReadOnlyBrowser(t *testing.T) {
 	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "read-only") {
 		t.Fatalf("administrator browse = %d", response.StatusCode)
 	}
-	if strings.Contains(string(body), `aria-label="Edit page"`) || strings.Contains(string(body), `id="new-page"`) {
+	if !strings.Contains(string(body), `aria-label="Edit page"`) {
+		t.Fatal("read-only page hides the editor for a writer")
+	}
+	if strings.Contains(string(body), `id="new-page"`) {
 		t.Fatal("read-only page exposes mutation controls")
 	}
 	response, err = testhttp.Get(t, client, server.URL+"/"+testHome+"?do=edit")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Body.Close(); err != nil {
-		t.Fatal(err)
+	body, readErr = io.ReadAll(response.Body)
+	closeErr = response.Body.Close()
+	if readErr != nil || closeErr != nil {
+		t.Fatalf("reading edit form: %v, %v", readErr, closeErr)
 	}
-	if response.StatusCode != http.StatusForbidden {
+	if response.StatusCode != http.StatusOK {
 		t.Fatalf("edit form = %v, %v", response, err)
+	}
+	if !strings.Contains(string(body), "changes are not saved") {
+		t.Fatal("read-only editor does not say changes are not saved")
+	}
+	if strings.Contains(string(body), `form="edit-form"`) || strings.Contains(string(body), `form="delete-form"`) {
+		t.Fatal("read-only editor offers save or delete")
 	}
 	response, err = postPageSave(t, client, server, testHome, url.Values{
 		"title": {"changed"}, "body": {"changed"}, "basehash": {hash},

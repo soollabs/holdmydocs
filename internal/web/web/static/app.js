@@ -731,7 +731,7 @@
       // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
       // (javascript:, data:) would execute in the page origin. Percent-encode
       // the slug before it reaches the URL.
-      const target = row.href || viewHref(row.slug) + (editMode && !window.hmdReadOnly ? '?do=edit' : '');
+      const target = row.href || viewHref(row.slug) + (editMode ? '?do=edit' : '');
       if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
         window.location.href = target;
       }
@@ -785,7 +785,7 @@
       return;
     }
     // The editor owns ctrl-e for its preview.
-    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly && !$('#edit-form')) {
+    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !$('#edit-form')) {
       // A namespace listing has no page behind it. Its slug is "ns/", which
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.
@@ -859,7 +859,10 @@
       }
     }
 
+    // A read-only instance lets people try the editor but keeps nothing, so
+    // there is no draft to restore and no unsaved work to warn about.
     function saveDraft() {
+      if (window.hmdReadOnly) return;
       localStorage.setItem(draftKey, textarea.value);
     }
 
@@ -1129,7 +1132,7 @@
     }
 
     function submitEditForm() {
-      if (!editForm) return;
+      if (!editForm || window.hmdReadOnly) return;
       clearSaveError();
       const slug = cmHost.dataset.slug || document.body.dataset.slug || '';
       const url = '/_/api/pages/' + encodeURIComponent(slug);
@@ -1191,7 +1194,7 @@
 
     // Unsaved changes warning
     window.addEventListener('beforeunload', e => {
-      if (dirty) {
+      if (dirty && !window.hmdReadOnly) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -1297,6 +1300,8 @@
       toc: insertTOC
     };
 
+    if (window.hmdReadOnly) attachmentButton.disabled = true;
+
     $$('.toolbar button[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = toolbarActions[btn.dataset.action];
@@ -1313,6 +1318,7 @@
     }
 
     function handleAttachmentFiles(files, imagesOnly) {
+      if (window.hmdReadOnly) return;
       for (let file of files) {
         if (imagesOnly && !file.type.startsWith('image/')) continue;
 

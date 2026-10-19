@@ -360,7 +360,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.SyncFailed = data.SyncState == "failed"
 			data.IndexFailures = app.apiClient().IndexFailures()
 		}
-		data.CanEdit = data.CanWrite && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
+		data.CanEdit = app.apiClient().CanViewEditor(r.Context()) && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {
 			base := ""
 			if data.IsNamespaceIndex {

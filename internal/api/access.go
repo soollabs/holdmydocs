@@ -58,6 +58,13 @@ func (a *API) CanViewSettings(ctx context.Context) bool {
 	return a.grantedScope(ctx, ScopeSettings)
 }
 
+// CanViewEditor reports whether the caller holds the write scope, ignoring
+// read-only mode. A read-only instance, such as a demo, still lets writers try
+// the editor, but nothing they type is saved.
+func (a *API) CanViewEditor(ctx context.Context) bool {
+	return a.grantedScope(ctx, ScopeWrite)
+}
+
 // ReadOnly reports whether the instance refuses writes and settings changes.
 func (a *API) ReadOnly() bool {
 	return a.readOnly()

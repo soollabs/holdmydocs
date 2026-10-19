@@ -453,7 +453,7 @@ func (app *App) handleHiddenGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
-	if !app.apiClient().HasScope(r.Context(), api.ScopeWrite) {
+	if !app.apiClient().CanViewEditor(r.Context()) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}

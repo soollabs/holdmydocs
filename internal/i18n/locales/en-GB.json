@@ -865,6 +865,14 @@
     "description": "Label of the path (namespace/filename) input in page details.",
     "other": "path:"
   },
+  "edit.read_only.heading": {
+    "description": "Bold heading of the notice shown in the editor when the server is in read-only mode.",
+    "other": "Read-only mode."
+  },
+  "edit.read_only.message": {
+    "description": "Text of the editor's read-only notice. The editor works, but nothing typed is saved.",
+    "other": "You can try the editor, but changes are not saved."
+  },
   "edit.remote_changed": {
     "description": "Warning banner shown when the page was updated elsewhere while editing.",
     "other": "Remote updated this page. Saving will conflict, and you'll keep your version or discard it."
