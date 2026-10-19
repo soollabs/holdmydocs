@@ -48,7 +48,7 @@ func TestOperationScopeGates(t *testing.T) {
 			_, err := a.RenamePage(ctx, RenamePageInput{Slug: "notes/page"})
 			return err
 		}},
-		{"delete", "write", func(ctx context.Context) error { _, err := a.DeletePage(ctx, "notes/page", false); return err }},
+		{"delete", "write", func(ctx context.Context) error { _, err := a.DeletePage(ctx, "notes/page", false, ""); return err }},
 		{"revert", "write", func(ctx context.Context) error { _, err := a.RevertPage(ctx, "notes/page", "hash"); return err }},
 		{"issue upload", "write", func(ctx context.Context) error {
 			_, err := a.IssueUploadCapability(ctx, "notes/page", "file.txt")
@@ -63,7 +63,7 @@ func TestOperationScopeGates(t *testing.T) {
 		{"hidden list", "read", func(ctx context.Context) error { _, err := a.HiddenPages(ctx); return err }},
 		{"hidden page", "read", func(ctx context.Context) error { _, err := a.ViewHidden(ctx, "notes/page"); return err }},
 		{"search", "read", func(ctx context.Context) error { _, err := a.SearchPages(ctx, "term"); return err }},
-		{"attachment search", "read", func(ctx context.Context) error { _, err := a.SearchAttachments(ctx, "term", 1); return err }},
+		{"attachment search", "read", func(ctx context.Context) error { _, err := a.SearchAttachments(ctx, "term", "", 1); return err }},
 		{"attachment text", "read", func(ctx context.Context) error { _, err := a.ReadAttachment(ctx, "notes/page", "file.txt"); return err }},
 		{"health", "read", func(ctx context.Context) error { _, err := a.Health(ctx, ""); return err }},
 		{"changes", "read", func(ctx context.Context) error { _, err := a.RecentChanges(ctx, 10); return err }},

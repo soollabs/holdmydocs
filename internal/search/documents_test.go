@@ -228,9 +228,23 @@ func TestCosineSimilarityAndTopSemanticChunks(t *testing.T) {
 		ChunkIDs: []string{"bad"},
 		Vectors:  [][]float32{{1}},
 	}
-	hits := topSemanticChunks(manifest, testVector(0), 1)
+	hits := topSemanticChunks(manifest, testVector(0), "", 1)
 	if len(hits) != 1 || hits[0].id != "a" {
 		t.Fatalf("topSemanticChunks = %#v; want stable top hit a", hits)
+	}
+}
+
+func TestTopSemanticChunksNamespace(t *testing.T) {
+	manifest := newSearchManifest("test")
+	manifest.Attachments["notes/.attachments/page/a.pdf"] = attachmentManifest{
+		ChunkIDs: []string{"notes"}, Vectors: [][]float32{testVector(0)},
+	}
+	manifest.Attachments["blog/.attachments/post/b.pdf"] = attachmentManifest{
+		ChunkIDs: []string{"blog"}, Vectors: [][]float32{testVector(0)},
+	}
+	hits := topSemanticChunks(manifest, testVector(0), "blog", 10)
+	if len(hits) != 1 || hits[0].id != "blog" {
+		t.Fatalf("topSemanticChunks in blog = %#v; want only the blog chunk", hits)
 	}
 }
 
@@ -331,7 +345,7 @@ func TestOpenIndexReusesStoredAttachmentVectors(t *testing.T) {
 	if embedder.calls != 0 {
 		t.Fatalf("reopening re-embedded %d times", embedder.calls)
 	}
-	hits, err := reopened.SearchAttachments(context.Background(), "unrelated", 20)
+	hits, err := reopened.SearchAttachments(context.Background(), "unrelated", "", 20)
 	if err != nil || len(hits) != 1 || hits[0].Filename != "file.pdf" {
 		t.Fatalf("semantic search after reopen = %#v, %v", hits, err)
 	}
@@ -504,19 +518,19 @@ func TestSearchAttachmentsDisabledBusyAndEmptyQuery(t *testing.T) {
 		}
 	}()
 
-	if _, err := ix.SearchAttachments(context.Background(), "query", 20); !errors.Is(err, errDocumentSearchDisabled) {
+	if _, err := ix.SearchAttachments(context.Background(), "query", "", 20); !errors.Is(err, errDocumentSearchDisabled) {
 		t.Fatalf("disabled search error = %v, want errDocumentSearchDisabled", err)
 	}
 
 	ix.documents = &DocumentSearch{embedder: &testEmbedder{vector: testVector(0)}}
-	if _, err := ix.SearchAttachments(context.Background(), "   ", 20); err == nil || !strings.Contains(err.Error(), "cannot be empty") {
+	if _, err := ix.SearchAttachments(context.Background(), "   ", "", 20); err == nil || !strings.Contains(err.Error(), "cannot be empty") {
 		t.Fatalf("empty-query error = %v, want an empty-query rejection", err)
 	}
 
 	// Both concurrent-search slots held: a further search is refused as busy.
 	ix.searches <- struct{}{}
 	ix.searches <- struct{}{}
-	if _, err := ix.SearchAttachments(context.Background(), "query", 20); !errors.Is(err, ErrBusy) {
+	if _, err := ix.SearchAttachments(context.Background(), "query", "", 20); !errors.Is(err, ErrBusy) {
 		t.Fatalf("busy search error = %v, want ErrBusy", err)
 	}
 	<-ix.searches

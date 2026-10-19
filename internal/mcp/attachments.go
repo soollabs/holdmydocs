@@ -5,20 +5,20 @@ import (
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"hmd/internal/api"
 	"hmd/internal/wiki"
 )
 
 type mcpAttachmentSearchIn struct {
-	Query string `json:"query" jsonschema:"keyword or semantic query for extracted attachment text"`
-	Limit int    `json:"limit,omitempty" jsonschema:"maximum 50 results, default 20"`
+	Query     string `json:"query"`
+	Namespace string `json:"namespace,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
 }
 
 type mcpAttachmentSearchHit struct {
 	OwnerSlug string  `json:"owner_slug"`
 	Filename  string  `json:"filename"`
 	URL       string  `json:"url"`
-	Excerpt   string  `json:"excerpt" jsonschema:"escaped text containing optional <mark> tags"`
+	Excerpt   string  `json:"excerpt"`
 	Score     float64 `json:"score"`
 }
 
@@ -27,37 +27,32 @@ type mcpAttachmentSearchOut struct {
 }
 
 type mcpAttachmentUploadIn struct {
-	Slug     string `json:"slug,omitempty" jsonschema:"canonical identifier of the page that owns the attachment, in namespace/page form; provide slug or path, not both"`
-	Path     string `json:"path,omitempty" jsonschema:"alias for slug, identifying the owning page in namespace/page form; provide slug or path, not both"`
-	Filename string `json:"filename" jsonschema:"original filename; HMD returns its canonical attachment URL; document formats supported by Apache Tika are indexed when document search is enabled"`
+	Slug     string `json:"slug"`
+	Filename string `json:"filename"`
 }
 
 type mcpAttachmentUploadOut struct {
-	UploadURL     string `json:"upload_url" jsonschema:"one-use multipart POST URL; upload the file as the file form field"`
-	AttachmentURL string `json:"attachment_url" jsonschema:"URL of the uploaded attachment after a successful upload"`
+	UploadURL     string `json:"upload_url"`
+	AttachmentURL string `json:"attachment_url"`
 	ExpiresAt     string `json:"expires_at"`
 }
 
 type mcpAttachmentReadIn struct {
-	Slug     string `json:"slug,omitempty" jsonschema:"canonical identifier of the page that owns the attachment, in namespace/page form; provide slug or path, not both"`
-	Path     string `json:"path,omitempty" jsonschema:"alias for slug, identifying the owning page in namespace/page form; provide slug or path, not both"`
-	Filename string `json:"filename" jsonschema:"canonical attachment filename, without a path"`
+	Slug     string `json:"slug"`
+	Filename string `json:"filename"`
+	Offset   int    `json:"offset,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
 }
 
 type mcpAttachmentReadOut struct {
 	Text string `json:"text"`
+	textWindow
 }
 
 func (s *Server) registerAttachments(server *sdk.Server) {
 	if s.options.DocumentsEnabled {
-		sdk.AddTool(server, &sdk.Tool{
-			Name:        "search_attachments",
-			Description: "Search extracted attachment text using keyword and semantic ranking. Arguments: query (required string) and limit (optional integer, default 20, maximum 50). Available only when document indexing is enabled. Results are limited to accessible page-owned attachments; excerpts are escaped text with optional <mark> tags.",
-		}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentSearchIn) (*sdk.CallToolResult, mcpAttachmentSearchOut, error) {
-			if err := s.requireScope(ctx, api.ScopeRead); err != nil {
-				return nil, mcpAttachmentSearchOut{}, err
-			}
-			hits, err := s.api.SearchAttachments(ctx, in.Query, in.Limit)
+		addTool(s, server, "search_attachments", func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentSearchIn) (*sdk.CallToolResult, mcpAttachmentSearchOut, error) {
+			hits, err := s.api.SearchAttachments(ctx, in.Query, in.Namespace, in.Limit)
 			if err != nil {
 				return nil, mcpAttachmentSearchOut{}, err
 			}
@@ -72,14 +67,8 @@ func (s *Server) registerAttachments(server *sdk.Server) {
 		})
 	}
 
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "upload_attachment",
-		Description: "Create a one-use native multipart upload URL for a document or image owned by a page. Arguments: exactly one of slug or path (required page identifier in namespace/page form), plus filename (required original filename without a directory). Requires write access to that page. HMD canonicalises filename; use the returned attachment_url rather than constructing one. POST the file as the file form field. Apache Tika extracts and indexes supported formats when document search is enabled. After a successful upload, use save_page to add [filename](attachment_url) to the owning page, or ![alt text](attachment_url) for an image.",
-	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentUploadIn) (*sdk.CallToolResult, mcpAttachmentUploadOut, error) {
-		if err := s.requireScope(ctx, api.ScopeWrite); err != nil {
-			return nil, mcpAttachmentUploadOut{}, err
-		}
-		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+	addTool(s, server, "upload_attachment", func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentUploadIn) (*sdk.CallToolResult, mcpAttachmentUploadOut, error) {
+		slug, err := mcpPageSlug(in.Slug)
 		if err != nil {
 			return nil, mcpAttachmentUploadOut{}, err
 		}
@@ -98,14 +87,8 @@ func (s *Server) registerAttachments(server *sdk.Server) {
 		}, nil
 	})
 
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "read_attachment",
-		Description: "Read an attachment's cached extracted text. Arguments: exactly one of slug or path (required owning-page identifier in namespace/page form), plus filename (required canonical attachment filename without a directory). Requires read access to the owning page. Uploads made while document indexing is enabled have a Git-tracked extraction sidecar; source text files also get one. Use search_attachments first for large documents.",
-	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentReadIn) (*sdk.CallToolResult, mcpAttachmentReadOut, error) {
-		if err := s.requireScope(ctx, api.ScopeRead); err != nil {
-			return nil, mcpAttachmentReadOut{}, err
-		}
-		slug, err := mcpPageIdentifier(in.Slug, in.Path)
+	addTool(s, server, "read_attachment", func(ctx context.Context, req *sdk.CallToolRequest, in mcpAttachmentReadIn) (*sdk.CallToolResult, mcpAttachmentReadOut, error) {
+		slug, err := mcpPageSlug(in.Slug)
 		if err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
@@ -116,6 +99,11 @@ func (s *Server) registerAttachments(server *sdk.Server) {
 		if err != nil {
 			return nil, mcpAttachmentReadOut{}, err
 		}
-		return nil, mcpAttachmentReadOut{Text: text}, nil
+		out := mcpAttachmentReadOut{}
+		out.Text, out.textWindow, err = windowText(text, in.Offset, in.Limit)
+		if err != nil {
+			return nil, mcpAttachmentReadOut{}, err
+		}
+		return nil, out, nil
 	})
 }

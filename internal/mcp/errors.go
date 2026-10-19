@@ -3,11 +3,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
-	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"hmd/internal/api"
 	"hmd/internal/auth"
 	"hmd/internal/wiki"
@@ -55,35 +53,39 @@ func (s *Server) requireSlug(ctx context.Context, slug string) error {
 	return fmt.Errorf("forbidden: namespace access denied")
 }
 
-// mcpPageIdentifier resolves the slug/path pair accepted by page tools. Exactly
-// one of the two aliases must be supplied and the result must be a valid page
-// slug.
-func mcpPageIdentifier(slug, path string) (string, error) {
-	if slug != "" && path != "" {
-		return "", errors.New("provide slug or path, not both")
+// mcpPageSlug validates a page identifier, naming what is wrong with an
+// invalid one and showing the expected form.
+func mcpPageSlug(slug string) (string, error) {
+	if err := wiki.CheckPageSlug(slug); err != nil {
+		return "", fmt.Errorf("invalid page identifier %q: %w; expected namespace/page, for example notes/my-page", slug, err)
 	}
-	identifier := slug
-	if identifier == "" {
-		identifier = path
-	}
-	if identifier == "" {
-		return "", errors.New("slug or path is required")
-	}
-	if !wiki.ValidPageSlug(identifier) {
-		return "", fmt.Errorf("invalid page identifier %q: expected namespace/page", identifier)
-	}
-	return identifier, nil
+	return slug, nil
 }
 
-// mcpEditConflict renders the conflict payload returned when an edit's base
-// hash is stale, carrying the current hash so the caller can re-read.
-func mcpEditConflict(hash string) *sdk.CallToolResult {
-	payload, _ := json.Marshal(map[string]string{"error": "conflict: page changed since basehash; re-read before retrying", "hash": hash})
-	return &sdk.CallToolResult{IsError: true, Content: []sdk.Content{&sdk.TextContent{Text: string(payload)}}}
+// conflictError is the error returned when a basehash is stale. Its message is
+// a JSON object carrying the current hash, empty when the target no longer
+// exists, so the caller can re-read and retry. A page save also carries the
+// current body so the caller can merge without another read.
+type conflictError struct {
+	message, hash string
+	body          *string
 }
 
-// mcpToolError renders a structured error result with a JSON payload.
-func mcpToolError(payload map[string]string) *sdk.CallToolResult {
-	encoded, _ := json.Marshal(payload)
-	return &sdk.CallToolResult{IsError: true, Content: []sdk.Content{&sdk.TextContent{Text: string(encoded)}}}
+func (e conflictError) Error() string {
+	payload, _ := json.Marshal(struct {
+		Error string  `json:"error"`
+		Hash  string  `json:"hash"`
+		Body  *string `json:"body,omitempty"`
+	}{"conflict: " + e.message + "; re-read and retry with the current hash", e.hash, e.body})
+	return string(payload)
+}
+
+func mcpConflict(message, hash string) error { return conflictError{message: message, hash: hash} }
+
+// mcpPageConflict is mcpConflict for a page save, carrying the current body.
+func mcpPageConflict(message string, current *api.PageView) error {
+	if current == nil {
+		return conflictError{message: message}
+	}
+	return conflictError{message: message, hash: current.Hash, body: &current.Body}
 }

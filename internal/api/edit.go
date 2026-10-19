@@ -10,6 +10,9 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
+// MaxPageEdits bounds the replacements in one ApplyPageEdits call.
+const MaxPageEdits = 128
+
 // PageEdit is one exact-text replacement applied to a page body. OldText must
 // occur exactly once when the edit is applied; NewText may be empty to delete.
 type PageEdit struct {
@@ -24,8 +27,8 @@ func ApplyPageEdits(body string, edits []PageEdit) (string, error) {
 	if len(edits) == 0 {
 		return "", fmt.Errorf("edits must contain at least one replacement")
 	}
-	if len(edits) > 128 {
-		return "", fmt.Errorf("edits exceeds 128 replacements")
+	if len(edits) > MaxPageEdits {
+		return "", fmt.Errorf("edits exceeds %d replacements", MaxPageEdits)
 	}
 	if len(body) > MaxPageBodyBytes {
 		return "", fmt.Errorf("page body exceeds edit limit")

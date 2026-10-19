@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"hmd/internal/search"
+	"hmd/internal/wiki"
 )
 
 // PageHit is one authorised full-text page search result. Snippet is escaped
@@ -55,8 +57,80 @@ func (a *API) SearchPages(ctx context.Context, query string) ([]PageHit, error) 
 	return results, nil
 }
 
-// MaxAttachmentSearchResults bounds an attachment search page.
-const MaxAttachmentSearchResults = 50
+// DefaultPageSearchResults and MaxPageSearchResults bound a PageSearch window,
+// and MaxPageSearchOffset bounds how deep a caller may page.
+const (
+	DefaultPageSearchResults = 20
+	MaxPageSearchResults     = 50
+	MaxPageSearchOffset      = 1000
+)
+
+// PageSearchResult is one window of authorised page hits. More reports that
+// the index holds further matches beyond the window, and Next is the offset of
+// the following window; access filtering can leave a window short even then.
+type PageSearchResult struct {
+	Hits []PageHit
+	More bool
+	Next int
+}
+
+// PageSearch runs full-text page search within an optional namespace and
+// returns the authorised hits among at most limit index results from offset
+// (DefaultPageSearchResults when limit is zero). Access filtering follows
+// retrieval, as in SearchPages.
+func (a *API) PageSearch(ctx context.Context, query, namespace string, offset, limit int) (*PageSearchResult, error) {
+	if err := a.RequireScope(ctx, ScopeRead); err != nil {
+		return nil, err
+	}
+	if err := search.ValidateQuery(query); err != nil {
+		return nil, InvalidInput(err.Error(), err)
+	}
+	if limit == 0 {
+		limit = DefaultPageSearchResults
+	}
+	if limit < 0 || limit > MaxPageSearchResults {
+		return nil, InvalidInput(fmt.Sprintf("limit must be between 1 and %d", MaxPageSearchResults), nil)
+	}
+	if offset < 0 || offset > MaxPageSearchOffset {
+		return nil, InvalidInput(fmt.Sprintf("offset must be between 0 and %d", MaxPageSearchOffset), nil)
+	}
+	if err := a.checkSearchNamespace(ctx, namespace); err != nil {
+		return nil, err
+	}
+	hits, more, err := a.index.SearchPages(query, namespace, offset, limit)
+	if err != nil {
+		return nil, Unavailable("page search failed", err)
+	}
+	result := &PageSearchResult{Hits: make([]PageHit, 0, len(hits)), More: more, Next: offset + len(hits)}
+	for _, hit := range hits {
+		if AllowSlug(ctx, hit.Slug) {
+			result.Hits = append(result.Hits, PageHit{Slug: hit.Slug, Title: hit.Title, Snippet: hit.Snippet, Tags: hit.Tags})
+		}
+	}
+	return result, nil
+}
+
+// checkSearchNamespace rejects an invalid or inaccessible namespace filter.
+// An empty namespace searches everything the caller may read.
+func (a *API) checkSearchNamespace(ctx context.Context, namespace string) error {
+	if namespace == "" {
+		return nil
+	}
+	if err := wiki.CheckNamespaceName(namespace); err != nil {
+		return InvalidInput(err.Error(), err)
+	}
+	if !AllowNamespace(ctx, namespace) {
+		return Forbidden("namespace access denied")
+	}
+	return nil
+}
+
+// DefaultAttachmentSearchResults and MaxAttachmentSearchResults bound an
+// attachment search page.
+const (
+	DefaultAttachmentSearchResults = 20
+	MaxAttachmentSearchResults     = 50
+)
 
 // attachmentSearchCandidates is the fixed retrieval window requested from the
 // index before access filtering.
@@ -68,10 +142,11 @@ const MaxAttachmentSearchResults = 50
 // this refactor.
 const attachmentSearchCandidates = 50
 
-// SearchAttachments runs attachment full-text search. It normalises the query,
-// clamps limit to [1, MaxAttachmentSearchResults], and maps disabled, busy and
-// failed states onto explicit error categories.
-func (a *API) SearchAttachments(ctx context.Context, query string, limit int) ([]AttachmentHit, error) {
+// SearchAttachments runs attachment full-text search, limited to attachments
+// of pages in namespace when it is not empty. It normalises the query, clamps
+// limit to [1, MaxAttachmentSearchResults], and maps disabled, busy and failed
+// states onto explicit error categories.
+func (a *API) SearchAttachments(ctx context.Context, query, namespace string, limit int) ([]AttachmentHit, error) {
 	if err := a.RequireScope(ctx, ScopeRead); err != nil {
 		return nil, err
 	}
@@ -85,13 +160,16 @@ func (a *API) SearchAttachments(ctx context.Context, query string, limit int) ([
 	if err := search.ValidateQuery(query); err != nil {
 		return nil, InvalidInput(err.Error(), err)
 	}
+	if err := a.checkSearchNamespace(ctx, namespace); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
-		limit = 20
+		limit = DefaultAttachmentSearchResults
 	}
 	if limit > MaxAttachmentSearchResults {
 		limit = MaxAttachmentSearchResults
 	}
-	hits, err := a.index.SearchAttachments(ctx, query, attachmentSearchCandidates)
+	hits, err := a.index.SearchAttachments(ctx, query, namespace, attachmentSearchCandidates)
 	if err != nil {
 		if errors.Is(err, search.ErrBusy) {
 			return nil, Busy("search is busy")

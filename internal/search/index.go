@@ -284,8 +284,16 @@ func (ix *Index) TagsFor(slug string) []string {
 }
 
 func (ix *Index) Search(q string) ([]SearchHit, error) {
+	hits, _, err := ix.SearchPages(q, "", 0, 20)
+	return hits, err
+}
+
+// SearchPages returns up to size page hits starting at result from, limited to
+// one namespace when namespace is not empty. more reports whether further
+// hits follow this window.
+func (ix *Index) SearchPages(q, namespace string, from, size int) (hits []SearchHit, more bool, err error) {
 	if err := validateSearchQuery(q); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
@@ -294,17 +302,31 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 	typeQuery := bleve.NewTermQuery("page")
 	typeQuery.SetField("Type")
 	searchQuery := bleve.NewConjunctionQuery(queryString, typeQuery)
-	search := bleve.NewSearchRequest(searchQuery)
+	if namespace != "" {
+		var ids []string
+		for slug := range ix.titles {
+			if pageNS, _ := wiki.NamespaceFor(slug); pageNS == namespace {
+				ids = append(ids, pageDocumentID(slug))
+			}
+		}
+		if len(ids) == 0 {
+			return []SearchHit{}, false, nil
+		}
+		searchQuery.AddQuery(bleve.NewDocIDQuery(ids))
+	}
+	search := bleve.NewSearchRequestOptions(searchQuery, size, from, false)
+	// Equal scores are ordered by document ID so successive windows neither
+	// repeat nor skip a hit.
+	search.SortBy([]string{"-_score", "_id"})
 	search.Highlight = bleve.NewHighlightWithStyle("html")
 	search.Fields = []string{"Title"}
-	search.Size = 20
 
 	results, err := ix.bleve.Search(search)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	var hits []SearchHit
+	hits = make([]SearchHit, 0, len(results.Hits))
 	for _, match := range results.Hits {
 		snippet := ""
 		if frags, ok := match.Fragments["Body"]; ok && len(frags) > 0 {
@@ -319,7 +341,7 @@ func (ix *Index) Search(q string) ([]SearchHit, error) {
 		})
 	}
 
-	return hits, nil
+	return hits, uint64(from+len(results.Hits)) < results.Total, nil
 }
 
 // Backlinks lists pages whose wiki-links resolve to slug.

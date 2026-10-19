@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -35,6 +36,12 @@ type RevisionPage struct {
 	When  time.Time
 }
 
+// DefaultRecentChanges and MaxRecentChanges bound a RecentChanges call.
+const (
+	DefaultRecentChanges = 20
+	MaxRecentChanges     = 200
+)
+
 // RecentChanges returns the newest commits the caller may see, limited to n
 // commits before access filtering. A commit is omitted unless every file it
 // touches falls inside the caller's namespace access, so a commit spanning
@@ -44,7 +51,10 @@ func (a *API) RecentChanges(ctx context.Context, limit int) ([]Commit, error) {
 		return nil, err
 	}
 	if limit <= 0 {
-		limit = 20
+		limit = DefaultRecentChanges
+	}
+	if limit > MaxRecentChanges {
+		return nil, InvalidInput(fmt.Sprintf("limit must be at most %d", MaxRecentChanges), nil)
 	}
 	commits, err := a.store.RecentCommits(limit)
 	if store.IsNoCommits(err) {

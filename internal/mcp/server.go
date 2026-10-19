@@ -21,29 +21,44 @@ type Options struct {
 	DocumentsEnabled bool
 }
 
+// serverInstructions is the workflow every client should follow, whatever
+// the task.
+const serverInstructions = "HoldMyDocs is a Git-backed wiki of Markdown pages identified as namespace/page. " +
+	"Search or list before reading, and read a page before changing it. Pass the hash you read as basehash; " +
+	"on a conflict, re-read and retry. Prefer edit_page for changes to an existing page."
+
 // Server exposes the wiki as MCP tools over a single streamable-HTTP handler.
 type Server struct {
 	api     *api.API
 	options Options
+	// scopes records the scope each registered tool requires, by tool name.
+	scopes map[string]api.Scope
 }
 
 // NewServer builds an MCP adapter over the shared application operations.
 func NewServer(a *api.API, opts Options) *Server {
-	return &Server{api: a, options: opts}
+	return &Server{api: a, options: opts, scopes: map[string]api.Scope{}}
 }
 
 // Handler returns the streamable-HTTP handler that serves the MCP endpoint. The
 // composition root mounts it at /_/mcp.
 func (s *Server) Handler() http.Handler {
+	server := s.newSDKServer()
+	return newMCPHTTPHandler(s.api.Config().BaseURL, func(*http.Request) *sdk.Server { return server })
+}
+
+// newSDKServer builds the SDK server with every tool registered.
+func (s *Server) newSDKServer() *sdk.Server {
 	server := sdk.NewServer(s.implementation(), &sdk.ServerOptions{
 		SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"},
+		Instructions:              serverInstructions,
 	})
 	s.registerPages(server)
 	s.registerNamespaces(server)
 	s.registerSearch(server)
 	s.registerAttachments(server)
 	s.registerHistory(server)
-	return newMCPHTTPHandler(s.api.Config().BaseURL, func(*http.Request) *sdk.Server { return server })
+	return server
 }
 
 func (s *Server) implementation() *sdk.Implementation {

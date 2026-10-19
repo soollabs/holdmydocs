@@ -9,6 +9,7 @@ require (
 	github.com/go-oauth2/oauth2/v4 v4.6.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.1
+	github.com/google/jsonschema-go v0.4.3
 	github.com/knights-analytics/hugot v0.8.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
@@ -63,7 +64,6 @@ require (
 	github.com/gomlx/go-xla v0.4.14 // indirect
 	github.com/gomlx/gomlx v0.28.17 // indirect
 	github.com/gomlx/onnx-gomlx v0.5.14 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect

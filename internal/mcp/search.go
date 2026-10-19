@@ -4,39 +4,37 @@ import (
 	"context"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"hmd/internal/api"
 )
 
 type mcpSearchIn struct {
-	Query string `json:"query" jsonschema:"full-text query for page titles, bodies, and tags"`
+	Query     string `json:"query"`
+	Namespace string `json:"namespace,omitempty"`
+	Offset    int    `json:"offset,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
 }
 
 type mcpSearchHit struct {
 	Slug    string   `json:"slug"`
 	Title   string   `json:"title"`
-	Snippet string   `json:"snippet,omitempty"`
-	Tags    []string `json:"tags,omitempty"`
+	Snippet string   `json:"snippet"`
+	Tags    []string `json:"tags"`
 }
 
 type mcpSearchOut struct {
-	Hits []mcpSearchHit `json:"hits"`
+	Hits       []mcpSearchHit `json:"hits"`
+	More       bool           `json:"more"`
+	NextOffset int            `json:"next_offset"`
 }
 
 func (s *Server) registerSearch(server *sdk.Server) {
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "search",
-		Description: "Full-text search accessible page titles, bodies, and tags. Argument: query (required full-text query string). Results include escaped snippets with optional <mark> tags; use read_page for the complete page.",
-	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpSearchIn) (*sdk.CallToolResult, mcpSearchOut, error) {
-		if err := s.requireScope(ctx, api.ScopeRead); err != nil {
-			return nil, mcpSearchOut{}, err
-		}
-		hits, err := s.api.SearchPages(ctx, in.Query)
+	addTool(s, server, "search", func(ctx context.Context, req *sdk.CallToolRequest, in mcpSearchIn) (*sdk.CallToolResult, mcpSearchOut, error) {
+		result, err := s.api.PageSearch(ctx, in.Query, in.Namespace, in.Offset, in.Limit)
 		if err != nil {
 			return nil, mcpSearchOut{}, err
 		}
-		out := mcpSearchOut{Hits: make([]mcpSearchHit, 0, len(hits))}
-		for _, h := range hits {
-			out.Hits = append(out.Hits, mcpSearchHit{Slug: h.Slug, Title: h.Title, Snippet: h.Snippet, Tags: h.Tags})
+		out := mcpSearchOut{Hits: make([]mcpSearchHit, 0, len(result.Hits)), More: result.More, NextOffset: result.Next}
+		for _, h := range result.Hits {
+			out.Hits = append(out.Hits, mcpSearchHit{Slug: h.Slug, Title: h.Title, Snippet: h.Snippet, Tags: nonNil(h.Tags)})
 		}
 		return nil, out, nil
 	})
