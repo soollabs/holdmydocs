@@ -25,6 +25,7 @@ type API struct {
 	index            *search.Index
 	auth             *auth.Auth
 	uploadAuthorizer OAuthUploadAuthorizer
+	userRevoker      OAuthUserRevoker
 	shutdown         func()
 
 	cfg        atomic.Pointer[config.Config]
@@ -43,6 +44,14 @@ type API struct {
 // of the OAuth implementation.
 type OAuthUploadAuthorizer interface {
 	AuthorizeUpload(ctx context.Context, grantID, familyID, user, slug string, issuedScopes []string) bool
+}
+
+type OAuthUserRevoker interface {
+	RevokeUserGrants(user string) error
+}
+
+func (a *API) SetOAuthUserRevoker(revoker OAuthUserRevoker) {
+	a.userRevoker = revoker
 }
 
 // SetOAuthUploadAuthorizer installs the OAuth-specific capability verifier.

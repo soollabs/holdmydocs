@@ -228,6 +228,9 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 	if !ok {
 		return fmt.Errorf("unknown user %q", name)
 	}
+	if rec.hasScope(scopeAdmin) && !slices.Contains(scopes, string(scopeAdmin)) && a.adminCountLocked(name) == 0 {
+		return ErrLastAdmin
+	}
 	rec.Scopes = scopes
 	a.users[name] = rec
 	if err := a.save(); err != nil {
@@ -238,6 +241,13 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 }
 
 type ctxUserKey struct{}
+
+type ctxSessionKey struct{}
+
+func SessionFromContext(ctx context.Context) string {
+	token, _ := ctx.Value(ctxSessionKey{}).(string)
+	return token
+}
 
 type ctxTokenPrincipalKey struct{}
 
@@ -432,7 +442,8 @@ func Open(cfg Options) (*Auth, error) {
 		}
 	} else if os.IsNotExist(err) {
 		if cfg.AdminUser != "" && cfg.AdminPass != "" {
-			if !validBootstrapCredentials(cfg.AdminUser, cfg.AdminPass) {
+			// Environment credentials only create the first user; existing accounts are ordinary users.
+			if !validCredentials(cfg.AdminUser, cfg.AdminPass) {
 				return nil, fmt.Errorf("bootstrap credentials must use a valid username, a strong non-placeholder password, and different username and password")
 			}
 
@@ -496,8 +507,8 @@ func (a *Auth) addUser(name, password string, scopes []string) error {
 	if !validUsername(name) {
 		return fmt.Errorf("invalid username")
 	}
-	if !validPassword(password) {
-		return fmt.Errorf("password must be at least 12 characters, at most 72 bytes, and contain no control characters")
+	if !validCredentials(name, password) {
+		return ErrInvalidPassword
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -505,6 +516,10 @@ func (a *Auth) addUser(name, password string, scopes []string) error {
 	}
 
 	a.mu.Lock()
+	if _, exists := a.users[name]; exists {
+		a.mu.Unlock()
+		return fmt.Errorf("user %q already exists", name)
+	}
 	rec := a.users[name]
 	rec.Hash = string(hash)
 	rec.Scopes = append([]string(nil), scopes...)
@@ -546,7 +561,7 @@ func validPassword(password string) bool {
 	return true
 }
 
-func validBootstrapCredentials(name, password string) bool {
+func validCredentials(name, password string) bool {
 	if !validUsername(name) || !validPassword(password) || strings.EqualFold(name, password) {
 		return false
 	}
@@ -577,8 +592,10 @@ func (a *Auth) HasUsers() bool {
 
 // UserSummary is one row in the settings-page user list.
 type UserSummary struct {
-	Name string
-	Has  map[string]bool
+	Name     string
+	Has      map[string]bool
+	Password bool
+	SSO      bool
 }
 
 // Users lists every user, sorted by name, for the settings page.
@@ -591,7 +608,7 @@ func (a *Auth) Users() []UserSummary {
 		for _, s := range allScopes {
 			has[string(s)] = rec.hasScope(s)
 		}
-		out = append(out, UserSummary{Name: name, Has: has})
+		out = append(out, UserSummary{Name: name, Has: has, Password: rec.Hash != "", SSO: rec.OIDC != nil})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -976,10 +993,14 @@ func (a *Auth) login(name, password string) (token string, ok bool) {
 		return "", false
 	}
 
-	return a.newSession(name)
+	return a.newSessionForHash(name, rec.Hash)
 }
 
 func (a *Auth) newSession(name string) (token string, ok bool) {
+	return a.newSessionForHash(name, "")
+}
+
+func (a *Auth) newSessionForHash(name, expectedHash string) (token string, ok bool) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", false
@@ -991,6 +1012,11 @@ func (a *Auth) newSession(name string) (token string, ok bool) {
 	csrf := hex.EncodeToString(b)
 
 	a.mu.Lock()
+	rec, exists := a.users[name]
+	if !exists || expectedHash != "" && rec.Hash != expectedHash {
+		a.mu.Unlock()
+		return "", false
+	}
 	a.revokeUserSessionsLocked(name)
 	a.sessions[token] = sessionRecord{User: name, Expires: time.Now().Add(sessionTTL), CSRF: csrf}
 	err := a.saveSessions()
@@ -1098,6 +1124,8 @@ var ownSettingsPaths = map[string]string{
 	"/_/settings":                   http.MethodGet,
 	"/_/settings/appearance":        http.MethodGet,
 	"/_/settings/git-author":        http.MethodGet,
+	"/_/settings/password":          http.MethodGet,
+	"/_/api/settings/password":      http.MethodPost,
 	"/_/settings/access-tokens":     http.MethodGet,
 	"/_/api/settings/appearance":    http.MethodPost,
 	"/_/api/settings/author":        http.MethodPost,
@@ -1239,6 +1267,9 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			}
 		} else if cookie, err := r.Cookie("hmd_session"); err == nil && cookie.Value != "" {
 			user, authed = a.UserFor(cookie.Value)
+			if authed {
+				r = r.WithContext(context.WithValue(r.Context(), ctxSessionKey{}, cookie.Value))
+			}
 		}
 		if !authed {
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) && anonymousEligible(r.URL.Path, r.URL.Query()) {

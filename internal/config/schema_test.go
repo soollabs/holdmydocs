@@ -254,6 +254,12 @@ func TestLayoutPlacesEverySettingOnce(t *testing.T) {
 		}
 	}
 	for _, s := range Settings() {
+		if s.NotOnPage {
+			if seen[s.Key] != 0 {
+				t.Errorf("%s must be absent from settings pages", s.Key)
+			}
+			continue
+		}
 		if seen[s.Key] != 1 {
 			t.Errorf("%s appears %d times in x-layout, want 1", s.Key, seen[s.Key])
 		}

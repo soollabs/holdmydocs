@@ -104,13 +104,65 @@
     "description": "Primary button that saves the system configuration form.",
     "other": "Save system config"
   },
-  "admin.users.bootstrap_link": {
-    "description": "Link text inside admin.users.bootstrap_note.",
-    "other": "here"
+  "web.settings.panel.password": {
+    "description": "Account password settings panel title and navigation link.",
+    "other": "Password"
   },
-  "admin.users.bootstrap_note": {
-    "description": "Note above the user list. Link is a link to the server settings, worded by admin.users.bootstrap_link.",
-    "other": "Admin created during bootstrap is managed {{.Link}}."
+  "settings.password.current": {
+    "description": "Current password field label.",
+    "other": "Current password"
+  },
+  "settings.password.new": {
+    "description": "New password field label for changes and administrator resets.",
+    "other": "New password"
+  },
+  "settings.password.confirm": {
+    "description": "Password confirmation field label.",
+    "other": "Confirm new password"
+  },
+  "settings.password.change": {
+    "description": "Button to change the signed-in user's password.",
+    "other": "Change password"
+  },
+  "settings.password.sessions": {
+    "description": "Explains session handling after changing a password.",
+    "other": "Your other browser sessions will be signed out."
+  },
+  "settings.password.sso": {
+    "description": "Shown when an SSO user visits the password settings URL directly.",
+    "other": "Your password is managed by your identity provider."
+  },
+  "js.settings.password_mismatch": {
+    "description": "Password confirmation validation error.",
+    "other": "The new passwords do not match."
+  },
+  "admin.users.password": {
+    "description": "User sign-in type label.",
+    "other": "password"
+  },
+  "admin.users.sso": {
+    "description": "User sign-in type label.",
+    "other": "single sign-on"
+  },
+  "admin.users.reset_password": {
+    "description": "Administrator password reset disclosure and submit button.",
+    "other": "Reset password"
+  },
+  "admin.users.delete_confirm": {
+    "description": "User deletion confirmation. Name is the username.",
+    "other": "Delete {{.Name}}? Their sessions, access tokens and connected applications will be revoked."
+  },
+  "admin.users.delete_sso_confirm": {
+    "description": "SSO user deletion confirmation. Name is the username.",
+    "other": "Delete {{.Name}}? Their sessions, access tokens and connected applications will be revoked. They are created again on their next single sign-on if OIDC admission still allows them."
+  },
+  "base.bootstrap.heading": {
+    "description": "Administrator warning banner heading.",
+    "other": "Bootstrap credentials still set"
+  },
+  "base.bootstrap.message": {
+    "description": "Administrator warning. Names lists bootstrap environment variable names as code; Link opens user management.",
+    "other": "{{.Names}} only create the first user and are ignored now. Remove them from the environment; manage accounts under {{.Link}}."
   },
   "admin.users.create": {
     "description": "Button that creates a new user.",
@@ -129,8 +181,8 @@
     "other": "scopes"
   },
   "admin.users.scopes_note": {
-    "description": "Note under the scope checkboxes explaining that no checked scope means full access.",
-    "other": "Leave every scope unchecked for full access."
+    "description": "Note under the scope checkboxes explaining the required scope selection.",
+    "other": "Choose at least one scope. Admin includes read and write access."
   },
   "admin.users.username_placeholder": {
     "description": "Placeholder text in the new user name input.",

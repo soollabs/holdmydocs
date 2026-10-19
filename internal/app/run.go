@@ -52,6 +52,7 @@ func Run() {
 	exportBots := flag.String("export-robots-allow", "", "comma-separated allowed bot names; all other bots are blocked")
 	exportLinks := flag.String("export-links", "", "JSON array of external links with label, url, optional Font Awesome icon, location (sidebar/topbar) and icon_only")
 	healthcheck := flag.Bool("healthcheck", false, "check local readiness and exit")
+	resetAdmin := flag.String("reset-admin", "", "set a user's password and give it every scope, creating it if needed; the server must be stopped")
 	provisionOAuthClient := flag.Bool("oauth-client-add", false, "provision a pre-registered MCP OAuth client and exit")
 	disableOAuthClient := flag.Bool("oauth-client-disable", false, "permanently disable an OAuth client and revoke its grants")
 	oauthClientName := flag.String("oauth-client-name", "", "display name for the OAuth client")
@@ -73,6 +74,13 @@ func Run() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Loading config: %v", err)
+	}
+	if *resetAdmin != "" {
+		if err := ResetAdmin(cfg, *resetAdmin, os.Stdin, os.Stderr); err != nil {
+			log.Fatal(err)
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "%s can now sign in with the new password and has every scope.\n", *resetAdmin)
+		return
 	}
 	if *provisionOAuthClient && *disableOAuthClient {
 		log.Fatal("-oauth-client-add and -oauth-client-disable cannot be used together")
@@ -129,6 +137,11 @@ func Run() {
 	var gate startupGate
 	var server *http.Server
 	if *exportNS == "" {
+		unlock, err := auth.LockAppDir(cfg.AppDir)
+		if err != nil {
+			log.Fatal("users.json is locked: another HMD server is using this app directory")
+		}
+		defer func() { _ = unlock() }()
 		starting, err := web.StartupHandler()
 		if err != nil {
 			log.Fatal(err)
@@ -282,6 +295,9 @@ func Run() {
 	apiClient := api.New(content, index, authn)
 	if oauthService != nil {
 		apiClient.SetOAuthUploadAuthorizer(oauthService)
+		apiClient.SetOAuthUserRevoker(oauthService)
+	} else {
+		apiClient.SetOAuthUserRevoker(oauthserver.NewStoredUserRevoker(cfg.AppDir))
 	}
 	application := &web.App{API: apiClient, Auth: authn, Render: renderer, Tmpl: templates, OAuth: oauthService}
 	application.SetConfig(cfg)

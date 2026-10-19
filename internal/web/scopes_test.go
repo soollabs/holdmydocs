@@ -51,6 +51,9 @@ func TestSetScopesRejectsUnknown(t *testing.T) {
 	if err := authn.SetScopes("bob", []string{"bogus"}); err == nil {
 		t.Error("expected error for unknown scope")
 	}
+	if err := authn.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
+	}
 	if err := authn.SetScopes("bob", []string{"read"}); err != nil {
 		t.Fatalf("SetScopes: %v", err)
 	}
@@ -407,8 +410,8 @@ func TestCreateUserViaSettings(t *testing.T) {
 	}
 }
 
-// TestSetUserScopesBootstrapAdminImmutable preserves bootstrap admin access.
-func TestSetUserScopesBootstrapAdminImmutable(t *testing.T) {
+// TestSetUserScopesBootstrapAdminSelfProtection preserves the caller's own access.
+func TestSetUserScopesBootstrapAdminSelfProtection(t *testing.T) {
 	app, server, client := newTestAppFull(t)
 	defer server.Close()
 

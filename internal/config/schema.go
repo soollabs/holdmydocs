@@ -38,6 +38,7 @@ type Setting struct {
 	Group       string            // title of the enclosing object, e.g. "OIDC single sign-on"
 	Env         string            // environment variable that overrides the key; empty when none
 	EnvOnly     bool              // read from the environment only, never from config.yaml
+	NotOnPage   bool              // retained in the schema and reference, but absent from settings pages
 	Secret      bool              // never shown back; reported only as set or not set
 	Type        string            // JSON Schema type
 	Default     string            // default as text; empty when the schema declares none
@@ -70,25 +71,26 @@ type schemaOption struct {
 }
 
 type schemaNode struct {
-	Type        string         `json:"type"`
-	Title       string         `json:"title"`
-	Default     any            `json:"default"`
-	Enum        []string       `json:"enum"`
-	OneOf       []schemaOption `json:"oneOf"`
-	Description string         `json:"description"`
-	Examples    []any          `json:"examples"`
-	Properties  orderedProps   `json:"properties"`
-	Restart     bool           `json:"x-restart"`
-	EnvOnly     bool           `json:"x-env-only"`
-	Env         string         `json:"x-env"`
-	Secret      bool           `json:"x-secret"`
-	Pattern     string         `json:"pattern"`
-	Minimum     *int64         `json:"minimum"`
-	Maximum     *int64         `json:"maximum"`
-	MaxLength   *int           `json:"maxLength"`
-	Format      string         `json:"format"`
-	Schemes     []string       `json:"x-schemes"`
-	Items       *schemaNode    `json:"items"`
+	Type         string         `json:"type"`
+	Title        string         `json:"title"`
+	Default      any            `json:"default"`
+	Enum         []string       `json:"enum"`
+	OneOf        []schemaOption `json:"oneOf"`
+	Description  string         `json:"description"`
+	Examples     []any          `json:"examples"`
+	Properties   orderedProps   `json:"properties"`
+	Restart      bool           `json:"x-restart"`
+	EnvOnly      bool           `json:"x-env-only"`
+	SettingsPage *bool          `json:"x-settings-page"`
+	Env          string         `json:"x-env"`
+	Secret       bool           `json:"x-secret"`
+	Pattern      string         `json:"pattern"`
+	Minimum      *int64         `json:"minimum"`
+	Maximum      *int64         `json:"maximum"`
+	MaxLength    *int           `json:"maxLength"`
+	Format       string         `json:"format"`
+	Schemes      []string       `json:"x-schemes"`
+	Items        *schemaNode    `json:"items"`
 }
 
 // orderedProps keeps properties in schema order, which a Go map would lose;
@@ -250,6 +252,7 @@ func flattenSettings(store, prefix, group string, props orderedProps, idx *setti
 			Enum:        node.Enum,
 			Restart:     node.Restart,
 			EnvOnly:     node.EnvOnly,
+			NotOnPage:   node.SettingsPage != nil && !*node.SettingsPage,
 			Secret:      node.Secret,
 			Description: node.Description,
 			Rules:       rules,
@@ -296,6 +299,9 @@ func buildLayout(file schemaFile, idx *settingsIndex) ([]LayoutSection, error) {
 		section := LayoutSection{Key: strings.ReplaceAll(name, "_", "-"), Title: node.Title}
 		section.Groups = append(section.Groups, LayoutGroup{})
 		for _, key := range idx.objects[name] {
+			if idx.byKey[key].NotOnPage {
+				continue
+			}
 			title := idx.byKey[key].Group
 			if title == node.Title {
 				section.Groups[0].Rows = append(section.Groups[0].Rows, key)

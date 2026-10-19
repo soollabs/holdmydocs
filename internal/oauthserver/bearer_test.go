@@ -61,6 +61,9 @@ func TestOAuthBearerVerifierRechecksGrantAndCurrentPolicy(t *testing.T) {
 		t.Fatal("OAuth token was accepted outside MCP")
 	}
 
+	if err := authn.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
+	}
 	if err := authn.SetScopes("alice", []string{"write"}); err != nil {
 		t.Fatal(err)
 	}

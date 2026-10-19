@@ -40,20 +40,33 @@
 		<legend>{{t "admin.legend.users"}}</legend>
 		{{if .Settings.UserError}}{{$userError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $userError}}{{.Settings.UserError}}{{template "ui-notice-end" $userError}}{{end}}
 
-		<p class="settings-note">{{tl "admin.users.bootstrap_note" "Link" (link "/_/settings/server#server.admin" (t "admin.users.bootstrap_link"))}}</p>
-
 		{{range .Settings.Users}}
 		{{$u := .}}
-		{{if ne $u.Name (index $.Settings.Fields "server.admin.user").Value}}
 		<form method="POST" action="/_/api/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="name" value="{{$u.Name}}">
-			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} {{t "admin.users.you"}}{{end}}</label>
+			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} {{t "admin.users.you"}}{{end}} <small>{{if $u.SSO}}{{t "admin.users.sso"}}{{else}}{{t "admin.users.password"}}{{end}}</small></label>
 			<span class="scope-checks">
 				{{range $.Settings.AllScopes}}
 				{{$choiceSlot2 := component "choice" "id" "admin-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>{{template "ui-choice-end" $choiceSlot2}}
 				{{end}}
 			</span>
 			{{template "ui-button" (button (t "common.save") "secondary" "type" "submit")}}
+		</form>
+		{{if $u.Password}}
+		<details>
+			<summary>{{t "admin.users.reset_password"}}</summary>
+			<form method="POST" action="/_/api/settings/users/password" class="settings-form">{{template "csrf" $}}{{template "json-required" $}}
+				<input type="hidden" name="name" value="{{$u.Name}}">
+				{{$reset := component "field" "id" (printf "reset-password-%s" $u.Name) "label" (t "settings.password.new") "layout" "stacked"}}{{template "ui-field-start" $reset}}<input id="reset-password-{{$u.Name}}" type="password" name="password" autocomplete="new-password" required>{{template "ui-field-end" $reset}}
+				<div class="settings-actions">{{template "ui-button" (button (t "admin.users.reset_password") "secondary" "type" "submit")}}</div>
+			</form>
+		</details>
+		{{end}}
+		{{if ne $u.Name $.Settings.CurrentUser}}
+		<form method="POST" action="/_/api/settings/users/delete" class="settings-form">{{template "csrf" $}}{{template "json-required" $}}
+			<input type="hidden" name="name" value="{{$u.Name}}">
+			{{$confirm := t "admin.users.delete_confirm" "Name" $u.Name}}{{if $u.SSO}}{{$confirm = t "admin.users.delete_sso_confirm" "Name" $u.Name}}{{end}}
+			{{template "ui-button" (button (t "common.delete") "danger" "type" "submit" "size" "compact" "confirm" $confirm)}}
 		</form>
 		{{end}}
 		{{end}}

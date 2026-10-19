@@ -386,24 +386,20 @@ func (a *API) CreateUser(ctx context.Context, name, password string, scopes []st
 	return nil
 }
 
-// SetUserScopes replaces a user's scopes, guarding the bootstrap admin and the
-// caller's own admin access.
+// SetUserScopes replaces a user's scopes, keeping the caller's own admin access.
 func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) error {
 	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
-	if name == a.Config().AdminUser {
-		return InvalidInput("the bootstrap admin user always has full access", nil)
-	}
 	username, _ := Username(ctx)
 	if name == username {
-		hasSettings := len(scopes) == 0
+		hasAdmin := false
 		for _, s := range scopes {
 			if s == string(auth.ScopeAdmin) {
-				hasSettings = true
+				hasAdmin = true
 			}
 		}
-		if !hasSettings {
+		if !hasAdmin {
 			return InvalidInput("cannot remove your own admin access", nil)
 		}
 	}

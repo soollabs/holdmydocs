@@ -158,6 +158,9 @@ func newOAuthServiceFixture(t *testing.T) (*Service, *Store, *auth.Auth, string,
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := authn.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
+	}
 	if err := authn.SetScopes("alice", []string{"read", "write"}); err != nil {
 		t.Fatal(err)
 	}

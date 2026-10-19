@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="content-col">
 {{template "settings-breadcrumb" .}}
-<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "git-author"}}{{t "settings.title.git_author"}}{{else if eq .SettingsPanel "access-tokens"}}{{t "settings.title.access_tokens"}}{{else}}{{t "settings.title.appearance"}}{{end}}</h1>
+<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "password"}}{{t "web.settings.panel.password"}}{{else if eq .SettingsPanel "git-author"}}{{t "settings.title.git_author"}}{{else if eq .SettingsPanel "access-tokens"}}{{t "settings.title.access_tokens"}}{{else}}{{t "settings.title.appearance"}}{{end}}</h1>
 
 {{if .Settings}}
 	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
@@ -93,6 +93,19 @@
 				{{template "ui-button" (button (t "settings.git_author.save") "primary" "type" "submit")}}
 			</div>
 		</form>
+	</fieldset>
+
+	<fieldset class="settings-section settings-panel" data-panel="password"{{if ne .SettingsPanel "password"}} hidden{{end}}>
+		<legend>{{t "web.settings.panel.password"}}</legend>
+		{{if .Settings.UsesPassword}}
+		<form method="POST" action="/_/api/settings/password" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
+			<div class="settings-row">{{$current := component "field" "id" "current-password" "label" (t "settings.password.current") "layout" "bare"}}{{template "ui-field-start" $current}}<input id="current-password" type="password" name="current" autocomplete="current-password" required>{{template "ui-field-end" $current}}</div>
+			<div class="settings-row">{{$next := component "field" "id" "next-password" "label" (t "settings.password.new") "layout" "bare"}}{{template "ui-field-start" $next}}<input id="next-password" type="password" name="password" autocomplete="new-password" required>{{template "ui-field-end" $next}}</div>
+			<div class="settings-row">{{$confirm := component "field" "id" "confirm-password" "label" (t "settings.password.confirm") "layout" "bare"}}{{template "ui-field-start" $confirm}}<input id="confirm-password" type="password" name="confirm" autocomplete="new-password" required>{{template "ui-field-end" $confirm}}</div>
+			<p class="settings-note">{{t "settings.password.sessions"}}</p>
+			<div class="settings-actions">{{template "ui-button" (button (t "settings.password.change") "primary" "type" "submit")}}</div>
+		</form>
+		{{else}}<p class="settings-note">{{t "settings.password.sso"}}</p>{{end}}
 	</fieldset>
 
 	<fieldset class="settings-section settings-panel" data-panel="access-tokens"{{if ne .SettingsPanel "access-tokens"}} hidden{{end}}>
