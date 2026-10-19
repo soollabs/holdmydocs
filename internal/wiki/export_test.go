@@ -73,3 +73,14 @@ func TestExportNamespaceYAMLRoundTrip(t *testing.T) {
 		t.Fatal("sitemap should default to enabled")
 	}
 }
+
+func TestNamespacePreviewImageValidation(t *testing.T) {
+	for _, image := range []string{"hero.png", "/hero.png", "index/hero.gif", "index/hero.svg", "index/.hero.png", "../x/hero.png", "index/a\\hero.png"} {
+		if _, err := NormaliseNamespaceConfigBase("docs", NamespaceConfig{Image: image}); err == nil {
+			t.Errorf("accepted link preview image %q", image)
+		}
+	}
+	if c, err := NormaliseNamespaceConfigBase("docs", NamespaceConfig{Image: " guides/setup/shot.JPEG "}); err != nil || c.Image != "guides/setup/shot.JPEG" {
+		t.Errorf("link preview image = %q, %v", c.Image, err)
+	}
+}

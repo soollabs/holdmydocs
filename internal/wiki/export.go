@@ -3,6 +3,7 @@ package wiki
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -88,6 +89,27 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 		c.Links[i] = link
 	}
 	return c, nil
+}
+
+// SplitPreviewImage splits a link preview image reference into the owning page,
+// relative to the namespace, and the attachment filename.
+func SplitPreviewImage(ref string) (page, filename string, ok bool) {
+	i := strings.LastIndexByte(ref, '/')
+	if i < 1 {
+		return "", "", false
+	}
+	page, filename = ref[:i], ref[i+1:]
+	return page, filename, ValidPagePath(page) && !strings.ContainsAny(filename, `\`) && !strings.HasPrefix(filename, ".") && PreviewImageFile(filename)
+}
+
+// PreviewImageFile reports whether a filename is a format every link preview
+// service accepts.
+func PreviewImageFile(filename string) bool {
+	switch strings.ToLower(path.Ext(filename)) {
+	case ".png", ".jpg", ".jpeg":
+		return true
+	}
+	return false
 }
 
 func (c ExportConfig) SitemapEnabled() bool { return c.Sitemap == nil || *c.Sitemap }

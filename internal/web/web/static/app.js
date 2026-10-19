@@ -1748,6 +1748,7 @@
       base_hash: fieldValue(form, 'basehash'),
       title: fieldValue(form, 'title'),
       description: fieldValue(form, 'description'),
+      image: fieldValue(form, 'image'),
       index: fieldValue(form, 'index'),
       tree: csvList(fieldValue(form, 'tree')),
       public: fieldOn(form, 'public'),

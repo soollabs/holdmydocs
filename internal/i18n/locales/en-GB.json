@@ -1582,6 +1582,30 @@
     "description": "Page heading when creating a new namespace.",
     "other": "new namespace"
   },
+  "namespace_edit.image_label": {
+    "description": "Label of the link preview image select in the static site settings.",
+    "other": "link preview image"
+  },
+  "namespace_edit.image_missing": {
+    "description": "Warning when the configured link preview image no longer exists. {{.Ref}} is its page/filename.",
+    "other": "The link preview image {{.Ref}} no longer exists. The static export fails until you choose another image or none."
+  },
+  "namespace_edit.image_missing_option": {
+    "description": "Option for a configured link preview image that no longer exists. {{.Ref}} is its page/filename.",
+    "other": "{{.Ref}} (missing)"
+  },
+  "namespace_edit.image_none": {
+    "description": "Option of the link preview image select that sets no default image.",
+    "other": "none"
+  },
+  "namespace_edit.image_note": {
+    "description": "Note below the link preview image select.",
+    "other": "Shown when a page is shared in a chat app or social network, on public pages and in the static site. Pages with an image of their own use that instead. Lists the PNG and JPEG attachments in this namespace."
+  },
+  "namespace_edit.image_preview_alt": {
+    "description": "Alt text of the thumbnail of the chosen link preview image.",
+    "other": "chosen link preview image"
+  },
   "namespace_edit.index_label": {
     "description": "Label of the index page input.",
     "other": "index page"
@@ -1809,6 +1833,14 @@
   "namespace_edit.slug_preset_label": {
     "description": "Label of the slug preset select.",
     "other": "slug preset"
+  },
+  "namespace_edit.static_site_note": {
+    "description": "Note at the top of the static site settings. {{.Published}} is a link worded by namespace_edit.static_site_note_link.",
+    "other": "The static site uses the title, skin, palette and link preview image from {{.Published}}."
+  },
+  "namespace_edit.static_site_note_link": {
+    "description": "Link text to the published view settings, inside namespace_edit.static_site_note.",
+    "other": "published view"
   },
   "namespace_edit.template_label": {
     "description": "Label of the template page input.",
@@ -2568,6 +2600,18 @@
   "web.export.title_preview": {
     "description": "Page title of the static site preview options page.",
     "other": "Preview static site"
+  },
+  "web.namespace_edit.image_option": {
+    "description": "Option of the link preview image select. {{.Ref}} is page/filename, {{.Width}} and {{.Height}} pixels, {{.Size}} kilobytes.",
+    "other": "{{.Ref}}, {{.Width}}×{{.Height}}, {{.Size}} KB"
+  },
+  "web.namespace_edit.image_too_large": {
+    "description": "Appended to a link preview image option over about 300 KB.",
+    "other": "(too large for WhatsApp)"
+  },
+  "web.namespace_edit.image_too_small": {
+    "description": "Appended to a link preview image option narrower than 200 pixels.",
+    "other": "(too small for a large preview)"
   },
   "web.oauth.connect_title": {
     "description": "Page title of the consent page where a person approves an MCP application connection.",

@@ -50,6 +50,7 @@ type NamespaceConfig struct {
 	Skin        string         `yaml:"skin,omitempty"`    // structural skin shown to anonymous/public viewers; empty = default skin
 	Palette     string         `yaml:"palette,omitempty"` // colour preset shown to anonymous/public viewers; empty = skin's own default
 	New         *NewPageConfig `yaml:"new,omitempty"`
+	Image       string         `yaml:"image,omitempty" json:"image,omitempty"` // link preview fallback: "<page>/<filename>" of a namespace attachment
 	Export      ExportConfig   `yaml:"export,omitempty" json:"export"`
 
 	// Index names a page in this namespace (one segment), e.g.
@@ -170,6 +171,12 @@ func NormaliseNamespaceConfigBase(name string, cfg NamespaceConfig) (NamespaceCo
 	cfg.Palette = strings.TrimSpace(cfg.Palette)
 	if cfg.Palette != "" && !presentation.ValidPalette(cfg.Palette) {
 		return NamespaceConfig{}, fmt.Errorf("unknown palette %q", cfg.Palette)
+	}
+	cfg.Image = strings.TrimSpace(cfg.Image)
+	if cfg.Image != "" {
+		if _, _, ok := SplitPreviewImage(cfg.Image); !ok {
+			return NamespaceConfig{}, fmt.Errorf("link preview image must name a PNG or JPEG attachment as page/filename, e.g. index/hero.png")
+		}
 	}
 	var err error
 	cfg.Export, err = NormaliseExportConfig(cfg.Export, false)

@@ -84,6 +84,15 @@ func Namespace(request NamespaceRequest, renderer NamespaceRenderer) error {
 			return fmt.Errorf("namespace index %q does not exist", request.Config.Index)
 		}
 	}
+	if image := request.Config.Image; image != "" {
+		page, filename, _ := wiki.SplitPreviewImage(image)
+		if request.Store == nil {
+			return fmt.Errorf("link preview image %q needs the attachment store", image)
+		}
+		if _, ok := request.Store.FindAttachment(wiki.NamespaceSlug(request.Namespace, page), filename); !ok {
+			return fmt.Errorf("link preview image %q not found in namespace %q", image, request.Namespace)
+		}
+	}
 	if err := os.MkdirAll(request.OutDir, 0o755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
 	}

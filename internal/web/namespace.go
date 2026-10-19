@@ -162,6 +162,7 @@ type NamespaceListEntry struct {
 	Public      bool
 	Title       string   // published-site title; falls back to Name if empty
 	Description string   // brief namespace summary
+	Image       string   // link preview fallback, page/filename of a namespace attachment
 	Skin        string   // structural skin shown to public viewers; empty = default
 	Palette     string   // colour preset shown to public viewers; empty = skin's own default
 	Configured  bool     // has a .namespace.yaml, so there is something to remove
@@ -196,6 +197,7 @@ func namespaceListEntries(r wiki.NamespaceRegistry, user string) []NamespaceList
 			Public:      cfg.Public,
 			Title:       cfg.Title,
 			Description: cfg.Description,
+			Image:       cfg.Image,
 			Skin:        cfg.Skin,
 			Palette:     cfg.Palette,
 			Configured:  cfg.Configured,

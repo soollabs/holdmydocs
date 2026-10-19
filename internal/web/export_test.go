@@ -30,7 +30,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		t.Fatal(err)
 	}
 	outDir := t.TempDir()
-	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
+	reg := wiki.NamespaceRegistry{"docs": {Index: "home", Tree: []string{"reference", "guides"}, Title: "Documentation", Description: "Guides & reference", Skin: "newsprint", Palette: "dracula", Widgets: []string{"outline"}}}
 	cfg := reg["docs"]
 	cfg.Export = wiki.ExportConfig{BaseURL: "https://docs.example.org/manual/", RobotsAllow: []string{"Googlebot", "CustomBot"}, Links: []wiki.ExportLink{{Label: "Source & issues", URL: "https://github.com/soollabs/holdmydocs", Icon: "fa-brands fa-github"}}}
 	reg["docs"] = cfg
@@ -62,6 +62,7 @@ func TestExportNamespaceUsesPublicView(t *testing.T) {
 		`src="../../toc.js"`,
 		`src="../../attachments/logo.svg"`,
 		`<title>Guide — Documentation</title>`,
+		`<meta name="description" content="Guides &amp; reference">`,
 		`class="topbar-site">Documentation</a>`,
 		`href="../../export.css"`,
 		`src="../../search-index.js"`,

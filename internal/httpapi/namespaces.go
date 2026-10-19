@@ -21,6 +21,7 @@ type namespaceSaveInput struct {
 	BaseHash    string            `json:"base_hash"`
 	Title       string            `json:"title"`
 	Description string            `json:"description"`
+	Image       string            `json:"image"`
 	Index       string            `json:"index"`
 	Tree        []string          `json:"tree"`
 	Public      bool              `json:"public"`
@@ -52,6 +53,7 @@ type namespaceConflictConfig struct {
 	Public      bool                  `json:"public"`
 	Title       string                `json:"title,omitempty"`
 	Description string                `json:"description,omitempty"`
+	Image       string                `json:"image,omitempty"`
 	Skin        string                `json:"skin,omitempty"`
 	Palette     string                `json:"palette,omitempty"`
 	Index       string                `json:"index,omitempty"`
@@ -102,6 +104,7 @@ func (h *Handlers) saveNamespace(w http.ResponseWriter, r *http.Request) {
 		Public:      in.Public,
 		Title:       in.Title,
 		Description: in.Description,
+		Image:       in.Image,
 		Skin:        in.Skin,
 		Palette:     in.Palette,
 		Index:       in.Index,
@@ -167,6 +170,7 @@ func (h *Handlers) writeNamespaceConflict(w http.ResponseWriter, r *http.Request
 			Public:      detail.Config.Public,
 			Title:       detail.Config.Title,
 			Description: detail.Config.Description,
+			Image:       detail.Config.Image,
 			Skin:        detail.Config.Skin,
 			Palette:     detail.Config.Palette,
 			Index:       detail.Config.Index,

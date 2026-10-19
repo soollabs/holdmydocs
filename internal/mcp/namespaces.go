@@ -34,6 +34,7 @@ type mcpNamespaceOut struct {
 	Public      bool                `json:"public"`
 	Title       string              `json:"title,omitempty"`
 	Description string              `json:"description,omitempty"`
+	Image       string              `json:"image,omitempty"`
 	Skin        string              `json:"skin,omitempty"`
 	Palette     string              `json:"palette,omitempty"`
 	Index       string              `json:"index,omitempty"`
@@ -49,6 +50,7 @@ type mcpSaveNamespaceIn struct {
 	Public      bool                `json:"public" jsonschema:"whether anonymous users can read the namespace; preserve from read_namespace when updating"`
 	Title       string              `json:"title,omitempty" jsonschema:"human-readable namespace title; preserve from read_namespace when updating"`
 	Description string              `json:"description,omitempty" jsonschema:"brief namespace description, maximum 255 characters; preserve from read_namespace when updating"`
+	Image       string              `json:"image,omitempty" jsonschema:"link preview image for pages without their own, as page/filename of a PNG or JPEG attachment in this namespace, e.g. index/hero.png; preserve from read_namespace when updating"`
 	Skin        string              `json:"skin,omitempty" jsonschema:"presentation skin name; preserve from read_namespace when updating"`
 	Palette     string              `json:"palette,omitempty" jsonschema:"colour palette name; preserve from read_namespace when updating"`
 	Index       string              `json:"index,omitempty" jsonschema:"one-segment page name used as the namespace index; preserve from read_namespace when updating"`
@@ -60,7 +62,7 @@ type mcpSaveNamespaceIn struct {
 func mcpNamespaceOutput(name string, cfg wiki.NamespaceConfig, hash string) mcpNamespaceOut {
 	return mcpNamespaceOut{
 		Export: cfg.Export,
-		Name:   name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description,
+		Name:   name, Widgets: cfg.Widgets, Public: cfg.Public, Title: cfg.Title, Description: cfg.Description, Image: cfg.Image,
 		Skin: cfg.Skin, Palette: cfg.Palette, Index: cfg.Index, Tree: cfg.Tree, New: cfg.New, Hash: hash,
 	}
 }
@@ -100,7 +102,7 @@ func (s *Server) registerNamespaces(server *sdk.Server) {
 
 	sdk.AddTool(server, &sdk.Tool{
 		Name: "save_namespace",
-		Description: "Create or replace namespace settings (each save is a git commit). Arguments: name (required string), public (required boolean), widgets (optional complete string array), title, description, skin, palette and index (optional strings), tree (optional complete string array), new (optional object with template and slug naming-pattern strings), export (optional object with base_url, sitemap, robots_allow and links), and basehash (required for updates; omit only on create). " +
+		Description: "Create or replace namespace settings (each save is a git commit). Arguments: name (required string), public (required boolean), widgets (optional complete string array), title, description, image, skin, palette and index (optional strings), tree (optional complete string array), new (optional object with template and slug naming-pattern strings), export (optional object with base_url, sitemap, robots_allow and links), and basehash (required for updates; omit only on create). " +
 			"Requires settings access. For updates, first call read_namespace and preserve every setting you do not intend to change; omitted optional fields are reset. Allowed widgets: pages, namespaces, pinned, tags, log, health, calendar, writing-stats, page-meta, backlinks, prev-entries. Allowed skins: phosphor, newsprint, journal, soft, bare. Allowed palettes: phosphor, catppuccin, dracula, everforest, gruvbox, monokai, nord, one dark, rosé pine, solarized, tokyo night. Index must be a one-segment page name. On conflict re-read and retry. Creating or updating settings does not delete or change pages.",
 	}, func(ctx context.Context, req *sdk.CallToolRequest, in mcpSaveNamespaceIn) (*sdk.CallToolResult, mcpNamespaceOut, error) {
 		if err := s.requireScope(ctx, api.ScopeSettings); err != nil {
@@ -114,7 +116,7 @@ func (s *Server) registerNamespaces(server *sdk.Server) {
 		}
 		cfg := wiki.NamespaceConfig{
 			Export:  in.Export,
-			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Skin: in.Skin,
+			Widgets: in.Widgets, Public: in.Public, Title: in.Title, Description: in.Description, Image: in.Image, Skin: in.Skin,
 			Palette: in.Palette, Index: in.Index, Tree: in.Tree, New: in.New,
 		}
 		detail, err := s.api.SaveNamespace(ctx, api.SaveNamespaceInput{

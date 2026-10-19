@@ -97,6 +97,8 @@ type TemplateData struct {
 	Static                  bool
 	Authed                  bool
 	Title                   string
+	Description             string       // meta description on public and exported pages
+	Preview                 *linkPreview // Open Graph tags; nil where the public URL is unknown
 	Slug                    string
 	Content                 template.HTML
 	Body                    string
