@@ -16,7 +16,7 @@ import (
 )
 
 // ownSettingsPages are the settings pages every signed-in user may open.
-var ownSettingsPages = []string{"/_/settings", "/_/settings/appearance", "/_/settings/git-author", "/_/settings/access-tokens"}
+var ownSettingsPages = []string{"/_/settings", "/_/settings/appearance", "/_/settings/git-author", "/_/settings/password", "/_/settings/access-tokens"}
 
 // signIn adds a user with the given scopes and returns a client holding their
 // session.
@@ -202,7 +202,7 @@ func TestOwnSettingsViewOnlyWhenReadOnly(t *testing.T) {
 		if status != http.StatusOK {
 			t.Errorf("GET %s = %d, want 200", path, status)
 		}
-		viewOnly := path == "/_/settings/git-author" || path == "/_/settings/access-tokens"
+		viewOnly := path == "/_/settings/git-author" || path == "/_/settings/access-tokens" || path == "/_/settings/password"
 		if got := strings.Contains(body, `<fieldset class="settings-view-only" disabled>`); got != viewOnly {
 			t.Errorf("GET %s view-only = %v, want %v", path, got, viewOnly)
 		}
@@ -233,9 +233,10 @@ func (forcedConditions) PendingRestart() []config.Setting {
 	}
 	panic("no restart-only setting")
 }
-func (forcedConditions) LegacyAttachments() bool { return true }
-func (forcedConditions) HelpDrifted() bool       { return true }
-func (forcedConditions) IndexFailures() int      { return 2 }
+func (forcedConditions) LegacyAttachments() bool   { return true }
+func (forcedConditions) HelpDrifted() bool         { return true }
+func (forcedConditions) BootstrapEnvSet() []string { return nil }
+func (forcedConditions) IndexFailures() int        { return 2 }
 func (forcedConditions) SyncState() (string, string, int64) {
 	return "failed", "push to origin failed", 0
 }

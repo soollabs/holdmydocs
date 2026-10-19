@@ -497,6 +497,9 @@ func TestTokenInputValidation(t *testing.T) {
 		t.Fatalf("normalised token metadata = %#v", got)
 	}
 
+	if err := auth.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
+	}
 	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
 		t.Fatal(err)
 	}
@@ -531,6 +534,9 @@ func TestAuthInputAndSessionControls(t *testing.T) {
 	if _, ok := auth.LoginLimited("127.0.0.1:1", "alice", "wrongpassword"); ok {
 		t.Error("throttled login succeeded")
 	}
+	if err := auth.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
+	}
 	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
 		t.Fatal(err)
 	}
@@ -545,6 +551,9 @@ func TestTokenScopeIntersectionAndSettingsBypass(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := auth.AddUser("reader", "password12345"); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.SetScopes("reader", []string{"read", "write"}); err != nil {
@@ -604,6 +613,9 @@ func TestBearerScopesUseCurrentUserScopes(t *testing.T) {
 	}
 	if response := request(); response.Code != http.StatusNoContent {
 		t.Fatalf("initial Bearer request = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if err := auth.AddUser("recovery-admin", "a-unique-long-test-password"); err != nil {
+		t.Fatal(err)
 	}
 	if err := auth.SetScopes("alice", []string{"read"}); err != nil {
 		t.Fatal(err)

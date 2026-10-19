@@ -138,7 +138,8 @@
             "user": {
               "title": "user",
               "type": "string",
-              "description": "Bootstrap administrator user name, managed from the environment rather than config.yaml.",
+              "description": "Creates the first administrator when users.json does not exist yet; ignored after that. Remove it once the instance is set up.",
+              "x-settings-page": false,
               "x-restart": false,
               "x-env-only": true,
               "x-env": "HMD_ADMIN_USER"
@@ -146,7 +147,8 @@
             "password": {
               "title": "password",
               "type": "string",
-              "description": "Bootstrap administrator password, managed from the environment rather than config.yaml.",
+              "description": "Creates the first administrator when users.json does not exist yet; ignored after that. Remove it once the instance is set up.",
+              "x-settings-page": false,
               "x-restart": false,
               "x-env-only": true,
               "x-secret": true,

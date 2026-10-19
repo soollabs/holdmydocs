@@ -59,6 +59,7 @@ type FieldState struct {
 
 // SettingsData is passed to the settings template.
 type SettingsData struct {
+	UsesPassword    bool
 	Fields          map[string]FieldState
 	ConfigPath      string
 	Flash           string // success message after a save
@@ -239,6 +240,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	// Every user may give a token their own preferences; it sits before admin.
 	sd.TokenScopes = slices.Insert(sd.TokenScopes, min(2, len(sd.TokenScopes)), string(auth.ScopePreferences))
 	sd.CurrentUser = user
+	sd.UsesPassword = app.Auth.UsesPassword(user)
 	for _, summary := range app.apiClient().ListNamespaces(r.Context()) {
 		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
 	}
@@ -293,6 +295,7 @@ type settingsPanel struct {
 var settingsPanels = map[string]settingsPanel{
 	"appearance":      {"web.settings.panel.appearance", "settings"},
 	"git-author":      {"web.settings.panel.git_author", "settings"},
+	"password":        {"web.settings.panel.password", "settings"},
 	"access-tokens":   {"web.settings.panel.access_tokens", "settings"},
 	"server":          {"web.settings.panel.server", "admin"},
 	"git":             {"web.settings.panel.git", "admin"},

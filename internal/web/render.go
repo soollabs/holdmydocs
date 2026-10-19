@@ -44,6 +44,7 @@ type App struct {
 
 // instanceConditions are the instance states the administrator banners report.
 type instanceConditions interface {
+	BootstrapEnvSet() []string
 	PendingRestart() []config.Setting
 	LegacyAttachments() bool
 	HelpDrifted() bool
@@ -204,8 +205,11 @@ type TemplateData struct {
 	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
 	LegacyAttachments       bool             // attachments in the old top-level layout wait to be moved or deleted; admins only
 	HelpDrifted             bool             // .help.md differs from the built-in text; admins only
-	SyncFailed              bool             // the last git sync failed; admins only
-	IndexFailures           int              // pages the search index could not be updated for; admins only
+	BootstrapEnv            []string
+	BootstrapEnvNames       string
+	UsesPassword            bool
+	SyncFailed              bool // the last git sync failed; admins only
+	IndexFailures           int  // pages the search index could not be updated for; admins only
 	CanEdit                 bool
 	NewPageHref             string
 	NamespaceNames          []string // editor path field: namespaces a move may target
@@ -368,6 +372,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		prefs, unsavedAppearance := app.userPrefs(r)
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
 		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeAdmin)
+		data.UsesPassword = app.Auth.UsesPassword(app.currentUser(r))
 		data.CanViewSettings = app.apiClient().CanViewSettings(r.Context())
 		data.CanSaveOwnSettings = app.apiClient().CanChangeOwnSettings(r.Context())
 		switch data.SettingsSection {
@@ -388,6 +393,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		//	pending restart      admin scope               lists saved server settings
 		//	legacy attachments   admin scope               only an administrator can move them
 		//	help drifted         admin scope               only an administrator can reset it
+		//	bootstrap env set    admin scope               only an administrator can change the deployment
 		//	read-only (settings) anyone on a view-only     names the environment variable to administrators only
 		//	                     settings page
 		//	unsaved appearance   anyone who can save       about the user's own browser draft
@@ -407,6 +413,8 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			data.PendingRestartKey = "restart:" + strings.Join(keys, ",")
 			data.LegacyAttachments = conditions.LegacyAttachments()
 			data.HelpDrifted = conditions.HelpDrifted()
+			data.BootstrapEnv = conditions.BootstrapEnvSet()
+			data.BootstrapEnvNames = strings.Join(data.BootstrapEnv, ", ")
 			state, _, _ := conditions.SyncState()
 			data.SyncFailed = state == "failed"
 			data.IndexFailures = conditions.IndexFailures()

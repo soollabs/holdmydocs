@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"hmd/internal/api"
+	"hmd/internal/auth"
 )
 
 // okResult is the JSON body of a mutation that has nothing else to report.
@@ -247,6 +248,9 @@ func (h *Handlers) completeSetup(ctx context.Context, in setupInput) (okResult, 
 
 // registerSettings mounts the settings, admin and setup mutation endpoints.
 func (h *Handlers) registerSettings(mux *http.ServeMux) {
+	h.registerJSON(mux, "POST /_/api/settings/users/delete", h.deleteUser)
+	h.registerJSON(mux, "POST /_/api/settings/users/password", h.resetUserPassword)
+	h.registerJSON(mux, "POST /_/api/settings/password", h.changeOwnPassword)
 	h.registerJSON(mux, "POST /_/api/settings/server", h.saveServerSettings)
 	h.registerJSON(mux, "POST /_/api/settings/appearance", h.setAppearance)
 	h.registerJSON(mux, "POST /_/api/settings/author", h.setGitAuthor)
@@ -262,4 +266,33 @@ func (h *Handlers) registerSettings(mux *http.ServeMux) {
 	h.registerJSON(mux, "POST /_/api/settings/tokens", h.createToken)
 	h.registerJSON(mux, "POST /_/api/settings/tokens/revoke", h.revokeToken)
 	h.registerJSON(mux, "POST /_/api/setup", h.completeSetup)
+}
+
+type userPasswordInput struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+type ownPasswordInput struct {
+	Current  string `json:"current"`
+	Password string `json:"password"`
+}
+
+type deleteUserInput struct {
+	Name string `json:"name"`
+}
+
+func (h *Handlers) deleteUser(ctx context.Context, in deleteUserInput) (okResult, error) {
+	err := h.api.DeleteUser(ctx, in.Name)
+	return okResult{OK: err == nil}, err
+}
+
+func (h *Handlers) resetUserPassword(ctx context.Context, in userPasswordInput) (okResult, error) {
+	err := h.api.ResetUserPassword(ctx, in.Name, in.Password)
+	return okResult{OK: err == nil}, err
+}
+
+func (h *Handlers) changeOwnPassword(ctx context.Context, in ownPasswordInput) (okResult, error) {
+	err := h.api.ChangeOwnPassword(ctx, in.Current, in.Password, auth.SessionFromContext(ctx))
+	return okResult{OK: err == nil}, err
 }

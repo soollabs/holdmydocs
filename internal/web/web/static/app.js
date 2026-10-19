@@ -1593,7 +1593,9 @@
         ? e.submitter.formAction
         : (form.getAttribute('action') || window.location.href);
       clearFormError(form);
-      mutateJSON(url, build(form, e.submitter))
+      const payload = build(form, e.submitter);
+      if (payload === null) return;
+      mutateJSON(url, payload)
         .then(data => { if (onSuccess) onSuccess(data, form, url); else window.location.reload(); })
         .catch(err => {
           if (err.status === 409 && err.detail && err.detail.conflict) {
@@ -1800,6 +1802,21 @@
   $$('form[action="/_/api/settings/users/scopes"]').forEach(form => {
     jsonForm(form, f => ({ name: fieldValue(f, 'name'), scopes: fieldCheckedList(f, 'scopes') }),
       () => { settingsReturn('saved=1'); });
+  });
+  jsonForm($('form[action="/_/api/settings/password"]'), form => {
+    const password = fieldValue(form, 'password');
+    if (password !== fieldValue(form, 'confirm')) {
+      showFormError(form, window.hmdT('js.settings.password_mismatch'));
+      return null;
+    }
+    return { current: fieldValue(form, 'current'), password };
+  }, () => { settingsReturn('saved=1'); });
+  $$('form[action="/_/api/settings/users/password"]').forEach(form => {
+    jsonForm(form, f => ({ name: fieldValue(f, 'name'), password: fieldValue(f, 'password') }),
+      () => { settingsReturn('saved=1'); });
+  });
+  $$('form[action="/_/api/settings/users/delete"]').forEach(form => {
+    jsonForm(form, f => ({ name: fieldValue(f, 'name') }), () => { settingsReturn('saved=1'); });
   });
   jsonForm($('#export-config-form'), () => ({}), () => { settingsReturn('exported=1'); });
   jsonForm($('form[action="/_/api/settings/wiki"]'), form => ({

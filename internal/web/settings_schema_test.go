@@ -30,6 +30,12 @@ func TestEverySettingIsOnASettingsPage(t *testing.T) {
 		}
 	}
 	for _, s := range config.Settings() {
+		if s.NotOnPage {
+			if seen[s.Key] != 0 {
+				t.Errorf("%s must be absent from settings pages", s.Key)
+			}
+			continue
+		}
 		if seen[s.Key] != 1 {
 			t.Errorf("%s appears %d times on the settings pages, want 1", s.Key, seen[s.Key])
 		}
@@ -114,7 +120,7 @@ func TestEverySettingHasInfo(t *testing.T) {
 	}
 	for _, store := range config.Stores {
 		for _, s := range config.StoreSettings(store) {
-			if !seen[store+" "+s.Key] {
+			if !s.NotOnPage && !seen[store+" "+s.Key] {
 				t.Errorf("%s setting %s has no info icon on any settings page", store, s.Key)
 			}
 		}

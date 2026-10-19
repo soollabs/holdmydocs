@@ -68,32 +68,61 @@ func (s *Service) RevokeConnection(user, grantID string) error {
 			return errors.New("connection not found")
 		}
 		now := time.Now().UTC()
-		grant.RevokedAt = now
-		grant.RevokedReason = "disconnected by user"
-		state.Grants[grantID] = grant
-		families := make(map[string]bool)
-		for id, family := range state.Families {
-			if family.GrantID != grantID {
-				continue
-			}
-			family.RevokedAt = now
-			family.RevokedCause = "disconnected by user"
-			state.Families[id] = family
-			families[id] = true
-		}
-		for key, token := range state.Tokens {
-			if token.GrantID != grantID && !families[token.FamilyID] {
-				continue
-			}
-			if len(key) > 2 && key[:2] == "a:" {
-				delete(state.Tokens, key)
-			} else {
-				token.RevokedAt = now
-				state.Tokens[key] = token
-			}
-		}
+		revokeGrantLocked(state, grantID, now, "disconnected by user")
 		return nil
 	})
+}
+
+func revokeGrantLocked(state *oauthState, grantID string, now time.Time, reason string) {
+	grant := state.Grants[grantID]
+	grant.RevokedAt = now
+	grant.RevokedReason = reason
+	state.Grants[grantID] = grant
+	families := make(map[string]bool)
+	for id, family := range state.Families {
+		if family.GrantID != grantID {
+			continue
+		}
+		family.RevokedAt = now
+		family.RevokedCause = reason
+		state.Families[id] = family
+		families[id] = true
+	}
+	for key, token := range state.Tokens {
+		if token.GrantID != grantID && !families[token.FamilyID] {
+			continue
+		}
+		if len(key) > 2 && key[:2] == "a:" {
+			delete(state.Tokens, key)
+		} else {
+			token.RevokedAt = now
+			state.Tokens[key] = token
+		}
+	}
+}
+
+// RevokeUserGrants prevents a later account with the same name inheriting consent.
+func (s *Service) RevokeUserGrants(user string) error {
+	s.pendingMu.Lock()
+	for handle, pending := range s.pending {
+		if pending.user == user {
+			delete(s.pending, handle)
+		}
+	}
+	s.pendingMu.Unlock()
+	return s.store.Update(func(state *oauthState) error {
+		revokeUserGrantsLocked(state, user)
+		return nil
+	})
+}
+
+func revokeUserGrantsLocked(state *oauthState, user string) {
+	now := time.Now().UTC()
+	for id, grant := range state.Grants {
+		if grant.User == user && grant.RevokedAt.IsZero() {
+			revokeGrantLocked(state, id, now, "user deleted")
+		}
+	}
 }
 
 // AuthorizeUpload rechecks an OAuth-derived upload capability against current
