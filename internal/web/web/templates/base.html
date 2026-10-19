@@ -107,7 +107,7 @@
 	<meta name="mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}">{{.ThemeStyle}}</style>{{end}}
+	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}" id="theme-style">{{.ThemeStyle}}</style>{{end}}
 	<script nonce="{{.CSPNonce}}">
 		window.hmdSyncPollMs = {{.SyncPollMs}};
 		window.hmdSyncMode = "{{.SyncMode}}";
@@ -164,11 +164,10 @@
 	<a class="skip-link" href="#main-content">{{t "base.skip_link"}}</a>
 	{{if .Authed}}
 	<header class="app-topbar">
-		{{if .SettingsSection}}{{$backToWiki := button (t "base.topbar.back_to_wiki") "secondary" "hook" "topbar-action topbar-back" "href" "/" "aria-label" (t "base.topbar.back_to_wiki") "title" (t "base.topbar.back_to_wiki")}}{{template "ui-button-start" $backToWiki}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> <span>{{t "base.topbar.wiki"}}</span>{{template "ui-button-end" $backToWiki}}
-		{{else}}{{$sidebarToggle := button (t "base.topbar.toggle_sidebar") "secondary" "size" "icon" "hook" "topbar-icon" "id" "sidebar-toggle" "aria-label" (t "base.topbar.toggle_sidebar") "title" (t "base.topbar.toggle_sidebar")}}{{template "ui-button-start" $sidebarToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $sidebarToggle}}{{end}}
+		{{if not .SettingsSection}}{{$sidebarToggle := button (t "base.topbar.toggle_sidebar") "secondary" "size" "icon" "hook" "topbar-icon" "id" "sidebar-toggle" "aria-label" (t "base.topbar.toggle_sidebar") "title" (t "base.topbar.toggle_sidebar")}}{{template "ui-button-start" $sidebarToggle}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>{{template "ui-button-end" $sidebarToggle}}{{end}}
 		<a href="/" class="topbar-site">{{.SiteName}}</a>
 		<div class="topbar-actions">
-			{{if eq .StatusMode "edit"}}{{template "ui-button" (button (t "common.save") "primary" "hook" "topbar-action topbar-primary" "type" "submit" "form" "edit-form")}}
+			{{if eq .StatusMode "edit"}}{{if not .ReadOnly}}{{template "ui-button" (button (t "common.save") "primary" "hook" "topbar-action topbar-primary" "type" "submit" "form" "edit-form")}}{{end}}
 			{{else if .CanEdit}}{{$editAction := button (t "base.topbar.edit_page") "secondary" "hook" "topbar-action" "href" (printf "%s?do=edit" .PageURL) "aria-label" (t "base.topbar.edit_page") "title" (t "base.topbar.edit_page")}}{{template "ui-button-start" $editAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg> <span>{{t "common.edit"}}</span>{{template "ui-button-end" $editAction}}{{end}}
 			{{if .NewPageHref}}{{$newAction := button (t "base.topbar.new_page") "secondary" "hook" "topbar-action" "href" .NewPageHref "id" "new-page" "aria-label" (t "base.topbar.new_page") "title" (t "base.topbar.new_page")}}{{template "ui-button-start" $newAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M9 15h6"/></svg> <span>{{t "common.new"}}</span>{{template "ui-button-end" $newAction}}{{end}}
 			{{$searchAction := button (t "common.search") "secondary" "size" "icon" "hook" "topbar-icon" "href" "/_/search" "id" "topbar-search" "aria-label" (t "common.search") "title" (t "common.search")}}{{template "ui-button-start" $searchAction}}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>{{template "ui-button-end" $searchAction}}
@@ -221,9 +220,10 @@
 		{{if .PendingRestart}}{{$restartNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true" "banner" .PendingRestartKey}}{{template "ui-notice-start" $restartNotice}}<strong>{{t "base.restart.heading"}}</strong> {{t "base.restart.message"}} {{range $i, $p := .PendingRestart}}{{if $i}}, {{end}}{{if $p.Href}}<a href="{{$p.Href}}">{{$p.Label}}</a>{{else}}{{$p.Label}}{{end}}{{end}}. {{template "ui-button" (button (t "base.restart.shut_down") "secondary" "size" "compact" "id" "restart-open" "aria-haspopup" "dialog")}}{{template "ui-notice-end" $restartNotice}}{{end}}
 		{{if .LegacyAttachments}}{{$attachmentsNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true" "banner" "legacy-attachments"}}{{template "ui-notice-start" $attachmentsNotice}}<strong>{{t "base.legacy_attachments.heading"}}</strong> {{tl "base.legacy_attachments.message" "Folder" (code "attachments/") "Link" (link "/_/settings/wiki#attachments" (t "base.legacy_attachments.move_link"))}}{{template "ui-notice-end" $attachmentsNotice}}{{end}}
 		{{if .HelpDrifted}}{{$helpDriftNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true" "banner" "help-drifted"}}{{template "ui-notice-start" $helpDriftNotice}}<strong>{{t "base.help_drifted.heading"}}</strong> {{tl "base.help_drifted.message" "File" (code ".help.md") "Link" (link "/_/settings/wiki" (t "base.help_drifted.link"))}}{{template "ui-notice-end" $helpDriftNotice}}{{end}}
-		{{/* Read-only mode refuses every settings save except revoking a connected application. */}}
-		{{$viewOnly := and .SettingsSection .CanViewSettings (not .CanSettings) (ne .SettingsSection "connections")}}
+		{{/* Read-only mode refuses every settings save except revoking a connected application. Appearance is also open: it is kept in this browser, never on the server. */}}
+		{{$viewOnly := and .SettingsSection .CanViewSettings (not .CanSettings) (ne .SettingsSection "connections") (ne .SettingsPanel "appearance")}}
 		{{if $viewOnly}}{{$readOnlyNotice := component "notice" "variant" "warning" "role" "status" "dismissible" "true" "banner" "read-only"}}{{template "ui-notice-start" $readOnlyNotice}}<strong>{{t "base.read_only_banner.heading"}}</strong> {{t "base.read_only_banner.message" "Name" (envname "server.read_only")}}{{template "ui-notice-end" $readOnlyNotice}}{{end}}
+		{{if .CanSettings}}<div id="appearance-draft"{{if not .UnsavedAppearance}} hidden{{end}}>{{$draftNotice := component "notice" "variant" "info" "role" "status"}}{{template "ui-notice-start" $draftNotice}}<strong>{{t "base.appearance_draft.heading"}}</strong> {{t "base.appearance_draft.message"}} {{template "ui-button" (button (t "common.save") "secondary" "size" "compact" "id" "appearance-draft-save")}} {{template "ui-button" (button (t "base.appearance_draft.discard") "secondary" "size" "compact" "id" "appearance-draft-discard")}} <span id="appearance-draft-error" role="alert" hidden></span>{{template "ui-notice-end" $draftNotice}}</div>{{end}}
 		{{if .SettingsSection}}<div class="settings-container">
 			<div class="settings-layout">{{template "settings-nav" .}}<div class="settings-panels">
 		{{end}}

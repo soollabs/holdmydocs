@@ -162,9 +162,10 @@
     recentList.innerHTML = entries.map(e => {
       const hasDraft = localStorage.getItem('hmd-draft-' + e.slug) !== null;
       const dot = hasDraft ? '<span class="draft-dot"></span>' : '';
-      // Markers follow the title so every sidebar row's text starts at the same edge.
+      // Markers follow the title so every sidebar row's text starts at the same
+      // edge. They sit inside the link so the active fill spans the whole row.
       const glyph = e.pinned ? '<span class="pin-glyph">★</span>' : '';
-      return `<li><a href="${escapeHtml(viewHref(e.slug))}"${e.slug === currentSlug ? ' class="active"' : ''}>${escapeHtml(e.title)}</a>${dot}${glyph}</li>`;
+      return `<li><a href="${escapeHtml(viewHref(e.slug))}"${e.slug === currentSlug ? ' class="active"' : ''}><span class="sidebar-list-title">${escapeHtml(e.title)}</span>${dot}${glyph}</a></li>`;
     }).join('');
   }
 
@@ -731,7 +732,7 @@
       // a leading "//" or "/\\" is a protocol-relative URL, and any scheme
       // (javascript:, data:) would execute in the page origin. Percent-encode
       // the slug before it reaches the URL.
-      const target = row.href || viewHref(row.slug) + (editMode && !window.hmdReadOnly ? '?do=edit' : '');
+      const target = row.href || viewHref(row.slug) + (editMode ? '?do=edit' : '');
       if (target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')) {
         window.location.href = target;
       }
@@ -785,7 +786,7 @@
       return;
     }
     // The editor owns ctrl-e for its preview.
-    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !window.hmdReadOnly && !$('#edit-form')) {
+    if (mod && (e.key === 'e' || e.key === 'E') && !inField && !cmFocused && !$('#edit-form')) {
       // A namespace listing has no page behind it. Its slug is "ns/", which
       // ?do=edit would 404 on. Same gate the palette verbs and the topbar
       // Edit button already use.
@@ -851,7 +852,7 @@
     // Draft restoration: check for a saved draft on load
     const draftKey = 'hmd-draft-' + cmHost.dataset.slug;
     const savedDraft = localStorage.getItem(draftKey);
-    if (savedDraft && savedDraft !== textarea.value) {
+    if (savedDraft && savedDraft !== textarea.value && !window.hmdReadOnly) {
       if (confirm(window.hmdT('js.editor.restore_draft'))) {
         textarea.value = savedDraft;
       } else {
@@ -859,7 +860,10 @@
       }
     }
 
+    // A read-only instance lets people try the editor but keeps nothing, so it
+    // neither restores nor saves a draft, and has no unsaved work to warn about.
     function saveDraft() {
+      if (window.hmdReadOnly) return;
       localStorage.setItem(draftKey, textarea.value);
     }
 
@@ -1129,7 +1133,7 @@
     }
 
     function submitEditForm() {
-      if (!editForm) return;
+      if (!editForm || window.hmdReadOnly) return;
       clearSaveError();
       const slug = cmHost.dataset.slug || document.body.dataset.slug || '';
       const url = '/_/api/pages/' + encodeURIComponent(slug);
@@ -1191,7 +1195,7 @@
 
     // Unsaved changes warning
     window.addEventListener('beforeunload', e => {
-      if (dirty) {
+      if (dirty && !window.hmdReadOnly) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -1297,6 +1301,8 @@
       toc: insertTOC
     };
 
+    if (window.hmdReadOnly) attachmentButton.disabled = true;
+
     $$('.toolbar button[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = toolbarActions[btn.dataset.action];
@@ -1313,6 +1319,7 @@
     }
 
     function handleAttachmentFiles(files, imagesOnly) {
+      if (window.hmdReadOnly) return;
       for (let file of files) {
         if (imagesOnly && !file.type.startsWith('image/')) continue;
 
@@ -1690,6 +1697,64 @@
     });
   })();
 
+  // An appearance draft lives in a cookie so the server can render it. The
+  // settings page writes it as the person picks; the notice on every page saves
+  // or drops it. Values are checked server-side before use.
+  const APPEARANCE_COOKIE = 'hmd_appearance';
+  function appearanceCookieAttrs(maxAge) {
+    return '; path=/; max-age=' + maxAge + '; samesite=lax' + (window.location.protocol === 'https:' ? '; secure' : '');
+  }
+  window.hmdAppearanceDraft = {
+    write(user, base, values) {
+      const q = new URLSearchParams({ user, base, skin: values.skin, palette: values.palette, font_ui: values.font_ui, font_mono: values.font_mono });
+      document.cookie = APPEARANCE_COOKIE + '=' + q.toString() + appearanceCookieAttrs(60 * 60 * 24 * 365);
+    },
+    read() {
+      const match = document.cookie.match(new RegExp('(?:^|; )' + APPEARANCE_COOKIE + '=([^;]*)'));
+      return match ? new URLSearchParams(match[1]) : null;
+    },
+    clear() {
+      document.cookie = APPEARANCE_COOKIE + '=' + appearanceCookieAttrs(0);
+    }
+  };
+
+  const draftSave = $('#appearance-draft-save');
+  const draftDiscard = $('#appearance-draft-discard');
+  if (draftDiscard) {
+    draftDiscard.addEventListener('click', () => {
+      window.hmdAppearanceDraft.clear();
+      window.location.reload();
+    });
+  }
+  // Cancel on the appearance page leaves without saving, so it drops the draft.
+  const appearanceCancel = $('#appearance-cancel');
+  if (appearanceCancel) {
+    appearanceCancel.addEventListener('click', () => { window.hmdAppearanceDraft.clear(); });
+  }
+  if (draftSave) {
+    draftSave.addEventListener('click', () => {
+      const draft = window.hmdAppearanceDraft.read();
+      if (!draft) { window.location.reload(); return; }
+      const error = $('#appearance-draft-error');
+      error.hidden = true;
+      draftSave.disabled = true;
+      mutateJSON('/_/api/settings/appearance', {
+        palette: draft.get('palette') || '',
+        font_ui: draft.get('font_ui') || '',
+        font_mono: draft.get('font_mono') || '',
+        skin: draft.get('skin') || '',
+        palette_explicit: true
+      }).then(() => {
+        window.hmdAppearanceDraft.clear();
+        window.location.reload();
+      }).catch(err => {
+        draftSave.disabled = false;
+        error.textContent = err.message || window.hmdT('js.error.save_failed');
+        error.hidden = false;
+      });
+    });
+  }
+
   function settingsReturn(notice) {
     window.location.href = window.location.pathname + (notice ? '?' + notice : '');
   }
@@ -1699,7 +1764,7 @@
     font_mono: fieldValue(form, 'font_mono'),
     skin: fieldValue(form, 'skin'),
     palette_explicit: fieldValue(form, 'palette_explicit') === '1'
-  }), () => { settingsReturn('saved=1'); });
+  }), () => { window.hmdAppearanceDraft.clear(); settingsReturn('saved=1'); });
 
   jsonForm($('form[action="/_/api/settings/author"]'), form => ({ git_author: fieldValue(form, 'git_author') }),
     () => { settingsReturn('saved=1'); });

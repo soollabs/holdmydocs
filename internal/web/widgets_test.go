@@ -166,19 +166,23 @@ func TestResolveSkinFallback(t *testing.T) {
 	}
 }
 
-// TestSettingsLinkBackToWiki checks that settings replace the sidebar toggle
-// with a link back to the wiki: their own menu takes the sidebar's place.
-func TestSettingsLinkBackToWiki(t *testing.T) {
+// TestSettingsAppBarHasNoToggleOrBackLink checks that settings drop the
+// sidebar toggle and add no back button: their own menu takes the sidebar's
+// place, and the site name links to the wiki.
+func TestSettingsAppBarHasNoToggleOrBackLink(t *testing.T) {
 	_, server, client := newTestAppFull(t)
 	defer server.Close()
 
 	for _, path := range []string{"/_/settings", "/_/settings/server"} {
 		page := getPage(t, client, server.URL+path)
-		if !strings.Contains(page, `aria-label="Back to wiki"`) || !strings.Contains(page, `href="/"`) {
-			t.Errorf("%s app bar lacks the back to wiki link", path)
+		if strings.Contains(page, `aria-label="Back to wiki"`) || strings.Contains(page, "topbar-back") {
+			t.Errorf("%s app bar has a back button", path)
 		}
 		if strings.Contains(page, `id="sidebar-toggle"`) {
 			t.Errorf("%s still has a sidebar toggle", path)
+		}
+		if !strings.Contains(page, `<a href="/" class="topbar-site">`) {
+			t.Errorf("%s site name does not link to the wiki", path)
 		}
 	}
 }

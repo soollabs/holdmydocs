@@ -96,7 +96,9 @@ func buildThemeStyle(prefs auth.UserRecord) template.CSS {
 		fonts.WriteString("--font-mono:" + s + ";")
 	}
 	if fonts.Len() > 0 {
-		b.WriteString(":root{" + fonts.String() + "}")
+		// A skin sets its own fonts on :root[data-skin], so a chosen font needs
+		// the same specificity and a later position to win.
+		b.WriteString(":root:root{" + fonts.String() + "}")
 	}
 	return template.CSS(b.String())
 }

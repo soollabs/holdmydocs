@@ -7,6 +7,7 @@
 	<span class="current">{{.Slug}}.md</span><span class="dirty" id="breadcrumb-dirty" hidden> *</span>
 	<a href="{{.PageURL}}" class="cancel-link">{{t "edit.cancel_link"}}</a>
 </div>
+{{if .ReadOnly}}{{$readOnlyNotice := component "notice" "variant" "warning" "role" "status"}}{{template "ui-notice-start" $readOnlyNotice}}<strong>{{t "edit.read_only.heading"}}</strong> {{t "edit.read_only.message"}}{{template "ui-notice-end" $readOnlyNotice}}{{end}}
 {{$remoteNotice := component "notice" "variant" "warning" "role" "status" "hidden" "true" "id" "remote-changed-banner"}}{{template "ui-notice-start" $remoteNotice}}{{t "edit.remote_changed"}}{{template "ui-notice-end" $remoteNotice}}
 {{$saveError := component "notice" "variant" "danger" "role" "alert" "hidden" "true" "id" "save-error"}}{{template "ui-notice-start" $saveError}}{{template "ui-notice-end" $saveError}}
 {{$conflictNotice := component "notice" "variant" "danger" "role" "alert" "hidden" "true" "id" "conflict-banner"}}{{template "ui-notice-start" $conflictNotice}}
@@ -28,7 +29,7 @@
 			{{$choiceSlot1 := component "choice" "id" "edit-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="edit-field-checkbox" title="{{t "edit.hidden_title"}}">
 				<input type="checkbox" name="hidden" {{if .IsHidden}}checked{{end}}> {{t "edit.hidden_label"}}
 			</label>{{template "ui-choice-end" $choiceSlot1}}
-			{{if ne .BaseHash ""}}{{template "ui-button" (button (t "edit.delete_page") "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
+			{{if and (ne .BaseHash "") (not .ReadOnly)}}{{template "ui-button" (button (t "edit.delete_page") "danger" "size" "compact" "type" "submit" "form" "delete-form")}}{{end}}
 		</div>{{template "ui-disclosure-end" $details}}
 	</div>
 
