@@ -474,7 +474,7 @@ func (app *App) handleNamespacesGet(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("saved") == "1" {
 		data.Flash = i18n.T("web.settings.flash_namespace_saved")
 	}
-	app.render(w, r, http.StatusOK, "namespaces", TemplateData{Authed: true, Title: "Namespaces", StatusMode: "settings", NamespaceManagement: &data})
+	app.render(w, r, http.StatusOK, "namespaces", TemplateData{Authed: true, Title: i18n.T("web.settings.panel.namespaces"), StatusMode: "settings", NamespaceManagement: &data})
 }
 
 func (app *App) handleNamespaceNewGet(w http.ResponseWriter, r *http.Request) {
