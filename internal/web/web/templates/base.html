@@ -357,6 +357,59 @@
 			if (window.mermaid) mermaid.initialize({startOnLoad:false, theme: theme === 'light' ? 'default' : 'dark'});
 		};
 		HMDSetMermaidTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+		// Mermaid styles its SVG with a <style> element and style attributes,
+		// which the CSP blocks, and it measures labels while drawing. While it
+		// runs, its stylesheets get this page's nonce and style attributes go
+		// through the CSSOM, which the CSP allows; the finished SVG it inserts
+		// as markup is fixed up the same way.
+		(function(nonce) {
+			var createElement = Document.prototype.createElement;
+			var setAttribute = Element.prototype.setAttribute;
+			var running = 0;
+			function allowStyle(el) {
+				if (el.localName === 'style') el.setAttribute('nonce', nonce);
+				return el;
+			}
+			function patch() {
+				if (running++) return;
+				Document.prototype.createElement = function() {
+					return allowStyle(createElement.apply(this, arguments));
+				};
+				Element.prototype.setAttribute = function(name, value) {
+					if (String(name).toLowerCase() === 'style' && this.style) this.style.cssText = value;
+					else setAttribute.call(this, name, value);
+				};
+			}
+			function unpatch() {
+				if (--running) return;
+				Document.prototype.createElement = createElement;
+				Element.prototype.setAttribute = setAttribute;
+			}
+			function allowStyles(nodes) {
+				nodes.forEach(function(node) {
+					node.querySelectorAll('svg style').forEach(function(blocked) {
+						var style = allowStyle(document.createElementNS('http://www.w3.org/2000/svg', 'style'));
+						style.textContent = blocked.textContent;
+						blocked.replaceWith(style);
+					});
+					node.querySelectorAll('svg [style]').forEach(function(el) {
+						el.style.cssText = el.getAttribute('style');
+					});
+				});
+			}
+			window.HMDRunMermaid = function(nodes) {
+				nodes = Array.prototype.slice.call(nodes);
+				patch();
+				return mermaid.run({nodes: nodes}).then(function() {
+					unpatch();
+					allowStyles(nodes);
+				}, function(error) {
+					unpatch();
+					allowStyles(nodes);
+					throw error;
+				});
+			};
+		})(document.currentScript.nonce);
 	</script>
 	{{end}}
 	<script defer nonce="{{.CSPNonce}}" src="{{if .Static}}{{.AssetPath}}components.js{{else}}{{static "components.js"}}{{end}}"></script>

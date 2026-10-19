@@ -42,7 +42,7 @@
 
     var diagrams = root.querySelectorAll('pre.mermaid:not([data-processed])');
     if (window.mermaid && diagrams.length) {
-      mermaid.run({nodes: diagrams}).catch(function(error) {
+      window.HMDRunMermaid(diagrams).catch(function(error) {
         console.warn('Could not render a diagram', error);
       });
     }
