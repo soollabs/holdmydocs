@@ -120,8 +120,8 @@ func makeButton(label, variant string, options ...string) (buttonProps, error) {
 // componentProps contains only constrained presentation and native semantics.
 // Arbitrary content belongs between the component's explicit start/end templates.
 type componentProps struct {
-	Kind, Variant, Label, ID, Role, Name, Value, Type, For, State, Layout string
-	Disabled, Required, Hidden, Multiple, Checked, Open, Dismissible      bool
+	Kind, Variant, Label, ID, Role, Name, Value, Type, For, State, Layout, Banner string
+	Disabled, Required, Hidden, Multiple, Checked, Open, Dismissible              bool
 }
 
 // componentRule lists the options a kind accepts. A nil value list accepts any
@@ -145,7 +145,7 @@ var componentRules = map[string]componentRule{
 		"checked": boolValues, "disabled": boolValues, "required": boolValues,
 	}, required: []string{"id"}},
 	"panel":      {options: map[string][]string{"variant": {"default", "raised"}}},
-	"notice":     {options: map[string][]string{"variant": {"info", "success", "warning", "danger"}, "role": {"status", "alert"}, "dismissible": boolValues}},
+	"notice":     {options: map[string][]string{"variant": {"info", "success", "warning", "danger"}, "role": {"status", "alert"}, "dismissible": boolValues, "banner": nil}},
 	"empty":      {options: map[string][]string{"state": {"default", "error", "loading"}}},
 	"table":      {},
 	"disclosure": {options: map[string][]string{"open": boolValues}},
@@ -192,5 +192,6 @@ func makeComponent(kind string, options ...string) (componentProps, error) {
 	p.Disabled, p.Required, p.Hidden = values["disabled"] == "true", values["required"] == "true", values["hidden"] == "true"
 	p.Multiple, p.Checked, p.Open = values["multiple"] == "true", values["checked"] == "true", values["open"] == "true"
 	p.Dismissible = values["dismissible"] == "true"
+	p.Banner = values["banner"]
 	return p, nil
 }

@@ -243,6 +243,7 @@ func TestSemanticComponentContracts(t *testing.T) {
 		{"field", []string{"id", "search", "label", "Search"}, "ui-field-start", `<label class="ui-field__label" for="search">Search</label>`},
 		{"choice", []string{"id", "terms", "type", "checkbox", "name", "terms", "value", "yes", "checked", "true"}, "ui-choice-start", `type="checkbox" name="terms" value="yes" checked`},
 		{"notice", []string{"variant", "danger", "role", "alert", "hidden", "true"}, "ui-notice-start", `role="alert" hidden`},
+		{"notice", []string{"role", "status", "dismissible", "true", "banner", "help"}, "ui-notice-start", `ui-notice--banner" role="status" data-dismiss="help"`},
 		{"disclosure", []string{"label", "Advanced", "open", "true"}, "ui-disclosure-start", `<details class="ui-disclosure" open>`},
 		{"dialog", []string{"id", "confirm", "label", "Confirm"}, "ui-dialog-start", `aria-labelledby="confirm-title"`},
 		{"menu", []string{"label", "Actions"}, "ui-menu-start", `role="group"`},

@@ -34,6 +34,8 @@ type API struct {
 
 	uploadMu sync.Mutex
 	uploads  map[string]UploadCapability
+
+	indexFailures atomic.Int64
 }
 
 // OAuthUploadAuthorizer rechecks an OAuth grant when a detached upload

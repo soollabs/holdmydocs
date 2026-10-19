@@ -229,7 +229,7 @@ A filename starting with a dot (` + "`.help.md`" + `) is a hidden page. It is le
 
 Settings open from the menu at the right of the top bar. Your own settings are ` + "`/_/settings/appearance`" + ` (skin, palette and fonts), ` + "`/_/settings/git-author`" + ` and ` + "`/_/settings/access-tokens`" + `. With the "settings" scope you also see server, Git, MCP, OIDC single sign-on, document search, wiki, users and environment overrides.
 
-` + "`/_/settings/wiki`" + ` edits the repository's ` + "`.wiki.yaml`" + ` (site name and landing page). Its **Re-run setup** button brings back the first-namespace prompt. When this help page differs from the built-in text for your version, the admin settings show a notice with a button to reset it.
+` + "`/_/settings/wiki`" + ` edits the repository's ` + "`.wiki.yaml`" + ` (site name and landing page). Its **Re-run setup** button brings back the first-namespace prompt. When this help page differs from the built-in text for your version, admins see a dismissible banner, and the admin settings have a button to reset it.
 
 Manage namespaces at ` + "`/_/settings/namespaces`" + `. Connected applications appear under ` + "`/_/settings/connections`" + ` when OAuth is enabled.
 

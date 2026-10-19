@@ -167,8 +167,8 @@ func TestMigrateLegacyAttachments(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(s.Dir(), "gone")); !os.IsNotExist(err) {
 		t.Errorf("migration created a namespace for an orphan: %v", err)
 	}
-	if s.LegacyAttachments() {
-		t.Error("banner condition still true after migration")
+	if !s.LegacyAttachments() {
+		t.Error("banner condition false while an abandoned namespace still has files")
 	}
 	commits, err := s.RecentCommits(1)
 	if err != nil || len(commits) != 1 || commits[0].Message != "migrate" {

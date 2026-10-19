@@ -50,6 +50,10 @@ func (a *API) ReloadConfiguration() {
 	}
 }
 
+// IndexFailures is how many pages the last reconcile pass could not index, so
+// search results for them may be stale or missing.
+func (a *API) IndexFailures() int { return int(a.indexFailures.Load()) }
+
 // ReconcilePages re-reads the store and refreshes the derived index for pages
 // whose content hash changed since the last recorded pass. It is the
 // reconciliation path for a post-commit index failure: a failed update is
@@ -60,6 +64,7 @@ func (a *API) ReconcilePages(hashes map[string]string, retries map[string]IndexR
 	if a.index == nil {
 		return
 	}
+	defer func() { a.indexFailures.Store(int64(len(retries))) }()
 	paths, err := a.store.List()
 	if err != nil {
 		slog.Warn("refresh: page list failed", "err", err)

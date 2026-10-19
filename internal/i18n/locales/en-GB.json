@@ -235,9 +235,42 @@
     "description": "Status text in the documentation search dialog before a search is made.",
     "other": "Search titles and page text. No data leaves your browser."
   },
+  "base.sync_failed.heading": {
+    "description": "Bold heading of the notice shown when the last git sync failed.",
+    "other": "Sync failed."
+  },
+  "base.sync_failed.message": {
+    "description": "Banner text when the last git sync failed. Link is the link worded by base.sync_failed.link.",
+    "other": "Changes are saved here but not reaching the git remote. {{.Link}}."
+  },
+  "base.sync_failed.link": {
+    "description": "Link in the sync-failed notice that goes to the git settings.",
+    "other": "Check the git settings"
+  },
+  "base.index_failed.heading": {
+    "description": "Bold heading of the notice shown when the search index could not be updated for some pages.",
+    "other": "Search is out of date."
+  },
+  "base.index_failed.message": {
+    "description": "Banner text when the search index could not be updated. Count is the number of pages affected.",
+    "one": "{{.Count}} page could not be indexed, so search may miss it. It retries in the background.",
+    "other": "{{.Count}} pages could not be indexed, so search may miss them. They retry in the background."
+  },
+  "base.help_drifted.heading": {
+    "description": "Bold heading of the notice shown when the wiki help page differs from the built-in one.",
+    "other": "Help page changed."
+  },
+  "base.help_drifted.message": {
+    "description": "Banner text when the help page differs from the built-in one. File is the help file name shown as code; Link is the link worded by base.help_drifted.link.",
+    "other": "{{.File}} differs from hmd's built-in help text for this version. {{.Link}}."
+  },
+  "base.help_drifted.link": {
+    "description": "Link in the help-drift notice that goes to the wiki settings, where it can be reset.",
+    "other": "Review or reset it"
+  },
   "base.legacy_attachments.heading": {
     "description": "Bold heading of the notice shown when attachments need moving to their namespaces.",
-    "other": "Attachments need moving."
+    "other": "Attachments need attention."
   },
   "base.legacy_attachments.message": {
     "description": "Banner text about attachments in the old folder. Folder is a folder name shown as code; Link is the link worded by base.legacy_attachments.move_link.",
@@ -245,7 +278,7 @@
   },
   "base.legacy_attachments.move_link": {
     "description": "Link in the legacy attachments notice that goes to the wiki settings.",
-    "other": "Move them into their namespaces"
+    "other": "Move or delete them"
   },
   "base.noscript.js_required": {
     "description": "Shown in a noscript block on settings forms when JavaScript is disabled.",
