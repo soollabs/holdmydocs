@@ -50,7 +50,7 @@ Keep `HMD_APP_DIR` on local disk (not NFS); `HMD_SERVER_REPO_DIR` can be on netw
 
 ## Screenshots
 
-<img src="docs/demo.gif" width="860" alt="HMD walkthrough: a homelab wiki landing page, a page with a Mermaid network diagram, the split-pane Markdown editor, search, namespace management, tags, and a public blog in the light newsprint skin">
+<img src="docs/demo.gif" width="860" alt="HMD walkthrough: a fictional Field Lab wiki, a Mermaid network diagram, services, the write-first Markdown editor, search, namespace settings, tags, and public notes in the light newsprint skin">
 
 More screenshots are in [`docs/screenshots/`](docs/screenshots/).
 
