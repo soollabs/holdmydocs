@@ -15,6 +15,7 @@ import (
 
 	"hmd/internal/api"
 	"hmd/internal/auth"
+	"hmd/internal/i18n"
 	"hmd/internal/wiki"
 )
 
@@ -182,11 +183,11 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 			}
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
 				Authed: true,
-				Title:  "Page not found",
+				Title:  i18n.T("web.pages.not_found_title"),
 				Slug:   slug,
 			})
 		case api.CategoryForbidden:
-			app.errorPage(w, r, http.StatusForbidden, "Forbidden", "You don't have access to that namespace.")
+			app.errorPage(w, r, http.StatusForbidden, i18n.T("web.pages.forbidden_title"), i18n.T("web.pages.forbidden_detail"))
 		default:
 			http.Error(w, "internal error", http.StatusInternalServerError)
 		}
@@ -251,7 +252,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 		HeadAuthor:    headAuthor,
 		HeadWhen:      headWhen,
 		BlobHash:      view.Hash,
-		StatusContext: fmt.Sprintf("%d revision%s", revisionCount, wiki.Plural(revisionCount)),
+		StatusContext: i18n.TN("web.pages.revision_count", revisionCount, "Count", revisionCount),
 		RecentCommits: recentCommits,
 		IndexWarning:  indexPendingNote(r),
 	})
@@ -262,7 +263,7 @@ func (app *App) handleViewPage(w http.ResponseWriter, r *http.Request) {
 
 func indexPendingNote(r *http.Request) string {
 	if r.URL.Query().Get("index") == "pending" {
-		return "Saved. Search indexing is pending and will be reconciled automatically."
+		return i18n.T("web.pages.index_pending_note")
 	}
 	return ""
 }
@@ -310,7 +311,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		SidebarTreeNS:      sidebarTreeNS,
 		SidebarTreeEntries: sidebarTreeEntries,
 		// The outline widget builds its list from this page's own headings
-		// client-side (toc.js) — no auth-only data or endpoint involved, so
+		// client-side (toc.js) without auth-only data or endpoints, so
 		// it's safe for anonymous viewers same as the sidebar tree.
 		RailWidgets: widgetsForSlot(slotRail, cfg.Widgets),
 	})
@@ -409,7 +410,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		Title:              name,
 		Slug:               name + "/",
 		StatusMode:         "view",
-		StatusContext:      fmt.Sprintf("%d pages", summary.Count),
+		StatusContext:      i18n.TN("web.pages.page_count", summary.Count, "Count", summary.Count),
 		Namespace:          name,
 		NamespacePublic:    summary.Config.Public,
 		NamespaceTitle:     publishedTitle,
@@ -475,7 +476,7 @@ func (app *App) handleEditPage(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleTagsIndex(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
 		Authed:  true,
-		Title:   "Tags",
+		Title:   i18n.T("web.pages.tags_title"),
 		AllTags: app.apiClient().Tags(r.Context()),
 	})
 }
@@ -491,7 +492,7 @@ func (app *App) handleTagPages(w http.ResponseWriter, r *http.Request) {
 
 	app.render(w, r, http.StatusOK, "tags", TemplateData{
 		Authed:   true,
-		Title:    "Tag: " + name,
+		Title:    i18n.T("web.pages.tag_title", "Name", name),
 		TagName:  name,
 		TagPages: pages,
 	})
@@ -540,7 +541,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	title := "Search"
+	title := i18n.T("web.pages.search_title")
 	if q != "" {
 		title = q
 	}
@@ -599,19 +600,19 @@ func (app *App) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		WikiWide:      true,
 		Authed:        true,
-		Title:         "Health",
+		Title:         i18n.T("web.pages.health_title"),
 		Slug:          "health-report",
 		Content:       content,
-		StatusContext: fmt.Sprintf("%d missing · %d orphan%s · %d stale", len(report.Missing), len(report.Orphans), wiki.Plural(len(report.Orphans)), len(report.Stale)),
+		StatusContext: strings.Join([]string{i18n.TN("web.pages.health_missing", len(report.Missing)), i18n.TN("web.pages.health_orphans", len(report.Orphans)), i18n.TN("web.pages.health_stale", len(report.Stale))}, " · "),
 	})
 }
 
 func healthReportHTML(report api.HealthReport, titles map[string]string) template.HTML {
 	var b strings.Builder
 	if len(report.Missing) > 0 {
-		fmt.Fprintf(&b, `<section><h2>Missing pages (%d)</h2><p>Wiki-linked but not yet created:</p><ul>`, len(report.Missing))
+		fmt.Fprintf(&b, `<section><h2>%s</h2><p>%s</p><ul>`, htmlEscape(i18n.T("web.pages.health_missing_heading", "Count", len(report.Missing))), htmlEscape(i18n.T("web.pages.health_missing_intro")))
 		for _, entry := range report.Missing {
-			fmt.Fprintf(&b, `<li><a href="%s?do=edit" class="missing">%s</a> — linked from `, htmlEscape(wiki.PageURL(entry.Slug)), htmlEscape(entry.Slug))
+			fmt.Fprintf(&b, `<li><a href="%s?do=edit" class="missing">%s</a> — %s `, htmlEscape(wiki.PageURL(entry.Slug)), htmlEscape(entry.Slug), htmlEscape(i18n.T("web.pages.health_linked_from")))
 			for i, src := range entry.Sources {
 				if i > 0 {
 					b.WriteString(", ")
@@ -628,7 +629,7 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 	}
 
 	if len(report.Orphans) > 0 {
-		fmt.Fprintf(&b, `<section><h2>Orphaned pages (%d)</h2><p>Pages with no incoming links:</p><ul>`, len(report.Orphans))
+		fmt.Fprintf(&b, `<section><h2>%s</h2><p>%s</p><ul>`, htmlEscape(i18n.T("web.pages.health_orphans_heading", "Count", len(report.Orphans))), htmlEscape(i18n.T("web.pages.health_orphans_intro")))
 		for _, o := range report.Orphans {
 			title := titles[o]
 			if title == "" {
@@ -640,20 +641,20 @@ func healthReportHTML(report api.HealthReport, titles map[string]string) templat
 	}
 
 	if len(report.Stale) > 0 {
-		fmt.Fprintf(&b, `<section><h2>Stale pages (%d)</h2><p>No Git revision in at least %d days:</p><ul>`, len(report.Stale), api.StalePageDays)
+		fmt.Fprintf(&b, `<section><h2>%s</h2><p>%s</p><ul>`, htmlEscape(i18n.T("web.pages.health_stale_heading", "Count", len(report.Stale))), htmlEscape(i18n.T("web.pages.health_stale_intro", "Days", api.StalePageDays)))
 		for _, stale := range report.Stale {
 			title := titles[stale.Slug]
 			if title == "" {
 				title = stale.Slug
 			}
-			fmt.Fprintf(&b, `<li><a href="%s">%s</a> — last updated %s</li>`,
-				htmlEscape(wiki.PageURL(stale.Slug)), htmlEscape(title), stale.LastUpdated.Format("2 Jan 2006"))
+			fmt.Fprintf(&b, `<li><a href="%s">%s</a> — %s</li>`,
+				htmlEscape(wiki.PageURL(stale.Slug)), htmlEscape(title), htmlEscape(i18n.T("web.pages.health_last_updated", "Date", i18n.Date(stale.LastUpdated))))
 		}
 		b.WriteString(`</ul></section>`)
 	}
 
 	if len(report.Missing) == 0 && len(report.Orphans) == 0 && len(report.Stale) == 0 {
-		b.WriteString(`<p>✓ Your wiki is healthy!</p>`)
+		b.WriteString(`<p>✓ ` + htmlEscape(i18n.T("web.pages.health_all_clear")) + `</p>`)
 	}
 	return template.HTML(b.String())
 }
@@ -783,7 +784,7 @@ func (app *App) handleHiddenIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	app.render(w, r, http.StatusOK, "hidden", TemplateData{
 		Authed:      true,
-		Title:       "Hidden",
+		Title:       i18n.T("web.pages.hidden_title"),
 		StatusMode:  "view",
 		RoutePrefix: wiki.HiddenRoutePrefix,
 		TagPages:    pages,
@@ -801,7 +802,7 @@ func (app *App) handleViewHidden(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, os.ErrNotExist) {
 			app.render(w, r, http.StatusNotFound, "create", TemplateData{
 				Authed:      true,
-				Title:       "Page not found",
+				Title:       i18n.T("web.pages.not_found_title"),
 				Slug:        slug,
 				RoutePrefix: wiki.HiddenRoutePrefix,
 			})

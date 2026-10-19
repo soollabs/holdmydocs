@@ -11,8 +11,8 @@ import (
 
 // pollFS is the repository refresh worker. The composition root starts it and
 // cancels it on shutdown; the worker owns its ticker and delegates the shared
-// refresh steps — history drop, configuration reload and page reconciliation
-// — to the application api, so every adapter refreshes the same
+// refresh steps (history drop, configuration reload and page reconciliation)
+// to the application api, so every adapter refreshes the same
 // state by the same rules.
 func pollFS(ctx context.Context, client *api.API, hashes map[string]string) {
 	ticker := time.NewTicker(refreshInterval(client))

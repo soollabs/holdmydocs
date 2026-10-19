@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"hmd/internal/i18n"
 )
 
 // fileConfigLeaves walks the yaml-tagged fields of a config struct and records every leaf by dotted key.
@@ -84,6 +86,14 @@ func TestSettingsSchemaEnums(t *testing.T) {
 	}
 	if !slices.Equal(skin.Enum, skinNames) {
 		t.Errorf("skin enum = %v, want skinNames %v", skin.Enum, skinNames)
+	}
+
+	language, ok := Lookup("server.language")
+	if !ok {
+		t.Fatal("language missing from schema/config.schema.json")
+	}
+	if !slices.Equal(language.Enum, i18n.Languages()) {
+		t.Errorf("language enum = %v, want catalogues %v", language.Enum, i18n.Languages())
 	}
 
 	syncMode, ok := Lookup("git.sync_mode")

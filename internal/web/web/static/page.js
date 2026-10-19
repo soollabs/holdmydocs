@@ -13,14 +13,14 @@
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'code-copy';
-      button.textContent = 'Copy';
-      button.setAttribute('aria-label', 'Copy code');
+      button.textContent = window.hmdT('js.code.copy');
+      button.setAttribute('aria-label', window.hmdT('js.code.copy_aria'));
       button.setAttribute('aria-live', 'polite');
       button.addEventListener('click', async function() {
         var message;
         try {
           await navigator.clipboard.writeText(code.textContent);
-          message = 'Copied';
+          message = window.hmdT('js.code.copied');
         } catch (_) {
           // Clipboard can be unavailable on file://, HTTP, or restricted hosts.
           var selection = window.getSelection();
@@ -28,13 +28,13 @@
           range.selectNodeContents(code);
           selection.removeAllRanges();
           selection.addRange(range);
-          message = 'Press Ctrl/Cmd+C';
+          message = window.hmdT('js.code.press_copy');
         }
         button.textContent = message;
         button.setAttribute('aria-label', message);
         setTimeout(function() {
-          button.textContent = 'Copy';
-          button.setAttribute('aria-label', 'Copy code');
+          button.textContent = window.hmdT('js.code.copy');
+          button.setAttribute('aria-label', window.hmdT('js.code.copy_aria'));
         }, 2500);
       });
       block.appendChild(button);

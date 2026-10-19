@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const { hmdT } = require('./strings.cjs');
 const source = readFileSync(path.join(__dirname, '../../internal/web/web/static/app.js'), 'utf8');
 
 class Element {
@@ -91,12 +92,14 @@ function fixture(kind, responses) {
   if (kind === 'revert') form.dataset.slug = 'notes/page';
 
   let editorOptions;
+  class EditorState { static phrases = { of: value => value }; }
   class EditorView {
     static cspNonce = { of: value => value };
     static updateListener = { of: callback => callback };
     static scrollMargins = { of: () => ({}) };
     static lineWrapping = {};
-    constructor(options) { editorOptions = options; }
+    constructor(options) { editorOptions = options; this.state = new EditorState(); }
+    destroy() {}
   }
   if (kind === 'page') {
     add('#cm-host').dataset.slug = 'notes/page';
@@ -134,6 +137,7 @@ function fixture(kind, responses) {
     }
   };
   context.window = context;
+  context.hmdT = hmdT;
   vm.runInNewContext(source, context, { filename: 'app.js' });
   if (kind === 'page') {
     const listener = editorOptions.extensions.find(value => typeof value === 'function');

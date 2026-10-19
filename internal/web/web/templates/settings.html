@@ -1,46 +1,46 @@
 {{define "content"}}
 <div class="content-col">
 {{template "settings-breadcrumb" .}}
-<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "git-author"}}git author{{else if eq .SettingsPanel "access-tokens"}}access tokens{{else}}appearance{{end}}</h1>
+<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "git-author"}}{{t "settings.title.git_author"}}{{else if eq .SettingsPanel "access-tokens"}}{{t "settings.title.access_tokens"}}{{else}}{{t "settings.title.appearance"}}{{end}}</h1>
 
 {{if .Settings}}
 	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
 
 <section class="settings-zone">
-	<h2 class="settings-zone-title"><span class="h"></span>your account</h2>
-	<p class="settings-zone-desc">Personal to you &mdash; stored against your user, no effect on anyone else.</p>
+	<h2 class="settings-zone-title"><span class="h"></span>{{t "settings.account.title"}}</h2>
+	<p class="settings-zone-desc">{{t "settings.account.desc"}}</p>
 
 	<form method="POST" action="/_/api/settings/appearance" id="appearance-form" class="settings-form"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>{{template "csrf" .}}{{template "json-required" .}}
 		<input type="hidden" name="palette_explicit" id="palette-explicit">
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
-			<legend>fonts &amp; layout</legend>
+			<legend>{{t "settings.fonts.legend"}}</legend>
 			<div class="settings-row">{{$fieldSlot1 := component "field" "id" "font-ui" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot1}}
-				{{$fontUI := component "field" "id" "font_ui" "label" "ui font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}{{template "ui-setting-info" (settinginfo "preferences" "font_ui")}}
+				{{$fontUI := component "field" "id" "font_ui" "label" (t "settings.font_ui.label") "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontUI}}{{template "ui-setting-info" (settinginfo "preferences" "font_ui")}}
 				<select id="font_ui" name="font_ui">
-					<option value="">(default — jetbrains mono)</option>
-					<optgroup label="sans serif">
+					<option value="">{{t "js.settings.font_default" "Font" "jetbrains mono"}}</option>
+					<optgroup label="{{t "settings.fonts.group_sans"}}">
 						{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-					<optgroup label="serif">
+					<optgroup label="{{t "settings.fonts.group_serif"}}">
 						{{range .Settings.FontsSerif}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-					<optgroup label="monospace">
+					<optgroup label="{{t "settings.fonts.group_mono"}}">
 						{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontUI .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
 				</select>{{template "ui-field-end" $fontUI}}
 			{{template "ui-field-end" $fieldSlot1}}</div>
 			<div class="settings-row">{{$fieldSlot2 := component "field" "id" "font-mono" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot2}}
-				{{$fontMono := component "field" "id" "font_mono" "label" "code & editor font" "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}{{template "ui-setting-info" (settinginfo "preferences" "font_mono")}}
+				{{$fontMono := component "field" "id" "font_mono" "label" (t "settings.font_mono.label") "type" "select" "layout" "bare"}}{{template "ui-field-start" $fontMono}}{{template "ui-setting-info" (settinginfo "preferences" "font_mono")}}
 				<select id="font_mono" name="font_mono">
-					<option value="">(default — jetbrains mono)</option>
-					<optgroup label="sans serif">
+					<option value="">{{t "js.settings.font_default" "Font" "jetbrains mono"}}</option>
+					<optgroup label="{{t "settings.fonts.group_sans"}}">
 						{{range .Settings.FontsSans}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-					<optgroup label="serif">
+					<optgroup label="{{t "settings.fonts.group_serif"}}">
 						{{range .Settings.FontsSerif}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
-					<optgroup label="monospace">
+					<optgroup label="{{t "settings.fonts.group_mono"}}">
 						{{range .Settings.FontsMono}}<option value="{{.}}" {{if eq $.Settings.FontMono .}}selected{{end}}>{{.}}</option>{{end}}
 					</optgroup>
 				</select>{{template "ui-field-end" $fontMono}}
@@ -48,20 +48,20 @@
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
-			<legend>skin{{template "ui-setting-info" (settinginfo "preferences" "skin")}}</legend>
+			<legend>{{t "settings.skin.legend"}}{{template "ui-setting-info" (settinginfo "preferences" "skin")}}</legend>
 			<div class="skin-picker">
-				{{range .Settings.SkinNames}}{{$s := index $.Settings.Skins .}}
+				{{range .Settings.SkinNames}}
 				<label class="skin-card{{if eq $.Settings.Skin .}} selected{{end}}">
 					<input type="radio" name="skin" value="{{.}}" {{if eq $.Settings.Skin .}}checked{{end}}>
-					<span class="skin-card-name">{{$s.Label}}</span>
-					<span class="skin-card-note">{{$s.Note}}</span>
+					<span class="skin-card-name">{{.}}</span>
+					<span class="skin-card-note">{{t (printf "settings.skin.note.%s" .)}}</span>
 				</label>
 				{{end}}
 			</div>
 		</fieldset>
 
 		<fieldset class="settings-section settings-panel" data-panel="appearance">
-			<legend>palette{{template "ui-setting-info" (settinginfo "preferences" "palette")}}</legend>
+			<legend>{{t "settings.palette.legend"}}{{template "ui-setting-info" (settinginfo "preferences" "palette")}}</legend>
 			<div class="palette-picker">
 				{{range .Settings.PaletteNames}}
 				<label class="palette-card{{if eq . $.Settings.Palette}} selected{{end}}" data-palette="{{.}}">
@@ -78,65 +78,65 @@
 	</form>
 
 	<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
-		{{template "ui-button" (button "Save appearance" "primary" "type" "submit" "form" "appearance-form")}}
-		{{template "ui-button" (button "Cancel" "secondary" "href" "/")}}
+		{{template "ui-button" (button (t "settings.appearance.save") "primary" "type" "submit" "form" "appearance-form")}}
+		{{template "ui-button" (button (t "common.cancel") "secondary" "href" "/")}}
 	</div>
 
 	<fieldset class="settings-section settings-panel" data-panel="git-author"{{if ne .SettingsPanel "git-author"}} hidden{{end}}>
-		<legend>your git author</legend>
+		<legend>{{t "settings.git_author.legend"}}</legend>
 		<form method="POST" action="/_/api/settings/author" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">{{$fieldSlot3 := component "field" "id" "user-git-author" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot3}}
-				{{$authorField := component "field" "id" "user_git_author" "label" "git author" "layout" "bare"}}{{template "ui-field-start" $authorField}}{{template "ui-setting-info" (settinginfo "preferences" "git_author")}}
-				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}" placeholder="Name &lt;email@example.com&gt; (blank = use default)">{{template "ui-field-end" $authorField}}
+				{{$authorField := component "field" "id" "user_git_author" "label" (t "settings.git_author.label") "layout" "bare"}}{{template "ui-field-start" $authorField}}{{template "ui-setting-info" (settinginfo "preferences" "git_author")}}
+				<input type="text" id="user_git_author" name="git_author" value="{{.Settings.UserGitAuthor}}" placeholder="{{t "settings.git_author.placeholder"}}">{{template "ui-field-end" $authorField}}
 			{{template "ui-field-end" $fieldSlot3}}</div>
 			<div class="settings-actions">
-				{{template "ui-button" (button "Save author" "primary" "type" "submit")}}
+				{{template "ui-button" (button (t "settings.git_author.save") "primary" "type" "submit")}}
 			</div>
 		</form>
 	</fieldset>
 
 	<fieldset class="settings-section settings-panel" data-panel="access-tokens"{{if ne .SettingsPanel "access-tokens"}} hidden{{end}}>
-		<legend>access tokens</legend>
+		<legend>{{t "settings.access_tokens.legend"}}</legend>
 		<div class="settings-row" id="new-token-slot" hidden>
-			{{$newTokenField := component "field" "id" "new-token-value" "label" "new token" "layout" "bare"}}{{template "ui-field-start" $newTokenField}}
+			{{$newTokenField := component "field" "id" "new-token-value" "label" (t "settings.new_token.label") "layout" "bare"}}{{template "ui-field-start" $newTokenField}}
 			<input type="text" id="new-token-value" value="" readonly onclick="this.select()">{{template "ui-field-end" $newTokenField}}
 		</div>
-		<p class="settings-note" id="new-token-hint" hidden>Copy it now — it will not be shown again.</p>
+		<p class="settings-note" id="new-token-hint" hidden>{{t "settings.new_token.copy_hint"}}</p>
 		{{if .Settings.NewToken}}
 		<div class="settings-row">{{$fieldSlot4 := component "field" "id" "new-token-created" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot4}}
-			{{$tokenValue := component "field" "id" "new-token-created" "label" "new token" "layout" "bare"}}{{template "ui-field-start" $tokenValue}}
+			{{$tokenValue := component "field" "id" "new-token-created" "label" (t "settings.new_token.label") "layout" "bare"}}{{template "ui-field-start" $tokenValue}}
 			<input type="text" id="new-token-created" value="{{.Settings.NewToken}}" readonly onclick="this.select()">{{template "ui-field-end" $tokenValue}}
 		{{template "ui-field-end" $fieldSlot4}}</div>
-		<p class="settings-note">Copy it now — it will not be shown again.</p>
+		<p class="settings-note">{{t "settings.new_token.copy_hint"}}</p>
 		{{end}}
 		{{if .Settings.TokenError}}{{$tokenError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $tokenError}}{{.Settings.TokenError}}{{template "ui-notice-end" $tokenError}}{{end}}
 		{{range .Settings.Tokens}}
 		<div class="settings-row">
 			<label>{{.Name}}</label>
 			<span class="token-meta">{{.ScopeLabel}} &middot; {{.NamespaceLabel}}</span>
-			<span class="token-meta">created {{.Created}} &middot; expires {{.Expires}}</span>
+			<span class="token-meta">{{t "settings.tokens.created" "Created" .Created}} &middot; {{t "settings.tokens.expires" "Expires" .Expires}}</span>
 			<form method="POST" action="/_/api/settings/tokens/revoke" class="settings-inline-form js-token-revoke">{{template "csrf" $}}{{template "json-required" $}}
 				<input type="hidden" name="label" value="{{.Name}}">
-				{{template "ui-button" (button "Revoke" "danger" "type" "submit")}}
+				{{template "ui-button" (button (t "settings.tokens.revoke") "danger" "type" "submit")}}
 			</form>
 		</div>
 		{{end}}
 		<form method="POST" action="/_/api/settings/tokens" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">{{$fieldSlot6 := component "field" "id" "token-label" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot6}}
-				{{$tokenLabel := component "field" "id" "token_label" "label" "new token name" "layout" "bare"}}{{template "ui-field-start" $tokenLabel}}
-				<input type="text" id="token_label" name="label" placeholder="e.g. my-laptop">{{template "ui-field-end" $tokenLabel}}
+				{{$tokenLabel := component "field" "id" "token_label" "label" (t "settings.token_label.label") "layout" "bare"}}{{template "ui-field-start" $tokenLabel}}
+				<input type="text" id="token_label" name="label" placeholder="{{t "settings.tokens.label_placeholder"}}">{{template "ui-field-end" $tokenLabel}}
 			{{template "ui-field-end" $fieldSlot6}}</div>
 			<div class="settings-row">{{$expirySlot := component "field" "id" "token-expiry-row" "layout" "bare"}}{{template "ui-field-slot-start" $expirySlot}}
-				{{$expiryField := component "field" "id" "token-expiry" "label" "expiry" "type" "select" "layout" "bare"}}{{template "ui-field-start" $expiryField}}<select id="token-expiry" name="expiry">
-					<option value="1d">1 day</option>
-					<option value="7d">7 days</option>
-					<option value="30d" selected>30 days</option>
-					<option value="1y">1 year</option>
-					<option value="never">never</option>
+				{{$expiryField := component "field" "id" "token-expiry" "label" (t "settings.token_expiry.label") "type" "select" "layout" "bare"}}{{template "ui-field-start" $expiryField}}<select id="token-expiry" name="expiry">
+					<option value="1d">{{t "settings.token_expiry.one_day"}}</option>
+					<option value="7d">{{t "settings.token_expiry.seven_days"}}</option>
+					<option value="30d" selected>{{t "settings.token_expiry.thirty_days"}}</option>
+					<option value="1y">{{t "settings.token_expiry.one_year"}}</option>
+					<option value="never">{{t "settings.token_expiry.never"}}</option>
 				</select>{{template "ui-field-end" $expiryField}}
 			{{template "ui-field-end" $expirySlot}}</div>
 			<div class="settings-row">{{$fieldSlot7 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
-				<label>scopes</label>
+				<label>{{t "settings.scopes.label"}}</label>
 				<span class="scope-checks">
 					{{range .Settings.AllScopes}}{{$scopeChoice := component "choice" "id" (printf "token-scope-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $scopeChoice}}
 					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $scopeChoice}}
@@ -144,17 +144,17 @@
 				</span>
 			{{template "ui-field-end" $fieldSlot7}}</div>
 			<div class="settings-row">{{$fieldSlot8 := component "field" "id" "namespaces" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot8}}
-				<label>namespace access</label>
+				<label>{{t "settings.namespaces.label"}}</label>
 				<span class="scope-checks">
 					{{range .Settings.TokenNamespaces}}{{$namespaceChoice := component "choice" "id" (printf "token-namespace-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $namespaceChoice}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $namespaceChoice}}{{end}}
 				</span>
 			{{template "ui-field-end" $fieldSlot8}}</div>
-			<p class="settings-note">Select one or more scopes. Check namespaces to restrict access, or leave every box unchecked for all namespaces. <code>settings</code> grants Administrator access to every namespace.</p>
+			<p class="settings-note">{{t "settings.tokens.scopes_help"}} {{tl "settings.tokens.settings_grants" "Scope" (code "settings")}}</p>
 			<div class="settings-actions">
-				{{template "ui-button" (button "Create token" "primary" "type" "submit")}}
+				{{template "ui-button" (button (t "settings.tokens.create") "primary" "type" "submit")}}
 			</div>
 		</form>
-		<p class="settings-note">Bearer tokens for the API and the MCP endpoint (<code>Authorization: Bearer hmd_...</code>).</p>
+		<p class="settings-note">{{tl "settings.tokens.bearer_note" "Example" (code "Authorization: Bearer hmd_...")}}</p>
 	</fieldset>
 </section>
 {{end}}
@@ -175,7 +175,7 @@
 		});
 	});
 
-	// Name the active skin's own font in each "(default — …)" option. skins.css
+	// Name the active skin's own font in each default option. skins.css
 	// stays the only source: briefly drop any previewed override to read it.
 	function syncFontDefaults() {
 		fontFields.forEach(function (pair) {
@@ -186,7 +186,7 @@
 			root.style.removeProperty(pair[1]);
 			var first = getComputedStyle(root).getPropertyValue(pair[1]).split(',')[0].trim().replace(/^["']|["']$/g, '');
 			if (override) root.style.setProperty(pair[1], override);
-			if (first) option.textContent = '(default — ' + first.toLowerCase() + ')';
+			if (first) option.textContent = window.hmdT('js.settings.font_default', { Font: first.toLowerCase() });
 		});
 	}
 	syncFontDefaults();

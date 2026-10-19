@@ -3,7 +3,6 @@ package web
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"html"
 	"html/template"
 	"log/slog"
@@ -18,6 +17,7 @@ import (
 	"hmd/internal/auth"
 	"hmd/internal/config"
 	"hmd/internal/httpmiddleware"
+	"hmd/internal/i18n"
 	"hmd/internal/oauthserver"
 	"hmd/internal/wiki"
 )
@@ -198,7 +198,7 @@ type TemplateData struct {
 	PageFootWidgets         []*widget
 	StatusVariant           string // skin.Status: full | write | quiet
 
-	// Widget data — populated in app.render only when something on the page actually reads it (see
+	// Widget data, populated in app.render only when something on the page actually reads it (see
 	// populateWidgetData).
 	Calendar           CalendarMonth
 	WritingStats       WritingStats
@@ -236,12 +236,12 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	case "namespace-edit":
 		data.SettingsSection = "namespaces"
 		if data.NamespaceManagement != nil && data.NamespaceManagement.Form.Name != "" {
-			data.SettingsSubpage = "Edit " + data.NamespaceManagement.Form.Name
+			data.SettingsSubpage = i18n.T("web.render.subpage_edit", "Name", data.NamespaceManagement.Form.Name)
 			if s, ok := namespaceSectionByKey(data.NamespaceManagement.Section); ok && s.Key != "general" {
-				data.SettingsSubpage += ": " + s.Label
+				data.SettingsSubpage = i18n.T("web.render.subpage_edit_section", "Name", data.NamespaceManagement.Form.Name, "Section", i18n.T(s.Label))
 			}
 		} else {
-			data.SettingsSubpage = "New namespace"
+			data.SettingsSubpage = i18n.T("web.render.subpage_new_namespace")
 		}
 	case "export-options":
 		data.SettingsSection = "namespaces"
@@ -264,11 +264,11 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		if data.SettingsPanel != "" {
 			key = data.SettingsPanel
 		}
-		data.SettingsLabel = settingsPanels[key].Label
+		data.SettingsLabel = i18n.T(settingsPanels[key].Label)
 		if nm := data.NamespaceManagement; nm != nil && nm.Form.Name != "" && len(nm.Sections) > 0 {
 			// The mobile section selector names the namespace page being edited.
 			if s, ok := namespaceSectionByKey(nm.Section); ok {
-				data.SettingsLabel = nm.Form.Name + ": " + s.Label
+				data.SettingsLabel = i18n.T("web.render.section_label", "Name", nm.Form.Name, "Section", i18n.T(s.Label))
 			}
 		}
 		data.SettingsHeading = strings.ToLower(data.SettingsLabel)
@@ -328,7 +328,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		_, _, data.SyncLastUnix = app.apiClient().SyncState()
 		if ts := data.SyncLastUnix; ts > 0 {
 			if d := time.Since(time.Unix(ts, 0)); d < time.Minute {
-				data.SyncAge = fmt.Sprintf("%ds ago", int(d.Seconds()))
+				data.SyncAge = i18n.T("js.age.seconds", "Count", int(d.Seconds()))
 			} else {
 				data.SyncAge = wiki.RelativeTime(time.Unix(ts, 0))
 			}
@@ -481,7 +481,7 @@ func (app *App) currentUser(r *http.Request) string {
 }
 
 func (app *App) notFound(w http.ResponseWriter, r *http.Request) {
-	app.errorPage(w, r, http.StatusNotFound, "Not found", "That page doesn't exist.")
+	app.errorPage(w, r, http.StatusNotFound, i18n.T("web.render.not_found_title"), i18n.T("web.render.not_found_detail"))
 }
 
 func (app *App) errorPage(w http.ResponseWriter, r *http.Request, status int, title, detail string) {
@@ -497,7 +497,7 @@ func (app *App) tokenNamespaceDenied(w http.ResponseWriter, r *http.Request) {
 	// Only a navigation gets the rendered page; a denied write comes from
 	// fetch, which reads the status and never the body.
 	if r.Method == http.MethodGet {
-		app.errorPage(w, r, http.StatusForbidden, "Forbidden", "You don't have access to that namespace.")
+		app.errorPage(w, r, http.StatusForbidden, i18n.T("web.render.forbidden_title"), i18n.T("web.render.forbidden_detail"))
 		return
 	}
 	http.Error(w, "403 Forbidden: namespace access denied", http.StatusForbidden)

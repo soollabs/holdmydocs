@@ -1,8 +1,9 @@
 package wiki
 
 import (
-	"fmt"
 	"time"
+
+	"hmd/internal/i18n"
 )
 
 // RelativeTime renders a timestamp as a short human age ("3 hours ago",
@@ -12,25 +13,17 @@ func RelativeTime(t time.Time) string {
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return i18n.T("age.just_now")
 	case d < time.Hour:
 		n := int(d / time.Minute)
-		return fmt.Sprintf("%d minute%s ago", n, Plural(n))
+		return i18n.TN("age.minutes_ago", n, "Count", n)
 	case d < 24*time.Hour:
 		n := int(d / time.Hour)
-		return fmt.Sprintf("%d hour%s ago", n, Plural(n))
+		return i18n.TN("age.hours_ago", n, "Count", n)
 	case d < 7*24*time.Hour:
 		n := int(d / (24 * time.Hour))
-		return fmt.Sprintf("%d day%s ago", n, Plural(n))
+		return i18n.TN("age.days_ago", n, "Count", n)
 	default:
 		return t.Format("2006-01-02")
 	}
-}
-
-// Plural returns "s" for any count other than one, for simple English plurals.
-func Plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }

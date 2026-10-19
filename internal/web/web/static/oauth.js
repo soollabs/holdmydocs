@@ -22,10 +22,10 @@
       list.hidden = all;
       list.querySelectorAll('input').forEach(input => { input.disabled = admin || all; });
       const selected = !!form.querySelector('input[name="namespace"]:checked');
-      const message = !hasScope ? 'Choose at least one action.'
-        : !admin && !all && !selected ? 'Select at least one namespace or allow all namespaces.' : '';
+      const message = !hasScope ? window.hmdT('js.oauth.choose_action')
+        : !admin && !all && !selected ? window.hmdT('js.oauth.choose_namespace') : '';
       approve.disabled = !!message;
-      validation.textContent = message || (admin ? 'This connection will have unrestricted administrator access.' : 'Ready to connect with your selected permissions.');
+      validation.textContent = message || window.hmdT(admin ? 'js.oauth.admin_warning' : 'js.oauth.ready');
       return !message;
     }
     form.addEventListener('change', validate);
@@ -44,11 +44,11 @@
     button.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(input.value);
-        status.textContent = 'Copied. Store this credential securely.';
+        status.textContent = window.hmdT('js.oauth.copied');
       } catch (_) {
         input.focus();
         input.select();
-        status.textContent = 'Selected for copying. Press Ctrl+C or Cmd+C.';
+        status.textContent = window.hmdT('js.oauth.selected');
       }
     });
   });

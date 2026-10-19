@@ -4,7 +4,7 @@
 	{{$errorPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $errorPanel}}
 	<h1>{{.Title}}</h1>
 	<p>{{.StatusContext}}</p>
-	{{template "ui-button" (button (printf "Back to %s" .SiteName) "secondary" "href" "/")}}
+	{{template "ui-button" (button (t "error.back_to" "Site" .SiteName) "secondary" "href" "/")}}
 	{{template "ui-panel-end" $errorPanel}}
 </div>
 </div>

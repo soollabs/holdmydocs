@@ -1,0 +1,2996 @@
+{
+  "admin.attachments.col_files": {
+    "description": "Column header for the file count column in the legacy attachments table.",
+    "other": "files"
+  },
+  "admin.attachments.col_namespace": {
+    "description": "Column header for the namespace column in the legacy attachments table.",
+    "other": "namespace"
+  },
+  "admin.attachments.col_what": {
+    "description": "Column header for the column describing what will happen to each namespace's legacy attachments.",
+    "other": "what happens"
+  },
+  "admin.attachments.delete_aria": {
+    "description": "Accessible label of the delete button for one namespace's old attachments. Namespace is the namespace name.",
+    "other": "Delete the old attachments of {{.Namespace}}"
+  },
+  "admin.attachments.delete_confirm": {
+    "description": "Confirmation before deleting a namespace's old attachments. Count is the number of files.",
+    "one": "Delete the {{.Count}} old attachment of {{.Namespace}}? It stays in Git history.",
+    "other": "Delete the {{.Count}} old attachments of {{.Namespace}}? They stay in Git history."
+  },
+  "admin.attachments.deleted": {
+    "description": "Outcome shown for a legacy attachment namespace that no longer exists; followed by a delete button.",
+    "other": "namespace deleted"
+  },
+  "admin.attachments.move": {
+    "description": "Button that moves legacy attachments into each namespace's own folder.",
+    "other": "Move attachments"
+  },
+  "admin.attachments.moves": {
+    "description": "Outcome shown for a legacy attachment namespace whose files will move into the namespace.",
+    "other": "moves into the namespace"
+  },
+  "admin.attachments.orphaned_note": {
+    "description": "Note shown when legacy attachments belong to a deleted namespace and can only be deleted.",
+    "other": "A deleted namespace's files can't be moved. Deleting them takes one commit; they stay in Git history."
+  },
+  "admin.env.export": {
+    "description": "Button that exports the current config to a file.",
+    "other": "Export current config to file"
+  },
+  "admin.env.none_overridden": {
+    "description": "Note shown on the advanced panel when no settings are overridden by environment variables.",
+    "other": "No settings are overridden by environment variables."
+  },
+  "admin.env_overrides_note": {
+    "description": "Explains environment overrides on the advanced settings panel. Pattern is the HMD_* variable name pattern and File is the config file path, both shown as code.",
+    "other": "Some settings are set by {{.Pattern}} environment variables, which are read-only here; each one's info icon names the variable. Exporting writes the values currently in effect, including those env-set ones, into {{.File}}, so you can drop the env vars and manage everything from this page afterwards."
+  },
+  "admin.export_confirm": {
+    "description": "Confirmation before exporting the settings to the config file. Path is the config file path.",
+    "other": "This overwrites {{.Path}} with the settings currently in effect, including any set via environment variables. Continue?"
+  },
+  "admin.help_drifted": {
+    "description": "Warning above the reset button when the wiki help page differs from the built-in one. File is the help file name.",
+    "other": "{{.File}} differs from hmd's built-in help text for this version. It may have been edited locally."
+  },
+  "admin.help_drifted_reset": {
+    "description": "Button in the help-drift warning that resets .help.md to the built-in text.",
+    "other": "Reset to built-in"
+  },
+  "admin.legacy_attachments_desc": {
+    "description": "Explains the legacy attachments table. Folder is a folder name shown as code.",
+    "other": "These namespaces still keep attachments in the old top-level {{.Folder}} folder. Pages still show them from there."
+  },
+  "admin.legacy_attachments_move_note": {
+    "description": "Note before moving legacy attachments. Folder is a folder name shown as code.",
+    "other": "Moving puts each namespace's files in its own {{.Folder}} folder in one commit, and links don't change. Update every HMD instance that uses this repository first: older versions only look in the old folder."
+  },
+  "admin.legend.attachments": {
+    "description": "Legend of the legacy attachments fieldset in admin settings.",
+    "other": "attachments"
+  },
+  "admin.legend.environment_overrides": {
+    "description": "Legend of the environment overrides fieldset in admin settings.",
+    "other": "environment overrides"
+  },
+  "admin.legend.users": {
+    "description": "Legend of the users fieldset in admin settings.",
+    "other": "users"
+  },
+  "admin.legend.wiki_setup": {
+    "description": "Legend of the wiki setup fieldset in admin settings.",
+    "other": "wiki setup"
+  },
+  "admin.sync.last_fetch": {
+    "description": "Label before the last fetch time in the git sync status line.",
+    "other": "last fetch:"
+  },
+  "admin.sync.last_push": {
+    "description": "Label before the last push state in the git sync status line.",
+    "other": "last push:"
+  },
+  "admin.sync.not_applicable": {
+    "description": "Shown in place of the sync state when there is no git remote.",
+    "other": "n/a"
+  },
+  "admin.sync.push_mode": {
+    "description": "Shown as the last fetch value when the sync mode is push only.",
+    "other": "n/a (push mode)"
+  },
+  "admin.system_config.save": {
+    "description": "Primary button that saves the system configuration form.",
+    "other": "Save system config"
+  },
+  "admin.users.bootstrap_link": {
+    "description": "Link text inside admin.users.bootstrap_note.",
+    "other": "here"
+  },
+  "admin.users.bootstrap_note": {
+    "description": "Note above the user list. Link is a link to the server settings, worded by admin.users.bootstrap_link.",
+    "other": "Admin created during bootstrap is managed {{.Link}}."
+  },
+  "admin.users.create": {
+    "description": "Button that creates a new user.",
+    "other": "Create user"
+  },
+  "admin.users.new_user_label": {
+    "description": "Label for the new user name field.",
+    "other": "new user"
+  },
+  "admin.users.password_placeholder": {
+    "description": "Placeholder text in the new user password input.",
+    "other": "password"
+  },
+  "admin.users.scopes_label": {
+    "description": "Label for the scope checkboxes when creating a user.",
+    "other": "scopes"
+  },
+  "admin.users.scopes_note": {
+    "description": "Note under the scope checkboxes explaining that no checked scope means full access.",
+    "other": "Leave every scope unchecked for full access."
+  },
+  "admin.users.username_placeholder": {
+    "description": "Placeholder text in the new user name input.",
+    "other": "username"
+  },
+  "admin.users.you": {
+    "description": "Suffix shown after the current user's name in the users list. Preceded by a space.",
+    "other": "(you)"
+  },
+  "admin.wiki.landing_page": {
+    "description": "Label for the wiki landing page field.",
+    "other": "landing page"
+  },
+  "admin.wiki.rerun_setup": {
+    "description": "Button that re-runs the wiki setup.",
+    "other": "Re-run setup"
+  },
+  "admin.wiki.reseed_label": {
+    "description": "Label in the wiki setup row for re-running setup.",
+    "other": "re-seed setup"
+  },
+  "admin.wiki.save": {
+    "description": "Button that saves the wiki configuration form.",
+    "other": "Save wiki configuration"
+  },
+  "admin.wiki.site_name": {
+    "description": "Label for the wiki site name field.",
+    "other": "site name"
+  },
+  "admin.wiki_config_desc": {
+    "description": "Description of the repository-level settings group. WikiFile and ConfigFile are file paths shown as code.",
+    "other": "Travels with the content repository. Saved in {{.WikiFile}}, committed to git and available to every hmd instance using this repo; it is not part of {{.ConfigFile}}."
+  },
+  "admin.zone.system_config": {
+    "description": "Heading of the system configuration section in admin settings.",
+    "other": "system configuration"
+  },
+  "admin.zone.system_config_desc": {
+    "description": "Description under the system configuration heading. Followed by a code element showing the config file path.",
+    "other": "Instance-wide. Applies to every user, stored in"
+  },
+  "admin.zone.wiki_config": {
+    "description": "Heading of the wiki configuration section in admin settings.",
+    "other": "wiki configuration"
+  },
+  "age.days_ago": {
+    "description": "Relative age in days, e.g. on the page history card. Count is the number of days.",
+    "one": "{{.Count}} day ago",
+    "other": "{{.Count}} days ago"
+  },
+  "age.hours_ago": {
+    "description": "Relative age in hours, e.g. on the page history card. Count is the number of hours.",
+    "one": "{{.Count}} hour ago",
+    "other": "{{.Count}} hours ago"
+  },
+  "age.just_now": {
+    "description": "Relative age of something that happened less than a minute ago.",
+    "other": "just now"
+  },
+  "age.minutes_ago": {
+    "description": "Relative age in minutes, e.g. on the page history card. Count is the number of minutes.",
+    "one": "{{.Count}} minute ago",
+    "other": "{{.Count}} minutes ago"
+  },
+  "base.breadcrumb.aria_label": {
+    "description": "aria-label of the settings breadcrumb navigation.",
+    "other": "Breadcrumb"
+  },
+  "base.breadcrumb.namespaces": {
+    "description": "Breadcrumb link to the namespaces settings, shown on a namespace subpage.",
+    "other": "Namespaces"
+  },
+  "base.breadcrumb.settings": {
+    "description": "First breadcrumb link, back to the settings home.",
+    "other": "Settings"
+  },
+  "base.export.close_search": {
+    "description": "Icon button in the documentation search dialog that closes it. Used as label and aria-label.",
+    "other": "Close search"
+  },
+  "base.export.external_links": {
+    "description": "Accessible name of the navigation landmark holding external links on an exported site.",
+    "other": "External links"
+  },
+  "base.export.search_dialog_label": {
+    "description": "Heading and accessible label of the documentation search dialog on exported sites.",
+    "other": "Search documentation"
+  },
+  "base.export.search_docs": {
+    "description": "Top bar button on exported static sites that opens documentation search.",
+    "other": "Search docs"
+  },
+  "base.export.search_label": {
+    "description": "Label of the search field in the documentation search dialog.",
+    "other": "Search pages in this site"
+  },
+  "base.export.search_placeholder": {
+    "description": "Placeholder of the search field in the documentation search dialog.",
+    "other": "Try backups, Markdown, or Git sync"
+  },
+  "base.export.search_status_idle": {
+    "description": "Status text in the documentation search dialog before a search is made.",
+    "other": "Search titles and page text. No data leaves your browser."
+  },
+  "base.legacy_attachments.heading": {
+    "description": "Bold heading of the notice shown when attachments need moving to their namespaces.",
+    "other": "Attachments need moving."
+  },
+  "base.legacy_attachments.message": {
+    "description": "Banner text about attachments in the old folder. Folder is a folder name shown as code; Link is the link worded by base.legacy_attachments.move_link.",
+    "other": "Some attachments are still in the old top-level {{.Folder}} folder. {{.Link}}."
+  },
+  "base.legacy_attachments.move_link": {
+    "description": "Link in the legacy attachments notice that goes to the wiki settings.",
+    "other": "Move them into their namespaces"
+  },
+  "base.noscript.js_required": {
+    "description": "Shown in a noscript block on settings forms when JavaScript is disabled.",
+    "other": "JavaScript is required to save these changes."
+  },
+  "base.palette.footer": {
+    "description": "Hint line at the bottom of the page jump palette, explaining its keys.",
+    "other": "type to jump to a page · > for verbs · ↑↓ navigate · ↵ run · esc close"
+  },
+  "base.palette.label": {
+    "description": "Label and aria-label of the page jump palette input.",
+    "other": "Jump to a page"
+  },
+  "base.palette.placeholder": {
+    "description": "Placeholder of the page jump palette input.",
+    "other": "jump to a page…"
+  },
+  "base.read_only_banner.heading": {
+    "description": "Bold heading of the banner shown when the server is in read-only mode.",
+    "other": "Read-only mode."
+  },
+  "base.read_only_banner.message": {
+    "description": "Text of the read-only banner. {{.Name}} is the environment variable name that makes the server read-only.",
+    "other": "Settings can be viewed but not changed. To change them, unset {{.Name}} and restart HMD."
+  },
+  "base.restart.heading": {
+    "description": "Bold heading of the notice shown when saved settings need a restart.",
+    "other": "Restart needed."
+  },
+  "base.restart.message": {
+    "description": "Text before the list of settings that need a restart.",
+    "other": "Saved settings that take effect after HMD restarts:"
+  },
+  "base.restart.shut_down": {
+    "description": "Button in the restart notice that opens the shut down dialog.",
+    "other": "Shut down"
+  },
+  "base.settings_nav.access_tokens": {
+    "description": "Settings navigation link to the access tokens panel.",
+    "other": "access tokens"
+  },
+  "base.settings_nav.appearance": {
+    "description": "Settings navigation link to the appearance panel.",
+    "other": "appearance"
+  },
+  "base.settings_nav.aria_label": {
+    "description": "aria-label of the settings navigation landmarks (desktop and mobile).",
+    "other": "Settings sections"
+  },
+  "base.settings_nav.connected_applications": {
+    "description": "Settings navigation link to the connected applications panel.",
+    "other": "connected applications"
+  },
+  "base.settings_nav.environment_overrides": {
+    "description": "Settings navigation link to the environment overrides panel.",
+    "other": "environment overrides"
+  },
+  "base.settings_nav.git_author": {
+    "description": "Settings navigation link to the git author panel.",
+    "other": "git author"
+  },
+  "base.settings_nav.group_account": {
+    "description": "Group label in the settings navigation, above the account links.",
+    "other": "account"
+  },
+  "base.settings_nav.group_system": {
+    "description": "Group label in the settings navigation, above the system links (admins only).",
+    "other": "system"
+  },
+  "base.settings_nav.mcp_oauth_clients": {
+    "description": "Settings navigation link to the MCP OAuth clients panel.",
+    "other": "MCP OAuth clients"
+  },
+  "base.settings_nav.namespaces": {
+    "description": "Settings navigation link to the namespaces panel.",
+    "other": "namespaces"
+  },
+  "base.settings_nav.section_label": {
+    "description": "aria-label of the mobile settings section selector. {{.Label}} is the current section name.",
+    "other": "Settings section: {{.Label}}"
+  },
+  "base.settings_nav.users": {
+    "description": "Settings navigation link to the users panel (admins only).",
+    "other": "users"
+  },
+  "base.settings_nav.wiki": {
+    "description": "Settings navigation link to the wiki settings panel (admins only).",
+    "other": "wiki"
+  },
+  "base.settings_subnav.aria_label": {
+    "description": "aria-label of the sub-navigation for one namespace's settings sections. {{.Namespace}} is the namespace name.",
+    "other": "{{.Namespace}} namespace sections"
+  },
+  "base.setup.add_selected": {
+    "description": "Primary button in the setup dialog that writes the selected items.",
+    "other": "Add selected"
+  },
+  "base.setup.badge_exists": {
+    "description": "Badge on the help guide item in the setup dialog, shown when the file already exists.",
+    "other": "exists"
+  },
+  "base.setup.badge_hidden": {
+    "description": "Badge on the help guide item in the setup dialog, marking it as a hidden page.",
+    "other": "hidden"
+  },
+  "base.setup.create_namespace_option": {
+    "description": "Option in the default namespace select that creates a new namespace.",
+    "other": "create a new namespace"
+  },
+  "base.setup.default_namespace": {
+    "description": "Label of the default namespace select in the setup dialog.",
+    "other": "default namespace"
+  },
+  "base.setup.first_namespace": {
+    "description": "Checkbox label for creating the first namespace in the setup dialog.",
+    "other": "First namespace"
+  },
+  "base.setup.heading": {
+    "description": "Heading of the first-run setup dialog.",
+    "other": "Set up wiki"
+  },
+  "base.setup.help_desc": {
+    "description": "Setup step describing the help page. Path is a URL path shown as code.",
+    "other": "UI usage plus markdown/frontmatter conventions, useful for new users and AI agents. Hidden pages are excluded from the page list, search, tags, and backlinks, and live at {{.Path}}."
+  },
+  "base.setup.help_guide": {
+    "description": "Checkbox label for the help guide in the setup dialog.",
+    "other": "Help guide"
+  },
+  "base.setup.help_overwrite": {
+    "description": "Bold warning in the help guide item when the file already exists.",
+    "other": "Already exists: checking this overwrites it with the default."
+  },
+  "base.setup.namespace_desc": {
+    "description": "Setup step explaining the first namespace. Root and Path are URL paths shown as code.",
+    "other": "Pages live in namespaces, and a namespace is a directory in the repo. This creates the first one with a welcome page as its index, and points {{.Root}} at it, so it is where signing in takes you. Add more later on {{.Path}}."
+  },
+  "base.setup.namespace_name": {
+    "description": "Label of the first namespace name field in the setup dialog.",
+    "other": "Namespace name"
+  },
+  "base.setup.namespace_pattern_title": {
+    "description": "Tooltip explaining the allowed namespace name format, shown on the namespace inputs in the setup dialog.",
+    "other": "one directory name, no slashes, not starting with a dot"
+  },
+  "base.setup.new_namespace": {
+    "description": "Label of the new namespace field in the setup dialog.",
+    "other": "new namespace"
+  },
+  "base.setup.nothing_written": {
+    "description": "Sentence in the setup dialog saying nothing is written until the user submits.",
+    "other": "Nothing is written until you submit “Add selected”."
+  },
+  "base.setup.preview_content": {
+    "description": "Label of the disclosure that previews content that setup will write.",
+    "other": "Preview content"
+  },
+  "base.setup.site_name": {
+    "description": "Label of the site name field in the setup dialog.",
+    "other": "site name"
+  },
+  "base.setup.skip": {
+    "description": "Button in the setup dialog that skips setup.",
+    "other": "Skip"
+  },
+  "base.setup.wiki_config_desc": {
+    "description": "Description of the wiki configuration item in the setup dialog.",
+    "other": "Choose where this wiki opens. The detected namespaces are already in the repository; selecting one does not change it. Or create a new namespace with a welcome page instead."
+  },
+  "base.setup.wiki_config_title": {
+    "description": "Title of the wiki configuration item in the setup dialog.",
+    "other": "Wiki configuration"
+  },
+  "base.shutdown.confirm": {
+    "description": "Danger button in the shut down dialog that confirms the shut down.",
+    "other": "Shut down"
+  },
+  "base.shutdown.dialog_label": {
+    "description": "Accessible label of the shut down confirmation dialog.",
+    "other": "Shut down HMD?"
+  },
+  "base.shutdown.message": {
+    "description": "Shutdown dialog text. Docker and Systemd are restart-policy settings shown as code.",
+    "other": "This stops the HMD process and the site becomes unavailable. It restarts automatically only if it runs under a supervisor such as Docker ({{.Docker}}) or systemd ({{.Systemd}}). Otherwise it stays down until someone starts it again."
+  },
+  "base.sidebar.aria_label": {
+    "description": "aria-label of the page navigation sidebar.",
+    "other": "Page navigation"
+  },
+  "base.skip_link": {
+    "description": "Skip link at the top of every page, jumps to the main content.",
+    "other": "Skip to content"
+  },
+  "base.statusline.local_only": {
+    "description": "Sync status text when the wiki has no remote.",
+    "other": "local only"
+  },
+  "base.statusline.mode_read": {
+    "description": "Mode segment of the status line when viewing a page.",
+    "other": "read"
+  },
+  "base.statusline.mode_write": {
+    "description": "Mode segment of the status line when editing in write mode.",
+    "other": "write"
+  },
+  "base.statusline.read_only": {
+    "description": "Status bar badge shown when the wiki is read-only.",
+    "other": "read-only"
+  },
+  "base.statusline.sync_last_push": {
+    "description": "Tooltip of the sync status segment on writable wikis.",
+    "other": "last successful push"
+  },
+  "base.statusline.sync_remote_refresh": {
+    "description": "Tooltip of the sync status segment on read-only wikis.",
+    "other": "remote refresh"
+  },
+  "base.statusline.words_today": {
+    "description": "Status bar count of words written today.",
+    "one": "{{.Count}} word today",
+    "other": "{{.Count}} words today"
+  },
+  "base.theme.dark": {
+    "description": "Tooltip and label of the theme button when the dark theme is chosen.",
+    "other": "Dark theme (click to change)"
+  },
+  "base.theme.light": {
+    "description": "Tooltip and label of the theme button when the light theme is chosen.",
+    "other": "Light theme (click to change)"
+  },
+  "base.theme.system": {
+    "description": "Tooltip and label of the theme button when following the system theme.",
+    "other": "System theme (click to change)"
+  },
+  "base.topbar.back_to_wiki": {
+    "description": "Top bar button on settings pages that returns to the wiki. Used as label, aria-label and title.",
+    "other": "Back to wiki"
+  },
+  "base.topbar.edit_page": {
+    "description": "Top bar button that opens the current page for editing. Used as label, aria-label and title.",
+    "other": "Edit page"
+  },
+  "base.topbar.more_actions": {
+    "description": "aria-label and title of the top bar menu that holds secondary actions.",
+    "other": "More actions"
+  },
+  "base.topbar.new_page": {
+    "description": "Top bar button that creates a new page. Used as label, aria-label and title.",
+    "other": "New page"
+  },
+  "base.topbar.read_only": {
+    "description": "Top bar label on public pages when the wiki is read-only.",
+    "other": "Read-only"
+  },
+  "base.topbar.toggle_navigation": {
+    "description": "Top bar icon button on public pages that shows or hides the navigation. Used as label, aria-label and title.",
+    "other": "Toggle navigation"
+  },
+  "base.topbar.toggle_sidebar": {
+    "description": "Top bar icon button that shows or hides the sidebar. Used as label, aria-label and title.",
+    "other": "Toggle sidebar"
+  },
+  "base.topbar.toggle_theme": {
+    "description": "Top bar icon button on public pages that cycles light and dark theme. Used as label, aria-label and title.",
+    "other": "Toggle light/dark"
+  },
+  "base.topbar.wiki": {
+    "description": "Visible label next to the back arrow in the top bar on settings pages.",
+    "other": "Wiki"
+  },
+  "base.topbar_menu.admin": {
+    "description": "Item in the top bar more-actions menu, opens the admin settings (admins only).",
+    "other": "Admin"
+  },
+  "base.topbar_menu.connected_applications": {
+    "description": "Item in the top bar more-actions menu, opens connected applications.",
+    "other": "Connected applications"
+  },
+  "base.topbar_menu.health": {
+    "description": "Item in the top bar more-actions menu, opens the health report.",
+    "other": "Health"
+  },
+  "base.topbar_menu.help": {
+    "description": "Item in the top bar more-actions menu, opens the help page.",
+    "other": "Help"
+  },
+  "base.topbar_menu.logout": {
+    "description": "Item in the top bar more-actions menu, signs the user out.",
+    "other": "Logout"
+  },
+  "base.topbar_menu.settings": {
+    "description": "Item in the top bar more-actions menu, opens settings.",
+    "other": "Settings"
+  },
+  "base.topbar_menu.shut_down": {
+    "description": "Item in the top bar more-actions menu, opens the shut down dialog (admins only).",
+    "other": "Shut down"
+  },
+  "base.topbar_menu.theme": {
+    "description": "Item in the top bar more-actions menu, cycles the colour theme.",
+    "other": "Theme"
+  },
+  "common.cancel": {
+    "description": "Shared label used wherever an action is named \"Cancel\".",
+    "other": "Cancel"
+  },
+  "common.delete": {
+    "description": "Shared label used wherever an action is named \"Delete\".",
+    "other": "Delete"
+  },
+  "common.edit": {
+    "description": "Shared label used wherever an action is named \"Edit\".",
+    "other": "Edit"
+  },
+  "common.new": {
+    "description": "Shared label used wherever an action is named \"New\".",
+    "other": "New"
+  },
+  "common.save": {
+    "description": "Shared label used wherever an action is named \"Save\".",
+    "other": "Save"
+  },
+  "common.search": {
+    "description": "Shared label used wherever an action is named \"Search\".",
+    "other": "Search"
+  },
+  "component.info.about": {
+    "description": "Accessible label of the info button next to a setting. Name is the setting's name.",
+    "other": "About {{.Name}}"
+  },
+  "component.info.accepts": {
+    "description": "Tooltip line describing the accepted value format. Accepts is the format description.",
+    "other": "Accepts {{.Accepts}}."
+  },
+  "component.info.change_env": {
+    "description": "Tooltip text telling the user to change the environment variable to edit a setting.",
+    "other": "Change or remove that environment variable to edit it here."
+  },
+  "component.info.env_only": {
+    "description": "Tooltip text for a setting that exists only in the environment.",
+    "other": "This setting exists only in the environment; change it where HMD is deployed."
+  },
+  "component.info.env_var": {
+    "description": "Label before the environment variable name in a setting's tooltip. Followed by a code element with the name.",
+    "other": "Environment variable:"
+  },
+  "component.info.restart": {
+    "description": "Tooltip line saying a setting only applies after a restart.",
+    "other": "Takes effect after a restart."
+  },
+  "component.info.set_by": {
+    "description": "Start of the tooltip text when a setting is set by an environment variable. Followed by a code element naming the variable.",
+    "other": "Set by"
+  },
+  "component.info.stored_in": {
+    "description": "Tooltip line naming where a setting is stored. StoredIn is the file or store name.",
+    "other": "Stored in {{.StoredIn}}."
+  },
+  "component.notice.dismiss": {
+    "description": "Label, accessible label and tooltip of the dismiss button on a dismissible notice.",
+    "other": "Dismiss"
+  },
+  "connections.all_namespaces": {
+    "description": "Value shown when the connection can access all namespaces.",
+    "other": "All namespaces, including future ones"
+  },
+  "connections.approved_actions": {
+    "description": "Label in connection details for the actions the user approved.",
+    "other": "Approved actions"
+  },
+  "connections.connected_label": {
+    "description": "Label in connection details for the date the application was connected.",
+    "other": "Connected"
+  },
+  "connections.disconnect": {
+    "description": "Button that disconnects an application.",
+    "other": "Disconnect"
+  },
+  "connections.disconnect_confirm": {
+    "description": "Confirmation dialog before disconnecting an application.",
+    "other": "Disconnect this application? Its tokens and pending uploads will stop working."
+  },
+  "connections.disconnect_label": {
+    "description": "Accessible label of the disconnect button. Name is the application name.",
+    "other": "Disconnect {{.Name}}"
+  },
+  "connections.empty_label": {
+    "description": "Label of the empty state shown when no applications are connected.",
+    "other": "No connected applications"
+  },
+  "connections.empty_text": {
+    "description": "Text of the empty state telling the user how to start a connection.",
+    "other": "Start a connection from your MCP application. After you approve access, it will appear here."
+  },
+  "connections.expires": {
+    "description": "Label in connection details for the expiry date.",
+    "other": "Expires"
+  },
+  "connections.intro": {
+    "description": "Intro paragraph under the connected applications heading.",
+    "other": "Review what you have shared. Disconnect an application to revoke its tokens and pending uploads immediately."
+  },
+  "connections.namespaces": {
+    "description": "Label in connection details for the namespaces the connection can access.",
+    "other": "Namespaces"
+  },
+  "connections.none": {
+    "description": "Value shown when the connection has no namespaces.",
+    "other": "None"
+  },
+  "connections.reconnect_help": {
+    "description": "Help text in a connection card explaining that reconnecting needs approval again.",
+    "other": "Reconnecting will require your approval again."
+  },
+  "connections.status_connected": {
+    "description": "Status badge for an active connection.",
+    "other": "Connected"
+  },
+  "connections.status_disconnected": {
+    "description": "Status badge for a connection the user disconnected.",
+    "other": "Disconnected"
+  },
+  "connections.status_expired": {
+    "description": "Status badge for a connection that has expired.",
+    "other": "Expired"
+  },
+  "connections.title": {
+    "description": "Page heading of the connected applications settings page.",
+    "other": "Connected applications"
+  },
+  "create.button": {
+    "description": "Primary button that opens the editor to create the missing page.",
+    "other": "Create this page"
+  },
+  "create.heading": {
+    "description": "Heading of the page shown when a wiki page does not exist yet.",
+    "other": "Page not found"
+  },
+  "create.text": {
+    "description": "Text under the heading when a wiki page does not exist yet.",
+    "other": "This page does not exist yet."
+  },
+  "date.day_month_year": {
+    "description": "A date. Day is the day of the month, Month an abbreviated month name, Year a four-digit year.",
+    "other": "{{.Day}} {{.Month}} {{.Year}}"
+  },
+  "date.month.april": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "April"
+  },
+  "date.month.august": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "August"
+  },
+  "date.month.december": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "December"
+  },
+  "date.month.february": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "February"
+  },
+  "date.month.january": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "January"
+  },
+  "date.month.july": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "July"
+  },
+  "date.month.june": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "June"
+  },
+  "date.month.march": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "March"
+  },
+  "date.month.may": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "May"
+  },
+  "date.month.november": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "November"
+  },
+  "date.month.october": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "October"
+  },
+  "date.month.september": {
+    "description": "Month name on its own, as in a calendar heading. Use the standalone (nominative) form.",
+    "other": "September"
+  },
+  "date.month_short.april": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Apr"
+  },
+  "date.month_short.august": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Aug"
+  },
+  "date.month_short.december": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Dec"
+  },
+  "date.month_short.february": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Feb"
+  },
+  "date.month_short.january": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jan"
+  },
+  "date.month_short.july": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jul"
+  },
+  "date.month_short.june": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Jun"
+  },
+  "date.month_short.march": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Mar"
+  },
+  "date.month_short.may": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "May"
+  },
+  "date.month_short.november": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Nov"
+  },
+  "date.month_short.october": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Oct"
+  },
+  "date.month_short.september": {
+    "description": "Abbreviated month name inside a full date such as 2 Jan 2026. Use the form that fits inside a date (genitive where the language needs it).",
+    "other": "Sep"
+  },
+  "date.month_year": {
+    "description": "Calendar heading. Month is a full month name, Year a four-digit year.",
+    "other": "{{.Month}} {{.Year}}"
+  },
+  "edit.cancel_link": {
+    "description": "Link in the editor breadcrumb that returns to the page view without saving.",
+    "other": "cancel"
+  },
+  "edit.conflict_overwrite": {
+    "description": "Button in the conflict banner that overwrites the newer saved page with the user's draft.",
+    "other": "overwrite with mine"
+  },
+  "edit.conflict_text": {
+    "description": "Message in the danger banner shown when saving hits an edit conflict.",
+    "other": "This page changed while you were editing. Your draft is preserved."
+  },
+  "edit.delete_confirm": {
+    "description": "Confirmation dialog before deleting a page.",
+    "other": "Delete this page? History stays in git, but it disappears from the wiki."
+  },
+  "edit.delete_page": {
+    "description": "Button in page details that deletes the current page.",
+    "other": "delete page"
+  },
+  "edit.hidden_label": {
+    "description": "Visible label next to the hidden checkbox in page details.",
+    "other": "hidden"
+  },
+  "edit.hidden_title": {
+    "description": "Tooltip on the hidden checkbox explaining what hiding a page excludes.",
+    "other": "Hidden pages are excluded from the page list, search, tags, and backlinks"
+  },
+  "edit.noscript": {
+    "description": "Shown instead of the editor when JavaScript is disabled.",
+    "other": "JavaScript is required to edit pages. Enable JavaScript, or view the page source rendered without the editor."
+  },
+  "edit.page_details": {
+    "description": "Label of the disclosure that reveals the page details (path, hidden, delete).",
+    "other": "page details"
+  },
+  "edit.path_label": {
+    "description": "Label of the path (namespace/filename) input in page details.",
+    "other": "path:"
+  },
+  "edit.remote_changed": {
+    "description": "Warning banner shown when the page was updated elsewhere while editing.",
+    "other": "Remote updated this page. Saving will conflict, and you'll keep your version or discard it."
+  },
+  "edit.slug_title": {
+    "description": "Tooltip on the path input explaining that changing the namespace moves the page.",
+    "other": "namespace/filename. Changing the namespace moves the page."
+  },
+  "edit.tags_label": {
+    "description": "Label of the tags input in the editor.",
+    "other": "tags:"
+  },
+  "edit.tags_placeholder": {
+    "description": "Placeholder text of the tags input, hinting at the comma-separated format.",
+    "other": "comma separated"
+  },
+  "edit.title_field": {
+    "description": "Placeholder and accessible name of the page title input in the editor.",
+    "other": "Title"
+  },
+  "edit.toolbar.attachment": {
+    "description": "Visible label of the attachment upload toolbar button.",
+    "other": "attach"
+  },
+  "edit.toolbar.attachment_title": {
+    "description": "Tooltip of the attachment upload toolbar button.",
+    "other": "Upload attachment"
+  },
+  "edit.toolbar.bold": {
+    "description": "Label and tooltip of the bold formatting button in the editor toolbar.",
+    "other": "Bold (Ctrl/Cmd+B)"
+  },
+  "edit.toolbar.bold_icon": {
+    "description": "Visible glyph inside the bold toolbar button.",
+    "other": "B"
+  },
+  "edit.toolbar.code": {
+    "description": "Visible label of the inline code toolbar button.",
+    "other": "code"
+  },
+  "edit.toolbar.code_title": {
+    "description": "Tooltip of the inline code toolbar button.",
+    "other": "Inline code"
+  },
+  "edit.toolbar.focus": {
+    "description": "Visible label of the focus mode toolbar button.",
+    "other": "focus"
+  },
+  "edit.toolbar.focus_title": {
+    "description": "Tooltip of the focus mode toolbar button.",
+    "other": "Hide everything but the writing (Ctrl+Shift+F)"
+  },
+  "edit.toolbar.heading": {
+    "description": "Visible label of the heading toolbar button.",
+    "other": "H"
+  },
+  "edit.toolbar.heading_title": {
+    "description": "Tooltip of the heading toolbar button.",
+    "other": "Heading"
+  },
+  "edit.toolbar.image": {
+    "description": "Visible label of the image toolbar button.",
+    "other": "img"
+  },
+  "edit.toolbar.image_title": {
+    "description": "Tooltip of the image toolbar button.",
+    "other": "Image"
+  },
+  "edit.toolbar.italic": {
+    "description": "Label and tooltip of the italic formatting button in the editor toolbar.",
+    "other": "Italic (Ctrl/Cmd+I)"
+  },
+  "edit.toolbar.italic_icon": {
+    "description": "Visible glyph inside the italic toolbar button.",
+    "other": "I"
+  },
+  "edit.toolbar.label": {
+    "description": "Accessible name of the editor formatting toolbar (aria-label).",
+    "other": "Formatting"
+  },
+  "edit.toolbar.link": {
+    "description": "Visible label of the link toolbar button.",
+    "other": "link"
+  },
+  "edit.toolbar.link_title": {
+    "description": "Tooltip of the link toolbar button.",
+    "other": "Link (Ctrl/Cmd+Shift+K)"
+  },
+  "edit.toolbar.preview": {
+    "description": "Visible label of the preview toggle toolbar button.",
+    "other": "preview"
+  },
+  "edit.toolbar.preview_title": {
+    "description": "Tooltip of the preview toggle toolbar button.",
+    "other": "Preview the page (Ctrl/Cmd+E)"
+  },
+  "edit.toolbar.table": {
+    "description": "Visible label of the table toolbar button.",
+    "other": "table"
+  },
+  "edit.toolbar.table_title": {
+    "description": "Tooltip of the table toolbar button.",
+    "other": "Table"
+  },
+  "edit.toolbar.toc": {
+    "description": "Visible label of the table of contents toolbar button.",
+    "other": "toc"
+  },
+  "edit.toolbar.toc_title": {
+    "description": "Tooltip of the table of contents toolbar button.",
+    "other": "Table of contents"
+  },
+  "edit.word_count": {
+    "description": "Word count shown in the focus mode status bar. {{.Count}} is the number of words.",
+    "one": "{{.Count}} word",
+    "other": "{{.Count}} words"
+  },
+  "edit.zen_exit": {
+    "description": "Visible label of the button that leaves focus mode.",
+    "other": "Exit"
+  },
+  "edit.zen_exit_title": {
+    "description": "Tooltip of the button that leaves focus mode.",
+    "other": "Leave focus (Esc)"
+  },
+  "edit.zen_larger": {
+    "description": "Accessible name and tooltip of the larger text button in focus mode.",
+    "other": "Larger text"
+  },
+  "edit.zen_smaller": {
+    "description": "Accessible name and tooltip of the smaller text button in focus mode.",
+    "other": "Smaller text"
+  },
+  "error.back_to": {
+    "description": "Button on the error page that returns to the home page. Site is the wiki's name.",
+    "other": "Back to {{.Site}}"
+  },
+  "export_options.export_title": {
+    "description": "Heading of the static site export page.",
+    "other": "Export static site"
+  },
+  "export_options.main_base_unset": {
+    "description": "Note that the main HMD base URL is also not set, so no export URL is available.",
+    "other": "The main HMD base URL is also unset."
+  },
+  "export_options.no_url_set": {
+    "description": "Warning that no export URL is set for the namespace. Followed by a sentence telling the user what to do.",
+    "other": "No export URL is set."
+  },
+  "export_options.preview_title": {
+    "description": "Heading of the static site preview page.",
+    "other": "Preview static site"
+  },
+  "export_options.set_before_exporting": {
+    "description": "Follow-up to the warning, shown when the main HMD base URL is not set.",
+    "other": "Set one for this namespace before exporting."
+  },
+  "export_options.set_or_use_main": {
+    "description": "Follow-up to the warning, shown when the main HMD base URL is set. Tells the user to set a namespace URL or use the main one.",
+    "other": "Set one for this namespace or use the main HMD URL below."
+  },
+  "export_options.set_url_button": {
+    "description": "Button linking to the namespace settings to set an export URL.",
+    "other": "Set an export URL"
+  },
+  "export_options.use": {
+    "description": "Question on the export confirmation. URL is the export base URL, shown in bold.",
+    "other": "Use {{.URL}} for this export?"
+  },
+  "export_options.use_main_export": {
+    "description": "Button that exports using the main base URL.",
+    "other": "Use main base URL and export"
+  },
+  "export_options.use_main_preview": {
+    "description": "Button that previews the export using the main base URL.",
+    "other": "Use main base URL and preview"
+  },
+  "hidden.breadcrumb": {
+    "description": "Last breadcrumb crumb on the hidden pages page.",
+    "other": "hidden"
+  },
+  "hidden.breadcrumb_label": {
+    "description": "Accessible label of the breadcrumb navigation on the hidden pages page.",
+    "other": "Breadcrumb"
+  },
+  "hidden.description": {
+    "description": "Introduction under the hidden pages heading, explaining what hidden means.",
+    "other": "Hidden pages, not in the page list, search, or tags."
+  },
+  "hidden.no_pages_label": {
+    "description": "Label of the empty state when there are no hidden pages.",
+    "other": "No hidden pages"
+  },
+  "hidden.pages_appear": {
+    "description": "Empty state text when there are no hidden pages.",
+    "other": "Pages marked hidden will appear here."
+  },
+  "hidden.title": {
+    "description": "Heading of the hidden pages page.",
+    "other": "Hidden"
+  },
+  "history.back_to_page": {
+    "description": "Link back to the page from the history view.",
+    "other": "back to page"
+  },
+  "history.breadcrumb": {
+    "description": "Last breadcrumb crumb on the history page.",
+    "other": "history"
+  },
+  "history.breadcrumb_label": {
+    "description": "Accessible label of the breadcrumb navigation on the history page.",
+    "other": "Breadcrumb"
+  },
+  "history.current": {
+    "description": "Marker shown next to the current revision, after a bullet glyph.",
+    "other": "current"
+  },
+  "history.no_revisions": {
+    "description": "Label of the empty state when the page has no revisions.",
+    "other": "No revisions yet"
+  },
+  "history.not_committed": {
+    "description": "Empty state text when the page has not been committed yet.",
+    "other": "This page has not been committed yet."
+  },
+  "history.revert": {
+    "description": "Button that reverts the page to the given revision.",
+    "other": "revert"
+  },
+  "history.revisions": {
+    "description": "Count of revisions in the page history, shown under the heading. {{.Count}} is the number of revisions.",
+    "one": "{{.Count}} revision",
+    "other": "{{.Count}} revisions"
+  },
+  "history.select_revision": {
+    "description": "Label of a revision checkbox, used as visible text for screen readers. {{.Hash}} is the short revision hash.",
+    "other": "Select revision {{.Hash}}"
+  },
+  "history.select_two": {
+    "description": "Instruction above the revision list, asking the user to pick two revisions to diff.",
+    "other": "Select two revisions to diff."
+  },
+  "history.showing_limit": {
+    "description": "Note under the revision list when it is truncated. Shown is the number listed and Total the number of revisions.",
+    "other": "Showing {{.Shown}} of {{.Total}} revisions."
+  },
+  "history.title": {
+    "description": "Heading of the page history view.",
+    "other": "History"
+  },
+  "history.view": {
+    "description": "Link to view an older revision.",
+    "other": "view"
+  },
+  "js.age.days": {
+    "description": "Relative time. Count is a number of days.",
+    "other": "{{.Count}}d ago"
+  },
+  "js.age.hours": {
+    "description": "Relative time. Count is a number of hours.",
+    "other": "{{.Count}}h ago"
+  },
+  "js.age.minutes": {
+    "description": "Relative time. Count is a number of minutes.",
+    "other": "{{.Count}}m ago"
+  },
+  "js.age.seconds": {
+    "description": "Relative time. Count is a number of seconds.",
+    "other": "{{.Count}}s ago"
+  },
+  "js.code.copied": {
+    "description": "Feedback after copying a code block.",
+    "other": "Copied"
+  },
+  "js.code.copy": {
+    "description": "Label of the button that copies a code block.",
+    "other": "Copy"
+  },
+  "js.code.copy_aria": {
+    "description": "Accessible label of the button that copies a code block.",
+    "other": "Copy code"
+  },
+  "js.code.press_copy": {
+    "description": "Feedback when automatic copying fails and the code is selected instead.",
+    "other": "Press Ctrl/Cmd+C"
+  },
+  "js.delete_confirm": {
+    "description": "Confirmation before deleting a page from the command palette. Slug is the page slug.",
+    "other": "Delete \"{{.Slug}}\"? Its history stays in git, but it disappears from the wiki."
+  },
+  "js.diff.header": {
+    "description": "Heading above a revision diff. A and B are short revision ids.",
+    "other": "diff {{.A}}..{{.B}}"
+  },
+  "js.diff.selected_one": {
+    "description": "History diff status with one revision selected. Hash is a short revision id.",
+    "other": "{{.Hash}} selected"
+  },
+  "js.diff.selected_two": {
+    "description": "History diff status with two revisions selected. A and B are short revision ids.",
+    "other": "{{.A}} ↔ {{.B}} selected"
+  },
+  "js.editor.all": {
+    "description": "Find panel button: select every match.",
+    "other": "all"
+  },
+  "js.editor.attach": {
+    "description": "Editor toolbar attach button label.",
+    "other": "attach"
+  },
+  "js.editor.by_word": {
+    "description": "Find panel checkbox: match whole words only.",
+    "other": "by word"
+  },
+  "js.editor.chars": {
+    "description": "Editor status character count.",
+    "one": "{{.Count}} char",
+    "other": "{{.Count}} chars"
+  },
+  "js.editor.close": {
+    "description": "Accessible label of the button that closes the editor's find panel.",
+    "other": "close"
+  },
+  "js.editor.completions": {
+    "description": "Accessible label of the editor's autocomplete list.",
+    "other": "Completions"
+  },
+  "js.editor.conflict": {
+    "description": "Banner when the page changed while editing. Hash is the short id of the other version.",
+    "other": "This page changed while you were editing (theirs: {{.Hash}}). Your draft is preserved."
+  },
+  "js.editor.control_character": {
+    "description": "Tooltip on an invisible control character shown in the editor.",
+    "other": "Control character"
+  },
+  "js.editor.current_match": {
+    "description": "Screen reader notice in the editor when the cursor lands on a search match.",
+    "other": "current match"
+  },
+  "js.editor.draft_saved": {
+    "description": "Editor status after a draft is kept locally. Seconds is how long ago.",
+    "other": "draft saved {{.Seconds}}s ago"
+  },
+  "js.editor.find": {
+    "description": "Placeholder of the search field in the editor's find panel.",
+    "other": "Find"
+  },
+  "js.editor.fold_line": {
+    "description": "Tooltip of the editor gutter marker that folds a section.",
+    "other": "Fold line"
+  },
+  "js.editor.folded_code": {
+    "description": "Accessible label of the placeholder shown for folded text in the editor.",
+    "other": "folded code"
+  },
+  "js.editor.folded_lines": {
+    "description": "Screen reader notice after folding: 'Folded lines 3 to 9'.",
+    "other": "Folded lines"
+  },
+  "js.editor.go": {
+    "description": "Button in the editor's go-to-line panel.",
+    "other": "go"
+  },
+  "js.editor.go_to_line": {
+    "description": "Label of the editor's go-to-line panel (Ctrl+Alt+G).",
+    "other": "Go to line"
+  },
+  "js.editor.match_case": {
+    "description": "Find panel checkbox: case-sensitive search.",
+    "other": "match case"
+  },
+  "js.editor.next": {
+    "description": "Find panel button: go to the next match.",
+    "other": "next"
+  },
+  "js.editor.offline": {
+    "description": "Editor status when saving while offline.",
+    "other": "offline: save queued, will sync when back online"
+  },
+  "js.editor.on_line": {
+    "description": "Screen reader notice in the editor: a match is on the given line, as in 'current match on line 4'.",
+    "other": "on line"
+  },
+  "js.editor.previous": {
+    "description": "Find panel button: go to the previous match.",
+    "other": "previous"
+  },
+  "js.editor.regexp": {
+    "description": "Find panel checkbox: treat the search as a regular expression.",
+    "other": "regexp"
+  },
+  "js.editor.replace": {
+    "description": "Find panel button: replace the current match.",
+    "other": "replace"
+  },
+  "js.editor.replace_all": {
+    "description": "Find panel button: replace every match.",
+    "other": "replace all"
+  },
+  "js.editor.replace_field": {
+    "description": "Placeholder of the replacement field in the editor's find panel.",
+    "other": "Replace"
+  },
+  "js.editor.replaced_match_on_line": {
+    "description": "Screen reader notice after replacing one match. $ is the line number; keep the $ sign.",
+    "other": "replaced match on line $"
+  },
+  "js.editor.replaced_matches": {
+    "description": "Screen reader notice after replacing every match. $ is the number of matches; keep the $ sign.",
+    "other": "replaced $ matches"
+  },
+  "js.editor.restore_draft": {
+    "description": "Confirmation offered when a locally saved draft exists.",
+    "other": "A saved draft was found for this page. Restore it?"
+  },
+  "js.editor.selection_deleted": {
+    "description": "Screen reader notice after deleting a selection in the editor.",
+    "other": "Selection deleted"
+  },
+  "js.editor.to": {
+    "description": "Joins two line numbers in the folding notices, as in 'Folded lines 3 to 9'.",
+    "other": "to"
+  },
+  "js.editor.unfold": {
+    "description": "Tooltip of the placeholder shown for folded text in the editor.",
+    "other": "unfold"
+  },
+  "js.editor.unfold_line": {
+    "description": "Tooltip of the editor gutter marker that unfolds a section.",
+    "other": "Unfold line"
+  },
+  "js.editor.unfolded_lines": {
+    "description": "Screen reader notice after unfolding: 'Unfolded lines 3 to 9'.",
+    "other": "Unfolded lines"
+  },
+  "js.editor.upload_failed": {
+    "description": "Alert when an attachment upload fails. Name is the file name.",
+    "other": "Failed to upload attachment: {{.Name}}"
+  },
+  "js.editor.uploading": {
+    "description": "Editor toolbar label while attachments upload. Count is the number of uploads.",
+    "other": "uploading ({{.Count}})"
+  },
+  "js.editor.words": {
+    "description": "Editor status word count.",
+    "one": "{{.Count}} word",
+    "other": "{{.Count}} words"
+  },
+  "js.error.delete_failed": {
+    "description": "Error shown when deleting a page fails without a message.",
+    "other": "delete failed"
+  },
+  "js.error.revert_failed": {
+    "description": "Error shown when reverting a page fails without a message.",
+    "other": "revert failed"
+  },
+  "js.error.save_failed": {
+    "description": "Error shown when saving fails without a message.",
+    "other": "save failed"
+  },
+  "js.error.shutdown_failed": {
+    "description": "Error shown when shutting down fails without a message.",
+    "other": "shutdown failed"
+  },
+  "js.export.matches": {
+    "description": "Result count in an exported site search.",
+    "one": "{{.Count}} matching page.",
+    "other": "{{.Count}} matching pages."
+  },
+  "js.export.matches_limited": {
+    "description": "Result count in an exported site search when only the first results are listed.",
+    "one": "{{.Count}} matching page (showing the first {{.Limit}}).",
+    "other": "{{.Count}} matching pages (showing the first {{.Limit}})."
+  },
+  "js.export.no_matches": {
+    "description": "Message in an exported site search with no results.",
+    "other": "No matching pages. Try fewer words or a different term."
+  },
+  "js.export.search_hint": {
+    "description": "Hint under the search box in an exported site.",
+    "other": "Search titles and page text. No data leaves your browser."
+  },
+  "js.namespace.conflict": {
+    "description": "Error when a namespace changed since the form was opened.",
+    "other": "This namespace changed since you opened the form, or was created by someone else. Review the settings below and save again; nothing has been overwritten."
+  },
+  "js.oauth.admin_warning": {
+    "description": "Status on the OAuth consent form when administrator access is chosen.",
+    "other": "This connection will have unrestricted administrator access."
+  },
+  "js.oauth.choose_action": {
+    "description": "Validation message on the OAuth consent form.",
+    "other": "Choose at least one action."
+  },
+  "js.oauth.choose_namespace": {
+    "description": "Validation message on the OAuth consent form.",
+    "other": "Select at least one namespace or allow all namespaces."
+  },
+  "js.oauth.copied": {
+    "description": "Feedback after copying a credential.",
+    "other": "Copied. Store this credential securely."
+  },
+  "js.oauth.ready": {
+    "description": "Status on the OAuth consent form when the choices are valid.",
+    "other": "Ready to connect with your selected permissions."
+  },
+  "js.oauth.selected": {
+    "description": "Feedback when automatic copying fails and the credential is selected instead.",
+    "other": "Selected for copying. Press Ctrl+C or Cmd+C."
+  },
+  "js.palette.create": {
+    "description": "Command palette row that creates a page. Title is the typed title and Namespace the target namespace.",
+    "other": "+ create page \"{{.Title}}\" in {{.Namespace}}"
+  },
+  "js.palette.empty_create": {
+    "description": "Command palette message when creating a page and no title is typed yet.",
+    "other": "Type a title for the new document…"
+  },
+  "js.palette.empty_recent": {
+    "description": "Command palette message when there are no recent pages.",
+    "other": "No recent pages"
+  },
+  "js.palette.jump_placeholder": {
+    "description": "Command palette input placeholder.",
+    "other": "jump to a page…"
+  },
+  "js.palette.matches": {
+    "description": "Command palette result count after a search.",
+    "one": "{{.Count}} match",
+    "other": "{{.Count}} matches"
+  },
+  "js.palette.recent": {
+    "description": "Command palette count of recent pages.",
+    "other": "{{.Count}} recent"
+  },
+  "js.palette.rename_placeholder": {
+    "description": "Command palette placeholder while renaming a page.",
+    "other": "new title…"
+  },
+  "js.palette.search_all": {
+    "description": "Command palette row that opens the full search results.",
+    "other": "search all results"
+  },
+  "js.palette.settings": {
+    "description": "Command palette shortcut to the settings page.",
+    "other": "settings"
+  },
+  "js.palette.tags_placeholder": {
+    "description": "Command palette placeholder while editing tags.",
+    "other": "tags, comma separated…"
+  },
+  "js.palette.title_placeholder": {
+    "description": "Command palette input placeholder when creating a page.",
+    "other": "title for new document…"
+  },
+  "js.palette.verbs": {
+    "description": "Command palette count of matching commands.",
+    "one": "{{.Count}} verb",
+    "other": "{{.Count}} verbs"
+  },
+  "js.preview.unavailable": {
+    "description": "Shown in the editor preview pane when the preview fails.",
+    "other": "Preview unavailable"
+  },
+  "js.preview_card.edited": {
+    "description": "Page preview card footer. Age is how long ago the page was edited.",
+    "other": "edited {{.Age}}"
+  },
+  "js.reading_summary": {
+    "description": "Reading statistics under a page title. Words is the word count and Minutes the reading time.",
+    "other": "{{.Words}}w · {{.Minutes}} min"
+  },
+  "js.request_failed": {
+    "description": "Error shown when a request fails without a message. Status is the HTTP status code.",
+    "other": "request failed ({{.Status}})"
+  },
+  "js.settings.font_default": {
+    "description": "First option of both font selects, meaning the skin's default font. Font is that font's name in lower case.",
+    "other": "(default: {{.Font}})"
+  },
+  "js.shutdown.close": {
+    "description": "Shutdown dialog button once shutdown has begun.",
+    "other": "Close"
+  },
+  "js.shutdown.message": {
+    "description": "Shutdown dialog text once shutdown has begun.",
+    "other": "HMD is shutting down. It may restart automatically if it runs under Docker or systemd; otherwise start it again manually."
+  },
+  "js.shutdown.title": {
+    "description": "Shutdown dialog title once shutdown has begun.",
+    "other": "Shutting down"
+  },
+  "js.sync.local_only": {
+    "description": "Sync status when the wiki has no remote.",
+    "other": "local only"
+  },
+  "js.sync.state.failed": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: the last push or fetch failed. Keep it to one short word.",
+    "other": "failed"
+  },
+  "js.sync.state.ok": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: the last push or fetch succeeded. Keep it to one short word.",
+    "other": "ok"
+  },
+  "js.sync.state.pending": {
+    "description": "Sync state in the status bar and admin page, after an arrow showing the sync direction: changes are waiting to be pushed. Keep it to one short word.",
+    "other": "pending"
+  },
+  "js.sync.synced": {
+    "description": "Sync status after a successful sync. Age is how long ago, e.g. \"5m ago\".",
+    "other": "synced {{.Age}}"
+  },
+  "js.verb.current_namespace": {
+    "description": "Stand-in namespace name when the current namespace is unknown.",
+    "other": "current"
+  },
+  "js.verb.delete": {
+    "description": "Command palette description of the delete command.",
+    "other": "delete this page"
+  },
+  "js.verb.health": {
+    "description": "Command palette description of the health command.",
+    "other": "wiki health"
+  },
+  "js.verb.hist": {
+    "description": "Command palette description of the history command.",
+    "other": "view history"
+  },
+  "js.verb.new": {
+    "description": "Command palette description of the new-page command.",
+    "other": "new page in this namespace"
+  },
+  "js.verb.new_in": {
+    "description": "Command palette description of the new-page command. Namespace is the namespace name.",
+    "other": "new page in the {{.Namespace}} namespace"
+  },
+  "js.verb.ns": {
+    "description": "Command palette description of the namespaces command.",
+    "other": "namespaces & templates"
+  },
+  "js.verb.pin": {
+    "description": "Command palette description of the pin command.",
+    "other": "pin this page"
+  },
+  "js.verb.rename": {
+    "description": "Command palette description of the rename command.",
+    "other": "rename this page"
+  },
+  "js.verb.sync": {
+    "description": "Command palette description of the sync command.",
+    "other": "push now"
+  },
+  "js.verb.sync_last": {
+    "description": "Description of the sync command after a push. Age is how long ago and State the sync state.",
+    "other": "push now · last push {{.Age}} ({{.State}})"
+  },
+  "js.verb.tag": {
+    "description": "Command palette description of the tag command.",
+    "other": "edit tags"
+  },
+  "login.git_remote": {
+    "description": "Line on the login page showing the git remote host. Host is the remote host name.",
+    "other": "git remote: {{.Host}}"
+  },
+  "login.intro": {
+    "description": "Intro line on the login page with the app version. Version is the HoldMyDocs version number.",
+    "other": "hold my docs (hmd) {{.Version}}"
+  },
+  "login.password_label": {
+    "description": "Label for the password field.",
+    "other": "password:"
+  },
+  "login.remember_me": {
+    "description": "Label of the remember me checkbox.",
+    "other": "remember me"
+  },
+  "login.submit": {
+    "description": "Submit button of the login form.",
+    "other": "login ↵"
+  },
+  "login.tagline": {
+    "description": "Tagline after the intro line on the login page.",
+    "other": "homelab wiki"
+  },
+  "login.username_label": {
+    "description": "Label for the username field.",
+    "other": "login:"
+  },
+  "namespace.edit_link": {
+    "description": "Link in the namespace index header to edit the namespace settings.",
+    "other": "Edit namespace"
+  },
+  "namespace.empty_label": {
+    "description": "Heading of the empty state shown when the namespace has no pages.",
+    "other": "No pages in this namespace yet"
+  },
+  "namespace.empty_text": {
+    "description": "Text under the empty state shown when the namespace has no pages.",
+    "other": "New pages will appear here."
+  },
+  "namespace.page_count": {
+    "description": "Page count in the namespace index header. {{.Count}} is the number of pages.",
+    "one": "{{.Count}} page",
+    "other": "{{.Count}} pages"
+  },
+  "namespace.public": {
+    "description": "Shown after the page count when the namespace is public.",
+    "other": "public"
+  },
+  "namespace_edit.custom_bots_label": {
+    "description": "Label of the custom bots input.",
+    "other": "custom bots"
+  },
+  "namespace_edit.custom_bots_placeholder": {
+    "description": "Placeholder of the custom bots input.",
+    "other": "comma-separated bot names"
+  },
+  "namespace_edit.date_examples": {
+    "description": "Sentence after the new page template note, showing today's date format. {{.Date}} is an example date.",
+    "other": "Date examples use {{.Date}}."
+  },
+  "namespace_edit.delete_button": {
+    "description": "Danger button that deletes the namespace.",
+    "other": "Delete namespace"
+  },
+  "namespace_edit.delete_confirm": {
+    "description": "Confirmation before deleting a namespace. Count is the number of files that will be removed.",
+    "one": "Delete this namespace and its {{.Count}} file?",
+    "other": "Delete this namespace and its {{.Count}} files?"
+  },
+  "namespace_edit.description_label": {
+    "description": "Label of the namespace description textarea.",
+    "other": "description"
+  },
+  "namespace_edit.description_placeholder": {
+    "description": "Placeholder of the namespace description textarea.",
+    "other": "optional brief summary for namespace listings"
+  },
+  "namespace_edit.export_base_url_label": {
+    "description": "Label of the export base URL input.",
+    "other": "export base URL"
+  },
+  "namespace_edit.heading_edit": {
+    "description": "Page heading when editing an existing namespace. {{.Name}} is the namespace name.",
+    "other": "edit {{.Name}}"
+  },
+  "namespace_edit.heading_new": {
+    "description": "Page heading when creating a new namespace.",
+    "other": "new namespace"
+  },
+  "namespace_edit.index_label": {
+    "description": "Label of the index page input.",
+    "other": "index page"
+  },
+  "namespace_edit.index_placeholder": {
+    "description": "Placeholder of the index page input. {{.Name}} is the namespace name, or 'ns' when the namespace is new.",
+    "other": "optional: page name shown at /{{.Name}}/ instead of the page list"
+  },
+  "namespace_edit.legend_general": {
+    "description": "Legend of the general settings section of the namespace form.",
+    "other": "general"
+  },
+  "namespace_edit.legend_published": {
+    "description": "Legend of the published view settings section.",
+    "other": "published view"
+  },
+  "namespace_edit.legend_static_site": {
+    "description": "Legend of the static site settings section.",
+    "other": "static site"
+  },
+  "namespace_edit.legend_widgets": {
+    "description": "Legend of the widgets settings section.",
+    "other": "widgets"
+  },
+  "namespace_edit.link_add": {
+    "description": "Button that adds a new external link row.",
+    "other": "Add external link"
+  },
+  "namespace_edit.link_icon_field": {
+    "description": "Label of the link icon input in an external link row.",
+    "other": "Icon"
+  },
+  "namespace_edit.link_label_field": {
+    "description": "Label of the link text input in an external link row.",
+    "other": "Label"
+  },
+  "namespace_edit.link_location_field": {
+    "description": "Label of the link location select in an external link row.",
+    "other": "Location"
+  },
+  "namespace_edit.link_location_sidebar": {
+    "description": "Option of the link location select: show the link in the sidebar.",
+    "other": "Sidebar"
+  },
+  "namespace_edit.link_location_topbar": {
+    "description": "Option of the link location select: show the link before search in the top bar.",
+    "other": "Before search"
+  },
+  "namespace_edit.link_remove": {
+    "description": "Button that removes an external link row.",
+    "other": "Remove link"
+  },
+  "namespace_edit.link_url_field": {
+    "description": "Label of the link URL input in an external link row.",
+    "other": "URL"
+  },
+  "namespace_edit.links_label": {
+    "description": "Label of the external links display mode select.",
+    "other": "external links"
+  },
+  "namespace_edit.links_sidebar_icons": {
+    "description": "Option of the external links display mode select: links shown as icons in the sidebar.",
+    "other": "sidebar shows icons"
+  },
+  "namespace_edit.links_sidebar_text": {
+    "description": "Option of the external links display mode select: links shown as text in the sidebar.",
+    "other": "sidebar shows text"
+  },
+  "namespace_edit.name_label": {
+    "description": "Label of the namespace name input.",
+    "other": "name"
+  },
+  "namespace_edit.name_placeholder": {
+    "description": "Placeholder of the namespace name input, an example value.",
+    "other": "e.g. blog"
+  },
+  "namespace_edit.palette_default": {
+    "description": "First option of the palette select, meaning the skin's default palette.",
+    "other": "skin default"
+  },
+  "namespace_edit.palette_label": {
+    "description": "Label of the palette select.",
+    "other": "palette"
+  },
+  "namespace_edit.preview.code": {
+    "description": "Sample inline code in the preview.",
+    "other": "some code"
+  },
+  "namespace_edit.preview.current_page": {
+    "description": "Sample current page in the preview page tree.",
+    "other": "Published page"
+  },
+  "namespace_edit.preview.details": {
+    "description": "Sample heading in the preview.",
+    "other": "Details"
+  },
+  "namespace_edit.preview.folder": {
+    "description": "Sample folder name in the preview page tree.",
+    "other": "guides"
+  },
+  "namespace_edit.preview.intro": {
+    "description": "Sample paragraph in the preview.",
+    "other": "A short introduction shows the reading measure, type and colour."
+  },
+  "namespace_edit.preview.link": {
+    "description": "Sample link text in the preview.",
+    "other": "A link"
+  },
+  "namespace_edit.preview.notes": {
+    "description": "Sample heading in the preview.",
+    "other": "Notes"
+  },
+  "namespace_edit.preview.on_this_page": {
+    "description": "Sample table-of-contents label in the preview.",
+    "other": "ON THIS PAGE"
+  },
+  "namespace_edit.preview.page_one": {
+    "description": "Sample page in the preview page tree.",
+    "other": "Getting started"
+  },
+  "namespace_edit.preview.page_two": {
+    "description": "Sample page in the preview page tree.",
+    "other": "Further reading"
+  },
+  "namespace_edit.preview.quote": {
+    "description": "Sample block quote in the preview.",
+    "other": "Good documentation should be easy to read."
+  },
+  "namespace_edit.preview.site": {
+    "description": "Sample site name in the published-page preview.",
+    "other": "namespace"
+  },
+  "namespace_edit.preview.supporting": {
+    "description": "Sample paragraph in the preview. Link and Code are a sample link and a sample code span.",
+    "other": "{{.Link}} and {{.Code}} show the supporting styles."
+  },
+  "namespace_edit.preview.title": {
+    "description": "Sample page title in the preview.",
+    "other": "A published page"
+  },
+  "namespace_edit.preview.tree": {
+    "description": "Sample sidebar heading in the published-page preview.",
+    "other": "TREE"
+  },
+  "namespace_edit.preview_frame_title": {
+    "description": "Accessible title of the published view preview iframe.",
+    "other": "Published view preview"
+  },
+  "namespace_edit.preview_label": {
+    "description": "Label above the published view preview frame.",
+    "other": "preview"
+  },
+  "namespace_edit.preview_note": {
+    "description": "Note under the static site preview button: save first, previews expire.",
+    "other": "Save changes before previewing. Previews expire after 15 minutes."
+  },
+  "namespace_edit.preview_static_site": {
+    "description": "Button that opens a preview of the static site export in a new tab.",
+    "other": "Preview static site"
+  },
+  "namespace_edit.public_checkbox": {
+    "description": "Checkbox label allowing anonymous access to the namespace.",
+    "other": "allow anonymous access"
+  },
+  "namespace_edit.quick_create_checkbox": {
+    "description": "Checkbox label enabling Ctrl-J quick-create in this namespace.",
+    "other": "Ctrl-J creates a page here"
+  },
+  "namespace_edit.quick_create_label": {
+    "description": "Label of the quick-create setting row.",
+    "other": "quick-create"
+  },
+  "namespace_edit.reset_button": {
+    "description": "Button that resets the namespace settings to their defaults.",
+    "other": "Reset namespace settings"
+  },
+  "namespace_edit.save_button": {
+    "description": "Primary button that saves the namespace settings.",
+    "other": "Save namespace"
+  },
+  "namespace_edit.search_bots_label": {
+    "description": "Label of the search bots checkbox group.",
+    "other": "search bots"
+  },
+  "namespace_edit.sitemap_checkbox": {
+    "description": "Checkbox label to generate sitemap.xml in static exports.",
+    "other": "generate sitemap.xml"
+  },
+  "namespace_edit.sitemap_label": {
+    "description": "Label of the sitemap setting row.",
+    "other": "sitemap"
+  },
+  "namespace_edit.skin_default": {
+    "description": "First option of the skin select, meaning the default skin.",
+    "other": "default"
+  },
+  "namespace_edit.skin_label": {
+    "description": "Label of the skin select.",
+    "other": "skin"
+  },
+  "namespace_edit.slug_custom_label": {
+    "description": "Label of the custom slug pattern input.",
+    "other": "custom pattern"
+  },
+  "namespace_edit.slug_preset.daily": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per day"
+  },
+  "namespace_edit.slug_preset.daily-per-user": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per day, per user"
+  },
+  "namespace_edit.slug_preset.monthly": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per month"
+  },
+  "namespace_edit.slug_preset.timestamped": {
+    "description": "Option in the quick-create page naming picker; an example page name follows it.",
+    "other": "one page per keystroke, date and time"
+  },
+  "namespace_edit.slug_preset_custom": {
+    "description": "Option in the slug preset select that enables a custom pattern.",
+    "other": "custom pattern…"
+  },
+  "namespace_edit.slug_preset_label": {
+    "description": "Label of the slug preset select.",
+    "other": "slug preset"
+  },
+  "namespace_edit.template_label": {
+    "description": "Label of the template page input.",
+    "other": "template page"
+  },
+  "namespace_edit.template_link": {
+    "description": "Link text inside namespace_edit.template_note.",
+    "other": "the namespace template"
+  },
+  "namespace_edit.template_note": {
+    "description": "Note about the page template. Template is a link worded by namespace_edit.template_link.",
+    "other": "New pages start from {{.Template}}."
+  },
+  "namespace_edit.template_note_unsaved": {
+    "description": "Note about the page template shown before the namespace has been saved.",
+    "other": "New pages start from the namespace template, available after this namespace is saved."
+  },
+  "namespace_edit.title_label": {
+    "description": "Label of the site title input.",
+    "other": "site title"
+  },
+  "namespace_edit.title_placeholder": {
+    "description": "Placeholder of the site title input. {{.Name}} is the default title, either the namespace name or the text from namespace_edit.title_placeholder_default.",
+    "other": "optional: used in public pages and static exports; defaults to {{.Name}}"
+  },
+  "namespace_edit.title_placeholder_default": {
+    "description": "Fills {{.Name}} in the site title placeholder when the namespace is new.",
+    "other": "the namespace name"
+  },
+  "namespace_edit.tree_editor_label": {
+    "description": "Accessible name of the drag-to-reorder tree editor.",
+    "other": "Tree order editor"
+  },
+  "namespace_edit.tree_label": {
+    "description": "Label of the tree order input.",
+    "other": "tree order"
+  },
+  "namespace_edit.tree_placeholder": {
+    "description": "Placeholder of the tree order input.",
+    "other": "optional: pages or folders, comma-separated"
+  },
+  "namespace_edit.visibility_label": {
+    "description": "Label of the visibility setting row in the published view section.",
+    "other": "visibility"
+  },
+  "namespace_edit.widget_chip_label": {
+    "description": "Accessible name of a widget chip. {{.Widget}} is the widget id and {{.Description}} is its description.",
+    "other": "{{.Widget}}: {{.Description}}"
+  },
+  "namespace_edit.widget_order_label": {
+    "description": "Label of the widget order input.",
+    "other": "widget order"
+  },
+  "namespace_edit.widget_order_placeholder": {
+    "description": "Placeholder of the widget order input, meaning the built-in widgets.",
+    "other": "built-in widgets"
+  },
+  "namespace_edit.widget_picker_label": {
+    "description": "Accessible name of the widget chip picker.",
+    "other": "Widget choices"
+  },
+  "namespaces.description": {
+    "description": "Description under the namespaces heading.",
+    "other": "Manage the top-level areas of your wiki. Each namespace can have its own visibility, page defaults and new-page behaviour."
+  },
+  "namespaces.empty_label": {
+    "description": "Heading of the empty state shown when there are no namespaces.",
+    "other": "No namespaces yet"
+  },
+  "namespaces.empty_text": {
+    "description": "Text under the empty state shown when there are no namespaces.",
+    "other": "Create one when you need a separate area for pages."
+  },
+  "namespaces.export_static_site": {
+    "description": "Button that exports a namespace as a static site.",
+    "other": "Export static site"
+  },
+  "namespaces.new_button": {
+    "description": "Primary button that opens the form to create a new namespace.",
+    "other": "New namespace"
+  },
+  "namespaces.page_count": {
+    "description": "Page count shown for each namespace in the list. {{.Count}} is the number of pages.",
+    "one": "{{.Count}} page",
+    "other": "{{.Count}} pages"
+  },
+  "namespaces.preview_static_site": {
+    "description": "Button that previews a namespace's static site export in a new tab.",
+    "other": "Preview static site"
+  },
+  "namespaces.title": {
+    "description": "Page heading and section legend of the namespace list.",
+    "other": "namespaces"
+  },
+  "namespaces.visibility_private": {
+    "description": "Visibility shown for a namespace that is not public.",
+    "other": "private"
+  },
+  "namespaces.visibility_public": {
+    "description": "Visibility shown for a namespace that allows anonymous access.",
+    "other": "public"
+  },
+  "oauth_clients.access_revoked_help": {
+    "description": "Text on a disabled client card saying access was revoked and cannot be re-enabled.",
+    "other": "Access revoked. This registration cannot be re-enabled."
+  },
+  "oauth_clients.actions_help": {
+    "description": "Help text under the allowed actions legend.",
+    "other": "These are maximum permissions, not automatic access. Write does not include read."
+  },
+  "oauth_clients.allowed_actions": {
+    "description": "Legend of the allowed actions fieldset, also the label of the allowed actions list in client details.",
+    "other": "Allowed actions"
+  },
+  "oauth_clients.application_name": {
+    "description": "Label for the application name field.",
+    "other": "Application name"
+  },
+  "oauth_clients.application_name_placeholder": {
+    "description": "Placeholder example text for the application name field.",
+    "other": "e.g. Documentation assistant"
+  },
+  "oauth_clients.auth_basic": {
+    "description": "Option label for HTTP Basic authentication. The technical method name follows in brackets.",
+    "other": "HTTP Basic"
+  },
+  "oauth_clients.auth_none": {
+    "description": "Option label for a public client without a secret. The technical method name follows in brackets.",
+    "other": "Public client without a secret"
+  },
+  "oauth_clients.auth_secret_post": {
+    "description": "Option label for sending the secret in the request body. The technical method name follows in brackets.",
+    "other": "Secret in request body"
+  },
+  "oauth_clients.authentication": {
+    "description": "Label in client details for the authentication method.",
+    "other": "Authentication"
+  },
+  "oauth_clients.callback_help": {
+    "description": "Help text under the callback URLs textarea describing the URL rules.",
+    "other": "One exact URL per line. HTTPS required, except HTTP loopback callbacks. No wildcards."
+  },
+  "oauth_clients.callback_urls": {
+    "description": "Label for the callback URLs textarea.",
+    "other": "Callback URLs"
+  },
+  "oauth_clients.callback_urls_count": {
+    "description": "Label of the callback URLs disclosure. Count is the number of callback URLs.",
+    "other": "Callback URLs ({{.Count}})"
+  },
+  "oauth_clients.client_authentication": {
+    "description": "Label for the client authentication select.",
+    "other": "Client authentication"
+  },
+  "oauth_clients.client_id": {
+    "description": "Label for the client ID, in the success panel and in client details.",
+    "other": "Client ID"
+  },
+  "oauth_clients.client_secret": {
+    "description": "Label for the client secret field on the success panel.",
+    "other": "Client secret"
+  },
+  "oauth_clients.copy_id": {
+    "description": "Button that copies the client ID to the clipboard.",
+    "other": "Copy ID"
+  },
+  "oauth_clients.copy_secret": {
+    "description": "Button that copies the client secret to the clipboard.",
+    "other": "Copy secret"
+  },
+  "oauth_clients.delete_all_disabled": {
+    "description": "Button that deletes all disabled clients. Count is the number of disabled clients.",
+    "other": "Delete all disabled ({{.Count}})"
+  },
+  "oauth_clients.delete_client": {
+    "description": "Button that permanently deletes a disabled client.",
+    "other": "Delete client"
+  },
+  "oauth_clients.delete_client_confirm": {
+    "description": "Confirmation dialog before deleting one disabled OAuth client.",
+    "other": "Permanently delete this disabled client and its connection history?"
+  },
+  "oauth_clients.delete_client_label": {
+    "description": "Accessible label of the delete client button. Name is the client name.",
+    "other": "Delete {{.Name}}"
+  },
+  "oauth_clients.delete_disabled_confirm": {
+    "description": "Confirmation dialog before deleting every disabled OAuth client.",
+    "other": "Permanently delete all disabled clients and their connection history? Active clients will not be changed."
+  },
+  "oauth_clients.disable_client": {
+    "description": "Button that permanently disables an active client.",
+    "other": "Disable client"
+  },
+  "oauth_clients.disable_client_confirm": {
+    "description": "Confirmation dialog before disabling an OAuth client.",
+    "other": "Permanently disable this client and revoke access for every connected user?"
+  },
+  "oauth_clients.disable_client_label": {
+    "description": "Accessible label of the disable client button. Name is the client name.",
+    "other": "Disable {{.Name}} and revoke all access"
+  },
+  "oauth_clients.disabling_help": {
+    "description": "Help text on an active client card warning that disabling is permanent.",
+    "other": "Disabling is permanent and revokes access for every user."
+  },
+  "oauth_clients.do_not_refresh": {
+    "description": "Status text on the success panel warning not to refresh or resubmit the page.",
+    "other": "Do not refresh or resubmit this page."
+  },
+  "oauth_clients.done": {
+    "description": "Button that dismisses the success panel.",
+    "other": "Done"
+  },
+  "oauth_clients.dynamically_registered": {
+    "description": "Text on a client card for a client registered dynamically.",
+    "other": "Dynamically registered"
+  },
+  "oauth_clients.empty_text": {
+    "description": "Text of the empty state telling the user how to register and connect a client.",
+    "other": "Register your first application above, then connect it using its client ID and callback URL."
+  },
+  "oauth_clients.intro": {
+    "description": "Intro paragraph under the MCP OAuth clients heading.",
+    "other": "Register applications that can request access to HoldMyDocs. Each user still chooses what to share."
+  },
+  "oauth_clients.manual_registration": {
+    "description": "Small grey text next to the register a client summary.",
+    "other": "Manual registration"
+  },
+  "oauth_clients.method_help": {
+    "description": "Help text under the client authentication select.",
+    "other": "Match your application's OAuth settings. Public clients cannot keep a secret. Every client must use S256 PKCE."
+  },
+  "oauth_clients.no_clients": {
+    "description": "Label of the empty state shown when no clients are registered.",
+    "other": "No clients registered"
+  },
+  "oauth_clients.public_client": {
+    "description": "Message on the success panel for a public client that has no secret.",
+    "other": "This is a public client. Use the client ID below; no secret is needed."
+  },
+  "oauth_clients.register_client": {
+    "description": "Title of the registration disclosure, also used as its summary text.",
+    "other": "Register a client"
+  },
+  "oauth_clients.register_client_button": {
+    "description": "Submit button of the client registration form.",
+    "other": "Register client"
+  },
+  "oauth_clients.registered_by_admin": {
+    "description": "Text on a client card for a client registered by an administrator.",
+    "other": "Registered by an administrator"
+  },
+  "oauth_clients.registered_clients": {
+    "description": "Heading of the registered clients list.",
+    "other": "Registered clients"
+  },
+  "oauth_clients.registration_complete": {
+    "description": "Small label on the success panel shown after a client is registered.",
+    "other": "Registration complete"
+  },
+  "oauth_clients.save_credentials": {
+    "description": "Heading of the success panel asking the user to save the client credentials.",
+    "other": "Save your client credentials"
+  },
+  "oauth_clients.scope_read": {
+    "description": "Label of the read permission checkbox.",
+    "other": "Read"
+  },
+  "oauth_clients.scope_write": {
+    "description": "Label of the write permission checkbox.",
+    "other": "Write"
+  },
+  "oauth_clients.secret_shown_once": {
+    "description": "Message on the success panel for a client with a secret, which is shown only once.",
+    "other": "The secret is shown only once. Copy it into your application's secure OAuth settings before leaving this page."
+  },
+  "oauth_clients.secrets_shown_once_help": {
+    "description": "Small help text next to the register client button.",
+    "other": "Confidential secrets are shown once."
+  },
+  "oauth_clients.status_active": {
+    "description": "Status badge on a client card that is active.",
+    "other": "Active"
+  },
+  "oauth_clients.status_disabled": {
+    "description": "Status badge on a client card that has been disabled.",
+    "other": "Disabled"
+  },
+  "oauth_clients.title": {
+    "description": "Page heading of the MCP OAuth clients settings page.",
+    "other": "MCP OAuth clients"
+  },
+  "oauth_consent.admin_restrictions": {
+    "description": "Sentence after the bold lead-in saying namespace restrictions do not apply while administrator access is selected.",
+    "other": "Namespace restrictions below do not apply while this action is selected."
+  },
+  "oauth_consent.admin_unrestricted": {
+    "description": "Bold lead-in of the warning shown when unrestricted administrator access is selected.",
+    "other": "Unrestricted administrator access."
+  },
+  "oauth_consent.allow_only": {
+    "description": "Help text under the actions legend.",
+    "other": "Allow only what this application needs."
+  },
+  "oauth_consent.approve": {
+    "description": "Primary button that approves the connection.",
+    "other": "Approve connection"
+  },
+  "oauth_consent.choose_actions": {
+    "description": "Legend of the first step, choosing which actions to allow.",
+    "other": "1. Choose actions"
+  },
+  "oauth_consent.choose_namespaces": {
+    "description": "Legend of the second step, choosing namespace access.",
+    "other": "2. Choose namespaces"
+  },
+  "oauth_consent.client_id": {
+    "description": "Label for the OAuth client ID in the technical details.",
+    "other": "Client ID"
+  },
+  "oauth_consent.connected_applications": {
+    "description": "Button linking to the connected applications settings page (opens in a new tab).",
+    "other": "Connected applications"
+  },
+  "oauth_consent.connection_details": {
+    "description": "Accessible name of the panel listing the connection details on the OAuth consent screen.",
+    "other": "Connection details"
+  },
+  "oauth_consent.deny": {
+    "description": "Secondary button that denies the connection.",
+    "other": "Deny"
+  },
+  "oauth_consent.eyebrow": {
+    "description": "Small label above the heading of the OAuth consent page.",
+    "other": "Application access"
+  },
+  "oauth_consent.javascript_needed": {
+    "description": "Notice shown when JavaScript is disabled, explaining the connection can still be denied.",
+    "other": "JavaScript is needed to approve this connection. You can still deny it."
+  },
+  "oauth_consent.namespaces_all": {
+    "description": "Name of the option that grants access to all namespaces (bold).",
+    "other": "All namespaces"
+  },
+  "oauth_consent.namespaces_all_help": {
+    "description": "Explanation shown under the all namespaces option.",
+    "other": "Includes namespaces created in the future."
+  },
+  "oauth_consent.namespaces_selected": {
+    "description": "Name of the option that limits access to chosen namespaces (bold).",
+    "other": "Selected namespaces"
+  },
+  "oauth_consent.namespaces_selected_help": {
+    "description": "Explanation shown under the selected namespaces option.",
+    "other": "Limit access to the namespaces you choose below."
+  },
+  "oauth_consent.no_namespaces": {
+    "description": "Shown in place of the namespace checkboxes when no namespaces exist.",
+    "other": "No namespaces are configured yet."
+  },
+  "oauth_consent.no_permissions": {
+    "description": "Danger notice shown when the account cannot grant any of the requested actions.",
+    "other": "Your account cannot allow any of the requested actions. Deny this request and check your permissions."
+  },
+  "oauth_consent.requested_actions": {
+    "description": "Label for the list of actions the application requests.",
+    "other": "Requested actions"
+  },
+  "oauth_consent.resource": {
+    "description": "Label for the resource URL in the technical details.",
+    "other": "Resource"
+  },
+  "oauth_consent.returning_to": {
+    "description": "Label in the connection details list for the host the user will be sent back to.",
+    "other": "Returning to"
+  },
+  "oauth_consent.revoke_any_time": {
+    "description": "Reassurance text in the consent footer.",
+    "other": "You can revoke access at any time."
+  },
+  "oauth_consent.scope_admin": {
+    "description": "Name of the administrator access option (bold).",
+    "other": "Administrator access"
+  },
+  "oauth_consent.scope_admin_help": {
+    "description": "Explanation shown under the administrator access option.",
+    "other": "Manage settings and access every namespace, including future ones. Cannot be restricted."
+  },
+  "oauth_consent.scope_read": {
+    "description": "Name of the read access option (bold).",
+    "other": "Read"
+  },
+  "oauth_consent.scope_read_help": {
+    "description": "Explanation shown under the read access option.",
+    "other": "View and search pages, namespaces and attachments."
+  },
+  "oauth_consent.scope_write": {
+    "description": "Name of the write access option (bold).",
+    "other": "Write"
+  },
+  "oauth_consent.scope_write_help": {
+    "description": "Explanation shown under the write access option.",
+    "other": "Create, edit, move and delete content. Does not include read access."
+  },
+  "oauth_consent.signed_in_as": {
+    "description": "Label in the connection details list for the signed-in user.",
+    "other": "Signed in as"
+  },
+  "oauth_consent.technical_details": {
+    "description": "Label of the collapsible section with technical connection details.",
+    "other": "Technical details"
+  },
+  "oauth_consent.title": {
+    "description": "Heading of the OAuth consent page asking the user to connect to HoldMyDocs.",
+    "other": "Connect to HoldMyDocs"
+  },
+  "oauth_consent.trust_warning": {
+    "description": "Warning paragraph telling the user to continue only if they started the connection and trust the application.",
+    "other": "Only continue if you started this connection and trust the application. Its name is supplied by the client, not verified by HoldMyDocs."
+  },
+  "oauth_consent.validation": {
+    "description": "Status message telling the user to select namespace access before approving.",
+    "other": "Select namespace access to continue."
+  },
+  "oauth_consent.wants_account": {
+    "description": "Consent screen heading line. Client is the application name, shown in bold.",
+    "other": "{{.Client}} wants to use your account."
+  },
+  "oauth_return.continue_link": {
+    "description": "Link that continues to the MCP client when the automatic redirect does not happen.",
+    "other": "Continue to the MCP client"
+  },
+  "oauth_return.heading": {
+    "description": "Heading of the page shown while returning to the MCP client.",
+    "other": "Return to MCP client"
+  },
+  "page.history_link": {
+    "description": "Breadcrumb link text pointing to the page history.",
+    "other": "history"
+  },
+  "page.js_required_revert": {
+    "description": "Shown in a noscript block when JavaScript is off, so the revert button cannot work.",
+    "other": "JavaScript is required to revert a page."
+  },
+  "page.next": {
+    "description": "Link label for the next page in the pagination.",
+    "other": "Next"
+  },
+  "page.old_version_notice": {
+    "description": "Notice shown above an old revision of a page. {{.Date}} is the date the revision was saved.",
+    "other": "Viewing an old version from {{.Date}}"
+  },
+  "page.on_this_page": {
+    "description": "Summary label of the inline table of contents on a page.",
+    "other": "On this page"
+  },
+  "page.pagination_label": {
+    "description": "Accessible label of the previous and next page navigation.",
+    "other": "Previous and next pages"
+  },
+  "page.previous": {
+    "description": "Link label for the previous page in the pagination.",
+    "other": "Previous"
+  },
+  "page.revert_to_version": {
+    "description": "Button that reverts the page to the old revision being viewed.",
+    "other": "Revert to this version"
+  },
+  "page.view_current": {
+    "description": "Link back to the current version, shown in the old revision notice.",
+    "other": "View current version"
+  },
+  "search.attachment_matches": {
+    "description": "Count of matching attachments in the search stats line. {{.Count}} is the number of matches.",
+    "one": "{{.Count}} attachment match",
+    "other": "{{.Count}} attachment matches"
+  },
+  "search.attachments_heading": {
+    "description": "Heading of the attachment results section on the search page.",
+    "other": "Attachments"
+  },
+  "search.breadcrumb": {
+    "description": "Last breadcrumb crumb on the search page.",
+    "other": "search"
+  },
+  "search.breadcrumb_label": {
+    "description": "Accessible label of the breadcrumb navigation on the search page.",
+    "other": "Breadcrumb"
+  },
+  "search.no_attachment_results_label": {
+    "description": "Label of the empty state when no attachments match the search.",
+    "other": "No attachment results"
+  },
+  "search.no_attachments_matched": {
+    "description": "Empty state text when no attachments match the search.",
+    "other": "No attachments matched your search."
+  },
+  "search.no_pages_matched": {
+    "description": "Empty state text when no pages match the search.",
+    "other": "No pages matched your search."
+  },
+  "search.no_results_label": {
+    "description": "Label of the empty state when no pages match the search.",
+    "other": "No results found"
+  },
+  "search.page_matches": {
+    "description": "Count of matching pages in the search stats line. {{.Count}} is the number of matches.",
+    "one": "{{.Count}} page match",
+    "other": "{{.Count}} page matches"
+  },
+  "search.query_placeholder": {
+    "description": "Placeholder text of the search input.",
+    "other": "search"
+  },
+  "settings.access_tokens.legend": {
+    "description": "Legend of the fieldset for the access tokens panel.",
+    "other": "access tokens"
+  },
+  "settings.account.desc": {
+    "description": "Explanatory paragraph under the 'your account' heading saying these settings are personal to the user.",
+    "other": "Personal to you. These are stored against your user and do not affect anyone else."
+  },
+  "settings.account.title": {
+    "description": "Heading of the 'your account' settings section, which holds the user's personal settings.",
+    "other": "your account"
+  },
+  "settings.appearance.save": {
+    "description": "Primary button that saves the appearance settings form.",
+    "other": "Save appearance"
+  },
+  "settings.font_mono.label": {
+    "description": "Label of the select that picks the code and editor font.",
+    "other": "code & editor font"
+  },
+  "settings.font_ui.label": {
+    "description": "Label of the select that picks the UI font.",
+    "other": "ui font"
+  },
+  "settings.fonts.group_mono": {
+    "description": "Option group label for monospace fonts in the font selects.",
+    "other": "monospace"
+  },
+  "settings.fonts.group_sans": {
+    "description": "Option group label for sans serif fonts in the font selects.",
+    "other": "sans serif"
+  },
+  "settings.fonts.group_serif": {
+    "description": "Option group label for serif fonts in the font selects.",
+    "other": "serif"
+  },
+  "settings.fonts.legend": {
+    "description": "Legend of the fieldset grouping the UI and code font pickers.",
+    "other": "fonts & layout"
+  },
+  "settings.git_author.label": {
+    "description": "Label of the text input for the user's git author.",
+    "other": "git author"
+  },
+  "settings.git_author.legend": {
+    "description": "Legend of the fieldset for the user's git author setting.",
+    "other": "your git author"
+  },
+  "settings.git_author.placeholder": {
+    "description": "Placeholder text in the git author input showing the expected format and that blank uses the default.",
+    "other": "Name <email@example.com> (blank = use default)"
+  },
+  "settings.git_author.save": {
+    "description": "Button that saves the git author setting.",
+    "other": "Save author"
+  },
+  "settings.namespaces.label": {
+    "description": "Label of the group of checkboxes for restricting a token to namespaces.",
+    "other": "namespace access"
+  },
+  "settings.new_token.copy_hint": {
+    "description": "Note telling the user to copy a newly created token because it will not be shown again. Appears above and below the token field.",
+    "other": "Copy it now. It will not be shown again."
+  },
+  "settings.new_token.label": {
+    "description": "Label of the read-only field that shows a newly created token value.",
+    "other": "new token"
+  },
+  "settings.palette.legend": {
+    "description": "Legend of the fieldset containing the colour palette picker.",
+    "other": "palette"
+  },
+  "settings.scopes.label": {
+    "description": "Label of the group of checkboxes for choosing token scopes.",
+    "other": "scopes"
+  },
+  "settings.skin.legend": {
+    "description": "Legend of the fieldset containing the skin picker.",
+    "other": "skin"
+  },
+  "settings.skin.note.bare": {
+    "description": "Short description under the bare skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "minimal: wide margins without borders or markers"
+  },
+  "settings.skin.note.journal": {
+    "description": "Short description under the journal skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "writing first: serif, wide measure, no chrome"
+  },
+  "settings.skin.note.newsprint": {
+    "description": "Short description under the newsprint skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "broadsheet: masthead, serif, justified columns, ink on paper"
+  },
+  "settings.skin.note.phosphor": {
+    "description": "Short description under the phosphor skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "the default: terminal green, monospace, # markers"
+  },
+  "settings.skin.note.soft": {
+    "description": "Short description under the soft skin's name in the skin picker. The skin name itself is not translated.",
+    "other": "rounded and low-contrast: warm sans, roomy leading, filled panels"
+  },
+  "settings.title.access_tokens": {
+    "description": "Page heading of the access tokens settings panel (lowercase, shown when that panel is open).",
+    "other": "access tokens"
+  },
+  "settings.title.appearance": {
+    "description": "Page heading of the appearance settings panel (lowercase, default panel).",
+    "other": "appearance"
+  },
+  "settings.title.git_author": {
+    "description": "Page heading of the git author settings panel (lowercase, shown when that panel is open).",
+    "other": "git author"
+  },
+  "settings.token_expiry.label": {
+    "description": "Label of the select for a new token's lifetime.",
+    "other": "expiry"
+  },
+  "settings.token_expiry.never": {
+    "description": "Option in the token expiry select for a token that never expires.",
+    "other": "never"
+  },
+  "settings.token_expiry.one_day": {
+    "description": "Option in the token expiry select for a one-day lifetime.",
+    "other": "1 day"
+  },
+  "settings.token_expiry.one_year": {
+    "description": "Option in the token expiry select for a one-year lifetime.",
+    "other": "1 year"
+  },
+  "settings.token_expiry.seven_days": {
+    "description": "Option in the token expiry select for a seven-day lifetime.",
+    "other": "7 days"
+  },
+  "settings.token_expiry.thirty_days": {
+    "description": "Option in the token expiry select for a thirty-day lifetime (default).",
+    "other": "30 days"
+  },
+  "settings.token_label.label": {
+    "description": "Label of the input for naming a new access token.",
+    "other": "new token name"
+  },
+  "settings.tokens.bearer_note": {
+    "description": "Note under the token list. Example is an example HTTP header shown as code.",
+    "other": "Bearer tokens for the API and the MCP endpoint ({{.Example}})."
+  },
+  "settings.tokens.create": {
+    "description": "Primary button that creates a new access token.",
+    "other": "Create token"
+  },
+  "settings.tokens.created": {
+    "description": "Metadata on an existing token row giving its creation date. {{.Created}} is the formatted date.",
+    "other": "created {{.Created}}"
+  },
+  "settings.tokens.expires": {
+    "description": "Metadata on an existing token row giving its expiry. {{.Expires}} is the formatted expiry date or 'never'.",
+    "other": "expires {{.Expires}}"
+  },
+  "settings.tokens.label_placeholder": {
+    "description": "Placeholder example for the new token name input.",
+    "other": "e.g. my-laptop"
+  },
+  "settings.tokens.revoke": {
+    "description": "Button that revokes an existing access token.",
+    "other": "Revoke"
+  },
+  "settings.tokens.scopes_help": {
+    "description": "First sentence of the help note under the new token form, explaining scope and namespace selection. Followed in the page by a <code>settings</code> element and settings.tokens.settings_grants.",
+    "other": "Select one or more scopes. Check namespaces to restrict access, or leave every box unchecked for all namespaces."
+  },
+  "settings.tokens.settings_grants": {
+    "description": "Second sentence of the token scope help. Scope is the settings scope name shown as code.",
+    "other": "{{.Scope}} grants Administrator access to every namespace."
+  },
+  "starting.intro": {
+    "description": "Intro line on the starting page with the app version. Version is the HoldMyDocs version number.",
+    "other": "hold my docs (hmd) {{.Version}}"
+  },
+  "starting.reloads": {
+    "description": "Second line on the starting page saying the page reloads when ready.",
+    "other": "this page reloads when ready."
+  },
+  "starting.status": {
+    "description": "Status line on the starting page, shown while HoldMyDocs starts.",
+    "other": "starting…"
+  },
+  "starting.tagline": {
+    "description": "Tagline after the intro line on the starting page.",
+    "other": "homelab wiki"
+  },
+  "starting.title": {
+    "description": "Browser tab title of the page shown while HoldMyDocs is starting.",
+    "other": "Starting…"
+  },
+  "tags.breadcrumb": {
+    "description": "Breadcrumb crumb for the tags pages.",
+    "other": "tags"
+  },
+  "tags.breadcrumb_label": {
+    "description": "Accessible label of the breadcrumb navigation on the tags pages.",
+    "other": "Breadcrumb"
+  },
+  "tags.no_pages_label": {
+    "description": "Label of the empty state when a tag has no pages.",
+    "other": "No pages with this tag"
+  },
+  "tags.no_tags_label": {
+    "description": "Label of the empty state when the wiki has no tags.",
+    "other": "No tags yet"
+  },
+  "tags.pages_appear": {
+    "description": "Empty state text when a tag has no pages.",
+    "other": "Pages carrying this tag will appear here."
+  },
+  "tags.tag_heading": {
+    "description": "Heading of a single tag's page. {{.Name}} is the tag name.",
+    "other": "Tag: {{.Name}}"
+  },
+  "tags.tags_appear": {
+    "description": "Empty state text when the wiki has no tags.",
+    "other": "Tags appear when pages are assigned them."
+  },
+  "tags.title": {
+    "description": "Heading of the all tags page.",
+    "other": "Tags"
+  },
+  "web.auth.invalid_credentials": {
+    "description": "Error message shown on the sign-in form when the username or password is wrong.",
+    "other": "Invalid username or password"
+  },
+  "web.auth.login_title": {
+    "description": "Page title of the sign-in page.",
+    "other": "Login"
+  },
+  "web.export.index_empty": {
+    "description": "Static export index page body shown when a namespace has no pages; HTML markup, shown in the exported site.",
+    "other": "<p>Select a page from the sidebar.</p>"
+  },
+  "web.export.title_export": {
+    "description": "Page title of the static site export options page.",
+    "other": "Export static site"
+  },
+  "web.export.title_preview": {
+    "description": "Page title of the static site preview options page.",
+    "other": "Preview static site"
+  },
+  "web.oauth.connect_title": {
+    "description": "Page title of the consent page where a person approves an MCP application connection.",
+    "other": "Connect application"
+  },
+  "web.oauth.connections_title": {
+    "description": "Page title of the settings page listing applications connected to the account.",
+    "other": "Connected applications"
+  },
+  "web.oauth.return_title": {
+    "description": "Page title shown after approving or denying a connection, before returning the person to the MCP client.",
+    "other": "Return to MCP client"
+  },
+  "web.oauth_clients.title": {
+    "description": "Page title of the settings page for managing MCP OAuth clients.",
+    "other": "MCP OAuth clients"
+  },
+  "web.pages.forbidden_detail": {
+    "description": "Detail text of the error page shown when the user cannot access a namespace.",
+    "other": "You don't have access to that namespace."
+  },
+  "web.pages.forbidden_title": {
+    "description": "Title of the error page shown when the user cannot access a namespace.",
+    "other": "Forbidden"
+  },
+  "web.pages.health_all_clear": {
+    "description": "Message shown in the health report when there are no problems. A check mark is shown before it.",
+    "other": "Your wiki is healthy!"
+  },
+  "web.pages.health_last_updated": {
+    "description": "Text after a stale page link in the health report. Date is the last update date, already formatted.",
+    "other": "last updated {{.Date}}"
+  },
+  "web.pages.health_linked_from": {
+    "description": "Label before the list of pages that link to a missing page in the health report, shown after an em dash.",
+    "other": "linked from"
+  },
+  "web.pages.health_missing": {
+    "description": "Part of the health report status bar summary. Count is the number of links to pages that do not exist.",
+    "other": "{{.Count}} missing"
+  },
+  "web.pages.health_missing_heading": {
+    "description": "Heading of the missing pages section of the health report. Count is the number of missing pages.",
+    "other": "Missing pages ({{.Count}})"
+  },
+  "web.pages.health_missing_intro": {
+    "description": "Introductory sentence under the missing pages heading in the health report.",
+    "other": "Wiki-linked but not yet created:"
+  },
+  "web.pages.health_orphans": {
+    "description": "Part of the health report status bar summary. Count is the number of pages nothing links to.",
+    "one": "{{.Count}} orphan",
+    "other": "{{.Count}} orphans"
+  },
+  "web.pages.health_orphans_heading": {
+    "description": "Heading of the orphaned pages section of the health report. Count is the number of orphaned pages.",
+    "other": "Orphaned pages ({{.Count}})"
+  },
+  "web.pages.health_orphans_intro": {
+    "description": "Introductory sentence under the orphaned pages heading in the health report.",
+    "other": "Pages with no incoming links:"
+  },
+  "web.pages.health_stale": {
+    "description": "Part of the health report status bar summary. Count is the number of pages not updated for a long time.",
+    "other": "{{.Count}} stale"
+  },
+  "web.pages.health_stale_heading": {
+    "description": "Heading of the stale pages section of the health report. Count is the number of stale pages.",
+    "other": "Stale pages ({{.Count}})"
+  },
+  "web.pages.health_stale_intro": {
+    "description": "Introductory sentence under the stale pages heading. Days is the staleness threshold in days.",
+    "other": "No Git revision in at least {{.Days}} days:"
+  },
+  "web.pages.health_title": {
+    "description": "Page title of the health report.",
+    "other": "Health"
+  },
+  "web.pages.hidden_title": {
+    "description": "Page title of the hidden pages index.",
+    "other": "Hidden"
+  },
+  "web.pages.index_pending_note": {
+    "description": "Warning shown after saving when the search index update is still pending.",
+    "other": "Saved. Search indexing is pending and will be reconciled automatically."
+  },
+  "web.pages.not_found_title": {
+    "description": "Title of the page-not-found page, shown when a page does not exist.",
+    "other": "Page not found"
+  },
+  "web.pages.page_count": {
+    "description": "Status bar count of pages in a namespace. Count is the number of pages.",
+    "one": "{{.Count}} page",
+    "other": "{{.Count}} pages"
+  },
+  "web.pages.revision_count": {
+    "description": "Status bar revision count of a page. Count is the number of revisions.",
+    "one": "{{.Count}} revision",
+    "other": "{{.Count}} revisions"
+  },
+  "web.pages.search_title": {
+    "description": "Page title of the search page when no query has been entered.",
+    "other": "Search"
+  },
+  "web.pages.tag_title": {
+    "description": "Page title of a single tag's page list. Name is the tag name.",
+    "other": "Tag: {{.Name}}"
+  },
+  "web.pages.tags_title": {
+    "description": "Page title of the tags index.",
+    "other": "Tags"
+  },
+  "web.render.forbidden_detail": {
+    "description": "Detail text on the error page shown when the user cannot access a namespace.",
+    "other": "You don't have access to that namespace."
+  },
+  "web.render.forbidden_title": {
+    "description": "Title of the error page shown when the user cannot access a namespace.",
+    "other": "Forbidden"
+  },
+  "web.render.not_found_detail": {
+    "description": "Detail text on the error page for a missing page.",
+    "other": "That page doesn't exist."
+  },
+  "web.render.not_found_title": {
+    "description": "Title of the error page for a missing page.",
+    "other": "Not found"
+  },
+  "web.render.section_label": {
+    "description": "Mobile settings section selector label while editing a namespace. {{.Name}} is the namespace name, {{.Section}} the section label.",
+    "other": "{{.Name}}: {{.Section}}"
+  },
+  "web.render.subpage_edit": {
+    "description": "Breadcrumb subpage title when editing a namespace. {{.Name}} is the namespace name.",
+    "other": "Edit {{.Name}}"
+  },
+  "web.render.subpage_edit_section": {
+    "description": "Breadcrumb subpage title for a namespace editor section. {{.Name}} is the namespace name, {{.Section}} the section label.",
+    "other": "Edit {{.Name}}: {{.Section}}"
+  },
+  "web.render.subpage_new_namespace": {
+    "description": "Breadcrumb subpage title for the new namespace form.",
+    "other": "New namespace"
+  },
+  "web.setting_info.accepts": {
+    "description": "Tooltip on a setting input describing the accepted values. {{.Hint}} is the generated description of the accepted format.",
+    "other": "Accepts {{.Hint}}"
+  },
+  "web.setting_info.stored_in.config": {
+    "description": "Help text saying which file a config.yaml setting is stored in.",
+    "other": "config.yaml"
+  },
+  "web.setting_info.stored_in.namespace": {
+    "description": "Help text saying which file a namespace setting is stored in, committed with the namespace.",
+    "other": ".namespace.yaml, committed with the namespace"
+  },
+  "web.setting_info.stored_in.preferences": {
+    "description": "Help text saying a setting is stored in the user's own account.",
+    "other": "your account"
+  },
+  "web.setting_info.stored_in.wiki": {
+    "description": "Help text saying which file a wiki setting is stored in, committed with the content.",
+    "other": ".wiki.yaml, committed with the content"
+  },
+  "web.settings.expires_expired": {
+    "description": "Expiry of an access token whose expiry date has passed, shown in its metadata line.",
+    "other": "expired"
+  },
+  "web.settings.expires_never": {
+    "description": "Expiry of an access token that never expires, shown in its metadata line.",
+    "other": "never"
+  },
+  "web.settings.flash_attachments_deleted": {
+    "description": "Success notice after deleting old attachments left by a removed namespace.",
+    "other": "Old attachments deleted"
+  },
+  "web.settings.flash_attachments_moved": {
+    "description": "Success notice after moving legacy attachments into their namespaces.",
+    "other": "Attachments moved into their namespaces"
+  },
+  "web.settings.flash_exported": {
+    "description": "Success notice after exporting the environment overrides to the config file. {{.Path}} is the config file path.",
+    "other": "Config exported to {{.Path}}"
+  },
+  "web.settings.flash_namespace_saved": {
+    "description": "Success notice shown on the namespace list or editor after saving.",
+    "other": "Namespace settings saved"
+  },
+  "web.settings.flash_saved": {
+    "description": "Success notice shown on a settings page after saving.",
+    "other": "Settings saved"
+  },
+  "web.settings.flash_wiki_saved": {
+    "description": "Success notice after saving wiki settings. {{.Path}} is the repository-relative wiki config path.",
+    "other": "Wiki settings saved to {{.Path}}"
+  },
+  "web.settings.namespace_section.general": {
+    "description": "Namespace editor subpage link for the general section.",
+    "other": "general"
+  },
+  "web.settings.namespace_section.published": {
+    "description": "Namespace editor subpage link for the published view section.",
+    "other": "published view"
+  },
+  "web.settings.namespace_section.static_site": {
+    "description": "Namespace editor subpage link for the static site section.",
+    "other": "static site"
+  },
+  "web.settings.namespace_section.widgets": {
+    "description": "Namespace editor subpage link for the widgets section.",
+    "other": "widgets"
+  },
+  "web.settings.namespace_title": {
+    "description": "Page title of the editor for an existing namespace. {{.Name}} is the namespace name.",
+    "other": "{{.Name}} namespace"
+  },
+  "web.settings.namespaces_administrator": {
+    "description": "Namespace scope of an access token that has administrator rights and so reaches every namespace.",
+    "other": "Administrator"
+  },
+  "web.settings.namespaces_all": {
+    "description": "Namespace scope of an access token that can reach every namespace.",
+    "other": "All namespaces"
+  },
+  "web.settings.namespaces_only": {
+    "description": "Namespace scope of an access token limited to some namespaces. {{.Names}} is the comma-separated namespace names.",
+    "other": "{{.Names}} only"
+  },
+  "web.settings.panel.access_tokens": {
+    "description": "Settings navigation link and heading for the access tokens panel.",
+    "other": "Access tokens"
+  },
+  "web.settings.panel.advanced": {
+    "description": "Admin settings navigation link and heading for the environment overrides panel.",
+    "other": "Environment overrides"
+  },
+  "web.settings.panel.appearance": {
+    "description": "Settings navigation link and heading for the appearance panel.",
+    "other": "Appearance"
+  },
+  "web.settings.panel.connections": {
+    "description": "Settings navigation link and heading for the connected applications section.",
+    "other": "Connected applications"
+  },
+  "web.settings.panel.document_search": {
+    "description": "Admin settings navigation link and heading for the document search panel.",
+    "other": "Document search"
+  },
+  "web.settings.panel.git": {
+    "description": "Admin settings navigation link and heading for the git panel.",
+    "other": "Git"
+  },
+  "web.settings.panel.git_author": {
+    "description": "Settings navigation link and heading for the git author panel.",
+    "other": "Git author"
+  },
+  "web.settings.panel.mcp": {
+    "description": "Admin settings navigation link and heading for the MCP panel.",
+    "other": "MCP"
+  },
+  "web.settings.panel.namespaces": {
+    "description": "Settings navigation link and heading for the namespaces section.",
+    "other": "Namespaces"
+  },
+  "web.settings.panel.oauth_clients": {
+    "description": "Settings navigation link and heading for the MCP OAuth clients section.",
+    "other": "MCP OAuth clients"
+  },
+  "web.settings.panel.oidc": {
+    "description": "Admin settings navigation link and heading for the OIDC single sign-on panel.",
+    "other": "OIDC single sign-on"
+  },
+  "web.settings.panel.server": {
+    "description": "Admin settings navigation link and heading for the server panel.",
+    "other": "Server"
+  },
+  "web.settings.panel.users": {
+    "description": "Admin settings navigation link and heading for the users panel.",
+    "other": "Users"
+  },
+  "web.settings.panel.wiki": {
+    "description": "Admin settings navigation link and heading for the wiki panel.",
+    "other": "Wiki"
+  },
+  "web.settings.secret_not_set": {
+    "description": "Value shown in a settings row for a secret that has no value.",
+    "other": "not set"
+  },
+  "web.settings.secret_set": {
+    "description": "Value shown in a settings row for a secret that has a value; the secret itself is never shown.",
+    "other": "set"
+  },
+  "web.settings.status_context": {
+    "description": "Right-aligned context in the status bar on the settings pages.",
+    "other": "config"
+  },
+  "web.settings.title": {
+    "description": "Page title of the account settings page and the settings navigation heading.",
+    "other": "Settings"
+  },
+  "web.settings.title_new_namespace": {
+    "description": "Page title of the new namespace form.",
+    "other": "New namespace"
+  },
+  "widget.backlinks.label": {
+    "description": "Label above the list of pages that link to the current page.",
+    "other": "linked from"
+  },
+  "widget.calendar.dow_fri": {
+    "description": "Single-letter abbreviation for Friday in the sidebar calendar header.",
+    "other": "F"
+  },
+  "widget.calendar.dow_mon": {
+    "description": "Single-letter abbreviation for Monday in the sidebar calendar header.",
+    "other": "M"
+  },
+  "widget.calendar.dow_sat": {
+    "description": "Single-letter abbreviation for Saturday in the sidebar calendar header.",
+    "other": "S"
+  },
+  "widget.calendar.dow_sun": {
+    "description": "Single-letter abbreviation for Sunday in the sidebar calendar header.",
+    "other": "S"
+  },
+  "widget.calendar.dow_thu": {
+    "description": "Single-letter abbreviation for Thursday in the sidebar calendar header.",
+    "other": "T"
+  },
+  "widget.calendar.dow_tue": {
+    "description": "Single-letter abbreviation for Tuesday in the sidebar calendar header.",
+    "other": "T"
+  },
+  "widget.calendar.dow_wed": {
+    "description": "Single-letter abbreviation for Wednesday in the sidebar calendar header.",
+    "other": "W"
+  },
+  "widget.health.missing": {
+    "description": "Count of missing pages in the health widget. Count is the number of missing pages.",
+    "other": "{{.Count}} missing"
+  },
+  "widget.health.orphans": {
+    "description": "Count of orphaned pages in the health widget. Count is the number of orphaned pages.",
+    "one": "{{.Count}} orphan",
+    "other": "{{.Count}} orphans"
+  },
+  "widget.health.title": {
+    "description": "Heading of the sidebar health widget.",
+    "other": "HEALTH"
+  },
+  "widget.keys.docs_label": {
+    "description": "Tooltip and accessible label of the link to the HMD documentation site in the sidebar.",
+    "other": "Documentation at hmd.sool.dev"
+  },
+  "widget.keys.jump": {
+    "description": "Hint label after the ctrl k shortcut in the sidebar, meaning jump to a page or run a verb.",
+    "other": "jump / >verbs"
+  },
+  "widget.keys.new": {
+    "description": "Hint label after the ctrl j shortcut in the sidebar, meaning create a new page.",
+    "other": "new"
+  },
+  "widget.log.title": {
+    "description": "Heading of the recent changes log disclosure in the sidebar.",
+    "other": "LOG"
+  },
+  "widget.namespaces.title": {
+    "description": "Heading of the namespaces widget in the sidebar.",
+    "other": "NAMESPACES"
+  },
+  "widget.namespaces.view_all": {
+    "description": "Link at the bottom of the namespaces widget that opens the full namespace settings list.",
+    "other": "View all"
+  },
+  "widget.outline.title": {
+    "description": "Label above the table of contents for the current page.",
+    "other": "ON THIS PAGE"
+  },
+  "widget.page_meta.edited": {
+    "description": "Line showing when the page was last edited and by whom. When is the time, Author is the editor's name.",
+    "other": "edited {{.When}} by {{.Author}}"
+  },
+  "widget.page_meta.history": {
+    "description": "Link to the page's history. Count is the number of revisions.",
+    "other": "history({{.Count}})"
+  },
+  "widget.pages.title": {
+    "description": "Heading of the recent pages widget in the sidebar.",
+    "other": "PAGES"
+  },
+  "widget.pinned.title": {
+    "description": "Heading of the pinned pages widget in the sidebar.",
+    "other": "PINNED"
+  },
+  "widget.prev_entries.label": {
+    "description": "Label above the list of earlier journal entries.",
+    "other": "earlier"
+  },
+  "widget.tags.all": {
+    "description": "Link at the end of the tags widget that opens the full tag list. Includes a leading triangle glyph.",
+    "other": "▸ all"
+  },
+  "widget.tags.title": {
+    "description": "Heading of the tags widget in the sidebar.",
+    "other": "TAGS"
+  },
+  "widget.tree.title": {
+    "description": "Summary of the page tree disclosure in the sidebar.",
+    "other": "TREE"
+  },
+  "widget.writing_stats.days_written": {
+    "description": "Label for the number of days written this month.",
+    "other": "days written"
+  },
+  "widget.writing_stats.streak": {
+    "description": "Label for the current writing streak.",
+    "other": "streak"
+  },
+  "widget.writing_stats.title": {
+    "description": "Heading of the writing statistics widget for the current month.",
+    "other": "THIS MONTH"
+  },
+  "widget.writing_stats.words_today": {
+    "description": "Label for the number of words written today.",
+    "other": "words today"
+  }
+}

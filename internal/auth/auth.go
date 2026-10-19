@@ -682,7 +682,7 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	return token, nil
 }
 
-// TokensFor returns name's stored tokens (metadata only — digests stay out of templates).
+// TokensFor returns name's stored tokens (metadata only; digests stay out of templates).
 func (a *Auth) TokensFor(name string) []tokenRecord {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

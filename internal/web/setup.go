@@ -5,12 +5,13 @@ import (
 	"html/template"
 
 	"hmd/internal/config"
+	"hmd/internal/i18n"
 	"hmd/internal/wiki"
 )
 
 var webFS = FS
 
-var templateFuncs = template.FuncMap{"static": staticURL, "pageurl": wiki.PageURL, "hiddenpageurl": wiki.HiddenPageURL, "namespaceurl": wiki.NamespaceURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections, "envname": config.EnvName}
+var templateFuncs = template.FuncMap{"static": staticURL, "pageurl": wiki.PageURL, "hiddenpageurl": wiki.HiddenPageURL, "namespaceurl": wiki.NamespaceURL, "button": makeButton, "component": makeComponent, "settinginfo": makeSettingInfo, "settingattrs": makeSettingAttrs, "settinggroups": makeSettingGroups, "settingsections": config.Sections, "envname": config.EnvName, "t": i18n.T, "tl": translateHTML, "jsstrings": func() map[string]any { return i18n.Messages("js.") }, "code": codeHTML, "strong": strongHTML, "link": linkHTML, "tn": i18n.TN, "lang": i18n.Language}
 
 func parseTemplates() (map[string]*template.Template, error) {
 	templates := make(map[string]*template.Template)

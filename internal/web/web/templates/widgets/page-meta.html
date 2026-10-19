@@ -1,7 +1,7 @@
 {{define "widget-page-meta"}}
 <div class="page-meta">
 	{{range .PageTags}}<a class="meta-tag" href="/_/tags/{{.Slug}}">{{.Tag}}</a>{{end}}
-	{{if .HeadAuthor}}<span>&middot; edited {{.HeadWhen}} by {{.HeadAuthor}}</span>{{end}}
-	{{if .RevisionCount}}<span>&middot; <a href="{{.PageURL}}?do=history">history({{.RevisionCount}})</a></span>{{end}}
+	{{if .HeadAuthor}}<span>&middot; {{t "widget.page_meta.edited" "When" .HeadWhen "Author" .HeadAuthor}}</span>{{end}}
+	{{if .RevisionCount}}<span>&middot; <a href="{{.PageURL}}?do=history">{{t "widget.page_meta.history" "Count" .RevisionCount}}</a></span>{{end}}
 </div>
 {{end}}

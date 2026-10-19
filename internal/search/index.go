@@ -248,7 +248,7 @@ func (ix *Index) resolveLink(title, ns string) (slug string, ok bool) {
 	matches := slices.Clone(ix.byTitle[title])
 	if len(matches) == 0 {
 		if _, exists := ix.titles[title]; exists {
-			// title is itself a slug (e.g. [[docs/project-notes]]) — respect it
+			// title is itself a slug (e.g. [[docs/project-notes]]), so respect it
 			// literally rather than Slugify mangling its "/" into "-".
 			return title, true
 		}

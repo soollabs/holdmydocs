@@ -2,8 +2,8 @@
 <div class="content-col">
 <div class="create-page">
 	{{$notFound := component "panel" "variant" "default"}}{{template "ui-panel-start" $notFound}}
-	<h1>Page not found</h1><p>This page does not exist yet.</p>
-	{{template "ui-button" (button "Create this page" "primary" "href" (printf "%s?do=edit" .PageURL))}}
+	<h1>{{t "create.heading"}}</h1><p>{{t "create.text"}}</p>
+	{{template "ui-button" (button (t "create.button") "primary" "href" (printf "%s?do=edit" .PageURL))}}
 	{{template "ui-panel-end" $notFound}}
 </div>
 </div>

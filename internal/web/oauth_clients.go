@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"hmd/internal/api"
+	"hmd/internal/i18n"
 	"hmd/internal/oauthserver"
 )
 
@@ -55,7 +56,7 @@ func (app *App) renderOAuthClients(w http.ResponseWriter, r *http.Request, statu
 		form = nil
 	}
 	app.render(w, r, status, "oauth-clients", TemplateData{
-		Authed: true, Title: "MCP OAuth clients", OAuthClients: clients,
+		Authed: true, Title: i18n.T("web.oauth_clients.title"), OAuthClients: clients,
 		OAuthCreatedClient: created, Error: message,
 		OAuthClientForm: form, OAuthClientRead: form == nil || slices.Contains(form["scope"], "read"),
 		OAuthClientWrite: slices.Contains(form["scope"], "write"), OAuthDisabledClients: disabled,

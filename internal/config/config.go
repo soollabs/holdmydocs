@@ -13,6 +13,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
+	"hmd/internal/i18n"
 	"hmd/internal/presentation"
 )
 
@@ -101,6 +102,7 @@ type Config struct {
 	SyncMode       string
 	DefaultBranch  string
 	Skin           string
+	Language       string
 	Debug          bool
 	BaseURL        string
 	TrustedProxies []string
@@ -133,6 +135,7 @@ type serverFileConfig struct {
 	MaxUploadBytes *int64   `yaml:"max_upload_bytes,omitempty"`
 	TikaTimeout    *int     `yaml:"tika_timeout,omitempty"`
 	Skin           string   `yaml:"skin,omitempty"`
+	Language       string   `yaml:"language,omitempty"`
 }
 
 type gitFileConfig struct {
@@ -333,6 +336,7 @@ func Resolve(file fileConfig) (Config, error) {
 		SyncMode:       or(file.Git.SyncMode, "push"),
 		DefaultBranch:  or(file.Git.Branch, "main"),
 		Skin:           or(file.Server.Skin, defaultSkin),
+		Language:       or(file.Server.Language, i18n.Default),
 		Debug:          file.Server.Debug,
 		BaseURL:        strings.TrimRight(file.Server.BaseURL, "/"),
 		TrustedProxies: append([]string(nil), file.Server.TrustedProxies...),
@@ -450,6 +454,7 @@ func (c Config) toFileConfig() fileConfig {
 			MaxUploadBytes: new(c.MaxUploadBytes),
 			TikaTimeout:    new(c.TikaTimeout),
 			Skin:           c.Skin,
+			Language:       c.Language,
 		},
 		Git: gitFileConfig{
 			RemoteURL:  c.Git.RemoteURL,

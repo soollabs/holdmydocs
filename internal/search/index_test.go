@@ -146,7 +146,7 @@ func TestBacklinksAndHealthNamespaced(t *testing.T) {
 		t.Errorf("Backlinks(health/overview) = %v, want [health/plan]", got)
 	}
 	if got := ix.Backlinks("overview"); len(got) != 0 {
-		t.Errorf("Backlinks(overview) = %v, want none — nothing links to a root slug", got)
+		t.Errorf("Backlinks(overview) = %v, want none: nothing links to a root slug", got)
 	}
 
 	missing, orphans := ix.Health([]string{"home"})

@@ -494,7 +494,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("closing appearance response body: %v", err)
 	}
 	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
-		t.Errorf("palette = %q, want gruvbox — an explicit pick on the same skin must stick", got)
+		t.Errorf("palette = %q, want gruvbox: an explicit pick on the same skin must stick", got)
 	}
 }
 

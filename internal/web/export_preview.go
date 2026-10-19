@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"hmd/internal/api"
+	"hmd/internal/i18n"
 )
 
 const exportPreviewTTL = 15 * time.Minute
@@ -81,7 +82,7 @@ func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Requ
 		baseURL = app.config().BaseURL
 	}
 	if baseURL == "" {
-		app.render(w, r, http.StatusOK, "export-options", TemplateData{Authed: true, Title: "Preview static site", Namespace: name, ExportMainBaseURL: app.config().BaseURL, ExportPreview: true})
+		app.render(w, r, http.StatusOK, "export-options", TemplateData{Authed: true, Title: i18n.T("web.export.title_preview"), Namespace: name, ExportMainBaseURL: app.config().BaseURL, ExportPreview: true})
 		return
 	}
 	select {

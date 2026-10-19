@@ -392,7 +392,7 @@ func TestNotFoundRendersInAppChrome(t *testing.T) {
 		return string(b)
 	}
 	if private, missing := get("/"+testNS+"/secret"), get("/"+testNS+"/no-such-page"); private != missing {
-		t.Error("private and missing pages produce different 404s — existence oracle")
+		t.Error("private and missing pages produce different 404s: existence oracle")
 	}
 }
 

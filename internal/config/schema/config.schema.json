@@ -120,6 +120,16 @@
           "description": "Skin used for users who have not chosen their own.",
           "x-restart": false
         },
+        "language": {
+          "title": "language",
+          "type": "string",
+          "default": "en-GB",
+          "enum": [
+            "en-GB"
+          ],
+          "description": "Language of the interface for everyone on this server. Wiki content is not translated.",
+          "x-restart": false
+        },
         "admin": {
           "title": "bootstrap admin",
           "type": "object",

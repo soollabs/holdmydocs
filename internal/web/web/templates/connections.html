@@ -2,28 +2,28 @@
 <div class="content-col oauth-page">
 	{{template "settings-breadcrumb" .}}
 	<header class="oauth-heading">
-		<h1 class="page-title"><span class="h"></span>Connected applications</h1>
-		<p>Review what you have shared. Disconnect an application to revoke its tokens and pending uploads immediately.</p>
+		<h1 class="page-title"><span class="h"></span>{{t "connections.title"}}</h1>
+		<p>{{t "connections.intro"}}</p>
 	</header>
 	<div class="oauth-client-list">
 	{{range .OAuthConnections}}
 	{{$connectionPanel := component "panel" "variant" "raised"}}{{template "ui-panel-start" $connectionPanel}}<article class="oauth-panel oauth-client">
-		<header class="oauth-card-heading"><h2>{{.ClientName}}</h2><span class="oauth-status{{if not (or .Revoked .Expired)}} oauth-status-active{{end}}">{{if .Revoked}}Disconnected{{else if .Expired}}Expired{{else}}Connected{{end}}</span></header>
+		<header class="oauth-card-heading"><h2>{{.ClientName}}</h2><span class="oauth-status{{if not (or .Revoked .Expired)}} oauth-status-active{{end}}">{{if .Revoked}}{{t "connections.status_disconnected"}}{{else if .Expired}}{{t "connections.status_expired"}}{{else}}{{t "connections.status_connected"}}{{end}}</span></header>
 		<dl class="oauth-facts">
-			<dt>Approved actions</dt><dd>{{range .Scopes}}<span class="oauth-tag">{{.}}</span> {{end}}</dd>
-			<dt>Namespaces</dt><dd>{{if eq .NamespaceMode "all"}}All namespaces, including future ones{{else}}{{range $i, $namespace := .Namespaces}}{{if $i}}, {{end}}<code>{{$namespace}}</code>{{else}}None{{end}}{{end}}</dd>
-			<dt>Connected</dt><dd>{{.CreatedAt.Format "2 January 2006"}}</dd>
-			<dt>Expires</dt><dd>{{.ExpiresAt.Format "2 January 2006"}}</dd>
+			<dt>{{t "connections.approved_actions"}}</dt><dd>{{range .Scopes}}<span class="oauth-tag">{{.}}</span> {{end}}</dd>
+			<dt>{{t "connections.namespaces"}}</dt><dd>{{if eq .NamespaceMode "all"}}{{t "connections.all_namespaces"}}{{else}}{{range $i, $namespace := .Namespaces}}{{if $i}}, {{end}}<code>{{$namespace}}</code>{{else}}{{t "connections.none"}}{{end}}{{end}}</dd>
+			<dt>{{t "connections.connected_label"}}</dt><dd>{{.CreatedAt.Format "2 January 2006"}}</dd>
+			<dt>{{t "connections.expires"}}</dt><dd>{{.ExpiresAt.Format "2 January 2006"}}</dd>
 		</dl>
 		{{if not (or .Revoked .Expired)}}
 		<footer class="oauth-card-footer">
-			<span class="oauth-help">Reconnecting will require your approval again.</span>
-			<form method="POST" action="/_/settings/connections/{{.GrantID}}/revoke" data-confirm="Disconnect this application? Its tokens and pending uploads will stop working.">{{template "csrf" $}}{{template "ui-button" (button "Disconnect" "danger" "type" "submit" "aria-label" (printf "Disconnect %s" .ClientName))}}</form>
+			<span class="oauth-help">{{t "connections.reconnect_help"}}</span>
+			<form method="POST" action="/_/settings/connections/{{.GrantID}}/revoke" data-confirm="{{t "connections.disconnect_confirm"}}">{{template "csrf" $}}{{template "ui-button" (button (t "connections.disconnect") "danger" "type" "submit" "aria-label" (t "connections.disconnect_label" "Name" .ClientName))}}</form>
 		</footer>
 		{{end}}
 	</article>{{template "ui-panel-end" $connectionPanel}}
 	{{else}}
-	{{$empty := component "empty" "label" "No connected applications"}}{{template "ui-empty-start" $empty}}<p>Start a connection from your MCP application. After you approve access, it will appear here.</p>{{template "ui-empty-end" $empty}}
+	{{$empty := component "empty" "label" (t "connections.empty_label")}}{{template "ui-empty-start" $empty}}<p>{{t "connections.empty_text"}}</p>{{template "ui-empty-end" $empty}}
 	{{end}}
 	</div>
 </div>

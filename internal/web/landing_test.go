@@ -163,7 +163,7 @@ func TestNewNamespaceFollowsPage(t *testing.T) {
 		}()
 	}
 	asset, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(asset), "new page in the ${window.hmdNewNamespace || 'current'} namespace") {
+	if !strings.Contains(string(asset), "js.verb.new_in', { Namespace: window.hmdNewNamespace ||") {
 		t.Errorf("new verb description does not name its target namespace")
 	}
 }

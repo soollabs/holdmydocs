@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"hmd/internal/httpmiddleware"
+	"hmd/internal/i18n"
 	"hmd/internal/oauthserver"
 )
 
@@ -59,7 +60,7 @@ func (app *App) handleOAuthAuthorizeGet(w http.ResponseWriter, r *http.Request) 
 	}
 	app.render(w, r, http.StatusOK, "oauth-consent", TemplateData{
 		Authed: true, Username: started.Prompt.User,
-		Title: "Connect application", OAuthPrompt: started.Prompt,
+		Title: i18n.T("web.oauth.connect_title"), OAuthPrompt: started.Prompt,
 	})
 }
 
@@ -121,7 +122,7 @@ func (app *App) handleOAuthAuthorizePost(w http.ResponseWriter, r *http.Request)
 	// form-action 'self'. Complete with a nonce-protected navigation and a
 	// normal link fallback rather than weakening the page's CSP.
 	app.render(w, r, http.StatusOK, "oauth-return", TemplateData{
-		Authed: true, Username: user, Title: "Return to MCP client",
+		Authed: true, Username: user, Title: i18n.T("web.oauth.return_title"),
 		OAuthRedirect: redirect,
 	})
 }
@@ -160,7 +161,7 @@ func (app *App) handleConnectionsGet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	app.render(w, r, http.StatusOK, "connections", TemplateData{
-		Authed: true, Username: user, Title: "Connected applications",
+		Authed: true, Username: user, Title: i18n.T("web.oauth.connections_title"),
 		OAuthConnections: connections,
 	})
 }
