@@ -1,0 +1,32 @@
+name: JS Tests
+
+on:
+  pull_request:
+    paths:
+      - "internal/web/web/**"
+      - "internal/i18n/locales/**"
+      - "test/ui/**"
+      - ".github/workflows/js-tests.yml"
+      - ".github/workflows/ci.yml"
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: js-tests-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: JS Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+      - run: node --test test/ui/*.test.cjs
