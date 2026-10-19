@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,7 +31,9 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 		go func() { done <- server.Serve(listener) }()
 		defer func() {
 			_ = server.Close()
-			<-done
+			if err := <-done; !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("serve: %v", err)
+			}
 		}()
 
 		connection, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", listener.Addr().String())
@@ -60,7 +63,9 @@ func TestHTTPServerRejectsSlowAndOversizedHeaders(t *testing.T) {
 		go func() { done <- server.Serve(listener) }()
 		defer func() {
 			_ = server.Close()
-			<-done
+			if err := <-done; !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("serve: %v", err)
+			}
 		}()
 
 		connection, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", listener.Addr().String())

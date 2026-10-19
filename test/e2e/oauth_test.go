@@ -96,7 +96,8 @@ func TestOAuthBrowserTokenMCPAndDisconnectLifecycle(t *testing.T) {
 		if command.Process != nil && !finished {
 			_ = command.Process.Kill()
 			select {
-			case <-done:
+			case err := <-done:
+				t.Logf("server exited: %v", err)
 			case <-time.After(5 * time.Second):
 			}
 		}
