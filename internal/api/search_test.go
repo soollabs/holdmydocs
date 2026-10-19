@@ -83,7 +83,7 @@ func TestSearchAttachmentsDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := New(nil, ix, nil)
-	if _, err := a.SearchAttachments(writeCtx(), "anything", 0); err == nil || CategoryOf(err) != CategoryUnavailable {
+	if _, err := a.SearchAttachments(writeCtx(), "anything", "", 0); err == nil || CategoryOf(err) != CategoryUnavailable {
 		t.Fatalf("SearchAttachments without document search = %v, want unavailable", err)
 	}
 }

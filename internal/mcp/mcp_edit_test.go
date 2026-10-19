@@ -44,7 +44,7 @@ func TestMCPEditPage(t *testing.T) {
 	}
 
 	res = callTool(t, session, "edit_page", map[string]any{
-		"path": slug, "basehash": created.Hash,
+		"slug": slug, "basehash": created.Hash,
 		"edits": []any{
 			map[string]any{"oldText": "old one", "newText": "new one"},
 			map[string]any{"oldText": "old two", "newText": "new two"},

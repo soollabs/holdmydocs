@@ -164,7 +164,7 @@ func (h *Handlers) readPage(r *http.Request, slug string, hidden bool) (*api.Pag
 
 // deletePage removes a page from the normal or hidden tree.
 func (h *Handlers) deletePage(ctx context.Context, slug string, in pageDeleteInput) (pageMutation, error) {
-	mutation, err := h.api.DeletePage(ctx, slug, in.Hidden)
+	mutation, err := h.api.DeletePage(ctx, slug, in.Hidden, "")
 	if err != nil {
 		return pageMutation{}, err
 	}

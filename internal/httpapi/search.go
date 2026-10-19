@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+
+	"hmd/internal/api"
 )
 
 // AutocompleteResult is one page in the JSON search response.
@@ -43,7 +45,7 @@ func (h *Handlers) searchPages(ctx context.Context, in searchInput) ([]Autocompl
 
 // searchAttachments returns the attachment results for the caller.
 func (h *Handlers) searchAttachments(ctx context.Context, in searchInput) ([]AttachmentResult, error) {
-	hits, err := h.api.SearchAttachments(ctx, in.Query, 20)
+	hits, err := h.api.SearchAttachments(ctx, in.Query, "", api.DefaultAttachmentSearchResults)
 	if err != nil {
 		return nil, err
 	}

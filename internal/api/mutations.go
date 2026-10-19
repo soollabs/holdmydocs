@@ -530,8 +530,8 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 }
 
 // DeletePage removes one page from the normal or hidden tree and drops it from
-// the derived index.
-func (a *API) DeletePage(ctx context.Context, slug string, hidden bool) (*Mutation, error) {
+// the derived index. A non-empty baseHash deletes only that revision.
+func (a *API) DeletePage(ctx context.Context, slug string, hidden bool, baseHash string) (*Mutation, error) {
 	if err := a.RequireScope(ctx, ScopeWrite); err != nil {
 		return nil, err
 	}
@@ -546,7 +546,16 @@ func (a *API) DeletePage(ctx context.Context, slug string, hidden bool) (*Mutati
 		file = wiki.HiddenFile(slug)
 	}
 	name, email := a.Author(ctx)
-	if err := a.store.Remove(file, "Delete "+slug, name, email); err != nil {
+	var err error
+	if baseHash == "" {
+		err = a.store.Remove(file, "Delete "+slug, name, email)
+	} else {
+		err = a.store.RemoveChecked(file, baseHash, "Delete "+slug, name, email)
+	}
+	if errors.Is(err, store.ErrConflict) {
+		return nil, Conflict("the page changed since basehash, or no longer exists")
+	}
+	if err != nil {
 		return nil, Unavailable("deleting page", err)
 	}
 	a.removeFromIndex(slug)

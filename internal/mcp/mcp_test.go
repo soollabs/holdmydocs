@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -335,63 +336,81 @@ func TestMCPToolContracts(t *testing.T) {
 	}
 
 	wantArgs := map[string][]string{
-		"list_pages": {}, "list_namespaces": {},
-		"read_page": {"slug", "path"}, "save_page": {"slug", "path", "title", "tags", "body", "pin", "basehash"},
-		"edit_page": {"slug", "path", "basehash", "edits", "dryRun"}, "delete_page": {"slug", "path"},
-		"search": {"query"}, "backlinks": {"slug", "path"}, "recent_changes": {"limit"}, "health": {"namespace"},
+		"list_pages": {"namespace", "offset", "limit"}, "list_namespaces": {},
+		"read_page": {"slug", "section", "offset", "limit"}, "save_page": {"slug", "title", "tags", "body", "pin", "basehash"},
+		"edit_page": {"slug", "basehash", "edits", "dryRun"}, "delete_page": {"slug", "basehash"},
+		"search": {"query", "namespace", "offset", "limit"}, "backlinks": {"slug"}, "recent_changes": {"limit"}, "health": {"namespace"},
 		"read_namespace":    {"name"},
-		"save_namespace":    {"name", "widgets", "public", "title", "description", "skin", "palette", "index", "tree", "new", "basehash"},
-		"upload_attachment": {"slug", "path", "filename"}, "read_attachment": {"slug", "path", "filename"},
+		"save_namespace":    {"name", "widgets", "public", "title", "description", "image", "skin", "palette", "index", "tree", "new", "export", "basehash"},
+		"upload_attachment": {"slug", "filename"}, "read_attachment": {"slug", "filename", "offset", "limit"},
+	}
+	readOnly := map[string]bool{
+		"list_pages": true, "list_namespaces": true, "read_page": true, "read_namespace": true, "read_attachment": true,
+		"search": true, "search_attachments": true, "backlinks": true, "health": true, "recent_changes": true,
 	}
 	for _, tool := range result.Tools {
+		if tool.Title == "" {
+			t.Errorf("%s has no title", tool.Name)
+		}
+		annotations := tool.Annotations
+		if annotations == nil || annotations.OpenWorldHint == nil || *annotations.OpenWorldHint {
+			t.Errorf("%s annotations = %+v, want openWorldHint false", tool.Name, annotations)
+		} else if annotations.ReadOnlyHint != readOnly[tool.Name] {
+			t.Errorf("%s readOnlyHint = %v, want %v", tool.Name, annotations.ReadOnlyHint, readOnly[tool.Name])
+		} else if !readOnly[tool.Name] && annotations.DestructiveHint == nil {
+			t.Errorf("%s does not say whether it is destructive", tool.Name)
+		} else if want := !readOnly[tool.Name] && tool.Name != "upload_attachment"; annotations.IdempotentHint != want {
+			t.Errorf("%s idempotentHint = %v, want %v", tool.Name, annotations.IdempotentHint, want)
+		}
+		for kind, raw := range map[string]any{"input": tool.InputSchema, "output": tool.OutputSchema} {
+			encoded, _ := json.Marshal(raw)
+			if raw == nil || strings.Contains(string(encoded), `"null"`) {
+				t.Errorf("%s %s schema is missing or allows null: %s", tool.Name, kind, encoded)
+			}
+		}
 		args, ok := wantArgs[tool.Name]
 		if !ok {
 			continue
 		}
-		schema, ok := tool.InputSchema.(map[string]any)
-		if !ok {
-			t.Errorf("%s input schema has type %T, want map", tool.Name, tool.InputSchema)
-			continue
+		schema, _ := tool.InputSchema.(map[string]any)
+		if schema["additionalProperties"] != false {
+			t.Errorf("%s accepts unknown arguments: %#v", tool.Name, schema)
 		}
 		properties, _ := schema["properties"].(map[string]any)
+		if len(properties) != len(args) {
+			t.Errorf("%s has arguments %v, want %v", tool.Name, slices.Sorted(maps.Keys(properties)), args)
+		}
 		for _, arg := range args {
 			if _, ok := properties[arg]; !ok {
 				t.Errorf("%s schema missing %q: %#v", tool.Name, arg, schema)
-			}
-			if !strings.Contains(tool.Description, arg) {
-				t.Errorf("%s description does not name argument %q", tool.Name, arg)
-			}
-		}
-		if len(args) == 0 && !strings.Contains(tool.Description, "Arguments: none") {
-			t.Errorf("%s description does not explicitly say it takes no arguments", tool.Name)
-		}
-		for _, arg := range map[string][]string{
-			"save_page": {"tags"}, "save_namespace": {"widgets", "tree"},
-		}[tool.Name] {
-			property, _ := properties[arg].(map[string]any)
-			items, _ := property["items"].(map[string]any)
-			if items["type"] != "string" {
-				t.Errorf("%s.%s items type = %v, want string", tool.Name, arg, items["type"])
 			}
 		}
 	}
 }
 
-func TestMCPPageIdentifier(t *testing.T) {
+func TestMCPPageSlug(t *testing.T) {
 	for _, tt := range []struct {
-		name, slug, path, want string
-		wantErr                bool
+		slug, wantErr string
 	}{
-		{name: "slug", slug: "notes/page", want: "notes/page"},
-		{name: "path alias", path: "notes/page", want: "notes/page"},
-		{name: "neither", wantErr: true},
-		{name: "both", slug: "notes/page", path: "notes/page", wantErr: true},
-		{name: "invalid", path: "../page", wantErr: true},
+		{slug: "notes/page"},
+		{slug: "notes/my_page"},
+		{slug: "", wantErr: "needs a namespace and a page name"},
+		{slug: "page", wantErr: "needs a namespace and a page name"},
+		{slug: "../page", wantErr: `segment ".." starts with "."`},
+		{slug: "notes/_draft", wantErr: `segment "_draft" starts with "_"`},
+		{slug: "attachments/page", wantErr: `namespace "attachments" is reserved`},
+		{slug: "notes//page", wantErr: "a segment is empty"},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := mcpPageIdentifier(tt.slug, tt.path)
-			if (err != nil) != tt.wantErr || got != tt.want {
-				t.Fatalf("mcpPageIdentifier(%q, %q) = %q, %v; want %q, error=%v", tt.slug, tt.path, got, err, tt.want, tt.wantErr)
+		t.Run(tt.slug, func(t *testing.T) {
+			got, err := mcpPageSlug(tt.slug)
+			if tt.wantErr == "" {
+				if err != nil || got != tt.slug {
+					t.Fatalf("mcpPageSlug(%q) = %q, %v; want the slug", tt.slug, got, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) || !strings.Contains(err.Error(), "for example notes/my-page") {
+				t.Fatalf("mcpPageSlug(%q) error = %v; want it to contain %q and an example", tt.slug, err, tt.wantErr)
 			}
 		})
 	}
@@ -401,7 +420,7 @@ func TestMCPUploadAttachment(t *testing.T) {
 	app, server, token := newMCPTestAppWithApp(t, true)
 	session := connectMCP(t, server, token)
 	result := callTool(t, session, "upload_attachment", map[string]any{
-		"path": testHome, "filename": "source.txt",
+		"slug": testHome, "filename": "source.txt",
 	})
 	if result.IsError {
 		t.Fatalf("upload_attachment: %s", toolText(t, result))
@@ -453,7 +472,7 @@ func TestMCPReadAttachment(t *testing.T) {
 		t.Fatalf("saving attachment: %v", err)
 	}
 	session := connectMCP(t, server, token)
-	result := callTool(t, session, "read_attachment", map[string]any{"path": testHome, "filename": "source.txt"})
+	result := callTool(t, session, "read_attachment", map[string]any{"slug": testHome, "filename": "source.txt"})
 	if result.IsError {
 		t.Fatalf("read_attachment: %s", toolText(t, result))
 	}
@@ -512,6 +531,24 @@ func TestMCPNamespaceTools(t *testing.T) {
 	})
 	if !res.IsError {
 		t.Error("save_namespace accepted a stale basehash")
+	}
+
+	// An update keeps every field it omits, and an empty new object removes
+	// the new-page template.
+	res = callTool(t, session, "save_namespace", map[string]any{
+		"name": testNS, "palette": "nord", "new": map[string]any{"template": "", "slug": ""}, "basehash": saved.Hash,
+	})
+	if res.IsError {
+		t.Fatalf("partial save_namespace: %s", toolText(t, res))
+	}
+	var partial mcpNamespaceOut
+	toolJSON(t, res, &partial)
+	if partial.Palette != "nord" || !partial.Public || partial.Title != "Notes" || partial.Skin != "newsprint" ||
+		!slices.Equal(partial.Widgets, []string{"pages"}) || !slices.Equal(partial.Tree, []string{"guides", "reference"}) || partial.New != nil {
+		t.Errorf("partial save_namespace = %+v", partial)
+	}
+	if bad := callTool(t, session, "save_namespace", map[string]any{"name": testNS, "skin": "neon", "basehash": partial.Hash}); !bad.IsError {
+		t.Error("save_namespace accepted an unknown skin")
 	}
 
 	res = callTool(t, session, "save_namespace", map[string]any{"name": "blog", "public": true})
@@ -1148,7 +1185,7 @@ func TestMCPToolFlow(t *testing.T) {
 	session := connectMCP(t, server, token)
 
 	res := callTool(t, session, "save_page", map[string]any{
-		"path":  testNS + "/agent-note",
+		"slug":  testNS + "/agent-note",
 		"title": "Agent note",
 		"tags":  []string{"ai"},
 		"body":  "Hello from an agent. See [[readme]].",
@@ -1169,13 +1206,12 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Fatal("create over existing page succeeded, want conflict")
 	}
 
-	res = callTool(t, session, "read_page", map[string]any{"path": testNS + "/agent-note"})
-	if res.IsError {
-		t.Fatalf("read by path alias failed: %s", toolText(t, res))
+	if alias := callTool(t, session, "read_page", map[string]any{"path": testNS + "/agent-note"}); !alias.IsError {
+		t.Fatal("read with the removed path argument succeeded")
 	}
-	both := callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note", "path": testNS + "/agent-note"})
-	if !both.IsError {
-		t.Fatal("read with both slug and path succeeded")
+	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
+	if res.IsError {
+		t.Fatalf("read failed: %s", toolText(t, res))
 	}
 	var page mcpPageOut
 	toolJSON(t, res, &page)
@@ -1189,17 +1225,39 @@ func TestMCPToolFlow(t *testing.T) {
 	if !res.IsError {
 		t.Fatal("stale save succeeded, want conflict")
 	}
-	var conflict struct{ Hash, Body string }
+	var conflict struct {
+		Error, Hash string
+		Body        *string
+	}
 	toolJSON(t, res, &conflict)
-	if conflict.Hash != created.Hash || conflict.Body != page.Body {
+	if conflict.Hash != created.Hash || !strings.HasPrefix(conflict.Error, "conflict:") ||
+		conflict.Body == nil || *conflict.Body != "Hello from an agent. See [[readme]]." {
 		t.Errorf("conflict payload mismatch: %+v", conflict)
 	}
 
+	// An update keeps every field it omits: here title, tags and pin.
 	res = callTool(t, session, "save_page", map[string]any{
-		"slug": testNS + "/agent-note", "title": "Agent note", "body": "Updated. See [[" + testNS + "]].", "basehash": created.Hash,
+		"slug": testNS + "/agent-note", "body": "Updated. See [[" + testNS + "]].", "basehash": created.Hash,
 	})
 	if res.IsError {
 		t.Fatalf("update failed: %s", toolText(t, res))
+	}
+	var updated mcpSaveOut
+	toolJSON(t, res, &updated)
+	res = callTool(t, session, "save_page", map[string]any{
+		"slug": testNS + "/agent-note", "pin": true, "basehash": updated.Hash,
+	})
+	if res.IsError {
+		t.Fatalf("metadata-only update failed: %s", toolText(t, res))
+	}
+	toolJSON(t, res, &updated)
+	res = callTool(t, session, "read_page", map[string]any{"slug": testNS + "/agent-note"})
+	toolJSON(t, res, &page)
+	if page.Title != "Agent note" || !slices.Equal(page.Tags, []string{"ai"}) || !page.Pin || page.Body != "Updated. See [["+testNS+"]]." {
+		t.Errorf("partial updates did not keep omitted fields: %+v", page)
+	}
+	if missing := callTool(t, session, "save_page", map[string]any{"slug": testNS + "/no-body"}); !missing.IsError {
+		t.Error("create without a body succeeded")
 	}
 
 	res = callTool(t, session, "list_pages", nil)
@@ -1230,7 +1288,12 @@ func TestMCPToolFlow(t *testing.T) {
 		t.Errorf("head commit files mismatch: %v", head.Files)
 	}
 
-	res = callTool(t, session, "delete_page", map[string]any{"slug": testNS + "/agent-note"})
+	res = callTool(t, session, "delete_page", map[string]any{"slug": testNS + "/agent-note", "basehash": created.Hash})
+	toolJSON(t, res, &conflict)
+	if !res.IsError || conflict.Hash != page.Hash {
+		t.Fatalf("delete with a stale basehash = %s, want a conflict with the current hash", toolText(t, res))
+	}
+	res = callTool(t, session, "delete_page", map[string]any{"slug": testNS + "/agent-note", "basehash": page.Hash})
 	if res.IsError {
 		t.Fatalf("delete failed: %s", toolText(t, res))
 	}
@@ -1515,5 +1578,125 @@ func TestMCPScopes(t *testing.T) {
 	}
 	if res := callTool(t, manager, "save_page", map[string]any{"slug": testNS + "/manager-note", "body": "nope"}); res.IsError {
 		t.Fatalf("settings scope save_page: %s", toolText(t, res))
+	}
+}
+
+func TestMCPSearchAndListFilters(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	for _, slug := range []string{"notes/alpha", "notes/beta", "notes/gamma", "blog/delta"} {
+		res := callTool(t, session, "save_page", map[string]any{"slug": slug, "body": "shared marker text"})
+		if res.IsError {
+			t.Fatalf("save_page %s: %s", slug, toolText(t, res))
+		}
+	}
+
+	var search mcpSearchOut
+	toolJSON(t, callTool(t, session, "search", map[string]any{"query": "marker", "limit": 2}), &search)
+	if len(search.Hits) != 2 || !search.More {
+		t.Errorf("search with limit 2 = %+v, want 2 hits and more", search)
+	}
+	toolJSON(t, callTool(t, session, "search", map[string]any{"query": "marker", "namespace": "blog"}), &search)
+	if len(search.Hits) != 1 || search.Hits[0].Slug != "blog/delta" || search.More || search.Hits[0].Tags == nil {
+		t.Errorf("search in blog = %+v, want only blog/delta with an empty tag list", search)
+	}
+	if res := callTool(t, session, "search", map[string]any{"query": "marker", "limit": 500}); !res.IsError {
+		t.Error("search accepted a limit above the maximum")
+	}
+
+	var list mcpListOut
+	toolJSON(t, callTool(t, session, "list_pages", map[string]any{"namespace": "blog"}), &list)
+	if len(list.Pages) != 1 || list.Pages[0].Slug != "blog/delta" {
+		t.Errorf("list_pages in blog = %+v", list.Pages)
+	}
+	if res := callTool(t, session, "list_pages", map[string]any{"unexpected": true}); !res.IsError {
+		t.Error("list_pages accepted an unknown argument")
+	}
+	if res := callTool(t, session, "recent_changes", map[string]any{"limit": 100000}); !res.IsError {
+		t.Error("recent_changes accepted a limit above the maximum")
+	}
+	if res := callTool(t, session, "edit_page", map[string]any{"slug": "notes/alpha", "basehash": "x", "edits": []any{}}); !res.IsError {
+		t.Error("edit_page accepted an empty edits list")
+	}
+}
+
+func TestMCPTextWindow(t *testing.T) {
+	text, window, err := windowText("héllo world", 0, 5)
+	if err != nil || text != "héllo" || window.NextOffset != 5 || window.TotalChars != 11 || !window.Truncated {
+		t.Errorf("first window = %q %+v, %v", text, window, err)
+	}
+	text, window, err = windowText("héllo world", 6, 100)
+	if err != nil || text != "world" || window.NextOffset != 11 || window.Truncated {
+		t.Errorf("last window = %q %+v, %v", text, window, err)
+	}
+	text, window, err = windowText("", 0, 0)
+	if err != nil || text != "" || window.Truncated {
+		t.Errorf("empty text = %q %+v, %v", text, window, err)
+	}
+	if _, _, err := windowText("short", 6, 0); err == nil || !strings.Contains(err.Error(), "5 characters") {
+		t.Errorf("window past the end error = %v, want one naming the length", err)
+	}
+}
+
+func TestMCPReadPageSectionAndWindow(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	body := "Intro\n\n# Setup\n\nInstall it.\n\n## Detail\n\nMore.\n\n# Usage\n\nRun it.\n"
+	if res := callTool(t, session, "save_page", map[string]any{"slug": "notes/guide", "body": body}); res.IsError {
+		t.Fatalf("save_page: %s", toolText(t, res))
+	}
+
+	var page mcpPageOut
+	toolJSON(t, callTool(t, session, "read_page", map[string]any{"slug": "notes/guide", "section": "setup"}), &page)
+	if page.Body != "# Setup\n\nInstall it.\n\n## Detail\n\nMore.\n\n" || page.Truncated || page.Hash == "" {
+		t.Errorf("read_page section = %+v", page)
+	}
+	toolJSON(t, callTool(t, session, "read_page", map[string]any{"slug": "notes/guide", "offset": 2, "limit": 3}), &page)
+	if page.Body != "tro" || !page.Truncated || page.NextOffset != 5 || page.TotalChars < len("Intro") {
+		t.Errorf("read_page window = %+v", page)
+	}
+	if res := callTool(t, session, "read_page", map[string]any{"slug": "notes/guide", "offset": 1000}); !res.IsError {
+		t.Errorf("read_page past the end = %s, want an error", toolText(t, res))
+	}
+	res := callTool(t, session, "read_page", map[string]any{"slug": "notes/guide", "section": "Missing"})
+	if !res.IsError || !strings.Contains(toolText(t, res), `"Setup", "Detail", "Usage"`) {
+		t.Errorf("missing section error = %s, want the page's headings", toolText(t, res))
+	}
+}
+
+func TestMCPPagination(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	for _, slug := range []string{"notes/alpha", "notes/beta", "notes/gamma"} {
+		if res := callTool(t, session, "save_page", map[string]any{"slug": slug, "body": "paged marker text"}); res.IsError {
+			t.Fatalf("save_page %s: %s", slug, toolText(t, res))
+		}
+	}
+
+	var list mcpListOut
+	toolJSON(t, callTool(t, session, "list_pages", map[string]any{"limit": 2}), &list)
+	if len(list.Pages) != 2 || !list.More || list.NextOffset != 2 {
+		t.Fatalf("first list window = %+v", list)
+	}
+	seen := []string{list.Pages[0].Slug, list.Pages[1].Slug}
+	var rest mcpListOut
+	toolJSON(t, callTool(t, session, "list_pages", map[string]any{"offset": list.NextOffset, "limit": 2}), &rest)
+	if len(rest.Pages) != 2 || rest.More {
+		t.Fatalf("last list window = %+v", rest)
+	}
+	seen = append(seen, rest.Pages[0].Slug, rest.Pages[1].Slug)
+	if !slices.IsSorted(seen) || len(slices.Compact(slices.Clone(seen))) != 4 {
+		t.Errorf("list windows = %v, want four distinct slugs in order", seen)
+	}
+
+	var search mcpSearchOut
+	toolJSON(t, callTool(t, session, "search", map[string]any{"query": "paged", "limit": 2}), &search)
+	if len(search.Hits) != 2 || !search.More || search.NextOffset != 2 {
+		t.Fatalf("first search window = %+v", search)
+	}
+	var next mcpSearchOut
+	toolJSON(t, callTool(t, session, "search", map[string]any{"query": "paged", "offset": search.NextOffset, "limit": 2}), &next)
+	if len(next.Hits) != 1 || next.More || slices.ContainsFunc(search.Hits, func(hit mcpSearchHit) bool { return hit.Slug == next.Hits[0].Slug }) {
+		t.Errorf("second search window = %+v after %+v", next, search)
 	}
 }

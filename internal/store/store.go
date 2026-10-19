@@ -666,6 +666,24 @@ func (s *Store) Remove(path, message, authorName, authorEmail string) error {
 	return s.removeLocked(path, message, authorName, authorEmail)
 }
 
+// RemoveChecked deletes path like Remove, but only while its blob hash is
+// still expectedHash; otherwise it returns ErrConflict without a commit.
+func (s *Store) RemoveChecked(path, expectedHash, message, authorName, authorEmail string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	currentHash, err := s.readHashLocked(path)
+	if err != nil {
+		return err
+	}
+	if currentHash != expectedHash {
+		return ErrConflict
+	}
+	return s.removeLocked(path, message, authorName, authorEmail)
+}
+
 var errInvalidNamespaceName = errors.New("invalid namespace name")
 var ErrInvalidNamespaceName = errInvalidNamespaceName
 

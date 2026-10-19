@@ -959,7 +959,9 @@ func runeExcerpt(text string, max int) string {
 	return string(runes[:max]) + "…"
 }
 
-func (ix *Index) SearchAttachments(ctx context.Context, query string, limit int) ([]AttachmentSearchHit, error) {
+// SearchAttachments fuses keyword and semantic matches over attachment text,
+// limited to attachments of pages in namespace when it is not empty.
+func (ix *Index) SearchAttachments(ctx context.Context, query, namespace string, limit int) ([]AttachmentSearchHit, error) {
 	if ix.documents == nil {
 		return nil, errDocumentSearchDisabled
 	}
@@ -994,6 +996,11 @@ func (ix *Index) SearchAttachments(ctx context.Context, query string, limit int)
 	textQuery := bleve.NewMatchQuery(query)
 	textQuery.SetField("Text")
 	keyword := bleve.NewConjunctionQuery(textQuery, typeQuery)
+	if namespace != "" {
+		ownerQuery := bleve.NewPrefixQuery(namespace + "/")
+		ownerQuery.SetField("OwnerSlug")
+		keyword.AddQuery(ownerQuery)
+	}
 	candidates := max(limit*4, 50)
 	request := bleve.NewSearchRequest(keyword)
 	request.Size = candidates
@@ -1006,7 +1013,7 @@ func (ix *Index) SearchAttachments(ctx context.Context, query string, limit int)
 	if err != nil {
 		return nil, err
 	}
-	semantic := topSemanticChunks(ix.manifest, vectors[0], candidates)
+	semantic := topSemanticChunks(ix.manifest, vectors[0], namespace, candidates)
 	semanticMatches := make(map[string]*search.DocumentMatch, len(semantic))
 	if len(semantic) > 0 {
 		ids := make([]string, len(semantic))
@@ -1050,11 +1057,17 @@ func cosineSimilarity(left, right []float32) (float64, bool) {
 	return dot / (leftNorm * rightNorm), true
 }
 
-func topSemanticChunks(manifest searchManifest, query []float32, limit int) []semanticChunk {
+func topSemanticChunks(manifest searchManifest, query []float32, namespace string, limit int) []semanticChunk {
 	var result []semanticChunk
-	for _, entry := range manifest.Attachments {
+	for path, entry := range manifest.Attachments {
 		if !validAttachmentVectors(entry) {
 			continue
+		}
+		if namespace != "" {
+			owner, _, ok := store.ParseAttachmentPath(path)
+			if pageNS, _ := wiki.NamespaceFor(owner); !ok || pageNS != namespace {
+				continue
+			}
 		}
 		for i, vector := range entry.Vectors {
 			score, ok := cosineSimilarity(query, vector)

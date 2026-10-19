@@ -6,14 +6,14 @@ import (
 )
 
 func TestValidatePageInput(t *testing.T) {
-	tags := make([]string, maxPageTags)
+	tags := make([]string, MaxPageTags)
 	for i := range tags {
 		tags[i] = "tag"
 	}
-	if err := ValidatePageInput(strings.Repeat("t", maxPageTitleRunes), tags, strings.Repeat("x", MaxPageBodyBytes)); err != nil {
+	if err := ValidatePageInput(strings.Repeat("t", MaxPageTitleRunes), tags, strings.Repeat("x", MaxPageBodyBytes)); err != nil {
 		t.Fatalf("at limit: %v", err)
 	}
-	if err := ValidatePageInput(strings.Repeat("t", maxPageTitleRunes+1), nil, ""); err == nil {
+	if err := ValidatePageInput(strings.Repeat("t", MaxPageTitleRunes+1), nil, ""); err == nil {
 		t.Error("accepted oversized title")
 	}
 	if err := ValidatePageInput("", nil, strings.Repeat("x", MaxPageBodyBytes+1)); err == nil {

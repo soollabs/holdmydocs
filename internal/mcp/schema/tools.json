@@ -1,0 +1,1373 @@
+[
+  {
+    "name": "backlinks",
+    "title": "Backlinks",
+    "description": "List accessible pages whose [[wiki-links]] point at a page.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "backlinks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "slug",
+              "title",
+              "tags"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "backlinks"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete_page",
+    "title": "Delete page",
+    "description": "Delete a page in one Git commit; it stays recoverable from history. Pass basehash to delete only the revision you read.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_page; when set, the page is deleted only if it is still that revision"
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "edit_page",
+    "title": "Edit page",
+    "description": "Replace exact text in an existing page's Markdown body without resending it; title, tags and pin are kept. Each oldText must match exactly once when its edit is applied, and any failed edit cancels the whole call. All edits land in one commit; dryRun returns the diff without committing. A conflict error returns the current hash: re-read and retry.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_page or the last save or edit"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "oldText": {
+                "type": "string",
+                "description": "exact existing Markdown text; must occur exactly once",
+                "minLength": 1
+              },
+              "newText": {
+                "type": "string",
+                "description": "replacement Markdown text; empty deletes oldText"
+              }
+            },
+            "required": [
+              "oldText",
+              "newText"
+            ],
+            "additionalProperties": false
+          },
+          "description": "replacements, applied in order",
+          "minItems": 1,
+          "maxItems": 128
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "return the diff without committing"
+        }
+      },
+      "required": [
+        "slug",
+        "basehash",
+        "edits"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string",
+          "description": "new revision; pass as basehash to the next change"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "diff": {
+          "type": "string",
+          "description": "unified diff of the body; empty when unchanged"
+        },
+        "index_warning": {
+          "type": "string",
+          "description": "set when the commit succeeded but search indexing is catching up in the background"
+        }
+      },
+      "required": [
+        "slug",
+        "hash",
+        "changed",
+        "diff"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "health",
+    "title": "Wiki health",
+    "description": "Report dangling [[wiki-links]] whose target page is missing, orphan pages with no incoming links, and stale pages with no commit in 180 days.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "limit the report to this namespace; omit for the whole wiki"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "slug",
+              "sources"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "orphans": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stale": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "last_updated": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "last_updated"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "missing",
+        "orphans",
+        "stale"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_namespaces",
+    "title": "List namespaces",
+    "description": "List accessible namespaces with their description, page count and whether anonymous visitors can read them. Use read_namespace for full settings.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "pages": {
+                "type": "integer"
+              },
+              "public": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "pages",
+              "public"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "namespaces"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_pages",
+    "title": "List pages",
+    "description": "List accessible pages with their slug, title and tags, sorted by slug. When more is true, pass next_offset as offset for the next pages. Use search to find pages by content.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "only list pages in this namespace"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "number of pages to skip; pass next_offset from the previous call",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "description": "maximum pages to return",
+          "minimum": 1,
+          "maximum": 500,
+          "x-default": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "slug",
+              "title",
+              "tags"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "more": {
+          "type": "boolean",
+          "description": "further pages follow next_offset"
+        },
+        "next_offset": {
+          "type": "integer",
+          "description": "offset of the following page of results"
+        }
+      },
+      "required": [
+        "pages",
+        "more",
+        "next_offset"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_attachment",
+    "title": "Read attachment",
+    "description": "Read the text extracted from an attachment, in windows of characters. When truncated is true, call again with offset set to next_offset. Use search_attachments to find the relevant part of a large document first.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page that owns the attachment, in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "filename": {
+          "type": "string",
+          "description": "attachment filename without a directory"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "first character to return",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "description": "maximum characters to return",
+          "minimum": 1,
+          "maximum": 100000,
+          "x-default": 40000
+        }
+      },
+      "required": [
+        "slug",
+        "filename"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "next_offset": {
+          "type": "integer",
+          "description": "offset to pass for the following window"
+        },
+        "total_chars": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "more text follows next_offset"
+        }
+      },
+      "required": [
+        "text",
+        "offset",
+        "next_offset",
+        "total_chars",
+        "truncated"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_namespace",
+    "title": "Read namespace",
+    "description": "Read a namespace's full settings and hash. Pass the hash as basehash to save_namespace.",
+    "x-scope": "settings",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "namespace name, e.g. notes; not a page slug, and it may not start with _ or ."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "export": {
+          "type": "object",
+          "properties": {
+            "base_url": {
+              "type": "string"
+            },
+            "sitemap": {
+              "type": "boolean"
+            },
+            "robots_allow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "icon_only": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        },
+        "widgets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "skin": {
+          "type": "string"
+        },
+        "palette": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        },
+        "tree": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "new": {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string",
+              "description": "one-segment page name whose body is used as the creation template"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Go template that renders the new page's one-segment name; this is a naming pattern, not a page identifier"
+            }
+          },
+          "required": [
+            "template",
+            "slug"
+          ],
+          "additionalProperties": false
+        },
+        "hash": {
+          "type": "string",
+          "description": "current revision; pass as basehash to save_namespace, empty when the namespace has no settings file yet"
+        }
+      },
+      "required": [
+        "export",
+        "name",
+        "widgets",
+        "public",
+        "title",
+        "description",
+        "image",
+        "skin",
+        "palette",
+        "index",
+        "tree",
+        "hash"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_page",
+    "title": "Read page",
+    "description": "Read one page: its Markdown body, title, tags, pin state and hash. Pass the hash as basehash to edit_page, save_page or delete_page. A long body comes in windows: when truncated is true, call again with offset set to next_offset, or name a section to read only that part. After a partial read, change the body with edit_page, not save_page.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "section": {
+          "type": "string",
+          "description": "heading text; return only that heading and the text under it, up to the next heading of the same or a higher level"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "first character of the body to return",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "description": "maximum body characters to return",
+          "minimum": 1,
+          "maximum": 100000,
+          "x-default": 40000
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "type": "string",
+          "description": "the requested window of the body, or of the section when one is named"
+        },
+        "pin": {
+          "type": "boolean"
+        },
+        "hash": {
+          "type": "string",
+          "description": "current revision of the whole page; pass as basehash to edit_page, save_page or delete_page"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "next_offset": {
+          "type": "integer",
+          "description": "offset to pass for the following window"
+        },
+        "total_chars": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "more text follows next_offset"
+        }
+      },
+      "required": [
+        "slug",
+        "title",
+        "tags",
+        "body",
+        "pin",
+        "hash",
+        "offset",
+        "next_offset",
+        "total_chars",
+        "truncated"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "recent_changes",
+    "title": "Recent changes",
+    "description": "List the newest wiki commits first, with author, time and changed files. A commit that touches any file outside your namespace access is left out.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "description": "maximum commits to return",
+          "minimum": 1,
+          "maximum": 200,
+          "x-default": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hash": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "when": {
+                "type": "string"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "hash",
+              "message",
+              "author",
+              "when",
+              "files"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "commits"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "save_namespace",
+    "title": "Save namespace",
+    "description": "Create a namespace's settings, or update them with the basehash from read_namespace. Each save is one Git commit and never changes pages. On update, fields you omit keep their current values; lists and objects replace the stored value whole. A conflict error returns the current hash: re-read and retry.",
+    "x-scope": "settings",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "namespace name, e.g. notes; not a page slug, and it may not start with _ or ."
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_namespace; required to update, omit to create"
+        },
+        "public": {
+          "type": "boolean",
+          "description": "whether anonymous visitors can read the namespace"
+        },
+        "title": {
+          "type": "string",
+          "description": "human-readable namespace title",
+          "maxLength": 256
+        },
+        "description": {
+          "type": "string",
+          "description": "brief namespace description",
+          "maxLength": 255
+        },
+        "image": {
+          "type": "string",
+          "description": "link preview image for pages without their own, as page/filename of a PNG or JPEG attachment in this namespace, e.g. index/hero.png"
+        },
+        "skin": {
+          "type": "string",
+          "description": "skin shown to visitors; empty for the default",
+          "enum": [
+            "",
+            "phosphor",
+            "newsprint",
+            "journal",
+            "soft",
+            "bare"
+          ]
+        },
+        "palette": {
+          "type": "string",
+          "description": "colour palette shown to visitors; empty for the skin's own",
+          "enum": [
+            "",
+            "phosphor",
+            "catppuccin",
+            "dracula",
+            "everforest",
+            "gruvbox",
+            "monokai",
+            "nord",
+            "one dark",
+            "rosé pine",
+            "solarized",
+            "tokyo night"
+          ]
+        },
+        "index": {
+          "type": "string",
+          "description": "one-segment page name used as the namespace index"
+        },
+        "widgets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pages",
+              "namespaces",
+              "pinned",
+              "tags",
+              "log",
+              "health",
+              "calendar",
+              "writing-stats",
+              "page-meta",
+              "backlinks",
+              "prev-entries"
+            ]
+          },
+          "description": "complete ordered widget list; empty for the default set"
+        },
+        "tree": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "complete ordered list of page or folder paths for the page tree"
+        },
+        "new": {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string",
+              "description": "one-segment page name whose body is used as the creation template"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Go template that renders the new page's one-segment name; this is a naming pattern, not a page identifier"
+            }
+          },
+          "description": "new-page template; set both fields empty to remove it",
+          "required": [
+            "template",
+            "slug"
+          ],
+          "additionalProperties": false
+        },
+        "export": {
+          "type": "object",
+          "properties": {
+            "base_url": {
+              "type": "string"
+            },
+            "sitemap": {
+              "type": "boolean"
+            },
+            "robots_allow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "icon_only": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "description": "static export settings; an empty object removes them",
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "export": {
+          "type": "object",
+          "properties": {
+            "base_url": {
+              "type": "string"
+            },
+            "sitemap": {
+              "type": "boolean"
+            },
+            "robots_allow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "icon_only": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        },
+        "widgets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "skin": {
+          "type": "string"
+        },
+        "palette": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        },
+        "tree": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "new": {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string",
+              "description": "one-segment page name whose body is used as the creation template"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Go template that renders the new page's one-segment name; this is a naming pattern, not a page identifier"
+            }
+          },
+          "required": [
+            "template",
+            "slug"
+          ],
+          "additionalProperties": false
+        },
+        "hash": {
+          "type": "string",
+          "description": "current revision; pass as basehash to save_namespace, empty when the namespace has no settings file yet"
+        }
+      },
+      "required": [
+        "export",
+        "name",
+        "widgets",
+        "public",
+        "title",
+        "description",
+        "image",
+        "skin",
+        "palette",
+        "index",
+        "tree",
+        "hash"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "save_page",
+    "title": "Save page",
+    "description": "Create a page, or update one with the basehash from read_page. Each save is one Git commit. On update, fields you omit keep their current values; body and tags replace the stored value whole. Prefer edit_page to change part of a body. A conflict error returns the current hash and body: merge and retry with that hash.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_page; required to update, omit to create"
+        },
+        "body": {
+          "type": "string",
+          "description": "complete Markdown body without frontmatter, at most 1 MiB as UTF-8; required to create, omit to keep the current body",
+          "maxLength": 1048576
+        },
+        "title": {
+          "type": "string",
+          "description": "page title; defaults to the slug on create, omit to keep the current title",
+          "maxLength": 256
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "description": "complete tag list; replaces the current tags, omit to keep them",
+          "maxItems": 32
+        },
+        "pin": {
+          "type": "boolean",
+          "description": "show the page in the pinned sidebar widget; omit to keep the current value"
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string",
+          "description": "new revision; pass as basehash to the next change"
+        },
+        "index_warning": {
+          "type": "string",
+          "description": "set when the commit succeeded but search indexing is catching up in the background"
+        }
+      },
+      "required": [
+        "slug",
+        "hash"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search",
+    "title": "Search pages",
+    "description": "Full-text search over accessible page titles, bodies and tags, best match first. Snippets are escaped HTML with <mark> around matches; use read_page for the whole page. When more is true, pass next_offset as offset for the next hits, or narrow the query or namespace.",
+    "x-scope": "read",
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "full-text query for page titles, bodies and tags",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string",
+          "description": "only search pages in this namespace"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "number of best matches to skip; pass next_offset from the previous call",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "limit": {
+          "type": "integer",
+          "description": "maximum hits to return",
+          "minimum": 1,
+          "maximum": 50,
+          "x-default": 20
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "slug",
+              "title",
+              "snippet",
+              "tags"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "more": {
+          "type": "boolean",
+          "description": "further matches follow next_offset"
+        },
+        "next_offset": {
+          "type": "integer",
+          "description": "offset of the following page of hits"
+        }
+      },
+      "required": [
+        "hits",
+        "more",
+        "next_offset"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_attachments",
+    "title": "Search attachments",
+    "description": "Search the text extracted from accessible attachments by keyword and meaning, best match first. Excerpts are escaped HTML with <mark> around matches; use read_attachment for more of a document.",
+    "x-scope": "read",
+    "x-document-search": true,
+    "annotations": {
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "keyword or semantic query for extracted attachment text",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string",
+          "description": "only search attachments of pages in this namespace"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "maximum hits to return",
+          "minimum": 1,
+          "maximum": 50,
+          "x-default": 20
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "owner_slug": {
+                "type": "string"
+              },
+              "filename": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string",
+                "description": "escaped text with <mark> around matches"
+              },
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner_slug",
+              "filename",
+              "url",
+              "excerpt",
+              "score"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "hits"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "upload_attachment",
+    "title": "Upload attachment",
+    "description": "Get a one-use URL for uploading a document or image to a page, then POST the file to it as the multipart field file. Link the upload from the page with edit_page using the returned attachment_url, as [name](attachment_url) or ![alt text](attachment_url) for an image. Supported documents are indexed for search_attachments when document search is on.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page that owns the attachment, in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "filename": {
+          "type": "string",
+          "description": "original filename without a directory"
+        }
+      },
+      "required": [
+        "slug",
+        "filename"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "upload_url": {
+          "type": "string",
+          "description": "one-use multipart POST URL; send the file as the file form field"
+        },
+        "attachment_url": {
+          "type": "string",
+          "description": "URL to link from the page once the upload succeeds"
+        },
+        "expires_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "upload_url",
+        "attachment_url",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

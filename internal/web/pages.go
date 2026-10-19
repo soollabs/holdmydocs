@@ -535,7 +535,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	attachmentResults := make([]AttachmentResult, 0)
 	if app.apiClient().DocumentsEnabled() && strings.TrimSpace(q) != "" {
-		attachmentHits, searchErr := app.apiClient().SearchAttachments(r.Context(), q, 20)
+		attachmentHits, searchErr := app.apiClient().SearchAttachments(r.Context(), q, "", api.DefaultAttachmentSearchResults)
 		if searchErr != nil {
 			if api.CategoryOf(searchErr) == api.CategoryBusy {
 				w.Header().Set("Retry-After", "1")
@@ -573,7 +573,7 @@ func (app *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) handleAttachmentSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.FormValue("q"))
-	hits, err := app.apiClient().SearchAttachments(r.Context(), q, 20)
+	hits, err := app.apiClient().SearchAttachments(r.Context(), q, "", api.DefaultAttachmentSearchResults)
 	if err != nil {
 		switch api.CategoryOf(err) {
 		case api.CategoryInvalidInput:
