@@ -50,33 +50,21 @@
 				{{$choiceSlot2 := component "choice" "id" "admin-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>{{template "ui-choice-end" $choiceSlot2}}
 				{{end}}
 			</span>
-			{{template "ui-button" (button (t "common.save") "secondary" "type" "submit")}}
+			<span class="user-actions">
+				{{template "ui-button" (button (t "common.save") "secondary" "type" "submit" "size" "compact")}}
+				{{if and $u.Password (not $u.SSO)}}{{template "ui-button" (button (t "admin.users.reset_password") "secondary" "type" "button" "size" "compact" "name" "reset-user" "value" $u.Name "aria-haspopup" "dialog")}}{{end}}
+				{{if ne $u.Name $.Settings.CurrentUser}}{{$confirm := t "admin.users.delete_confirm" "Name" $u.Name}}{{if $u.SSO}}{{$confirm = t "admin.users.delete_sso_confirm" "Name" $u.Name}}{{end}}{{template "ui-button" (button (t "common.delete") "danger" "type" "submit" "size" "compact" "formaction" "/_/api/settings/users/delete" "confirm" $confirm)}}{{end}}
+			</span>
 		</form>
-		{{if $u.Password}}
-		<details>
-			<summary>{{t "admin.users.reset_password"}}</summary>
-			<form method="POST" action="/_/api/settings/users/password" class="settings-form">{{template "csrf" $}}{{template "json-required" $}}
-				<input type="hidden" name="name" value="{{$u.Name}}">
-				{{$reset := component "field" "id" (printf "reset-password-%s" $u.Name) "label" (t "settings.password.new") "layout" "stacked"}}{{template "ui-field-start" $reset}}<input id="reset-password-{{$u.Name}}" type="password" name="password" autocomplete="new-password" required>{{template "ui-field-end" $reset}}
-				<div class="settings-actions">{{template "ui-button" (button (t "admin.users.reset_password") "secondary" "type" "submit")}}</div>
-			</form>
-		</details>
-		{{end}}
-		{{if ne $u.Name $.Settings.CurrentUser}}
-		<form method="POST" action="/_/api/settings/users/delete" class="settings-form">{{template "csrf" $}}{{template "json-required" $}}
-			<input type="hidden" name="name" value="{{$u.Name}}">
-			{{$confirm := t "admin.users.delete_confirm" "Name" $u.Name}}{{if $u.SSO}}{{$confirm = t "admin.users.delete_sso_confirm" "Name" $u.Name}}{{end}}
-			{{template "ui-button" (button (t "common.delete") "danger" "type" "submit" "size" "compact" "confirm" $confirm)}}
-		</form>
-		{{end}}
 		{{end}}
 
+	</fieldset>
+
+	<fieldset class="settings-section settings-panel" data-panel="users"{{if ne .SettingsPanel "users"}} hidden{{end}}>
+		<legend>{{t "admin.legend.new_user"}}</legend>
 		<form method="POST" action="/_/api/settings/users" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
-			<div class="settings-row">{{$fieldSlot36 := component "field" "id" "new-user-name" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot36}}
-				<label for="new_user_name">{{t "admin.users.new_user_label"}}</label>
-				<input type="text" id="new_user_name" name="name" placeholder="{{t "admin.users.username_placeholder"}}" autocomplete="off">
-				<input type="password" name="password" placeholder="{{t "admin.users.password_placeholder"}}" autocomplete="new-password">
-			{{template "ui-field-end" $fieldSlot36}}</div>
+			<div class="settings-row">{{$newName := component "field" "id" "new_user_name" "label" (t "admin.users.username_label") "layout" "bare"}}{{template "ui-field-start" $newName}}<input type="text" id="new_user_name" name="name" autocomplete="off">{{template "ui-field-end" $newName}}</div>
+			<div class="settings-row">{{$newPassword := component "field" "id" "new_user_password" "label" (t "admin.users.password_label") "layout" "bare"}}{{template "ui-field-start" $newPassword}}<input type="password" id="new_user_password" name="password" autocomplete="new-password">{{template "ui-field-end" $newPassword}}</div>
 			<div class="settings-row">{{$fieldSlot37 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot37}}
 				<label>{{t "admin.users.scopes_label"}}</label>
 				<span class="scope-checks">
@@ -91,6 +79,17 @@
 			</div>
 		</form>
 	</fieldset>
+
+	{{if eq .SettingsPanel "users"}}
+	{{$resetDialog := component "dialog" "id" "user-reset-dialog" "label" (t "admin.users.reset_password")}}{{template "ui-dialog-start" $resetDialog}}
+		<form method="POST" action="/_/api/settings/users/password" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
+			<input type="hidden" name="name" value="">
+			<p class="settings-note" id="user-reset-note"></p>
+			<div class="settings-row">{{$resetField := component "field" "id" "user-reset-password" "label" (t "settings.password.new") "layout" "bare"}}{{template "ui-field-start" $resetField}}<input id="user-reset-password" type="password" name="password" autocomplete="new-password" required>{{template "ui-field-end" $resetField}}</div>
+			<div class="settings-actions">{{template "ui-button" (button (t "admin.users.reset_password") "primary" "type" "submit")}}{{template "ui-button" (button (t "common.cancel") "secondary" "type" "button" "id" "user-reset-cancel")}}</div>
+		</form>
+	{{template "ui-dialog-end" $resetDialog}}
+	{{end}}
 
 	{{if and (eq .SettingsPanel "advanced") (not .Settings.HasEnvOverrides)}}<p class="settings-note">{{t "admin.env.none_overridden"}}</p>{{end}}
 	{{if .Settings.HasEnvOverrides}}

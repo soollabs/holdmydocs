@@ -1799,10 +1799,24 @@
     password: fieldValue(form, 'password'),
     scopes: fieldCheckedList(form, 'scopes')
   }), () => { settingsReturn('saved=1'); });
+  // Each user row saves scopes; its Delete button posts to its formaction instead.
   $$('form[action="/_/api/settings/users/scopes"]').forEach(form => {
-    jsonForm(form, f => ({ name: fieldValue(f, 'name'), scopes: fieldCheckedList(f, 'scopes') }),
-      () => { settingsReturn('saved=1'); });
+    jsonForm(form, (f, submitter) => (submitter && submitter.hasAttribute('formaction'))
+      ? { name: fieldValue(f, 'name') }
+      : { name: fieldValue(f, 'name'), scopes: fieldCheckedList(f, 'scopes') },
+    () => { settingsReturn('saved=1'); });
   });
+  const resetDialog = $('#user-reset-dialog');
+  if (resetDialog) {
+    const resetForm = resetDialog.querySelector('form');
+    $$('button[name="reset-user"]').forEach(open => open.addEventListener('click', () => {
+      resetForm.reset();
+      resetForm.elements.name.value = open.value;
+      $('#user-reset-note').textContent = window.hmdT('js.settings.reset_password_for', { Name: open.value });
+      window.HMDComponents.openDialog(resetDialog, open);
+    }));
+    $('#user-reset-cancel').addEventListener('click', () => resetDialog.close());
+  }
   jsonForm($('form[action="/_/api/settings/password"]'), form => {
     const password = fieldValue(form, 'password');
     if (password !== fieldValue(form, 'confirm')) {
@@ -1814,9 +1828,6 @@
   $$('form[action="/_/api/settings/users/password"]').forEach(form => {
     jsonForm(form, f => ({ name: fieldValue(f, 'name'), password: fieldValue(f, 'password') }),
       () => { settingsReturn('saved=1'); });
-  });
-  $$('form[action="/_/api/settings/users/delete"]').forEach(form => {
-    jsonForm(form, f => ({ name: fieldValue(f, 'name') }), () => { settingsReturn('saved=1'); });
   });
   jsonForm($('#export-config-form'), () => ({}), () => { settingsReturn('exported=1'); });
   jsonForm($('form[action="/_/api/settings/wiki"]'), form => ({

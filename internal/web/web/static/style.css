@@ -2420,6 +2420,22 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 	flex: 1;
 }
 
+.settings-row.user-row {
+	flex-wrap: wrap;
+	padding: 0.6rem 0;
+}
+
+.user-row .scope-checks {
+	flex: 1 1 auto;
+}
+
+.user-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-inline-start: auto;
+}
+
 .scope-checks {
 	display: flex;
 	flex-wrap: wrap;

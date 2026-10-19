@@ -93,15 +93,15 @@ func TestUserListTypesAndBootstrapBanner(t *testing.T) {
 		t.Error("SSO password panel or navigation offers a password change")
 	}
 	_, body := fetch(t, admin, http.MethodGet, server.URL+"/_/settings/users")
-	for _, fragment := range []string{`value="admin"`, `value="local-user"`, `value="sso-user"`, `reset-password-local-user`, "single sign-on", "OIDC admission"} {
+	for _, fragment := range []string{`value="admin"`, `value="local-user"`, `value="sso-user"`, `name="reset-user" value="local-user"`, `id="user-reset-dialog"`, "single sign-on", "OIDC admission"} {
 		if !strings.Contains(body, fragment) {
 			t.Errorf("user list lacks %q", fragment)
 		}
 	}
-	if strings.Contains(body, `reset-password-sso-user`) {
+	if strings.Contains(body, `name="reset-user" value="sso-user"`) {
 		t.Error("SSO reset offered")
 	}
-	if strings.Contains(body, `action="/_/api/settings/users/delete"`) == false {
+	if !strings.Contains(body, `formaction="/_/api/settings/users/delete"`) {
 		t.Error("deletion not offered")
 	}
 	_, body = fetch(t, admin, http.MethodGet, server.URL+"/_/settings/server")

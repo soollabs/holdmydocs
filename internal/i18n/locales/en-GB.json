@@ -80,6 +80,10 @@
     "description": "Legend of the users fieldset in admin settings.",
     "other": "users"
   },
+  "admin.legend.new_user": {
+    "description": "Legend of the fieldset for creating a user on the users panel.",
+    "other": "add a user"
+  },
   "admin.legend.wiki_setup": {
     "description": "Legend of the wiki setup fieldset in admin settings.",
     "other": "wiki setup"
@@ -110,15 +114,15 @@
   },
   "settings.password.current": {
     "description": "Current password field label.",
-    "other": "Current password"
+    "other": "current password"
   },
   "settings.password.new": {
     "description": "New password field label for changes and administrator resets.",
-    "other": "New password"
+    "other": "new password"
   },
   "settings.password.confirm": {
     "description": "Password confirmation field label.",
-    "other": "Confirm new password"
+    "other": "confirm new password"
   },
   "settings.password.change": {
     "description": "Button to change the signed-in user's password.",
@@ -135,6 +139,10 @@
   "js.settings.password_mismatch": {
     "description": "Password confirmation validation error.",
     "other": "The new passwords do not match."
+  },
+  "js.settings.reset_password_for": {
+    "description": "Line in the reset password dialog naming the user; Name is the username.",
+    "other": "Set a new password for {{.Name}}. They are signed out everywhere."
   },
   "admin.users.password": {
     "description": "User sign-in type label.",
@@ -168,12 +176,8 @@
     "description": "Button that creates a new user.",
     "other": "Create user"
   },
-  "admin.users.new_user_label": {
-    "description": "Label for the new user name field.",
-    "other": "new user"
-  },
-  "admin.users.password_placeholder": {
-    "description": "Placeholder text in the new user password input.",
+  "admin.users.password_label": {
+    "description": "Label for the new user's password input.",
     "other": "password"
   },
   "admin.users.scopes_label": {
@@ -184,8 +188,8 @@
     "description": "Note under the scope checkboxes explaining the required scope selection.",
     "other": "Choose at least one scope. Admin includes read and write access."
   },
-  "admin.users.username_placeholder": {
-    "description": "Placeholder text in the new user name input.",
+  "admin.users.username_label": {
+    "description": "Label for the new user's username input.",
     "other": "username"
   },
   "admin.users.you": {
@@ -407,6 +411,10 @@
   "base.settings_nav.git_author": {
     "description": "Settings navigation link to the git author panel.",
     "other": "git author"
+  },
+  "base.settings_nav.password": {
+    "description": "Settings navigation link to the password panel.",
+    "other": "password"
   },
   "base.settings_nav.group_account": {
     "description": "Group label in the settings navigation, above the account links.",
@@ -2506,6 +2514,10 @@
     "description": "Legend of the fieldset for the user's git author setting.",
     "other": "your git author"
   },
+  "settings.password.legend": {
+    "description": "Legend of the fieldset for changing the user's own password.",
+    "other": "your password"
+  },
   "settings.git_author.placeholder": {
     "description": "Placeholder text in the git author input showing the expected format and that blank uses the default.",
     "other": "Name <email@example.com> (blank = use default)"
@@ -2569,6 +2581,10 @@
   "settings.title.git_author": {
     "description": "Page heading of the git author settings panel (lowercase, shown when that panel is open).",
     "other": "git author"
+  },
+  "settings.title.password": {
+    "description": "Page heading of the password settings panel (lowercase, shown when that panel is open).",
+    "other": "password"
   },
   "settings.token_expiry.label": {
     "description": "Label of the select for a new token's lifetime.",
