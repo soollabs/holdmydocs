@@ -28,4 +28,9 @@
 	{{end}}
 {{template "ui-panel-end" $loginPanel}}
 </div>
+<script nonce="{{.CSPNonce}}">
+// A new login brings back the banners dismissed in the last one. app.js does
+// not load before login, so this lives here.
+try { sessionStorage.removeItem('hmd-dismissed'); } catch (e) {}
+</script>
 {{end}}

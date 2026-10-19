@@ -1630,6 +1630,17 @@
   // Dismissible notices hide until the browser session ends. A notice inside
   // a [data-dismiss] wrapper remembers its key in sessionStorage; the head
   // script hides remembered keys on later pages.
+  // Visible banners stack: number them in data-stack so the CSS can tuck the
+  // ones behind the first. A lone banner is not stacked.
+  function stackBanners() {
+    const banners = [...document.querySelectorAll('.ui-notice--banner')].filter(b => !b.hidden && b.offsetParent !== null);
+    document.querySelectorAll('.ui-notice--banner[data-stack]').forEach(b => { b.removeAttribute('data-stack'); b.style.removeProperty('--stack'); });
+    if (banners.length < 2) return;
+    // Past the second sliver, banners fold away (3) until the ones above go.
+    banners.forEach((b, i) => { b.dataset.stack = String(Math.min(i, 3)); b.style.setProperty('--stack', String(Math.min(i, 3))); });
+  }
+  stackBanners();
+
   document.addEventListener('click', event => {
     const dismiss = event.target.closest('.ui-notice__dismiss');
     if (!dismiss) return;
@@ -1643,6 +1654,7 @@
       } catch (e) { /* storage unavailable: hide for this page only */ }
     }
     target.hidden = true;
+    stackBanners();
   });
 
   // Shutdown lives in the top-bar menu and the restart banner, so it is wired

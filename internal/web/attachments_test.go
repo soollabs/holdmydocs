@@ -17,7 +17,7 @@ func TestLegacyAttachmentMigration(t *testing.T) {
 	if _, err := app.Store.Save(legacy, []byte("png"), "seed", "test", "test@hmd.local"); err != nil {
 		t.Fatal(err)
 	}
-	if page := getPage(t, client, server.URL+"/"+testHome); !strings.Contains(page, "Attachments need moving.") {
+	if page := getPage(t, client, server.URL+"/"+testHome); !strings.Contains(page, "Attachments need attention.") {
 		t.Fatal("banner missing while legacy attachments exist")
 	}
 	page := getPage(t, client, server.URL+"/_/settings/wiki")

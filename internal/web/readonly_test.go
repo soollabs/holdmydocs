@@ -137,7 +137,7 @@ func TestReadOnlySettingsViewOnly(t *testing.T) {
 		return string(body)
 	}
 
-	if body := get("/_/settings/git"); strings.Contains(body, `class="settings-banner"`) || strings.Contains(body, "settings-view-only") {
+	if body := get("/_/settings/git"); strings.Contains(body, `data-dismiss="read-only"`) || strings.Contains(body, "settings-view-only") {
 		t.Error("writable instance shows the read-only banner or disables settings")
 	}
 
@@ -146,7 +146,7 @@ func TestReadOnlySettingsViewOnly(t *testing.T) {
 	app.SetConfig(cfg)
 	for _, path := range []string{"/_/settings/appearance", "/_/settings/git", "/_/settings/users", "/_/settings/namespaces"} {
 		body := get(path)
-		if !strings.Contains(body, `class="settings-banner" data-dismiss="read-only"`) || !strings.Contains(body, "Read-only mode.") || !strings.Contains(body, "ui-notice__dismiss") {
+		if !strings.Contains(body, `data-dismiss="read-only"`) || !strings.Contains(body, "Read-only mode.") || !strings.Contains(body, "ui-notice__dismiss") {
 			t.Errorf("%s lacks the dismissible read-only banner", path)
 		}
 		if !strings.Contains(body, `<fieldset class="settings-view-only" disabled>`) {

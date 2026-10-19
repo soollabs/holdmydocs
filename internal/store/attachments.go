@@ -237,9 +237,10 @@ func (s *Store) walkAttachmentRoot(root string, paths *[]string) error {
 	return nil
 }
 
-// LegacyAttachments reports whether the legacy attachments/ tree holds files
-// for a namespace that exists, so a migration has something to move. It only
-// reads directory names, so it is cheap enough to call on every page render.
+// LegacyAttachments reports whether the legacy attachments/ tree holds any
+// namespace folder, whether its namespace still exists (a migration moves it)
+// or is gone (it can only be deleted). It only reads directory names, so it is
+// cheap enough to call on every page render.
 func (s *Store) LegacyAttachments() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -248,7 +249,7 @@ func (s *Store) LegacyAttachments() bool {
 		return false
 	}
 	for _, e := range entries {
-		if e.IsDir() && s.namespaceDirExists(e.Name()) {
+		if e.IsDir() && e.Name() != ".hmd" {
 			return true
 		}
 	}

@@ -1077,7 +1077,7 @@ aside h2 {
 body.zen-focus .app-topbar,
 body.zen-focus .sidebar,
 body.zen-focus .statusline,
-body.zen-focus main > :is(.restart-pending, .legacy-attachments, .settings-banner),
+body.zen-focus main > .ui-notice--banner,
 body.zen-focus .editor-col > .breadcrumb,
 body.zen-focus .edit-meta,
 body.zen-focus .toolbar,
@@ -2070,28 +2070,99 @@ h1.edit-title::after {
 	margin: 4rem auto;
 }
 
-/* Restart, attachment-migration and read-only banners: span the main column, like the top bar. */
-.restart-pending,
-.legacy-attachments,
-.settings-banner {
+/* Banners (notices with a banner key): span the main column, like the top bar. */
+.ui-notice--banner {
 	align-self: stretch;
-	padding: var(--pad) var(--pad) 0;
+	margin: var(--pad) var(--pad) 0;
 }
 
 /* On wide screens the banners sit over the reading column instead of running
    to the window edge, so they start where content starts on every screen.
    Settings screens give the sidebar column to their own menu. */
 @media (min-width: 900px) {
-	body.shell > main > :is(.restart-pending, .legacy-attachments, .settings-banner) {
+	body.shell > main > .ui-notice--banner {
 		align-self: flex-start;
-		width: 100%;
-		max-width: var(--prose-measure);
-		padding: var(--pad) 48px 0;
+		width: calc(100% - 96px);
+		max-width: calc(var(--prose-measure) - 96px);
+		margin: var(--pad) 48px 0;
 	}
 
-	body.shell.no-sidebar > main > :is(.restart-pending, .legacy-attachments, .settings-banner) {
-		margin-left: 260px;
-		max-width: min(var(--prose-measure), calc(100% - 260px));
+	body.shell.no-sidebar > main > .ui-notice--banner {
+		margin-left: calc(260px + 48px);
+		max-width: calc(min(var(--prose-measure), 100% - 260px) - 96px);
+	}
+}
+
+/* Banners stack: app.js numbers the visible ones in data-stack and --stack.
+   The first sits on top; each one behind it is a thin, darker, narrower sliver
+   under the one in front, and shows once the ones above it are dismissed. Only
+   two slivers show; any further ones wait folded away. Hovering grows the
+   slivers without moving the layout. Touch screens have no hover, so there the
+   banners stay in full with a small gap. */
+/* A sliver keeps the colour of its own variant. */
+.ui-notice--banner.ui-notice--danger { --banner-bg: var(--danger-bg); }
+.ui-notice--banner.ui-notice--info,
+.ui-notice--banner.ui-notice--success { --banner-bg: var(--surface); }
+
+.ui-notice--banner {
+	position: relative;
+	z-index: calc(10 - var(--stack, 0));
+	flex-shrink: 0;
+}
+
+body main > .ui-notice--banner[data-stack] {
+	margin-bottom: 0;
+}
+
+body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
+	margin-top: calc(var(--pad) / 4);
+}
+
+@media (hover: hover) {
+	body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
+		height: 1.1em;
+		max-height: 1.1em;
+		margin-top: -0.7em;
+		padding-block: 0;
+		overflow: hidden;
+		color: transparent;
+		background: color-mix(in srgb, var(--banner-bg, var(--warning-bg)), black calc(var(--stack) * 9%));
+		clip-path: inset(0 calc(var(--stack) * 12px));
+		transition: height 0.15s ease-out, max-height 0.15s ease-out, margin-bottom 0.15s ease-out;
+	}
+
+	body main > .ui-notice--banner[data-stack] > * {
+		visibility: hidden;
+	}
+
+	body main > .ui-notice--banner[data-stack="0"] > * {
+		visibility: visible;
+	}
+
+	body main > .ui-notice--banner[data-stack] {
+		box-shadow: 0 2px 4px color-mix(in srgb, black 35%, transparent);
+	}
+
+	body main > .ui-notice--banner[data-stack="3"]:not([data-stack="0"]) {
+		height: 0;
+		max-height: 0;
+		margin: 0;
+		border: 0;
+		box-shadow: none;
+	}
+
+	/* Hovering grows the slivers by 30% of their height; the bottom margin
+	   takes the growth back so nothing below moves. */
+	body main:has(> .ui-notice--banner:hover) > .ui-notice--banner:is([data-stack="1"], [data-stack="2"]) {
+		height: 1.43em;
+		max-height: 1.43em;
+		margin-bottom: -0.33em;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ui-notice--banner[data-stack] {
+		transition: none;
 	}
 }
 
@@ -2153,6 +2224,11 @@ h1.edit-title::after {
 	font-weight: 400;
 	width: 9ch;
 	flex-shrink: 0;
+}
+
+/* The checkbox label is not a field-label column. */
+.login-card .ui-choice label {
+	width: auto;
 }
 
 .login-card input {
