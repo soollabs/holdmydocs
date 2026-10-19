@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="content-col">
 {{template "settings-breadcrumb" .}}
-<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "password"}}{{t "web.settings.panel.password"}}{{else if eq .SettingsPanel "git-author"}}{{t "settings.title.git_author"}}{{else if eq .SettingsPanel "access-tokens"}}{{t "settings.title.access_tokens"}}{{else}}{{t "settings.title.appearance"}}{{end}}</h1>
+<h1 class="page-title"><span class="h"></span>{{if eq .SettingsPanel "password"}}{{t "settings.title.password"}}{{else if eq .SettingsPanel "git-author"}}{{t "settings.title.git_author"}}{{else if eq .SettingsPanel "access-tokens"}}{{t "settings.title.access_tokens"}}{{else}}{{t "settings.title.appearance"}}{{end}}</h1>
 
 {{if .Settings}}
 	{{if .Settings.Flash}}{{$settingsFlash := component "notice" "variant" "success" "role" "status"}}{{template "ui-notice-start" $settingsFlash}}{{.Settings.Flash}}{{template "ui-notice-end" $settingsFlash}}{{end}}
@@ -96,7 +96,7 @@
 	</fieldset>
 
 	<fieldset class="settings-section settings-panel" data-panel="password"{{if ne .SettingsPanel "password"}} hidden{{end}}>
-		<legend>{{t "web.settings.panel.password"}}</legend>
+		<legend>{{t "settings.password.legend"}}</legend>
 		{{if .Settings.UsesPassword}}
 		<form method="POST" action="/_/api/settings/password" class="settings-form">{{template "csrf" .}}{{template "json-required" .}}
 			<div class="settings-row">{{$current := component "field" "id" "current-password" "label" (t "settings.password.current") "layout" "bare"}}{{template "ui-field-start" $current}}<input id="current-password" type="password" name="current" autocomplete="current-password" required>{{template "ui-field-end" $current}}</div>

@@ -6,7 +6,7 @@
 	<span class="settings-nav-group">{{t "base.settings_nav.group_account"}}</span>
 	<a href="/_/settings/appearance"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "appearance")}} aria-current="page"{{end}}>{{template "settings-icon" "theme"}}{{t "base.settings_nav.appearance"}}</a>
 	<a href="/_/settings/git-author"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "git-author")}} aria-current="page"{{end}}>{{template "settings-icon" "branch"}}{{t "base.settings_nav.git_author"}}</a>
-	{{if .UsesPassword}}<a href="/_/settings/password"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "password")}} aria-current="page"{{end}}>{{template "settings-icon" "lock"}}{{t "web.settings.panel.password"}}</a>{{end}}
+	{{if .UsesPassword}}<a href="/_/settings/password"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "password")}} aria-current="page"{{end}}>{{template "settings-icon" "lock"}}{{t "base.settings_nav.password"}}</a>{{end}}
 	<a href="/_/settings/access-tokens"{{if and (eq .SettingsSection "settings") (eq .SettingsPanel "access-tokens")}} aria-current="page"{{end}}>{{template "settings-icon" "key"}}{{t "base.settings_nav.access_tokens"}}</a>
 	{{if .OAuthEnabled}}<a href="/_/settings/connections"{{if eq .SettingsSection "connections"}} aria-current="page"{{end}}>{{template "settings-icon" "plug"}}{{t "base.settings_nav.connected_applications"}}</a>{{end}}
 	{{if .CanViewSettings}}<span class="settings-nav-group">{{t "base.settings_nav.group_system"}}</span>
