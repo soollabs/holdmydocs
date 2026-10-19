@@ -124,6 +124,7 @@ type TemplateData struct {
 	HeadAuthor              string
 	HeadWhen                string // relative, e.g. "3 hours ago"
 	Username                string
+	UnsavedAppearance       bool   // this browser holds an appearance draft that is not saved
 	StatusMode              string // view|edit|search|log, drives the statusline mode block
 	StatusContext           string // right-aligned context: revision count / word counts
 	Version                 string // shown on login intro
@@ -343,9 +344,10 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	if data.Authed {
 		cfg := app.config()
-		prefs := app.Auth.Prefs(app.currentUser(r))
+		prefs, unsavedAppearance := app.userPrefs(r)
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
 		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
+		data.UnsavedAppearance = unsavedAppearance && data.CanSettings
 		data.CanViewSettings = app.apiClient().CanViewSettings(r.Context())
 		if data.CanSettings {
 			pending := app.apiClient().PendingRestart()

@@ -10,7 +10,7 @@
 			<div class="settings-row namespace-row">
 				<a class="settings-row-label" href="{{namespaceurl .Name}}">{{.Name}}/</a>
 				<span class="token-meta">{{tn "namespaces.page_count" .Count "Count" .Count}} &middot; {{if .Config.Public}}{{t "namespaces.visibility_public"}}{{else}}{{t "namespaces.visibility_private"}}{{end}}</span>
-				<div class="ui-actions">{{template "ui-button" (button (t "common.edit") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/edit" .Name))}}{{if .Count}}{{template "ui-button" (button (t "namespaces.preview_static_site") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/preview" .Name) "new-tab" "true")}}{{template "ui-button" (button (t "namespaces.export_static_site") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/export" .Name))}}{{end}}</div>
+				<div class="ui-actions">{{template "ui-button" (button (t "common.edit") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/edit" .Name))}}{{if and .Count $.CanSettings}}{{template "ui-button" (button (t "namespaces.preview_static_site") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/preview" .Name) "new-tab" "true")}}{{template "ui-button" (button (t "namespaces.export_static_site") "secondary" "size" "compact" "href" (printf "/_/settings/namespaces/%s/export" .Name))}}{{end}}</div>
 			</div>
 			{{else}}{{$empty := component "empty" "label" (t "namespaces.empty_label")}}{{template "ui-empty-start" $empty}}<p>{{t "namespaces.empty_text"}}</p>{{template "ui-empty-end" $empty}}{{end}}
 			<div class="settings-actions">{{template "ui-button" (button (t "namespaces.new_button") "primary" "href" "/_/settings/namespaces/new")}}</div>

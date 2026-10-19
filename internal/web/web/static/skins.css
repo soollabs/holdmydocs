@@ -513,6 +513,7 @@
 	/* Keep a low-contrast border so the panel edge remains visible. */
 	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
 	--brand-prefix: "";
+	--topbar-inset: calc(var(--pad) - 8px);  /* the floating topbar already sits 8px in, and the name's pill is the box that lines up */
 	--brand-cursor: "";
 	--title-rule:        block;
 	--title-rule-h:      3px;
@@ -591,6 +592,14 @@
 	border: none;
 	border-radius: var(--radius-lg);
 	background: var(--surface-raised);
+}
+
+/* The name's pill lines up with the content's edge, allowing for the island's
+   own margin. */
+@media (max-width: 899px) {
+	:root[data-skin="soft"] body.no-sidebar .app-topbar {
+		padding-left: calc(var(--settings-pad) - 8px);
+	}
 }
 
 /* Code blocks are little windows: three dots in the space above the code

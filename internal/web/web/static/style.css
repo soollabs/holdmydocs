@@ -77,6 +77,10 @@
 
 	--pad:        16px;
 	--pad-tight:  8px;
+	/* Where the site name starts in the topbar, from the group's left edge: the
+	   sidebar's padding, so the name lines up with the sidebar's content. A skin
+	   whose name sits in a floating box adjusts it. */
+	--topbar-inset: var(--pad);
 	/* Compact controls (buttons, notices). Skins may override. */
 	--control-pad-y:  0.3rem;
 	--control-pad-x:  0.8rem;
@@ -344,6 +348,29 @@ body.shell.shell-public {
 	border-radius: 3px;
 }
 
+/* The pages widget puts its draft dot and pin inside the link, at the row's
+   end, so the active fill covers the whole row, markers included. */
+.sidebar-list li a:has(> .sidebar-list-title) {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.sidebar-list-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-list li a .draft-dot {
+	margin-right: 0;
+}
+
+.sidebar-list li a.active .pin-glyph {
+	color: inherit;
+}
+
 .sidebar-list li a:hover {
 	color: var(--fg-strong);
 }
@@ -474,6 +501,7 @@ body.shell.shell-public {
 	   the group below instead of the window edges. */
 	body.shell > .app-topbar {
 		padding-inline: calc(var(--shell-gutter) + 10px);
+		padding-inline-start: calc(var(--shell-gutter) + var(--topbar-inset));
 	}
 
 	body.shell.shell-public > .app-topbar {
@@ -481,10 +509,9 @@ body.shell.shell-public {
 	}
 
 	/* The sidebar is always shown on desktop, like the docs sites this layout
-	   follows, so the toggle and the back link are mobile-only; the site name
-	   links back to the wiki. The editor's Full mode hides the sidebar. */
-	body.shell #sidebar-toggle,
-	body.shell .topbar-back {
+	   follows, so the toggle is mobile-only. The editor's Full mode hides the
+	   sidebar. */
+	body.shell #sidebar-toggle {
 		display: none;
 	}
 }
@@ -2523,7 +2550,13 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 	margin: 0 0 1.25rem;
 }
 
-.settings-container { width: 100%; max-width: 1200px; padding: 32px; }
+/* The settings page's side padding below the desktop layout. The topbar's
+   site name starts at the same inset, so it lines up with the content. */
+body.no-sidebar { --settings-pad: 20px; }
+.settings-container { width: 100%; max-width: 1200px; padding: var(--settings-pad); }
+@media (max-width: 899px) {
+	body.no-sidebar .app-topbar { padding-left: var(--settings-pad); }
+}
 .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; }
 .settings-panels { min-width: 0; overflow-wrap: anywhere; }
 /* Desktop: the settings menu fills the sidebar column and the panels the reading
@@ -2590,8 +2623,7 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 .settings-selector > details > summary::-webkit-details-marker { display: none; }
 .settings-selector > details[open] > summary .settings-icon { transform: rotate(180deg); }
 .settings-selector > details > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-@media (max-width: 800px) {
-	.settings-container { padding: 20px; }
+@media (max-width: 899px) {
 	.settings-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
 	.settings-layout > .settings-nav { display: none; }
 	.settings-selector { display: block; min-width: 0; }

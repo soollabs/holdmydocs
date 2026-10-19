@@ -152,10 +152,26 @@ func TestReadOnlySettingsViewOnly(t *testing.T) {
 		t.Error("writable instance shows the read-only banner or disables settings")
 	}
 
+	writableList := get("/_/settings/namespaces")
+	writableEdit := get("/_/settings/namespaces/" + testNS + "/edit")
+	if !strings.Contains(writableList, "/preview") || !strings.Contains(writableEdit, "/preview") {
+		t.Fatal("writable instance lacks the static preview buttons, so the read-only check below proves nothing")
+	}
+
 	cfg := app.Config()
 	cfg.ReadOnly = true
 	app.SetConfig(cfg)
-	for _, path := range []string{"/_/settings/appearance", "/_/settings/git", "/_/settings/users", "/_/settings/namespaces"} {
+	for _, path := range []string{"/_/settings/namespaces", "/_/settings/namespaces/" + testNS + "/edit"} {
+		if body := get(path); strings.Contains(body, "/preview") || strings.Contains(body, "/export\"") {
+			t.Errorf("%s offers static preview or export, which need the settings scope", path)
+		}
+	}
+	// The namespace settings link to the hidden template page's editor; like
+	// the page editor it opens view-only instead of refusing.
+	if body := get("/_/hidden/" + testNS + "/template?do=edit"); !strings.Contains(body, "Read-only") {
+		t.Error("hidden page editor does not open read-only")
+	}
+	for _, path := range []string{"/_/settings/git", "/_/settings/users", "/_/settings/namespaces"} {
 		body := get(path)
 		if !strings.Contains(body, `data-dismiss="read-only"`) || !strings.Contains(body, "Read-only mode.") || !strings.Contains(body, "ui-notice__dismiss") {
 			t.Errorf("%s lacks the dismissible read-only banner", path)

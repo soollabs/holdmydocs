@@ -77,10 +77,10 @@
 
 	</form>
 
-	<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
+	{{if .CanSettings}}<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
 		{{template "ui-button" (button (t "settings.appearance.save") "primary" "type" "submit" "form" "appearance-form")}}
-		{{template "ui-button" (button (t "common.cancel") "secondary" "href" "/")}}
-	</div>
+		{{template "ui-button" (button (t "common.cancel") "secondary" "href" "/" "id" "appearance-cancel")}}
+	</div>{{end}}
 
 	<fieldset class="settings-section settings-panel" data-panel="git-author"{{if ne .SettingsPanel "git-author"}} hidden{{end}}>
 		<legend>{{t "settings.git_author.legend"}}</legend>
@@ -164,28 +164,65 @@
 	var fontStacks = {{.Settings.FontStacks}};
 	var root = document.documentElement;
 
+	// Keep what is picked in this browser, so every page shows it before it is
+	// saved. A read-only instance never saves, so this is the preference there.
+	function checkedValue(name) {
+		var input = document.querySelector('input[name="' + name + '"]:checked');
+		return input ? input.value : '';
+	}
+	function saveDraft() {
+		if (!window.hmdAppearanceDraft) return;
+		window.hmdAppearanceDraft.write({{.Username}}, {{.Settings.AppearanceBase}}, {
+			skin: checkedValue('skin'),
+			palette: checkedValue('palette'),
+			font_ui: document.getElementById('font_ui').value,
+			font_mono: document.getElementById('font_mono').value
+		});
+		var notice = document.getElementById('appearance-draft');
+		if (notice) notice.hidden = false;
+	}
+
 	var fontFields = [['font_ui', '--font-ui'], ['font_mono', '--font-mono']];
+	var themeStyle = document.getElementById('theme-style');
+
+	// The active skin's own font. The saved choice sits in the theme style with
+	// the same weight as the skin, so read the value with that style and any
+	// previewed override switched off for a moment.
+	function skinFont(prop) {
+		var inline = root.style.getPropertyValue(prop);
+		root.style.removeProperty(prop);
+		if (themeStyle) themeStyle.disabled = true;
+		var stack = getComputedStyle(root).getPropertyValue(prop).trim();
+		if (themeStyle) themeStyle.disabled = false;
+		if (inline) root.style.setProperty(prop, inline);
+		return stack;
+	}
+
+	// Show the picked font, or the skin's own when "default" is picked.
+	function previewFont(pair) {
+		var sel = document.getElementById(pair[0]);
+		if (!sel) return;
+		var stack = fontStacks[sel.value];
+		if (stack) root.style.setProperty(pair[1], stack);
+		else root.style.setProperty(pair[1], skinFont(pair[1]));
+	}
+
 	fontFields.forEach(function (pair) {
 		var sel = document.getElementById(pair[0]);
 		if (!sel) return;
 		sel.addEventListener('change', function () {
-			var stack = fontStacks[sel.value];
-			if (stack) root.style.setProperty(pair[1], stack);
-			else root.style.removeProperty(pair[1]);
+			previewFont(pair);
+			saveDraft();
 		});
 	});
 
-	// Name the active skin's own font in each default option. skins.css
-	// stays the only source: briefly drop any previewed override to read it.
+	// Name the active skin's own font in each default option.
 	function syncFontDefaults() {
 		fontFields.forEach(function (pair) {
 			var sel = document.getElementById(pair[0]);
 			var option = sel && sel.querySelector('option[value=""]');
 			if (!option) return;
-			var override = root.style.getPropertyValue(pair[1]);
-			root.style.removeProperty(pair[1]);
-			var first = getComputedStyle(root).getPropertyValue(pair[1]).split(',')[0].trim().replace(/^["']|["']$/g, '');
-			if (override) root.style.setProperty(pair[1], override);
+			var first = skinFont(pair[1]).split(',')[0].trim().replace(/^["']|["']$/g, '');
 			if (first) option.textContent = window.hmdT('js.settings.font_default', { Font: first.toLowerCase() });
 		});
 	}
@@ -238,6 +275,7 @@
 			paletteExplicit.value = '1';
 			syncCards('palette');
 			previewPalette(input.value);
+			saveDraft();
 		});
 	});
 	// Match the server-side palette reset when changing skins.
@@ -246,6 +284,13 @@
 			paletteExplicit.value = '';
 			syncCards('skin');
 			root.setAttribute('data-skin', input.value);
+			// A new skin brings its own fonts, as it does its own palette.
+			fontFields.forEach(function (pair) {
+				var sel = document.getElementById(pair[0]);
+				if (sel) sel.value = '';
+				root.style.removeProperty(pair[1]);
+				previewFont(pair);
+			});
 			syncFontDefaults();
 
 			var palette = document.querySelector('input[name="palette"][value="' + skinPalettes[input.value] + '"]');
@@ -254,6 +299,7 @@
 				syncCards('palette');
 				previewPalette(skinPalettes[input.value]);
 			}
+			saveDraft();
 		});
 	});
 })();

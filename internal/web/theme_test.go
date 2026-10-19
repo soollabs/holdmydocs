@@ -170,6 +170,10 @@ func TestBuildThemeStyleFonts(t *testing.T) {
 		!strings.Contains(css, `--font-mono:ui-monospace,`) {
 		t.Errorf("font overrides missing from style: %q", css)
 	}
+	// skins.css sets fonts on :root[data-skin="x"], which a bare :root loses to.
+	if !strings.Contains(css, ":root:root{") {
+		t.Errorf("font overrides must match a skin's specificity: %q", css)
+	}
 	if got := buildThemeStyle(auth.UserRecord{FontUI: "nope"}); got != "" {
 		t.Errorf("unknown font name should emit nothing, got %q", got)
 	}

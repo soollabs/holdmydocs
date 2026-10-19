@@ -79,6 +79,7 @@ type SettingsData struct {
 	SkinNames       []string
 	SkinPalettes    map[string]string // skin -> default palette, JSON-encoded to move the selection on change
 	HelpDrifted     bool
+	AppearanceBase  string             // the saved appearance an appearance draft is made over
 	UserGitAuthor   string             // current user's per-user git author override
 	WikiConfigPath  string             // repository-relative .wiki.yaml path
 	WikiLanding     string             // where "/" redirects to
@@ -217,9 +218,10 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	// Show what was saved, including settings still waiting for a restart.
 	cfg := app.apiClient().SavedConfig()
 	user := app.currentUser(r)
-	prefs := app.Auth.Prefs(user)
+	prefs, _ := app.userPrefs(r)
 
 	sd := buildSettingsData(cfg, prefs)
+	sd.AppearanceBase = appearanceBase(app.Auth.Prefs(user))
 	sd.HelpDrifted = app.apiClient().HelpDrifted()
 	sd.UserGitAuthor = app.Auth.AuthorFor(user)
 	wikiCfg := app.wikiConfig()
