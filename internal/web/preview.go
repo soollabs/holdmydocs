@@ -28,7 +28,7 @@ type linkPreview struct {
 
 // pageSummary reads a rendered page for its link preview: the text of the
 // first paragraph, shortened to a description, and the first PNG or JPEG
-// attachment of namespace ns, as the page/filename an export image names.
+// attachment of namespace ns, as the page/filename a preview image names.
 func pageSummary(content template.HTML, ns string) (description, image string) {
 	prefix := "/_/attachments/" + ns + "/"
 	tokenizer := html.NewTokenizer(strings.NewReader(string(content)))
@@ -50,7 +50,7 @@ func pageSummary(content template.HTML, ns string) (description, image string) {
 					}
 					if ref, ok := strings.CutPrefix(string(val), prefix); ok {
 						if ref, err := url.PathUnescape(ref); err == nil {
-							if _, _, valid := wiki.SplitExportImage(ref); valid {
+							if _, _, valid := wiki.SplitPreviewImage(ref); valid {
 								image = ref
 							}
 						}
@@ -99,7 +99,7 @@ func shortenDescription(text string) string {
 
 // exportLinkPreview builds the link preview of an exported page, or of the
 // namespace home when rest is the index. A page without its own image uses
-// the namespace's export image.
+// the namespace's preview image.
 func exportLinkPreview(base *url.URL, rest, index, image, fallbackImage string) *linkPreview {
 	if base == nil {
 		return nil
@@ -111,7 +111,7 @@ func exportLinkPreview(base *url.URL, rest, index, image, fallbackImage string) 
 	if image == "" {
 		image = fallbackImage
 	}
-	if page, filename, ok := wiki.SplitExportImage(image); ok {
+	if page, filename, ok := wiki.SplitPreviewImage(image); ok {
 		preview.Image = staticexport.AttachmentURL(base, page, filename)
 	}
 	return preview
@@ -133,9 +133,9 @@ func liveLinkPreview(baseURL, namespace, page string, cfg wiki.NamespaceConfig, 
 		preview.URL = base.ResolveReference(&url.URL{Path: wiki.NamespaceSlug(namespace, page)}).String()
 	}
 	if image == "" {
-		image = cfg.Export.Image
+		image = cfg.Image
 	}
-	if imagePage, filename, ok := wiki.SplitExportImage(image); ok {
+	if imagePage, filename, ok := wiki.SplitPreviewImage(image); ok {
 		preview.Image = base.ResolveReference(&url.URL{Path: "_/attachments/" + namespace + "/" + imagePage + "/" + filename}).String()
 	}
 	return preview

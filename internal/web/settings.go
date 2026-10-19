@@ -45,8 +45,8 @@ type NamespaceManagementData struct {
 	Flash        string
 	FileCount    int                  // files in the namespace being edited; deleting removes them too
 	Section      string               // active editor section, one of namespaceSections
-	Images       []previewImageOption // PNG and JPEG attachments offered as the export image
-	ImageMissing bool                 // the configured export image is no longer an attachment
+	Images       []previewImageOption // PNG and JPEG attachments offered as the link preview image
+	ImageMissing bool                 // the configured link preview image is no longer an attachment
 	Sections     []namespaceSection   // editor pages, listed in the settings navigation
 }
 
@@ -366,7 +366,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 				entry.Hash = detail.Hash
 				data.FileCount = detail.Files
 			}
-			data.Images, data.ImageMissing = app.previewImageOptions(r, entry.Name, entry.Export.Image)
+			data.Images, data.ImageMissing = app.previewImageOptions(r, entry.Name, entry.Image)
 			data.Form = entry
 			data.TreeEditor = namespaceTreeEditor(app.apiClient().PageTitles(r.Context()), entry.Name, entry.Index, entry.Tree)
 			break
@@ -375,7 +375,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	return data
 }
 
-// previewImageOption is one export image choice, labelled with its size and
+// previewImageOption is one link preview image choice, labelled with its size and
 // a warning when link preview services are likely to drop or crop it.
 type previewImageOption struct {
 	Ref, Label string

@@ -1352,12 +1352,12 @@ ul.page-tree.branch > li::before {
 
 /* Option labels carry each image's size, so the select takes the control
    column instead of growing to its longest option. */
-.settings-row #export-image {
+.settings-row #namespace-image {
 	flex: 1 1 0;
 	min-width: 0;
 }
 
-.export-image-preview {
+.namespace-image-preview {
 	display: block;
 	max-width: min(100%, 20rem);
 	margin-bottom: 1rem;

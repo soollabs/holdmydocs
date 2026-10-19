@@ -37,14 +37,6 @@ func TestExportConfigValidation(t *testing.T) {
 			t.Errorf("accepted link %#v", link)
 		}
 	}
-	for _, image := range []string{"hero.png", "/hero.png", "index/hero.gif", "index/hero.svg", "index/.hero.png", "../x/hero.png", "index/a\\hero.png"} {
-		if _, err := NormaliseExportConfig(ExportConfig{Image: image}, false); err == nil {
-			t.Errorf("accepted export image %q", image)
-		}
-	}
-	if c, err := NormaliseExportConfig(ExportConfig{Image: " guides/setup/shot.JPEG "}, false); err != nil || c.Image != "guides/setup/shot.JPEG" {
-		t.Errorf("export image = %q, %v", c.Image, err)
-	}
 	if _, err := NormaliseExportConfig(ExportConfig{}, true); err == nil {
 		t.Fatal("missing URL accepted for export")
 	}
@@ -79,5 +71,16 @@ func TestExportNamespaceYAMLRoundTrip(t *testing.T) {
 	}
 	if !DefaultNamespaceConfig().Export.SitemapEnabled() {
 		t.Fatal("sitemap should default to enabled")
+	}
+}
+
+func TestNamespacePreviewImageValidation(t *testing.T) {
+	for _, image := range []string{"hero.png", "/hero.png", "index/hero.gif", "index/hero.svg", "index/.hero.png", "../x/hero.png", "index/a\\hero.png"} {
+		if _, err := NormaliseNamespaceConfigBase("docs", NamespaceConfig{Image: image}); err == nil {
+			t.Errorf("accepted link preview image %q", image)
+		}
+	}
+	if c, err := NormaliseNamespaceConfigBase("docs", NamespaceConfig{Image: " guides/setup/shot.JPEG "}); err != nil || c.Image != "guides/setup/shot.JPEG" {
+		t.Errorf("link preview image = %q, %v", c.Image, err)
 	}
 }

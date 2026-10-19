@@ -1748,6 +1748,7 @@
       base_hash: fieldValue(form, 'basehash'),
       title: fieldValue(form, 'title'),
       description: fieldValue(form, 'description'),
+      image: fieldValue(form, 'image'),
       index: fieldValue(form, 'index'),
       tree: csvList(fieldValue(form, 'tree')),
       public: fieldOn(form, 'public'),
@@ -1760,7 +1761,6 @@
       export: {
         base_url: fieldValue(form, 'export_base_url'),
         sitemap: fieldOn(form, 'export_sitemap'),
-        image: fieldValue(form, 'export_image'),
         robots_allow: Array.from(form.querySelectorAll('.export-bot:checked')).map(box => box.value).concat(csvList(fieldValue(form, 'export_bots'))),
         links: Array.from(form.querySelectorAll('.export-link-row')).map(row => ({
           label: row.querySelector('.export-link-label').value,

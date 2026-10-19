@@ -327,13 +327,13 @@ func (a *API) MigrateAttachments(ctx context.Context) (int, error) {
 // PreviewImage is a namespace attachment that can serve as a link preview
 // image. Width and Height are zero when the file cannot be decoded.
 type PreviewImage struct {
-	Ref           string // page/filename relative to the namespace, as export.image names it
+	Ref           string // page/filename relative to the namespace, as the namespace image setting names it
 	Bytes         int64
 	Width, Height int
 }
 
 // PreviewImages lists the namespace's PNG and JPEG attachments, sorted by
-// reference, for choosing the export image.
+// reference, for choosing the link preview image.
 func (a *API) PreviewImages(ctx context.Context, namespace string) ([]PreviewImage, error) {
 	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
 		return nil, err

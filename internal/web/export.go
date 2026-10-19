@@ -148,7 +148,7 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 			Namespace:         ns,
 			NamespaceTitle:    title,
 			Description:       description,
-			Preview:           exportLinkPreview(base, rest, indexPage, image, cfg.Export.Image),
+			Preview:           exportLinkPreview(base, rest, indexPage, image, cfg.Image),
 			Skin:              skinName(cfg.Skin),
 			ThemeStyle:        buildThemeStyle(auth.UserRecord{Palette: palette}),
 			SidebarTree:       renderStaticTree(tree, rest, func(to string) string { return staticPageHref(rest, to) }),
@@ -181,7 +181,7 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 		}
 	}
 	if indexPage == "" {
-		stub := TemplateData{SiteName: title, Description: cfg.Description, Preview: exportLinkPreview(base, "", "", "", cfg.Export.Image), NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: template.HTML(i18n.T("web.export.index_empty")), RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
+		stub := TemplateData{SiteName: title, Description: cfg.Description, Preview: exportLinkPreview(base, "", "", "", cfg.Image), NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: template.HTML(i18n.T("web.export.index_empty")), RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
 		stub.ExportLinks, stub.ExportTopbarLinks, stub.ExportIcons = sidebarLinks, topbarLinks, hasExportIcons(cfg.Export.Links)
 		stub.CSPNonce = request.CSPNonce
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {

@@ -48,8 +48,8 @@ func TestExportLinkPreview(t *testing.T) {
 	}
 	export := func(image string) (string, error) {
 		outDir := t.TempDir()
-		cfg := wiki.NamespaceConfig{Index: "home", Title: "Docs", Description: "Namespace summary",
-			Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/manual/", Image: image}}
+		cfg := wiki.NamespaceConfig{Index: "home", Title: "Docs", Description: "Namespace summary", Image: image,
+			Export: wiki.ExportConfig{BaseURL: "https://docs.example.org/manual/"}}
 		return outDir, staticexport.Namespace(staticexport.NamespaceRequest{
 			Pages: pages, Namespace: "docs", Config: cfg, OutDir: outDir, Store: store,
 		}, NewStaticExporter(wiki.NewRenderer(func(string, string) (string, bool) { return "", false })))
@@ -97,16 +97,16 @@ func TestExportLinkPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	if page := read(filepath.Join(outDir, "guides", "setup", "index.html")); strings.Contains(page, "og:image") || !strings.Contains(page, `<meta name="twitter:card" content="summary">`) {
-		t.Error("a page without an image and no export image must get a text-only card")
+		t.Error("a page without an image and no namespace image must get a text-only card")
 	}
 
-	if _, err := export("brand/gone.png"); err == nil || !strings.Contains(err.Error(), `export image "brand/gone.png" not found`) {
+	if _, err := export("brand/gone.png"); err == nil || !strings.Contains(err.Error(), `link preview image "brand/gone.png" not found`) {
 		t.Errorf("export with a missing image: err = %v", err)
 	}
 }
 
 func TestLiveLinkPreview(t *testing.T) {
-	cfg := wiki.NamespaceConfig{Index: "home", Export: wiki.ExportConfig{Image: "brand/hero.png"}}
+	cfg := wiki.NamespaceConfig{Index: "home", Image: "brand/hero.png"}
 	if got := liveLinkPreview("", "docs", "guide", cfg, ""); got != nil {
 		t.Errorf("preview without a base URL = %#v, want none", got)
 	}

@@ -46,6 +46,10 @@
       "type": "string",
       "description": "Colour palette shown to anonymous readers and in the static export. Empty uses the skin's own palette."
     },
+    "image": {
+      "type": "string",
+      "description": "Link preview image for pages without an image of their own, shown when a page is shared in a chat app or social network, on public pages and in the static export. Names a PNG or JPEG attachment in this namespace as page/filename, e.g. index/hero.png. The export fails if the attachment is missing."
+    },
     "widgets": {
       "type": "array",
       "items": {
@@ -101,10 +105,6 @@
           "type": "array",
           "maxItems": 32,
           "description": "External links in the static site's sidebar or top bar. Labels are link text, or tooltips for icon-only links; icons use Font Awesome classes such as fa-brands fa-github."
-        },
-        "image": {
-          "type": "string",
-          "description": "Default link preview image for pages without an image of their own, as page/filename of a PNG or JPEG attachment in this namespace, e.g. index/hero.png. The export fails if the attachment is missing."
         }
       }
     }

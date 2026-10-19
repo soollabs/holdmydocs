@@ -14,7 +14,6 @@ type ExportConfig struct {
 	Sitemap     *bool        `yaml:"sitemap,omitempty" json:"sitemap,omitempty"`
 	RobotsAllow []string     `yaml:"robots_allow,omitempty" json:"robots_allow,omitempty"`
 	Links       []ExportLink `yaml:"links,omitempty" json:"links,omitempty"`
-	Image       string       `yaml:"image,omitempty" json:"image,omitempty"` // link preview fallback: "<page>/<filename>" of a namespace attachment
 }
 
 type ExportLink struct {
@@ -44,12 +43,6 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 			return c, fmt.Errorf("export base URL must be an absolute HTTP(S) URL without credentials, query or fragment")
 		}
 		c.BaseURL = strings.TrimRight(c.BaseURL, "/") + "/"
-	}
-	c.Image = strings.TrimSpace(c.Image)
-	if c.Image != "" {
-		if _, _, ok := SplitExportImage(c.Image); !ok {
-			return c, fmt.Errorf("export image must name a PNG or JPEG attachment as page/filename, e.g. index/hero.png")
-		}
 	}
 	if len(c.RobotsAllow) > 64 || len(c.Links) > 32 {
 		return c, fmt.Errorf("export supports at most 64 allowed bots and 32 external links")
@@ -98,9 +91,9 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 	return c, nil
 }
 
-// SplitExportImage splits an export image reference into the owning page,
+// SplitPreviewImage splits a link preview image reference into the owning page,
 // relative to the namespace, and the attachment filename.
-func SplitExportImage(ref string) (page, filename string, ok bool) {
+func SplitPreviewImage(ref string) (page, filename string, ok bool) {
 	i := strings.LastIndexByte(ref, '/')
 	if i < 1 {
 		return "", "", false

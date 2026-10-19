@@ -1600,7 +1600,7 @@
   },
   "namespace_edit.image_note": {
     "description": "Note below the link preview image select.",
-    "other": "Shown when a page from this site is shared in a chat app or social network. Pages with an image of their own use that instead. Lists the PNG and JPEG attachments in this namespace."
+    "other": "Shown when a page is shared in a chat app or social network, on public pages and in the static site. Pages with an image of their own use that instead. Lists the PNG and JPEG attachments in this namespace."
   },
   "namespace_edit.image_preview_alt": {
     "description": "Alt text of the thumbnail of the chosen link preview image.",
@@ -1833,6 +1833,14 @@
   "namespace_edit.slug_preset_label": {
     "description": "Label of the slug preset select.",
     "other": "slug preset"
+  },
+  "namespace_edit.static_site_note": {
+    "description": "Note at the top of the static site settings. {{.Published}} is a link worded by namespace_edit.static_site_note_link.",
+    "other": "The static site uses the title, skin, palette and link preview image from {{.Published}}."
+  },
+  "namespace_edit.static_site_note_link": {
+    "description": "Link text to the published view settings, inside namespace_edit.static_site_note.",
+    "other": "published view"
   },
   "namespace_edit.template_label": {
     "description": "Label of the template page input.",
