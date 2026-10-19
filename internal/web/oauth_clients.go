@@ -10,7 +10,7 @@ import (
 	"hmd/internal/oauthserver"
 )
 
-// Client administration requires a settings-capable browser session, never a
+// Client administration requires a admin browser session, never a
 // bearer token. The shared security middleware enforces Origin and CSRF.
 func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if app.OAuth == nil {
@@ -23,7 +23,7 @@ func (app *App) oauthClientAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	_, ok := app.Auth.UserFor(cookie.Value)
-	allowed := app.apiClient().HasScope(r.Context(), api.ScopeSettings)
+	allowed := app.apiClient().HasScope(r.Context(), api.ScopeAdmin)
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		allowed = app.apiClient().CanViewSettings(r.Context())
 	}

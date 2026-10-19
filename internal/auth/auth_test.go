@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -348,7 +350,7 @@ func TestUsersListsSortedWithScopes(t *testing.T) {
 	if !users[0].Has["read"] || users[0].Has["write"] {
 		t.Errorf("amy scopes = %+v, want read only", users[0].Has)
 	}
-	if !users[1].Has["read"] || !users[1].Has["write"] || !users[1].Has["settings"] {
+	if !users[1].Has["read"] || !users[1].Has["write"] || !users[1].Has["admin"] {
 		t.Errorf("zed (full access) scopes = %+v, want all true", users[1].Has)
 	}
 }
@@ -404,7 +406,7 @@ func TestTokenNamespacesPersistAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	unrestricted, err := auth.AddToken("alice", "all", time.Time{}, []string{"read", "write", "settings"}, nil)
+	unrestricted, err := auth.AddToken("alice", "all", time.Time{}, []string{"read", "write", "admin"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +478,7 @@ func TestTokenInputValidation(t *testing.T) {
 			t.Errorf("invalid namespaces %v were accepted", namespaces)
 		}
 	}
-	if _, err := auth.AddToken("alice", "unknown-scope", time.Time{}, []string{"admin"}, nil); err == nil {
+	if _, err := auth.AddToken("alice", "unknown-scope", time.Time{}, []string{LegacyAdminScope}, nil); err == nil {
 		t.Error("unknown token scope was accepted")
 	}
 	if _, err := auth.AddToken("alice", "empty-scopes", time.Time{}, []string{}, nil); err == nil {
@@ -560,15 +562,15 @@ func TestTokenScopeIntersectionAndSettingsBypass(t *testing.T) {
 	if err := auth.AddUser("manager", "password12345"); err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {
+	if err := auth.SetScopes("manager", []string{"admin"}); err != nil {
 		t.Fatal(err)
 	}
-	settingsToken, err := auth.AddToken("manager", "admin", time.Time{}, []string{"settings"}, []string{"notes"})
+	settingsToken, err := auth.AddToken("manager", "admin", time.Time{}, []string{"admin"}, []string{"notes"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	settingsPrincipal, ok := auth.UserForBearer(settingsToken)
-	if !ok || !settingsPrincipal.HasScope(scopeRead) || !settingsPrincipal.HasScope(scopeWrite) || !settingsPrincipal.HasScope(scopeSettings) || settingsPrincipal.Restricted() || !settingsPrincipal.AllowsNamespace("private") {
+	if !ok || !settingsPrincipal.HasScope(scopeRead) || !settingsPrincipal.HasScope(scopeWrite) || !settingsPrincipal.HasScope(scopeAdmin) || settingsPrincipal.Restricted() || !settingsPrincipal.AllowsNamespace("private") {
 		t.Fatalf("settings token principal = %#v, %v", settingsPrincipal, ok)
 	}
 }
@@ -619,7 +621,7 @@ func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
 	if err := auth.AddUser("manager", "password12345"); err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.SetScopes("manager", []string{"settings"}); err != nil {
+	if err := auth.SetScopes("manager", []string{"admin"}); err != nil {
 		t.Fatal(err)
 	}
 	token, err := auth.AddToken("manager", "read-only", time.Time{}, []string{"read"}, []string{"notes"})
@@ -635,7 +637,7 @@ func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
 		if !principal.HasScope(scopeRead) {
 			t.Error("read-only token lost read access")
 		}
-		if principal.HasScope(scopeWrite) || principal.HasScope(scopeSettings) {
+		if principal.HasScope(scopeWrite) || principal.HasScope(scopeAdmin) {
 			t.Error("read-only token gained write or settings access")
 		}
 		if !principal.AllowsNamespace("notes") || principal.AllowsNamespace("private") {
@@ -650,5 +652,126 @@ func TestSettingsScopedUserReadTokenKeepsSemanticScope(t *testing.T) {
 	protected.ServeHTTP(rr, r)
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("read-only token GET = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+}
+
+// Only the exact pages and saves about the caller's own account skip the
+// settings scope. Neighbouring paths, other methods and the other
+// administrator surfaces keep needing it.
+func TestRequiredScopeOpensOnlyOwnSettings(t *testing.T) {
+	for _, tc := range []struct {
+		method, path string
+		want         scope
+	}{
+		{http.MethodGet, "/_/settings", scopeRead},
+		{http.MethodHead, "/_/settings", scopeRead},
+		{http.MethodGet, "/_/settings/appearance", scopeRead},
+		{http.MethodGet, "/_/settings/git-author", scopeRead},
+		{http.MethodGet, "/_/settings/access-tokens", scopeRead},
+		{http.MethodPost, "/_/api/settings/appearance", scopeRead},
+		{http.MethodPost, "/_/api/settings/author", scopeRead},
+		{http.MethodPost, "/_/api/settings/tokens", scopeRead},
+		{http.MethodPost, "/_/api/settings/tokens/revoke", scopeRead},
+		{http.MethodPost, "/_/settings/appearance", scopeAdmin},
+		{http.MethodGet, "/_/settings/appearance/", scopeAdmin},
+		{http.MethodGet, "/_/settings/access-tokens/extra", scopeAdmin},
+		{http.MethodGet, "/_/api/settings/tokens", scopeAdmin},
+		{http.MethodPost, "/_/api/settings/tokens/revoke/all", scopeAdmin},
+		{http.MethodGet, "/_/settings/server", scopeAdmin},
+		{http.MethodGet, "/_/settings/users", scopeAdmin},
+		{http.MethodPost, "/_/api/settings/users", scopeAdmin},
+		{http.MethodPost, "/_/api/settings/users/scopes", scopeAdmin},
+		{http.MethodPost, "/_/api/settings/server", scopeAdmin},
+		{http.MethodPost, "/_/api/settings", scopeAdmin},
+		{http.MethodGet, "/_/api/namespaces", scopeAdmin},
+		{http.MethodPost, "/_/api/setup", scopeAdmin},
+		{http.MethodGet, "/_/export-preview/id/index.html", scopeAdmin},
+	} {
+		r := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
+		if got := requiredScope(r); got != tc.want {
+			t.Errorf("%s %s needs %q, want %q", tc.method, tc.path, got, tc.want)
+		}
+	}
+}
+
+// The administrator scope used to be called settings. Users and tokens saved
+// under the old name keep their access, and users.json is rewritten.
+func TestOpenRenamesLegacySettingsScope(t *testing.T) {
+	appDir := t.TempDir()
+	auth, err := OpenAuth(Config{AppDir: appDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUserWithScopes("alice", "password12345", []string{"admin"}); err != nil {
+		t.Fatal(err)
+	}
+	token, err := auth.AddToken("alice", "laptop", time.Time{}, []string{"read", "admin"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(appDir, "users.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := strings.ReplaceAll(string(data), `"admin"`, `"settings"`)
+	if legacy == string(data) {
+		t.Fatal("users.json holds no admin scope to make legacy")
+	}
+	if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenAuth(Config{AppDir: appDir})
+	if err != nil {
+		t.Fatalf("opening legacy users.json: %v", err)
+	}
+	if !reopened.Prefs("alice").HasScope(ScopeAdmin) {
+		t.Errorf("alice lost administrator access: %v", reopened.Prefs("alice").Scopes)
+	}
+	principal, ok := reopened.UserForBearer(token)
+	if !ok || !principal.HasScope(ScopeAdmin) {
+		t.Errorf("legacy token lost administrator access: %+v", principal)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"settings"`) || !strings.Contains(string(data), `"admin"`) {
+		t.Errorf("users.json was not rewritten with the admin scope: %s", data)
+	}
+}
+
+// preferences exists only on tokens. Every user may give it to a token, it is
+// never a user scope, and it survives reloading users.json.
+func TestPreferencesIsATokenOnlyScope(t *testing.T) {
+	appDir := t.TempDir()
+	auth, err := OpenAuth(Config{AppDir: appDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.AddUserWithScopes("bob", "password12345", []string{"preferences"}); err == nil {
+		t.Error("a user was given the preferences scope")
+	}
+	if err := auth.AddUserWithScopes("bob", "password12345", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SetScopes("bob", []string{"read", "preferences"}); err == nil {
+		t.Error("SetScopes accepted the preferences scope")
+	}
+	token, err := auth.AddToken("bob", "laptop", time.Time{}, []string{"read", "preferences"}, nil)
+	if err != nil {
+		t.Fatalf("a read-only user could not give a token preferences: %v", err)
+	}
+	reopened, err := OpenAuth(Config{AppDir: appDir})
+	if err != nil {
+		t.Fatalf("reloading users.json with a preferences token: %v", err)
+	}
+	principal, ok := reopened.UserForBearer(token)
+	if !ok || !principal.HasScope(ScopePreferences) || principal.HasScope(ScopeWrite) {
+		t.Errorf("token scopes after reload = %+v, want read and preferences", principal)
+	}
+	if got := EffectiveTokenScopes([]string{"read"}, []string{"read", "preferences"}); !slices.Equal(got, []string{"read", "preferences"}) {
+		t.Errorf("effective scopes = %v, want [read preferences]", got)
 	}
 }

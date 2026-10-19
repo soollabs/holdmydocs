@@ -119,7 +119,7 @@ func TestTokenSettingsUI(t *testing.T) {
 	}
 
 	allNamespacesToken := createTokenViaUI(t, server, client, "all-pages", "30d", []string{"read"}, nil)
-	adminToken := createTokenViaUI(t, server, client, "administrator", "30d", []string{"settings"}, []string{"notes"})
+	adminToken := createTokenViaUI(t, server, client, "administrator", "30d", []string{"admin"}, []string{"notes"})
 	settingsRequest, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/_/settings", nil)
 	for _, cookie := range client.Jar.Cookies(settingsRequest.URL) {
 		settingsRequest.AddCookie(cookie)
@@ -295,7 +295,7 @@ func TestTokenExpiry(t *testing.T) {
 		t.Fatalf("OpenAuth failed: %v", err)
 	}
 
-	expired, err := auth.AddToken("admin", "old", time.Now().Add(-time.Minute), []string{"read", "write", "settings"}, nil)
+	expired, err := auth.AddToken("admin", "old", time.Now().Add(-time.Minute), []string{"read", "write", "admin"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestTokenExpiry(t *testing.T) {
 		t.Error("expired token verified, want rejection")
 	}
 
-	live, err := auth.AddToken("admin", "live", time.Now().Add(time.Hour), []string{"read", "write", "settings"}, nil)
+	live, err := auth.AddToken("admin", "live", time.Now().Add(time.Hour), []string{"read", "write", "admin"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}

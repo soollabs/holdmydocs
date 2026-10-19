@@ -64,8 +64,8 @@ func (app *App) expireExportPreview(id string) {
 
 func (app *App) handlePreviewExportNamespace(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, "settings scope required", http.StatusForbidden)
+	if err := app.apiClient().RequireScope(r.Context(), api.ScopeAdmin); err != nil {
+		http.Error(w, "admin scope required", http.StatusForbidden)
 		return
 	}
 	name := r.PathValue("name")
@@ -165,8 +165,8 @@ func (app *App) handleExportPreviewFile(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, "settings scope required", http.StatusForbidden)
+	if err := app.apiClient().RequireScope(r.Context(), api.ScopeAdmin); err != nil {
+		http.Error(w, "admin scope required", http.StatusForbidden)
 		return
 	}
 	owner, _ := api.Username(r.Context())

@@ -90,7 +90,8 @@ type SettingsData struct {
 	TokenError      string             // token create/revoke validation error
 	HasEnvOverrides bool               // any field currently sourced from an env var; shows the "export to file" action
 	Users           []auth.UserSummary // every user, for the users tab
-	AllScopes       []string           // the scope checkbox options: "read", "write", "settings"
+	AllScopes       []string           // the user scope checkbox options: "read", "write", "admin"
+	TokenScopes     []string           // the new token scope options: the scopes the user holds, plus preferences
 	CurrentUser     string             // name of the logged-in user, so the users tab can block self-lockout
 	UserError       string             // create/scope-update validation error
 	// Legacy attachments a migration would move, and the gone namespaces
@@ -229,7 +230,14 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 	sd.WikiLanding = wikiCfg.Landing
 	sd.WikiSiteName = wikiCfg.SiteName
 	sd.Users = app.Auth.Users()
-	sd.AllScopes = []string{string(auth.ScopeRead), string(auth.ScopeWrite), string(auth.ScopeSettings)}
+	sd.AllScopes = []string{string(auth.ScopeRead), string(auth.ScopeWrite), string(auth.ScopeAdmin)}
+	for _, scope := range sd.AllScopes {
+		if prefs.HasScope(auth.Scope(scope)) {
+			sd.TokenScopes = append(sd.TokenScopes, scope)
+		}
+	}
+	// Every user may give a token their own preferences; it sits before admin.
+	sd.TokenScopes = slices.Insert(sd.TokenScopes, min(2, len(sd.TokenScopes)), string(auth.ScopePreferences))
 	sd.CurrentUser = user
 	for _, summary := range app.apiClient().ListNamespaces(r.Context()) {
 		sd.TokenNamespaces = append(sd.TokenNamespaces, summary.Name)
@@ -243,7 +251,7 @@ func (app *App) settingsData(r *http.Request) SettingsData {
 			expires = t.Expires.Format("2006-01-02")
 		}
 		effectiveScopes := auth.EffectiveTokenScopes(prefs.Scopes, t.Scopes)
-		isAdmin := auth.UserRecord{Scopes: effectiveScopes}.HasScope(auth.ScopeSettings)
+		isAdmin := auth.UserRecord{Scopes: effectiveScopes}.HasScope(auth.ScopeAdmin)
 		namespaceLabel := i18n.T("web.settings.namespaces_all")
 		if isAdmin {
 			namespaceLabel = i18n.T("web.settings.namespaces_administrator")
@@ -351,7 +359,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 	user := app.currentUser(r)
 	data := NamespaceManagementData{
 		CanWrite:     app.apiClient().HasScope(r.Context(), api.ScopeWrite),
-		CanSettings:  app.apiClient().HasScope(r.Context(), api.ScopeSettings),
+		CanSettings:  app.apiClient().HasScope(r.Context(), api.ScopeAdmin),
 		Rows:         app.apiClient().ListNamespaces(r.Context()),
 		WidgetGroups: widgetSlotGroups(),
 		SlugPresets:  slugPresetViews(user),

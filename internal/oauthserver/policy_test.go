@@ -30,14 +30,14 @@ func TestEffectiveScopesDoesNotElevateSettings(t *testing.T) {
 	}{
 		{
 			name:   "all bounds include settings",
-			issued: []string{"settings"}, consent: []string{"settings"},
-			user: []string{"settings"}, client: []string{"settings"},
-			want: []string{"read", "write", "settings"},
+			issued: []string{"admin"}, consent: []string{"admin"},
+			user: []string{"admin"}, client: []string{"admin"},
+			want: []string{"read", "write", "admin"},
 		},
 		{
 			name:   "client policy removes administrator scope",
-			issued: []string{"settings"}, consent: []string{"settings"},
-			user: []string{"settings"}, client: []string{"read", "write"},
+			issued: []string{"admin"}, consent: []string{"admin"},
+			user: []string{"admin"}, client: []string{"read", "write"},
 			want: []string{"read", "write"},
 		},
 		{

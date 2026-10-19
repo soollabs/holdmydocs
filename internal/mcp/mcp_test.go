@@ -126,7 +126,7 @@ func newMCPTestAppWithApp(t *testing.T, mcpEnabled bool) (*testEnv, *httptest.Se
 	env.server = httptest.NewServer(env.handler(mcpEnabled))
 	t.Cleanup(env.server.Close)
 
-	token, err := authn.AddToken("admin", "test", time.Time{}, []string{"read", "write", "settings"}, nil)
+	token, err := authn.AddToken("admin", "test", time.Time{}, []string{"read", "write", "admin"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken failed: %v", err)
 	}
@@ -229,7 +229,7 @@ func newMCPRestrictedTestApp(t *testing.T) (*testEnv, *httptest.Server, string, 
 	if err != nil {
 		t.Fatalf("restricted token: %v", err)
 	}
-	settings, err := app.auth.AddToken("admin", "settings-only", time.Time{}, []string{"settings"}, nil)
+	settings, err := app.auth.AddToken("admin", "settings-only", time.Time{}, []string{"admin"}, nil)
 	if err != nil {
 		t.Fatalf("settings token: %v", err)
 	}
@@ -1518,7 +1518,7 @@ func TestMCPScopes(t *testing.T) {
 	}{
 		{"reader", "read"},
 		{"writer", "write"},
-		{"manager", "settings"},
+		{"manager", "admin"},
 	} {
 		if err := app.auth.AddUser(user.name, "password12345"); err != nil {
 			t.Fatalf("AddUser(%s): %v", user.name, err)
@@ -1535,7 +1535,7 @@ func TestMCPScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writer token: %v", err)
 	}
-	managerToken, err := app.auth.AddToken("manager", "mcp", time.Time{}, []string{"settings"}, nil)
+	managerToken, err := app.auth.AddToken("manager", "mcp", time.Time{}, []string{"admin"}, nil)
 	if err != nil {
 		t.Fatalf("manager token: %v", err)
 	}

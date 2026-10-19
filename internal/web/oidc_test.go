@@ -77,7 +77,7 @@ func TestEnsureOIDCUser(t *testing.T) {
 	if err := authn.SetAuthor("alice", "Custom <me@example.com>"); err != nil {
 		t.Fatalf("SetAuthor failed: %v", err)
 	}
-	username, err = authn.EnsureOIDCUser(identity, "renamed", "Changed <alice@example.com>", []string{"settings"})
+	username, err = authn.EnsureOIDCUser(identity, "renamed", "Changed <alice@example.com>", []string{"admin"})
 	if err != nil {
 		t.Fatalf("second EnsureOIDCUser failed: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestEnsureOIDCUser(t *testing.T) {
 	if got := authn.AuthorFor("alice"); got != "Custom <me@example.com>" {
 		t.Errorf("AuthorFor = %q, second login clobbered the user's override", got)
 	}
-	if authn.Prefs("alice").HasScope(auth.ScopeSettings) {
+	if authn.Prefs("alice").HasScope(auth.ScopeAdmin) {
 		t.Error("returning OIDC login changed the provisioned scopes")
 	}
 
@@ -122,7 +122,7 @@ func TestEnsureOIDCUserRejectsCollisionsAndSeparatesIssuers(t *testing.T) {
 	if first == second {
 		t.Error("same subject from different issuers resolved to one user")
 	}
-	if _, err := authn.AddToken(first, "admin", time.Time{}, []string{"settings"}, nil); err == nil {
+	if _, err := authn.AddToken(first, "admin", time.Time{}, []string{"admin"}, nil); err == nil {
 		t.Error("read-only OIDC user minted an administrative token")
 	}
 }

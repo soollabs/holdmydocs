@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -146,8 +148,8 @@ func TestStoreRejectsConcurrentOpen(t *testing.T) {
 func TestStoreFailsClosedOnCorruptOrUnknownState(t *testing.T) {
 	for name, contents := range map[string]string{
 		"corrupt":  `{"version":`,
-		"unknown":  `{"version":2,"clients":{},"grants":{},"tokens":{},"families":{}}`,
-		"trailing": `{"version":1,"clients":{},"grants":{},"tokens":{},"families":{}}{}`,
+		"unknown":  `{"version":3,"clients":{},"grants":{},"tokens":{},"families":{}}`,
+		"trailing": `{"version":2,"clients":{},"grants":{},"tokens":{},"families":{}}{}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -258,5 +260,58 @@ func TestStorePersistenceFailures(t *testing.T) {
 				t.Fatalf("reopened state does not match rename outcome: %v", err)
 			}
 		})
+	}
+}
+
+// Version 1 state called the administrator scope settings. Opening it renames
+// the scope, moves to version 2 and saves, so connected clients keep access.
+func TestStoreMigratesLegacySettingsScope(t *testing.T) {
+	dir := t.TempDir()
+	store, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(func(state *oauthState) error {
+		client := testStoreClient()
+		client.AllowedScopes = []string{"admin", "read", "write"}
+		state.Clients[client.ID] = client
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "oauth.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := strings.Replace(strings.ReplaceAll(string(data), `"admin"`, `"settings"`), `"version": 2`, `"version": 1`, 1)
+	if !strings.Contains(legacy, `"version": 1`) || !strings.Contains(legacy, `"settings"`) {
+		t.Fatalf("could not build version 1 state from %s", data)
+	}
+	if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = OpenStore(dir)
+	if err != nil {
+		t.Fatalf("opening version 1 state: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	state, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := state.Clients["client-a"].AllowedScopes; !slices.Equal(got, []string{"admin", "read", "write"}) {
+		t.Errorf("client scopes = %v, want [admin read write]", got)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"version": 2`) || strings.Contains(string(data), `"settings"`) {
+		t.Errorf("migrated state was not saved: %s", data)
 	}
 }

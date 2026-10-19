@@ -203,7 +203,7 @@ func TestOAuthAuthorizationErrorsRedirectToRegisteredClient(t *testing.T) {
 	}
 	// A validated redirect URI receives the authorisation error by redirect.
 	invalidScope := base
-	invalidScope["scope"] = []string{"settings"}
+	invalidScope["scope"] = []string{"admin"}
 	invalidScope["resource"] = []string{"https://wiki.example.test/_/mcp"}
 	response, err := testhttp.Get(t, browser, server.URL+"/_/oauth/authorize?"+invalidScope.Encode())
 	if err != nil {

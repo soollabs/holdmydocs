@@ -67,7 +67,7 @@ func (v *bearerVerifier) VerifyBearer(ctx context.Context, raw, path string) (au
 	userScopes := v.auth.Prefs(record.User).Scopes
 	clientScopes := client.AllowedScopes
 	if !v.allowAdmin {
-		clientScopes = withoutSettings(clientScopes)
+		clientScopes = withoutAdmin(clientScopes)
 	}
 	effective := EffectiveScopes(record.Scopes, grant.Scopes, userScopes, clientScopes)
 	if len(effective) == 0 {
@@ -91,10 +91,10 @@ func (v *bearerVerifier) VerifyBearer(ctx context.Context, raw, path string) (au
 	}, true
 }
 
-func withoutSettings(scopes []string) []string {
+func withoutAdmin(scopes []string) []string {
 	out := make([]string, 0, len(scopes))
 	for _, scope := range scopes {
-		if scope != "settings" {
+		if scope != adminScope {
 			out = append(out, scope)
 		}
 	}

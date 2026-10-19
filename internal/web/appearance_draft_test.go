@@ -4,11 +4,24 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"hmd/internal/testhttp"
 )
+
+var draftNoticeTag = regexp.MustCompile(`<[^>]*\bid="appearance-draft"[^>]*>`)
+
+// draftNotice returns the opening tag of the unsaved appearance notice.
+func draftNotice(t *testing.T, body string) string {
+	t.Helper()
+	tag := draftNoticeTag.FindString(body)
+	if tag == "" {
+		t.Fatal("page has no unsaved appearance notice")
+	}
+	return tag
+}
 
 // TestAppearanceDraft pins how a browser-held appearance draft is rendered:
 // it shows on every page without touching the saved preferences, a draft for
@@ -51,8 +64,12 @@ func TestAppearanceDraft(t *testing.T) {
 	if !strings.Contains(body, `data-skin="newsprint"`) {
 		t.Error("draft skin is not applied to the page")
 	}
-	if !strings.Contains(body, `<div id="appearance-draft">`) {
-		t.Error("unsaved draft is not announced")
+	// The notice is the shared notice component in its banner form, so it
+	// lines up and stacks with every other banner. A wrapper element around it
+	// would hide it from the banner rules.
+	tag := draftNotice(t, body)
+	if !strings.Contains(tag, `ui-notice--banner`) || !strings.Contains(tag, `ui-notice--info`) || strings.Contains(tag, "hidden") {
+		t.Errorf("unsaved draft is not announced as a visible info banner: %s", tag)
 	}
 	if got := app.Auth.Prefs("admin"); got.Skin != saved.Skin || got.Palette != saved.Palette || got.FontUI != saved.FontUI || got.FontMono != saved.FontMono {
 		t.Errorf("rendering a draft changed the saved preferences: %+v", got)
@@ -67,14 +84,14 @@ func TestAppearanceDraft(t *testing.T) {
 		"stale base": url.Values{"user": {"admin"}, "base": {"newsprint|nord||"}, "skin": {"newsprint"}, "palette": {"nord"}}.Encode(),
 	} {
 		body := get(page, cookie)
-		if strings.Contains(body, `data-skin="newsprint"`) || !strings.Contains(body, `<div id="appearance-draft" hidden>`) {
+		if strings.Contains(body, `data-skin="newsprint"`) || !strings.Contains(draftNotice(t, body), "hidden") {
 			t.Errorf("%s: draft was not ignored", name)
 		}
 	}
 
 	cfg := app.Config()
 	same := draft("admin", cfg.Skin, "")
-	if body := get(page, same); !strings.Contains(body, `<div id="appearance-draft" hidden>`) {
+	if body := get(page, same); !strings.Contains(draftNotice(t, body), "hidden") {
 		t.Error("a draft equal to the saved appearance is reported as unsaved")
 	}
 

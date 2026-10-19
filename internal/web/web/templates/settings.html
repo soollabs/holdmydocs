@@ -77,7 +77,7 @@
 
 	</form>
 
-	{{if .CanSettings}}<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
+	{{if .CanSaveOwnSettings}}<div class="settings-actions settings-actions-sticky"{{if ne .SettingsPanel "appearance"}} hidden{{end}}>
 		{{template "ui-button" (button (t "settings.appearance.save") "primary" "type" "submit" "form" "appearance-form")}}
 		{{template "ui-button" (button (t "common.cancel") "secondary" "href" "/" "id" "appearance-cancel")}}
 	</div>{{end}}
@@ -138,7 +138,7 @@
 			<div class="settings-row">{{$fieldSlot7 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
 				<label>{{t "settings.scopes.label"}}</label>
 				<span class="scope-checks">
-					{{range .Settings.AllScopes}}{{$scopeChoice := component "choice" "id" (printf "token-scope-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $scopeChoice}}
+					{{range .Settings.TokenScopes}}{{$scopeChoice := component "choice" "id" (printf "token-scope-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $scopeChoice}}
 					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $scopeChoice}}
 					{{end}}
 				</span>
@@ -149,7 +149,7 @@
 					{{range .Settings.TokenNamespaces}}{{$namespaceChoice := component "choice" "id" (printf "token-namespace-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $namespaceChoice}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $namespaceChoice}}{{end}}
 				</span>
 			{{template "ui-field-end" $fieldSlot8}}</div>
-			<p class="settings-note">{{t "settings.tokens.scopes_help"}} {{tl "settings.tokens.settings_grants" "Scope" (code "settings")}}</p>
+			<p class="settings-note">{{t "settings.tokens.scopes_help"}} {{tl "settings.tokens.preferences_grants" "Scope" (code "preferences")}}{{if .CanViewSettings}} {{tl "settings.tokens.admin_grants" "Scope" (code "admin")}}{{end}}</p>
 			<div class="settings-actions">
 				{{template "ui-button" (button (t "settings.tokens.create") "primary" "type" "submit")}}
 			</div>
@@ -179,7 +179,7 @@
 			font_mono: document.getElementById('font_mono').value
 		});
 		var notice = document.getElementById('appearance-draft');
-		if (notice) notice.hidden = false;
+		if (notice) { notice.hidden = false; if (window.hmdStackBanners) window.hmdStackBanners(); }
 	}
 
 	var fontFields = [['font_ui', '--font-ui'], ['font_mono', '--font-mono']];

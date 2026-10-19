@@ -41,7 +41,7 @@ func TestAuthorizationSecurityMatrix(t *testing.T) {
 		{"missing PKCE", "code_challenge", ""},
 		{"weak PKCE", "code_challenge", "short"},
 		{"resource confusion", "resource", "https://wiki.example.test/_/api"},
-		{"scope escalation", "scope", "settings"},
+		{"scope escalation", "scope", "admin"},
 		{"duplicate scope", "scope", "read read"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestConsentBindingAndPrivilegeBoundaries(t *testing.T) {
 			case "user":
 				user = "other"
 			case "scope":
-				scopes = "settings"
+				scopes = "admin"
 			case "empty namespaces":
 				names = nil
 			case "unknown namespace":
@@ -263,7 +263,7 @@ func TestAuthorizationErrorsRedirectAfterRedirectValidation(t *testing.T) {
 		{"response_type", "token", "unsupported_response_type"},
 		{"resource", "https://wiki.example.test/_/api", "invalid_target"},
 		{"code_challenge_method", "plain", "invalid_request"},
-		{"scope", "settings", "invalid_scope"},
+		{"scope", "admin", "invalid_scope"},
 	} {
 		t.Run(corrupt.code, func(t *testing.T) {
 			values := authorizationFields(clientID)

@@ -31,7 +31,7 @@ func TestOAuthClientAdministration(t *testing.T) {
 	defer server.Close()
 	adminLogin(t, server, browser)
 	browser.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	token, err := app.Auth.AddToken("admin", "admin-test", time.Time{}, []string{"settings"}, nil)
+	token, err := app.Auth.AddToken("admin", "admin-test", time.Time{}, []string{"admin"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

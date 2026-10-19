@@ -64,7 +64,7 @@ func (p tokenPrincipal) HasScope(need scope) bool {
 }
 
 func (p tokenPrincipal) Restricted() bool {
-	return !p.HasScope(scopeSettings) && p.Namespaces != nil
+	return !p.HasScope(scopeAdmin) && p.Namespaces != nil
 }
 
 func (p tokenPrincipal) AllowsNamespace(namespace string) bool {
@@ -82,12 +82,44 @@ func (p tokenPrincipal) AllowsSlug(slug string) bool {
 type scope string
 
 const (
-	scopeRead     scope = "read"
-	scopeWrite    scope = "write"
-	scopeSettings scope = "settings"
+	scopeRead  scope = "read"
+	scopeWrite scope = "write"
+	scopeAdmin scope = "admin"
 )
 
-var allScopes = []scope{scopeRead, scopeWrite, scopeSettings}
+var allScopes = []scope{scopeRead, scopeWrite, scopeAdmin}
+
+// scopePreferences lets a token change its user's own account: appearance,
+// git author and access tokens. It exists only on tokens. Every user holds it
+// implicitly, since a browser session may always change its own account, so
+// it is never stored on a user and a token without it is refused.
+const scopePreferences scope = "preferences"
+
+// allTokenScopes are the scopes a token may carry.
+var allTokenScopes = []scope{scopeRead, scopeWrite, scopePreferences, scopeAdmin}
+
+// LegacyAdminScope is the administrator scope's name before it became admin.
+// Stored users, tokens and OAuth state are migrated from it when they are
+// loaded. Requests and configuration that still use it are refused.
+const LegacyAdminScope = "settings"
+
+// MigrateLegacyScopes renames the legacy administrator scope in a stored scope
+// list and reports whether it changed anything.
+func MigrateLegacyScopes(scopes []string) ([]string, bool) {
+	if !slices.Contains(scopes, LegacyAdminScope) {
+		return scopes, false
+	}
+	out := make([]string, 0, len(scopes))
+	for _, name := range scopes {
+		if name == LegacyAdminScope {
+			name = string(scopeAdmin)
+		}
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out, true
+}
 
 type userRecord struct {
 	Hash      string        `json:"hash"`
@@ -113,15 +145,16 @@ type Scope = scope
 type OIDCIdentity = oidcIdentity
 
 const (
-	ScopeRead     = scopeRead
-	ScopeWrite    = scopeWrite
-	ScopeSettings = scopeSettings
+	ScopeRead        = scopeRead
+	ScopeWrite       = scopeWrite
+	ScopeAdmin       = scopeAdmin
+	ScopePreferences = scopePreferences
 )
 
 var AllScopes = allScopes
 
 func (u userRecord) hasScope(s scope) bool {
-	if slices.Contains(u.Scopes, string(scopeSettings)) {
+	if slices.Contains(u.Scopes, string(scopeAdmin)) {
 		return true
 	}
 	return slices.Contains(u.Scopes, string(s))
@@ -171,7 +204,7 @@ func (a *Auth) SetPrefs(name, palette, fontUI, fontMono, skin string) error {
 	return a.save()
 }
 
-// SetScopes restricts name to exactly the given scopes ("read", "write", "settings").
+// SetScopes restricts name to exactly the given scopes ("read", "write", "admin").
 func (a *Auth) SetScopes(name string, scopes []string) error {
 	if len(scopes) == 0 {
 		return fmt.Errorf("user scopes cannot be empty")
@@ -185,7 +218,7 @@ func (a *Auth) SetScopes(name string, scopes []string) error {
 			}
 		}
 		if !valid {
-			return fmt.Errorf("unknown scope %q (want read, write, settings)", s)
+			return fmt.Errorf("unknown scope %q (want read, write, admin)", s)
 		}
 	}
 
@@ -293,7 +326,7 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 	if len(rec.Scopes) == 0 {
 		return userRecord{}, fmt.Errorf("user %q scopes cannot be empty", name)
 	}
-	scopes, err := normaliseTokenScopes(rec.Scopes)
+	scopes, err := normaliseScopes(rec.Scopes, allScopes)
 	if err != nil {
 		return userRecord{}, fmt.Errorf("user %q scopes: %w", name, err)
 	}
@@ -315,7 +348,7 @@ func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 		if !validTokenDigest(token.Digest) {
 			return userRecord{}, fmt.Errorf("user %q token %q has invalid digest", name, token.Name)
 		}
-		tokenScopes, err := normaliseTokenScopes(token.Scopes)
+		tokenScopes, err := normaliseScopes(token.Scopes, allTokenScopes)
 		if err != nil {
 			return userRecord{}, fmt.Errorf("user %q token %q scopes: %w", name, token.Name, err)
 		}
@@ -371,7 +404,17 @@ func Open(cfg Options) (*Auth, error) {
 		if err := decoder.Decode(&struct{}{}); err != io.EOF {
 			return nil, fmt.Errorf("unmarshalling users: trailing data")
 		}
+		migrated := false
 		for name, rec := range auth.users {
+			var changed bool
+			if rec.Scopes, changed = MigrateLegacyScopes(rec.Scopes); changed {
+				migrated = true
+			}
+			for i := range rec.Tokens {
+				if rec.Tokens[i].Scopes, changed = MigrateLegacyScopes(rec.Tokens[i].Scopes); changed {
+					migrated = true
+				}
+			}
 			rec, err = normaliseUserRecord(name, rec)
 			if err != nil {
 				return nil, err
@@ -380,6 +423,12 @@ func Open(cfg Options) (*Auth, error) {
 			for _, token := range rec.Tokens {
 				auth.tokenCache[token.Digest] = cachedToken{user: name, scopes: append([]string(nil), token.Scopes...), namespaces: append([]string(nil), token.Namespaces...), expires: token.Expires}
 			}
+		}
+		if migrated {
+			if err := auth.save(); err != nil {
+				return nil, fmt.Errorf("saving users after renaming the %s scope to %s: %w", LegacyAdminScope, scopeAdmin, err)
+			}
+			slog.Info("renamed the legacy settings scope to admin", "file", usersFile)
 		}
 	} else if os.IsNotExist(err) {
 		if cfg.AdminUser != "" && cfg.AdminPass != "" {
@@ -433,7 +482,7 @@ func (a *Auth) AddUser(name, password string) error {
 
 // AddUserWithScopes creates a user with its final policy in one persisted update.
 func (a *Auth) AddUserWithScopes(name, password string, scopes []string) error {
-	normalised, err := normaliseTokenScopes(scopes)
+	normalised, err := normaliseScopes(scopes, allScopes)
 	if err != nil {
 		return err
 	}
@@ -573,18 +622,13 @@ func validNamespaceName(name string) bool {
 		!strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".") && !strings.HasPrefix(name, "_")
 }
 
-func normaliseTokenScopes(scopes []string) ([]string, error) {
+// normaliseScopes validates scopes against allowed (allScopes for a user,
+// allTokenScopes for a token), dropping duplicates and sorting them.
+func normaliseScopes(scopes []string, allowed []scope) ([]string, error) {
 	seen := make(map[string]struct{}, len(scopes))
 	for _, raw := range scopes {
 		name := strings.TrimSpace(raw)
-		valid := false
-		for _, allowed := range allScopes {
-			if name == string(allowed) {
-				valid = true
-				break
-			}
-		}
-		if !valid {
+		if !slices.Contains(allowed, scope(name)) {
 			return nil, fmt.Errorf("unknown scope %q", name)
 		}
 		seen[name] = struct{}{}
@@ -612,7 +656,8 @@ func effectiveTokenScopes(userScopes, tokenScopes []string) []string {
 	user := userRecord{Scopes: userScopes}
 	result := make([]string, 0, len(tokenScopes))
 	for _, name := range tokenScopes {
-		if user.hasScope(scope(name)) {
+		// Every user holds preferences implicitly; it is never stored.
+		if scope(name) == scopePreferences || user.hasScope(scope(name)) {
 			result = append(result, name)
 		}
 	}
@@ -642,7 +687,7 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 	if len(rec.Tokens) >= maxTokensPerUser {
 		return "", fmt.Errorf("token limit reached")
 	}
-	normalisedScopes, err := normaliseTokenScopes(scopes)
+	normalisedScopes, err := normaliseScopes(scopes, allTokenScopes)
 	if err != nil {
 		return "", err
 	}
@@ -650,7 +695,7 @@ func (a *Auth) AddToken(name, label string, expires time.Time, scopes, namespace
 		return "", fmt.Errorf("token scopes cannot be empty")
 	}
 	for _, scopeName := range normalisedScopes {
-		if !rec.hasScope(scope(scopeName)) {
+		if scope(scopeName) != scopePreferences && !rec.hasScope(scope(scopeName)) {
 			return "", fmt.Errorf("user %q does not have scope %q", name, scopeName)
 		}
 	}
@@ -1045,13 +1090,36 @@ func (a *Auth) UserFor(token string) (username string, ok bool) {
 	return rec.User, true
 }
 
+// ownSettingsPaths are the settings pages and saves about the caller's own
+// account. Any signed-in user may use them, and a token also needs the
+// preferences scope; every other settings path needs the admin scope. The API repeats the check, so a missed path here is
+// refused there, never opened.
+var ownSettingsPaths = map[string]string{
+	"/_/settings":                   http.MethodGet,
+	"/_/settings/appearance":        http.MethodGet,
+	"/_/settings/git-author":        http.MethodGet,
+	"/_/settings/access-tokens":     http.MethodGet,
+	"/_/api/settings/appearance":    http.MethodPost,
+	"/_/api/settings/author":        http.MethodPost,
+	"/_/api/settings/tokens":        http.MethodPost,
+	"/_/api/settings/tokens/revoke": http.MethodPost,
+}
+
+func ownSettingsPath(r *http.Request) bool {
+	method, ok := ownSettingsPaths[r.URL.Path]
+	return ok && (r.Method == method || method == http.MethodGet && r.Method == http.MethodHead)
+}
+
 func requiredScope(r *http.Request) scope {
+	if ownSettingsPath(r) {
+		return scopeRead
+	}
 	if r.URL.Path == "/_/settings" || strings.HasPrefix(r.URL.Path, "/_/settings/") ||
 		strings.HasPrefix(r.URL.Path, "/_/export-preview/") ||
 		r.URL.Path == "/_/api/settings" || strings.HasPrefix(r.URL.Path, "/_/api/settings/") ||
 		r.URL.Path == "/_/api/setup" ||
 		r.URL.Path == "/_/api/namespaces" || strings.HasPrefix(r.URL.Path, "/_/api/namespaces/") {
-		return scopeSettings
+		return scopeAdmin
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		return scopeRead
@@ -1072,6 +1140,11 @@ func anonymousEligible(path string, q url.Values) bool {
 
 func restrictedTokenPathAllowed(path string) bool {
 	if path == "/_/mcp" {
+		return true
+	}
+	// The account belongs to every namespace's user alike; a token it
+	// creates stays within this token's namespaces.
+	if _, ok := ownSettingsPaths[path]; ok {
 		return true
 	}
 	if !strings.HasPrefix(path, "/_/") {
@@ -1187,6 +1260,11 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				authorized = principal.HasScope(requiredScope(r))
 			} else {
 				authorized = prefs.hasScope(requiredScope(r))
+			}
+			// A session may always change its own account; a token needs
+			// preferences as well.
+			if authorized && bearer && ownSettingsPath(r) && !principal.HasScope(scopePreferences) {
+				need, authorized = string(scopePreferences), false
 			}
 		}
 		if !authorized {

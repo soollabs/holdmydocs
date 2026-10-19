@@ -20,7 +20,7 @@ import (
 
 func TestHasScopeRejectsEmptyScopes(t *testing.T) {
 	u := auth.UserRecord{}
-	for _, s := range []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeSettings} {
+	for _, s := range []auth.Scope{auth.ScopeRead, auth.ScopeWrite, auth.ScopeAdmin} {
 		if u.HasScope(s) {
 			t.Errorf("user with no scopes has %s access", s)
 		}
@@ -35,7 +35,7 @@ func TestHasScopeRestricts(t *testing.T) {
 	if u.HasScope(auth.ScopeWrite) {
 		t.Error("expected no write access")
 	}
-	if u.HasScope(auth.ScopeSettings) {
+	if u.HasScope(auth.ScopeAdmin) {
 		t.Error("expected no settings access")
 	}
 }
@@ -114,24 +114,27 @@ func TestScopeEnforcementIntegration(t *testing.T) {
 		t.Errorf("read-scoped user POST save = %d, want 403", saveResp.StatusCode)
 	}
 
-	settingsResp, err := testhttp.Get(t, client, server.URL+"/_/settings")
-	if err != nil {
-		t.Fatalf("GET settings: %v", err)
-	}
-	if err := settingsResp.Body.Close(); err != nil {
-		t.Errorf("closing response body: %v", err)
-	}
-	if settingsResp.StatusCode != http.StatusForbidden {
-		t.Errorf("read-scoped user GET /settings = %d, want 403", settingsResp.StatusCode)
+	// Their own settings are open to them; the server panels are not.
+	for path, want := range map[string]int{"/_/settings": http.StatusOK, "/_/settings/server": http.StatusForbidden} {
+		settingsResp, err := testhttp.Get(t, client, server.URL+path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		if err := settingsResp.Body.Close(); err != nil {
+			t.Errorf("closing response body: %v", err)
+		}
+		if settingsResp.StatusCode != want {
+			t.Errorf("read-scoped user GET %s = %d, want %d", path, settingsResp.StatusCode, want)
+		}
 	}
 
 	if err := app.Auth.AddUser("settings-only", "password12345"); err != nil {
 		t.Fatalf("AddUser(settings-only): %v", err)
 	}
-	if err := app.Auth.SetScopes("settings-only", []string{"settings"}); err != nil {
+	if err := app.Auth.SetScopes("settings-only", []string{"admin"}); err != nil {
 		t.Fatalf("SetScopes(settings-only): %v", err)
 	}
-	settingsToken, err := app.Auth.AddToken("settings-only", "namespace-management", time.Time{}, []string{"settings"}, nil)
+	settingsToken, err := app.Auth.AddToken("settings-only", "namespace-management", time.Time{}, []string{"admin"}, nil)
 	if err != nil {
 		t.Fatalf("AddToken(settings-only): %v", err)
 	}
@@ -451,7 +454,7 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 	if err := app.Auth.AddUser("mod", "password12345"); err != nil {
 		t.Fatalf("AddUser: %v", err)
 	}
-	if err := app.Auth.SetScopes("mod", []string{"read", "write", "settings"}); err != nil {
+	if err := app.Auth.SetScopes("mod", []string{"read", "write", "admin"}); err != nil {
 		t.Fatalf("SetScopes: %v", err)
 	}
 
@@ -473,7 +476,7 @@ func TestSetUserScopesBlocksSelfLockout(t *testing.T) {
 		t.Errorf("closing response body: %v", err)
 	}
 
-	if !app.Auth.Prefs("mod").HasScope(auth.ScopeSettings) {
+	if !app.Auth.Prefs("mod").HasScope(auth.ScopeAdmin) {
 		t.Error("mod should still have settings scope after the rejected self-lockout")
 	}
 

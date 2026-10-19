@@ -37,9 +37,28 @@ type App struct {
 	Tmpl      map[string]*template.Template
 	OIDC      *auth.OIDC // nil when OIDC is disabled
 	OAuth     *oauthserver.Service
+	// conditions reports what the administrator banners announce. It is the
+	// API outside tests, which force each condition on through it.
+	conditions instanceConditions
+}
+
+// instanceConditions are the instance states the administrator banners report.
+type instanceConditions interface {
+	PendingRestart() []config.Setting
+	LegacyAttachments() bool
+	HelpDrifted() bool
+	IndexFailures() int
+	SyncState() (state, detail string, lastSuccessUnix int64)
 }
 
 func (app *App) apiClient() *api.API { return app.API }
+
+func (app *App) instanceConditions() instanceConditions {
+	if app.conditions != nil {
+		return app.conditions
+	}
+	return app.apiClient()
+}
 
 func (app *App) config() config.Config { return app.apiClient().Config() }
 
@@ -179,6 +198,8 @@ type TemplateData struct {
 	ReadOnly                bool
 	CanSettings             bool
 	CanViewSettings         bool             // settings pages are listed and shown; without CanSettings they are view-only
+	CanSaveOwnSettings      bool             // the user can save their own appearance, git author and tokens
+	SettingsViewOnly        bool             // the settings page is shown, but nothing on it can be saved
 	PendingRestart          []pendingSetting // saved settings waiting for a restart; admins only
 	PendingRestartKey       string           // dismissal key; changes when the pending settings do, so the banner returns
 	LegacyAttachments       bool             // attachments in the old top-level layout wait to be moved or deleted; admins only
@@ -346,21 +367,49 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		cfg := app.config()
 		prefs, unsavedAppearance := app.userPrefs(r)
 		data.CanWrite = app.apiClient().HasScope(r.Context(), api.ScopeWrite)
-		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeSettings)
-		data.UnsavedAppearance = unsavedAppearance && data.CanSettings
+		data.CanSettings = app.apiClient().HasScope(r.Context(), api.ScopeAdmin)
 		data.CanViewSettings = app.apiClient().CanViewSettings(r.Context())
+		data.CanSaveOwnSettings = app.apiClient().CanChangeOwnSettings(r.Context())
+		switch data.SettingsSection {
+		case "", "connections":
+			// Revoking a connected application works even in read-only mode.
+		case "settings":
+			// Appearance is kept in this browser when it cannot be saved.
+			data.SettingsViewOnly = data.SettingsPanel != "appearance" && !data.CanSaveOwnSettings
+		default:
+			data.SettingsViewOnly = !data.CanSettings
+		}
+		// Banners above the page content. Each flag is set here only for its
+		// audience, so the template guard alone never decides who sees one:
+		//
+		//	banner               audience                  why
+		//	sync failed          admin scope               names the git settings; sync state is instance health
+		//	index failed         admin scope               instance health
+		//	pending restart      admin scope               lists saved server settings
+		//	legacy attachments   admin scope               only an administrator can move them
+		//	help drifted         admin scope               only an administrator can reset it
+		//	read-only (settings) anyone on a view-only     names the environment variable to administrators only
+		//	                     settings page
+		//	unsaved appearance   anyone who can save       about the user's own browser draft
+		//	                     their own settings
+		//
+		// The admin scope is never granted on a read-only instance, so the
+		// administrator banners are hidden there too.
+		data.UnsavedAppearance = unsavedAppearance && data.CanSaveOwnSettings
 		if data.CanSettings {
-			pending := app.apiClient().PendingRestart()
+			conditions := app.instanceConditions()
+			pending := conditions.PendingRestart()
 			data.PendingRestart = pendingSettings(pending)
 			keys := make([]string, len(pending))
 			for i, s := range pending {
 				keys[i] = s.Key
 			}
 			data.PendingRestartKey = "restart:" + strings.Join(keys, ",")
-			data.LegacyAttachments = app.apiClient().LegacyAttachments()
-			data.HelpDrifted = app.apiClient().HelpDrifted()
-			data.SyncFailed = data.SyncState == "failed"
-			data.IndexFailures = app.apiClient().IndexFailures()
+			data.LegacyAttachments = conditions.LegacyAttachments()
+			data.HelpDrifted = conditions.HelpDrifted()
+			state, _, _ := conditions.SyncState()
+			data.SyncFailed = state == "failed"
+			data.IndexFailures = conditions.IndexFailures()
 		}
 		data.CanEdit = app.apiClient().CanViewEditor(r.Context()) && data.StatusMode == "view" && isPageSlug(data.Slug) && !data.IsNamespaceIndex
 		if data.CanWrite {

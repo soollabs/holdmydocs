@@ -139,7 +139,7 @@ func TestSchemaRules(t *testing.T) {
 		"server.trusted_proxies":     []string{"10.0.0.0"},
 		"git.remote_url":             "git@github.com:soollabs/docs.git",
 		"oidc.issuer":                "ldap://idp.example.com",
-		"oidc.default_scopes":        []string{"read", "admin"},
+		"oidc.default_scopes":        []string{"read", "settings"},
 		"oidc.allowed_email_domains": []string{"user@example.com"},
 		"document_search.model":      "no-owner",
 	}

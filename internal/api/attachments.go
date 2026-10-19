@@ -294,7 +294,7 @@ func (a *API) LegacyAttachmentStatus() ([]LegacyAttachmentNamespace, error) {
 // DeleteOrphanedAttachments deletes the old-layout attachments of a namespace
 // that no longer exists, in one commit.
 func (a *API) DeleteOrphanedAttachments(ctx context.Context, namespace string) (int, error) {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return 0, err
 	}
 	username, _ := Username(ctx)
@@ -311,7 +311,7 @@ func (a *API) DeleteOrphanedAttachments(ctx context.Context, namespace string) (
 // .attachments folders in one commit. Their URLs do not change, so pages that
 // link to them need no edits.
 func (a *API) MigrateAttachments(ctx context.Context) (int, error) {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return 0, err
 	}
 	username, _ := Username(ctx)
@@ -335,7 +335,7 @@ type PreviewImage struct {
 // PreviewImages lists the namespace's PNG and JPEG attachments, sorted by
 // reference, for choosing the link preview image.
 func (a *API) PreviewImages(ctx context.Context, namespace string) ([]PreviewImage, error) {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return nil, err
 	}
 	if !wiki.ValidNamespaceName(namespace) {

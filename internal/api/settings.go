@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ type ServerSettingsInput struct {
 // it (or turn an omitted disabled checkbox into false). It reloads the
 // configuration and rebuilds the store remote after a successful write.
 func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	for key := range in.Values {
@@ -124,7 +125,7 @@ func (a *API) SaveServerSettings(ctx context.Context, in ServerSettingsInput) er
 // saved rather than the running values so settings waiting for a restart
 // are kept.
 func (a *API) ExportServerConfig(ctx context.Context) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	cfg := a.SavedConfig()
@@ -150,7 +151,7 @@ type WikiConfigInput struct {
 // updates the runtime snapshot. It is used by the settings screen and the
 // first-run setup wizard.
 func (a *API) SaveWikiConfig(ctx context.Context, in WikiConfigInput) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	cfg := wiki.WikiConfig{Landing: strings.TrimSpace(in.Landing), SiteName: strings.TrimSpace(in.SiteName)}
@@ -175,7 +176,7 @@ func (a *API) SaveWikiConfig(ctx context.Context, in WikiConfigInput) error {
 
 // ResetHelp rewrites the built-in help guide.
 func (a *API) ResetHelp(ctx context.Context) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	name, email := a.Author(ctx)
@@ -191,7 +192,7 @@ func (a *API) ResetHelp(ctx context.Context) error {
 // reset: selecting a new skin discards the submitted palette unless the
 // browser reports an explicit later palette choice.
 func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin string, paletteExplicit bool) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireOwnSettings(ctx); err != nil {
 		return err
 	}
 	if palette != "" && !presentation.ValidPalette(palette) {
@@ -225,7 +226,7 @@ func (a *API) SetAppearance(ctx context.Context, palette, fontUI, fontMono, skin
 
 // SetGitAuthor stores the caller's per-user git author override.
 func (a *API) SetGitAuthor(ctx context.Context, author string) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireOwnSettings(ctx); err != nil {
 		return err
 	}
 	author = strings.TrimSpace(author)
@@ -241,7 +242,7 @@ func (a *API) SetGitAuthor(ctx context.Context, author string) error {
 
 // RerunSetup requests the first-run setup wizard on the next navigation.
 func (a *API) RerunSetup(ctx context.Context) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	a.store.ForceSetup.Store(true)
@@ -251,7 +252,7 @@ func (a *API) RerunSetup(ctx context.Context) error {
 // Shutdown begins a graceful process shutdown. The process exits; it only
 // comes back if a supervisor such as Docker or systemd restarts it.
 func (a *API) Shutdown(ctx context.Context) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if a.shutdown == nil {
@@ -277,7 +278,7 @@ const NewSetupNamespaceOption = "_new"
 
 // FirstRunSetupInput is the submitted first-run setup wizard. Action is
 // "add" to seed the selected items or anything else to dismiss the wizard;
-// the wizard requires settings access.
+// the wizard requires admin access.
 type FirstRunSetupInput struct {
 	Action           string
 	SetupWiki        bool
@@ -294,7 +295,7 @@ type FirstRunSetupInput struct {
 // first-run flags so the wizard stops appearing. Every write goes through the
 // shared operations, so the wizard cannot diverge from the settings screens.
 func (a *API) CompleteFirstRunSetup(ctx context.Context, in FirstRunSetupInput) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if in.Action == "add" {
@@ -369,7 +370,7 @@ var TokenTTLs = map[string]time.Duration{
 
 // CreateUser adds a user with the given scopes.
 func (a *API) CreateUser(ctx context.Context, name, password string, scopes []string) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if name == "" || password == "" {
@@ -386,9 +387,9 @@ func (a *API) CreateUser(ctx context.Context, name, password string, scopes []st
 }
 
 // SetUserScopes replaces a user's scopes, guarding the bootstrap admin and the
-// caller's own settings access.
+// caller's own admin access.
 func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if name == a.Config().AdminUser {
@@ -398,12 +399,12 @@ func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) e
 	if name == username {
 		hasSettings := len(scopes) == 0
 		for _, s := range scopes {
-			if s == string(auth.ScopeSettings) {
+			if s == string(auth.ScopeAdmin) {
 				hasSettings = true
 			}
 		}
 		if !hasSettings {
-			return InvalidInput("cannot remove your own settings access", nil)
+			return InvalidInput("cannot remove your own admin access", nil)
 		}
 	}
 	if err := a.auth.SetScopes(name, scopes); err != nil {
@@ -416,7 +417,7 @@ func (a *API) SetUserScopes(ctx context.Context, name string, scopes []string) e
 // CreateToken mints a personal access token for the caller. The adapter maps
 // form TTL choices to an absolute expiry before calling.
 func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, scopes, namespaces []string) (string, error) {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireOwnSettings(ctx); err != nil {
 		return "", err
 	}
 	label = strings.TrimSpace(label)
@@ -444,6 +445,20 @@ func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, 
 	if len(cleaned) == 0 {
 		cleaned = nil
 	}
+	// AddToken refuses scopes the user lacks. A token must not mint a broader
+	// one either: a read token or one limited to some namespaces could
+	// otherwise turn into a token with the user's full access.
+	if caller, ok := auth.TokenPrincipalFromContext(ctx); ok {
+		for _, raw := range scopes {
+			// Unknown names are left for AddToken to reject as invalid input.
+			if scope := Scope(strings.TrimSpace(raw)); slices.Contains(auth.AllScopes, scope) && !caller.HasScope(scope) {
+				return "", Forbidden("a token cannot create a token with more scopes than its own")
+			}
+		}
+		if caller.Restricted() && (cleaned == nil || slices.ContainsFunc(cleaned, func(namespace string) bool { return !caller.AllowsNamespace(namespace) })) {
+			return "", Forbidden("a token cannot create a token for namespaces outside its own")
+		}
+	}
 	username, _ := Username(ctx)
 	token, err := a.auth.AddToken(username, label, expires, scopes, cleaned)
 	if err != nil {
@@ -455,7 +470,7 @@ func (a *API) CreateToken(ctx context.Context, label string, expires time.Time, 
 
 // RevokeToken removes one of the caller's personal access tokens.
 func (a *API) RevokeToken(ctx context.Context, label string) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireOwnSettings(ctx); err != nil {
 		return err
 	}
 	username, _ := Username(ctx)
@@ -468,9 +483,9 @@ func (a *API) RevokeToken(ctx context.Context, label string) error {
 
 // SeedFirstNamespace creates the initial namespace configuration, its index
 // page and the root readme, then refreshes the registry. It is used by the
-// first-run setup wizard, which requires settings access.
+// first-run setup wizard, which requires admin access.
 func (a *API) SeedFirstNamespace(ctx context.Context, name string) error {
-	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+	if err := a.RequireScope(ctx, ScopeAdmin); err != nil {
 		return err
 	}
 	if !wiki.ValidNamespaceName(name) {

@@ -1647,6 +1647,7 @@
     banners.forEach((b, i) => { b.dataset.stack = String(Math.min(i, 3)); b.style.setProperty('--stack', String(Math.min(i, 3))); });
   }
   stackBanners();
+  window.hmdStackBanners = stackBanners;
 
   document.addEventListener('click', event => {
     const dismiss = event.target.closest('.ui-notice__dismiss');

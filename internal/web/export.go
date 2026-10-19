@@ -226,8 +226,8 @@ func writeExportPage(outPath string, tmpl *template.Template, data TemplateData)
 }
 
 func (app *App) handleExportNamespace(w http.ResponseWriter, r *http.Request) {
-	if err := app.apiClient().RequireScope(r.Context(), api.ScopeSettings); err != nil {
-		http.Error(w, "settings scope required", http.StatusForbidden)
+	if err := app.apiClient().RequireScope(r.Context(), api.ScopeAdmin); err != nil {
+		http.Error(w, "admin scope required", http.StatusForbidden)
 		return
 	}
 	name := r.PathValue("name")

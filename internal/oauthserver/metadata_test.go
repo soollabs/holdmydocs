@@ -27,7 +27,7 @@ func TestMetadataDocumentsUseConfiguredIssuer(t *testing.T) {
 		as.TokenEndpoint != issuer+tokenPath || !as.AuthorizationResponseIssuerSupported {
 		t.Fatalf("AS metadata contains wrong configured identity: %#v", as)
 	}
-	if reflect.DeepEqual(as.ScopesSupported, []string{"read", "write", "settings"}) {
+	if reflect.DeepEqual(as.ScopesSupported, []string{"read", "write", "admin"}) {
 		t.Fatal("settings scope advertised when administrator delegation is disabled")
 	}
 
@@ -56,7 +56,7 @@ func TestMetadataAdminScopeOnlyWhenEnabled(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &metadata); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(metadata.ScopesSupported, []string{"read", "write", "settings"}) {
+	if !reflect.DeepEqual(metadata.ScopesSupported, []string{"read", "write", "admin"}) {
 		t.Fatalf("scopes = %v", metadata.ScopesSupported)
 	}
 }

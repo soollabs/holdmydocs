@@ -18,8 +18,8 @@ func TestReadOnlyStoreCannotBeBypassedByConfig(t *testing.T) {
 	}
 	a := New(reader, nil, nil)
 	a.SetConfig(config.Config{ReadOnly: false})
-	ctx := principal("settings")
-	if !a.HasScope(ctx, ScopeRead) || a.HasScope(ctx, ScopeWrite) || a.HasScope(ctx, ScopeSettings) {
+	ctx := principal("admin")
+	if !a.HasScope(ctx, ScopeRead) || a.HasScope(ctx, ScopeWrite) || a.HasScope(ctx, ScopeAdmin) {
 		t.Fatal("read-only policy must cap administrator scopes")
 	}
 	if _, err := a.RedeemUploadCapability(ctx, "token", "file.txt", nil); CategoryOf(err) != CategoryForbidden {

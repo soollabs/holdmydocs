@@ -338,3 +338,29 @@ func TestSettingsScreensUseSharedButtonComponent(t *testing.T) {
 		}
 	}
 }
+
+// Banners are children of main so the banner rules (width, margins, stacking)
+// reach them. A wrapper element, or a notice without the banner key, drops
+// them out of that layout.
+func TestBaseBannersAreDirectChildrenOfMain(t *testing.T) {
+	source, err := webFS.ReadFile("web/templates/base.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, main, ok := strings.Cut(string(source), `<main id="main-content"`)
+	if !ok {
+		t.Fatal("base.html has no main content element")
+	}
+	main, _, _ = strings.Cut(main, `{{template "content" .}}`)
+	for line := range strings.SplitSeq(main, "\n") {
+		if !strings.Contains(line, `component "notice"`) {
+			continue
+		}
+		if strings.Contains(line, "<div") {
+			t.Errorf("banner is wrapped in an element: %.120s", strings.TrimSpace(line))
+		}
+		if !strings.Contains(line, `"banner"`) {
+			t.Errorf("notice above the content is not a banner: %.120s", strings.TrimSpace(line))
+		}
+	}
+}

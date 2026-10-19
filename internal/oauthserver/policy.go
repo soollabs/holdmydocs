@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"hmd/internal/auth"
 )
 
 var (
@@ -19,11 +21,15 @@ var (
 	errInvalidPKCE     = errors.New("invalid PKCE value")
 )
 
-var validScopes = []string{"read", "settings", "write"}
+// adminScope is the administrator scope. It implies read and write, but is
+// kept only when every bound authorisation grants it.
+const adminScope = string(auth.ScopeAdmin)
+
+var validScopes = []string{adminScope, "read", "write"}
 
 func scopeSubset(candidate, allowed []string) bool {
 	allowedSet := make(map[string]bool, len(allowed))
-	for _, item := range expandSettings(allowed) {
+	for _, item := range expandAdmin(allowed) {
 		allowedSet[item] = true
 	}
 	for _, item := range candidate {
@@ -53,7 +59,7 @@ func validateNamespaceSelection(selected, available []string) ([]string, error) 
 }
 
 // NormaliseScopes validates and returns the supported action scopes in stable
-// order. The settings scope remains distinct: HMD treats it as an unrestricted
+// order. The admin scope remains distinct: HMD treats it as an unrestricted
 // administrator grant rather than a namespace-limited action.
 func NormaliseScopes(scopes []string) ([]string, error) {
 	seen := make(map[string]bool, len(scopes))
@@ -73,13 +79,13 @@ func NormaliseScopes(scopes []string) ([]string, error) {
 }
 
 // EffectiveScopes intersects issued, consented, current-user and current-client
-// permissions. Settings semantically implies read and write, matching HMD's
+// permissions. Admin semantically implies read and write, matching HMD's
 // existing permission model.
 func EffectiveScopes(issued, consented, user, client []string) []string {
-	i := expandSettings(issued)
-	c := expandSettings(consented)
-	u := expandSettings(user)
-	p := expandSettings(client)
+	i := expandAdmin(issued)
+	c := expandAdmin(consented)
+	u := expandAdmin(user)
+	p := expandAdmin(client)
 	allowed := make(map[string]bool, len(i))
 	for _, scope := range i {
 		allowed[scope] = true
@@ -94,26 +100,26 @@ func EffectiveScopes(issued, consented, user, client []string) []string {
 		allowed = next
 	}
 	// Administrator authority is retained only when every bound authorisation
-	// independently includes settings.
-	settings := slices.Contains(issued, "settings") &&
-		slices.Contains(consented, "settings") &&
-		slices.Contains(user, "settings") &&
-		slices.Contains(client, "settings")
+	// independently includes admin.
+	admin := slices.Contains(issued, adminScope) &&
+		slices.Contains(consented, adminScope) &&
+		slices.Contains(user, adminScope) &&
+		slices.Contains(client, adminScope)
 	var out []string
 	for _, scope := range []string{"read", "write"} {
 		if allowed[scope] {
 			out = append(out, scope)
 		}
 	}
-	if settings {
-		out = append(out, "settings")
+	if admin {
+		out = append(out, adminScope)
 	}
 	return out
 }
 
-func expandSettings(scopes []string) []string {
+func expandAdmin(scopes []string) []string {
 	out, _ := NormaliseScopes(scopes)
-	if slices.Contains(out, "settings") {
+	if slices.Contains(out, adminScope) {
 		out = append(out, "read", "write")
 		slices.Sort(out)
 		out = slices.Compact(out)

@@ -619,7 +619,7 @@ func TightenRegularFile(path string) error {
 func tightenRegularFile(path string) error { return TightenRegularFile(path) }
 
 func normaliseTokenScopes(scopes []string) ([]string, error) {
-	allowed := map[string]bool{"read": true, "write": true, "settings": true}
+	allowed := map[string]bool{"read": true, "write": true, "admin": true}
 	seen := make(map[string]bool, len(scopes))
 	for _, raw := range scopes {
 		name := strings.TrimSpace(raw)

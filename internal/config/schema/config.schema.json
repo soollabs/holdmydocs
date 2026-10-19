@@ -287,7 +287,7 @@
               "title": "allow administrator delegation",
               "type": "boolean",
               "default": false,
-              "description": "Allow an administrator to grant a client the settings scope during OAuth consent.",
+              "description": "Allow an administrator to grant a client the admin scope during OAuth consent.",
               "x-restart": true
             }
           }
@@ -368,13 +368,13 @@
             "enum": [
               "read",
               "write",
-              "settings"
+              "admin"
             ]
           },
           "default": [
             "read"
           ],
-          "description": "Scopes given to a user the first time they sign in with OIDC: any of read, write and settings.",
+          "description": "Scopes given to a user the first time they sign in with OIDC: any of read, write and admin.",
           "x-restart": true
         },
         "allowed_subjects": {
