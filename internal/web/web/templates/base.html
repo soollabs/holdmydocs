@@ -88,6 +88,15 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} — {{end}}{{.SiteName}}</title>
+	{{if .Description}}<meta name="description" content="{{.Description}}">{{end}}
+	{{with .Preview}}<link rel="canonical" href="{{.URL}}">
+	<meta property="og:type" content="{{.Type}}">
+	<meta property="og:site_name" content="{{$.SiteName}}">
+	<meta property="og:title" content="{{$.Title}}">
+	<meta property="og:url" content="{{.URL}}">
+	{{if $.Description}}<meta property="og:description" content="{{$.Description}}">{{end}}
+	{{if .Image}}<meta property="og:image" content="{{.Image}}">
+	<meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}{{end}}
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}style.css{{else}}{{static "style.css"}}{{end}}">
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}skins.css{{else}}{{static "skins.css"}}{{end}}">
 	<link rel="stylesheet" href="{{if .Static}}{{.AssetPath}}components.css{{else}}{{static "components.css"}}{{end}}">

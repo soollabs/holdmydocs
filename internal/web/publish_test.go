@@ -90,7 +90,7 @@ func TestAnonymousPublicNamespacePageServes200WithNoChrome(t *testing.T) {
 	if !strings.Contains(s, "Public") || !strings.Contains(s, "<strong>content</strong>") {
 		t.Errorf("body missing rendered page content: %s", s)
 	}
-	for _, needle := range []string{`<title>Hello — My Blog</title>`, `class="topbar-site">My Blog</a>`} {
+	for _, needle := range []string{`<title>Hello — My Blog</title>`, `<meta name="description" content="Public content.">`, `class="topbar-site">My Blog</a>`} {
 		if !strings.Contains(s, needle) {
 			t.Errorf("anonymous public page missing namespace title %q: %s", needle, s)
 		}

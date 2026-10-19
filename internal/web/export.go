@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +79,12 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 	}
 	cfg.Export = settings
 	sidebarLinks, topbarLinks := splitExportLinks(cfg.Export.Links)
+	var base *url.URL
+	if cfg.Export.BaseURL != "" {
+		if base, err = url.Parse(cfg.Export.BaseURL); err != nil {
+			return nil, err
+		}
+	}
 
 	hrefs := make(map[string]string, len(nsPages))
 	entries := make([]wiki.BacklinkEntry, 0, len(nsPages))
@@ -117,6 +124,10 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 		if err != nil {
 			return nil, fmt.Errorf("rendering %s: %w", p.Slug, err)
 		}
+		description, image := pageSummary(content, ns)
+		if description == "" {
+			description = cfg.Description
+		}
 		content = template.HTML(strings.ReplaceAll(string(content), "/_/attachments/"+ns+"/", staticAssetPrefix(rest)+"attachments/"))
 		searchEntries = append(searchEntries, staticexport.SearchEntry{
 			Title: pageDisplayTitle(p), Href: staticPagePath(rest), Text: exportPlainText(content),
@@ -136,6 +147,8 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 			Content:           content,
 			Namespace:         ns,
 			NamespaceTitle:    title,
+			Description:       description,
+			Preview:           exportLinkPreview(base, rest, indexPage, image, cfg.Export.Image),
 			Skin:              skinName(cfg.Skin),
 			ThemeStyle:        buildThemeStyle(auth.UserRecord{Palette: palette}),
 			SidebarTree:       renderStaticTree(tree, rest, func(to string) string { return staticPageHref(rest, to) }),
@@ -168,7 +181,7 @@ func (x StaticExporter) RenderNamespace(request staticexport.NamespaceRequest) (
 		}
 	}
 	if indexPage == "" {
-		stub := TemplateData{SiteName: title, NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: template.HTML(i18n.T("web.export.index_empty")), RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
+		stub := TemplateData{SiteName: title, Description: cfg.Description, Preview: exportLinkPreview(base, "", "", "", cfg.Export.Image), NamespaceHome: "index.html", Static: true, Title: ns, Namespace: ns, NamespaceTitle: title, Skin: skinName(cfg.Skin), ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: palette}), SidebarTree: renderStaticTree(tree, "", func(to string) string { return staticPageHref("", to) }), Content: template.HTML(i18n.T("web.export.index_empty")), RailWidgets: widgetsForSlot(slotRail, cfg.Widgets)}
 		stub.ExportLinks, stub.ExportTopbarLinks, stub.ExportIcons = sidebarLinks, topbarLinks, hasExportIcons(cfg.Export.Links)
 		stub.CSPNonce = request.CSPNonce
 		if err := writeExportPage(filepath.Join(outDir, "index.html"), tmpl["page"], stub); err != nil {

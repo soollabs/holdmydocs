@@ -6,6 +6,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	goimage "image"
+	_ "image/jpeg" // decoders for PreviewImages
+	_ "image/png"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -319,4 +322,56 @@ func (a *API) MigrateAttachments(ctx context.Context) (int, error) {
 	}
 	slog.Info("attachments migrated", "attachments", moved, "author", name)
 	return moved, nil
+}
+
+// PreviewImage is a namespace attachment that can serve as a link preview
+// image. Width and Height are zero when the file cannot be decoded.
+type PreviewImage struct {
+	Ref           string // page/filename relative to the namespace, as export.image names it
+	Bytes         int64
+	Width, Height int
+}
+
+// PreviewImages lists the namespace's PNG and JPEG attachments, sorted by
+// reference, for choosing the export image.
+func (a *API) PreviewImages(ctx context.Context, namespace string) ([]PreviewImage, error) {
+	if err := a.RequireScope(ctx, ScopeSettings); err != nil {
+		return nil, err
+	}
+	if !wiki.ValidNamespaceName(namespace) {
+		return nil, InvalidInput("invalid namespace", nil)
+	}
+	if !AllowNamespace(ctx, namespace) {
+		return nil, Forbidden("namespace access denied")
+	}
+	if a.store == nil {
+		return nil, nil
+	}
+	attachments, err := a.store.ListAttachments()
+	if err != nil {
+		return nil, Unavailable("listing attachments", err)
+	}
+	images := []PreviewImage{}
+	for _, attachment := range attachments {
+		ns, page := wiki.NamespaceFor(attachment.Slug)
+		if ns != namespace || !wiki.PreviewImageFile(attachment.Filename) {
+			continue
+		}
+		image := PreviewImage{Ref: page + "/" + attachment.Filename}
+		file, _, err := a.store.OpenAttachment(attachment.Path)
+		if err != nil {
+			continue
+		}
+		if info, err := file.Stat(); err == nil {
+			image.Bytes = info.Size()
+		}
+		if cfg, _, err := goimage.DecodeConfig(file); err == nil {
+			image.Width, image.Height = cfg.Width, cfg.Height
+		}
+		if err := file.Close(); err != nil {
+			slog.Warn("closing attachment", "path", attachment.Path, "err", err)
+		}
+		images = append(images, image)
+	}
+	return images, nil
 }

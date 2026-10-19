@@ -3,6 +3,7 @@ package wiki
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -13,6 +14,7 @@ type ExportConfig struct {
 	Sitemap     *bool        `yaml:"sitemap,omitempty" json:"sitemap,omitempty"`
 	RobotsAllow []string     `yaml:"robots_allow,omitempty" json:"robots_allow,omitempty"`
 	Links       []ExportLink `yaml:"links,omitempty" json:"links,omitempty"`
+	Image       string       `yaml:"image,omitempty" json:"image,omitempty"` // link preview fallback: "<page>/<filename>" of a namespace attachment
 }
 
 type ExportLink struct {
@@ -42,6 +44,12 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 			return c, fmt.Errorf("export base URL must be an absolute HTTP(S) URL without credentials, query or fragment")
 		}
 		c.BaseURL = strings.TrimRight(c.BaseURL, "/") + "/"
+	}
+	c.Image = strings.TrimSpace(c.Image)
+	if c.Image != "" {
+		if _, _, ok := SplitExportImage(c.Image); !ok {
+			return c, fmt.Errorf("export image must name a PNG or JPEG attachment as page/filename, e.g. index/hero.png")
+		}
 	}
 	if len(c.RobotsAllow) > 64 || len(c.Links) > 32 {
 		return c, fmt.Errorf("export supports at most 64 allowed bots and 32 external links")
@@ -88,6 +96,27 @@ func NormaliseExportConfig(c ExportConfig, requireURL bool) (ExportConfig, error
 		c.Links[i] = link
 	}
 	return c, nil
+}
+
+// SplitExportImage splits an export image reference into the owning page,
+// relative to the namespace, and the attachment filename.
+func SplitExportImage(ref string) (page, filename string, ok bool) {
+	i := strings.LastIndexByte(ref, '/')
+	if i < 1 {
+		return "", "", false
+	}
+	page, filename = ref[:i], ref[i+1:]
+	return page, filename, ValidPagePath(page) && !strings.ContainsAny(filename, `\`) && !strings.HasPrefix(filename, ".") && PreviewImageFile(filename)
+}
+
+// PreviewImageFile reports whether a filename is a format every link preview
+// service accepts.
+func PreviewImageFile(filename string) bool {
+	switch strings.ToLower(path.Ext(filename)) {
+	case ".png", ".jpg", ".jpeg":
+		return true
+	}
+	return false
 }
 
 func (c ExportConfig) SitemapEnabled() bool { return c.Sitemap == nil || *c.Sitemap }

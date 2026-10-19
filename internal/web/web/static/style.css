@@ -1350,6 +1350,21 @@ ul.page-tree.branch > li::before {
 	max-width: 70ch;
 }
 
+/* Option labels carry each image's size, so the select takes the control
+   column instead of growing to its longest option. */
+.settings-row #export-image {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.export-image-preview {
+	display: block;
+	max-width: min(100%, 20rem);
+	margin-bottom: 1rem;
+	border: var(--border-w) solid var(--border-visible);
+	border-radius: var(--radius-lg);
+}
+
 .namespace-table,
 .table-wrap {
 	overflow-x: auto;

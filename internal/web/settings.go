@@ -43,9 +43,11 @@ type NamespaceManagementData struct {
 	TreeEditor   template.HTML
 	Error        string
 	Flash        string
-	FileCount    int                // files in the namespace being edited; deleting removes them too
-	Section      string             // active editor section, one of namespaceSections
-	Sections     []namespaceSection // editor pages, listed in the settings navigation
+	FileCount    int                  // files in the namespace being edited; deleting removes them too
+	Section      string               // active editor section, one of namespaceSections
+	Images       []previewImageOption // PNG and JPEG attachments offered as the export image
+	ImageMissing bool                 // the configured export image is no longer an attachment
+	Sections     []namespaceSection   // editor pages, listed in the settings navigation
 }
 
 type FieldState struct {
@@ -364,12 +366,46 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 				entry.Hash = detail.Hash
 				data.FileCount = detail.Files
 			}
+			data.Images, data.ImageMissing = app.previewImageOptions(r, entry.Name, entry.Export.Image)
 			data.Form = entry
 			data.TreeEditor = namespaceTreeEditor(app.apiClient().PageTitles(r.Context()), entry.Name, entry.Index, entry.Tree)
 			break
 		}
 	}
 	return data
+}
+
+// previewImageOption is one export image choice, labelled with its size and
+// a warning when link preview services are likely to drop or crop it.
+type previewImageOption struct {
+	Ref, Label string
+}
+
+// WhatsApp drops preview images over about 300 KB, and shows images narrower
+// than about 200 pixels as a small thumbnail at best.
+const (
+	maxPreviewImageBytes = 300 * 1024
+	minPreviewImageWidth = 200
+)
+
+func (app *App) previewImageOptions(r *http.Request, namespace, current string) (options []previewImageOption, missing bool) {
+	images, err := app.apiClient().PreviewImages(r.Context(), namespace)
+	if err != nil {
+		slog.Warn("listing preview images", "namespace", namespace, "err", err)
+		return nil, false
+	}
+	missing = current != ""
+	for _, image := range images {
+		missing = missing && image.Ref != current
+		label := i18n.T("web.namespace_edit.image_option", "Ref", image.Ref, "Width", image.Width, "Height", image.Height, "Size", (image.Bytes+1023)/1024)
+		if image.Bytes > maxPreviewImageBytes {
+			label += " " + i18n.T("web.namespace_edit.image_too_large")
+		} else if image.Width > 0 && image.Width < minPreviewImageWidth {
+			label += " " + i18n.T("web.namespace_edit.image_too_small")
+		}
+		options = append(options, previewImageOption{Ref: image.Ref, Label: label})
+	}
+	return options, missing
 }
 
 func namespaceTreeItems(titles map[string]string, namespace, index string, tree []string) []NamespaceTreeItem {

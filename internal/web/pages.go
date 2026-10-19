@@ -296,6 +296,11 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		sidebarTreeEntries = summary.Pages
 	}
 	publishedTitle := wiki.NamespaceDisplayTitle(pageNS, cfg)
+	description, image := pageSummary(renderedBody, pageNS)
+	if description == "" {
+		description = cfg.Description
+	}
+	_, pageRest := wiki.NamespaceFor(slug)
 
 	app.render(w, r, http.StatusOK, "page", TemplateData{
 		Authed:             false,
@@ -306,6 +311,8 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		Namespace:          pageNS,
 		NamespacePublic:    true,
 		NamespaceTitle:     publishedTitle,
+		Description:        description,
+		Preview:            liveLinkPreview(app.config().BaseURL, pageNS, pageRest, cfg, image),
 		Skin:               skinName(cfg.Skin),
 		ThemeStyle:         buildThemeStyle(auth.UserRecord{Palette: palette}),
 		SidebarTreeNS:      sidebarTreeNS,
@@ -395,10 +402,13 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 	}
 
 	publishedTitle := wiki.NamespaceDisplayTitle(name, summary.Config)
-	var siteName, namespaceSkin string
+	var siteName, namespaceSkin, description string
+	var preview *linkPreview
 	var themeStyle template.CSS
 	if !authed {
 		siteName = publishedTitle
+		description = summary.Config.Description
+		preview = liveLinkPreview(app.config().BaseURL, name, "", summary.Config, "")
 		namespaceSkin = summary.Config.Skin
 		themeStyle = buildThemeStyle(auth.UserRecord{Palette: summary.Config.Palette})
 	}
@@ -408,6 +418,8 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		Authed:             authed,
 		SiteName:           siteName,
 		Title:              name,
+		Description:        description,
+		Preview:            preview,
 		Slug:               name + "/",
 		StatusMode:         "view",
 		StatusContext:      i18n.TN("web.pages.page_count", summary.Count, "Count", summary.Count),

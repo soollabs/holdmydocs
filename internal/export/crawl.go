@@ -24,6 +24,21 @@ func validateCrawlPagePaths(pages []wiki.Page) error {
 	return nil
 }
 
+// PageURL is a page's canonical published URL; the namespace index is the
+// site root.
+func PageURL(base *url.URL, rest, index string) string {
+	if rest == index {
+		return base.String()
+	}
+	return base.ResolveReference(&url.URL{Path: strings.TrimSuffix(PagePath(rest), "index.html")}).String()
+}
+
+// AttachmentURL is the published URL of a namespace attachment, named by its
+// page relative to the namespace and its filename.
+func AttachmentURL(base *url.URL, page, filename string) string {
+	return base.ResolveReference(&url.URL{Path: "attachments/" + page + "/" + filename}).String()
+}
+
 func writeCrawlFiles(request NamespaceRequest, pages []wiki.Page) error {
 	c := request.Config.Export
 	base, err := url.Parse(c.BaseURL)
@@ -49,15 +64,12 @@ func writeCrawlFiles(request NamespaceRequest, pages []wiki.Page) error {
 			URLs    []location `xml:"url"`
 		}
 		doc := sitemap{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9"}
-		paths := []string{""}
+		doc.URLs = append(doc.URLs, location{base.String()})
 		for _, page := range pages {
 			_, rest := wiki.NamespaceFor(page.Slug)
 			if rest != request.Config.Index {
-				paths = append(paths, strings.TrimSuffix(PagePath(rest), "index.html"))
+				doc.URLs = append(doc.URLs, location{PageURL(base, rest, request.Config.Index)})
 			}
-		}
-		for _, path := range paths {
-			doc.URLs = append(doc.URLs, location{base.ResolveReference(&url.URL{Path: path}).String()})
 		}
 		data, err := xml.MarshalIndent(doc, "", "  ")
 		if err != nil {

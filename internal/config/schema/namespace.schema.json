@@ -101,6 +101,10 @@
           "type": "array",
           "maxItems": 32,
           "description": "External links in the static site's sidebar or top bar. Labels are link text, or tooltips for icon-only links; icons use Font Awesome classes such as fa-brands fa-github."
+        },
+        "image": {
+          "type": "string",
+          "description": "Default link preview image for pages without an image of their own, as page/filename of a PNG or JPEG attachment in this namespace, e.g. index/hero.png. The export fails if the attachment is missing."
         }
       }
     }
