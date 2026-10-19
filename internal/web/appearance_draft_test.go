@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"hmd/internal/testhttp"
 )
 
 // TestAppearanceDraft pins how a browser-held appearance draft is rendered:
@@ -17,7 +19,7 @@ func TestAppearanceDraft(t *testing.T) {
 	defer server.Close()
 	get := func(path, draft string) string {
 		t.Helper()
-		request, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +104,7 @@ func TestReadOnlyAppearanceStaysEditable(t *testing.T) {
 	app.SetConfig(cfg)
 	get := func(path string) string {
 		t.Helper()
-		response, err := client.Get(server.URL + path)
+		response, err := testhttp.Get(t, client, server.URL+path)
 		if err != nil {
 			t.Fatal(err)
 		}
