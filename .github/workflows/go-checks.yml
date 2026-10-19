@@ -1,8 +1,26 @@
 name: Go Checks
 
 on:
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "go.work"
+      - "go.work.sum"
+      - "internal/web/web/**"
+      - "internal/i18n/locales/**"
+      - "internal/config/schema/**"
+      - "internal/mcp/schema/**"
+      - ".golangci.*"
+      - ".github/workflows/go-checks.yml"
+      - ".github/workflows/ci.yml"
   workflow_call:
   workflow_dispatch:
+
+concurrency:
+  group: go-checks-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read

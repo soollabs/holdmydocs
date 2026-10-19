@@ -35,6 +35,7 @@ function fixture(clipboard) {
       clipboard === 'absent' ? undefined : { writeText: async text => { copied.push(text); } } },
     document: {
       getElementById() { return initial; },
+      querySelector() { return null; },
       createElement() {
         return {
           attributes: {}, handlers: {}, classList: { add() {} },
@@ -49,6 +50,7 @@ function fixture(clipboard) {
     getSelection() { return { removeAllRanges() {}, addRange() {} }; }
   };
   context.window = context;
+  context.HMDRunMermaid = nodes => context.mermaid.run({ nodes });
   context.hmdT = hmdT;
   vm.runInNewContext(source, context);
   return { context, initial, page, copied, selected, timers, rendered };
