@@ -41,7 +41,7 @@
 	--tag-prefix:    "#";
 	--collapse-glyph: "\00ab";  /* «, the sidebar collapse control */
 	--brand-prefix:  "~/";      /* before the site name in the topbar */
-	--brand-cursor:  "\258d";   /* ▍, blinks after the site name on hover */
+	--brand-cursor:  "\258d";   /* ▍, after the site name on hover */
 	/* A short rule under the page title's left edge; `block` shows it. */
 	--title-rule:        none;
 	--title-rule-w:      2.5rem;
@@ -64,9 +64,7 @@
 	--prose-measure: 900px;
 	--prose-size:    15px;
 	--prose-leading: 1.75;
-	--prose-align:   left;
 	--para-gap:      0.75rem;
-	--para-indent:   0;
 
 	--title-size:      28px;
 	--title-weight:    700;
@@ -1340,9 +1338,7 @@ ul.page-tree.branch > li::before {
 }
 .sidebar-tree .page-tree .dir {
 	color: var(--fg-faint);
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	font-size: 12px;
 }
 
 .namespace-management {
@@ -1532,12 +1528,10 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 #page-content, #preview {
 	font-size: var(--prose-size);
 	line-height: var(--prose-leading);
-	text-align: var(--prose-align);
 }
 
 #page-content p, #preview p {
 	margin-bottom: var(--para-gap);
-	text-indent: var(--para-indent);
 	text-wrap: pretty;
 }
 
@@ -1818,7 +1812,6 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	gap: 8px;
 	padding: 8px 16px;
 	cursor: pointer;
-	border-left: 2px solid transparent;
 	text-decoration: none;
 	color: var(--fg);
 }
@@ -1849,11 +1842,10 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 
 .palette-row.selected {
 	background: var(--primary-muted);
-	border-left-color: var(--primary);
 }
 
 :root[data-theme="light"] .palette-row.selected {
-	background: var(--surface-raised);
+	background: color-mix(in srgb, var(--primary) 14%, var(--surface-raised));
 }
 
 .palette-create {
@@ -3050,9 +3042,7 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .setup-badge {
-	font-size: 10px;
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
+	font-size: 11px;
 	color: var(--warning);
 	border: var(--border-w) solid var(--warning);
 	padding: 0 5px;
@@ -3871,10 +3861,6 @@ body.no-sidebar { --settings-pad: 20px; }
 	font-size: 11px;
 	color: var(--fg-muted);
 	margin-top: 0.25rem;
-}
-
-.palette-row.selected.palette-verb {
-	border-left: 2px solid var(--primary);
 }
 
 /* Mobile responsive adjustments */
