@@ -44,7 +44,7 @@ var ThemePresets = map[string]ThemePreset{
 		Light: map[string]string{
 			"bg": "#f7f8f6", "surface": "#eef1ec", "surface-raised": "#e6eae4",
 			"border": "#d8ded6", "border-strong": "#c4cdc6",
-			"fg": "#2d3438", "fg-strong": "#1c2226", "fg-muted": "#525e64", "fg-faint": "#637076",
+			"fg": "#2d3438", "fg-strong": "#1c2226", "fg-muted": "#525e64", "fg-faint": "#636f75",
 			"primary": "#1a7d36", "primary-muted": "#a4c7ab", "accent": "#306bc6",
 			"warning": "#946300", "warning-bg": "#fff0c2",
 			"danger": "#cf222e", "danger-muted": "#e0a9ad", "danger-bg": "#fbe9e9",
@@ -77,7 +77,7 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#282828", "surface": "#1d2021", "surface-raised": "#32302f",
 			"border": "#3c3836", "border-strong": "#504945",
-			"fg": "#ebdbb2", "fg-strong": "#fbf1c7", "fg-muted": "#a89984", "fg-faint": "#928374",
+			"fg": "#ebdbb2", "fg-strong": "#fbf1c7", "fg-muted": "#a89984", "fg-faint": "#928475",
 			"primary": "#b8bb26", "primary-muted": "#4e5a2a", "accent": "#83a598",
 			"warning": "#fabd2f", "warning-bg": "#4a3f1c",
 			"danger": "#fb4934", "danger-muted": "#6e3128", "danger-bg": "#3c2422",
@@ -86,7 +86,7 @@ var ThemePresets = map[string]ThemePreset{
 		Light: map[string]string{
 			"bg": "#fbf1c7", "surface": "#f2e5bc", "surface-raised": "#ebdbb2",
 			"border": "#d5c4a1", "border-strong": "#bdae93",
-			"fg": "#3c3836", "fg-strong": "#282828", "fg-muted": "#5e544d", "fg-faint": "#71655b",
+			"fg": "#3c3836", "fg-strong": "#282828", "fg-muted": "#5e544d", "fg-faint": "#70645b",
 			"primary": "#6e690d", "primary-muted": "#b9c48a", "accent": "#076678",
 			"warning": "#8e5c10", "warning-bg": "#f4e0a8",
 			"danger": "#9d0006", "danger-muted": "#dfa8a2", "danger-bg": "#f2d5cd",
@@ -97,10 +97,10 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#2e3440", "surface": "#3b4252", "surface-raised": "#434c5e",
 			"border": "#434c5e", "border-strong": "#4c566a",
-			"fg": "#d8dee9", "fg-strong": "#eceff4", "fg-muted": "#a1acc0", "fg-faint": "#6f7d98",
+			"fg": "#d8dee9", "fg-strong": "#eceff4", "fg-muted": "#bbc3d1", "fg-faint": "#a5aebf",
 			"primary": "#a3be8c", "primary-muted": "#46543e", "accent": "#88c0d0",
 			"warning": "#ebcb8b", "warning-bg": "#4a4433",
-			"danger": "#bf616a", "danger-muted": "#6a3f47", "danger-bg": "#3d2b31",
+			"danger": "#d89fa4", "danger-muted": "#6a3f47", "danger-bg": "#3d2b31",
 			"accent-fg": "#2e3440",
 		},
 		Light: map[string]string{
@@ -117,7 +117,7 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#282a36", "surface": "#21222c", "surface-raised": "#343746",
 			"border": "#44475a", "border-strong": "#565a75",
-			"fg": "#f8f8f2", "fg-strong": "#ffffff", "fg-muted": "#a8abbe", "fg-faint": "#6272a4",
+			"fg": "#f8f8f2", "fg-strong": "#ffffff", "fg-muted": "#a8abbe", "fg-faint": "#7b88b2",
 			"primary": "#50fa7b", "primary-muted": "#29473a", "accent": "#8be9fd",
 			"warning": "#f1fa8c", "warning-bg": "#46442a",
 			"danger": "#ff5555", "danger-muted": "#6e3438", "danger-bg": "#3a2528",
@@ -129,7 +129,7 @@ var ThemePresets = map[string]ThemePreset{
 			"fg": "#1f1f2e", "fg-strong": "#14141f", "fg-muted": "#55556a", "fg-faint": "#5b6a9c",
 			"primary": "#14710a", "primary-muted": "#a9d2a4", "accent": "#036a96",
 			"warning": "#806b14", "warning-bg": "#f4ecc0",
-			"danger": "#c73929", "danger-muted": "#e5aca5", "danger-bg": "#f7e0dc",
+			"danger": "#c63929", "danger-muted": "#e5aca5", "danger-bg": "#f7e0dc",
 			"accent-fg": "#ffffff",
 		},
 	},
@@ -137,7 +137,7 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#2d353b", "surface": "#272e33", "surface-raised": "#343f44",
 			"border": "#414b50", "border-strong": "#56635f",
-			"fg": "#d3c6aa", "fg-strong": "#f2efdf", "fg-muted": "#9da9a0", "fg-faint": "#859289",
+			"fg": "#d3c6aa", "fg-strong": "#f2efdf", "fg-muted": "#9da9a0", "fg-faint": "#8a978e",
 			"primary": "#a7c080", "primary-muted": "#425047", "accent": "#7fbbb3",
 			"warning": "#dbbc7f", "warning-bg": "#45443c",
 			"danger": "#e67e80", "danger-muted": "#6b3a3d", "danger-bg": "#3c2b2e",
@@ -158,7 +158,7 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#191724", "surface": "#1f1d2e", "surface-raised": "#26233a",
 			"border": "#403d52", "border-strong": "#524f67",
-			"fg": "#e0def4", "fg-strong": "#f2f0fa", "fg-muted": "#908caa", "fg-faint": "#6e6a86",
+			"fg": "#e0def4", "fg-strong": "#f2f0fa", "fg-muted": "#908caa", "fg-faint": "#87839d",
 			"primary": "#9ccfd8", "primary-muted": "#2f4b52", "accent": "#c4a7e7",
 			"warning": "#f6c177", "warning-bg": "#45392a",
 			"danger": "#eb6f92", "danger-muted": "#5f2f42", "danger-bg": "#33212b",
@@ -178,7 +178,7 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#1a1b26", "surface": "#16161e", "surface-raised": "#1f2335",
 			"border": "#292e42", "border-strong": "#3b4261",
-			"fg": "#a9b1d6", "fg-strong": "#c0caf5", "fg-muted": "#7e829d", "fg-faint": "#5c6692",
+			"fg": "#a9b1d6", "fg-strong": "#c0caf5", "fg-muted": "#8c90a8", "fg-faint": "#747ea8",
 			"primary": "#9ece6a", "primary-muted": "#33452b", "accent": "#7aa2f7",
 			"warning": "#e0af68", "warning-bg": "#40381f",
 			"danger": "#f7768e", "danger-muted": "#6d3541", "danger-bg": "#372028",
@@ -187,7 +187,7 @@ var ThemePresets = map[string]ThemePreset{
 		Light: map[string]string{
 			"bg": "#e1e2e7", "surface": "#d5d6db", "surface-raised": "#cbccd1",
 			"border": "#b9bac1", "border-strong": "#a1a6c5",
-			"fg": "#343b58", "fg-strong": "#24283b", "fg-muted": "#494c5d", "fg-faint": "#595d6f",
+			"fg": "#343b58", "fg-strong": "#24283b", "fg-muted": "#494c5d", "fg-faint": "#595d6e",
 			"primary": "#485e30", "primary-muted": "#b3c9a2", "accent": "#145aba",
 			"warning": "#805413", "warning-bg": "#f0e0bb",
 			"danger": "#ba093c", "danger-muted": "#e8a9b7", "danger-bg": "#f7dde3",
@@ -198,10 +198,10 @@ var ThemePresets = map[string]ThemePreset{
 		Dark: map[string]string{
 			"bg": "#002b36", "surface": "#073642", "surface-raised": "#06333e",
 			"border": "#0e4c5c", "border-strong": "#16606f",
-			"fg": "#839496", "fg-strong": "#93a1a1", "fg-muted": "#7c929a", "fg-faint": "#5f767e",
-			"primary": "#268bd2", "primary-muted": "#244d5f", "accent": "#6c71c4",
+			"fg": "#bcc5c6", "fg-strong": "#93a1a1", "fg-muted": "#9daeb3", "fg-faint": "#869ca4",
+			"primary": "#469fde", "primary-muted": "#244d5f", "accent": "#8f93d2",
 			"warning": "#c09100", "warning-bg": "#3a3413",
-			"danger": "#dc322f", "danger-muted": "#6e2a28", "danger-bg": "#2f1a19",
+			"danger": "#e87674", "danger-muted": "#6e2a28", "danger-bg": "#2f1a19",
 			"accent-fg": "#002b36",
 		},
 		Light: map[string]string{

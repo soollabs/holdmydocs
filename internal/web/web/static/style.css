@@ -2931,7 +2931,6 @@ body.no-sidebar { --settings-pad: 20px; }
 	background: var(--bg);
 	padding: 0.75rem 0;
 	margin-top: 0;
-	border-top: var(--border-w) solid var(--chrome-border);
 	z-index: 1;
 }
 
