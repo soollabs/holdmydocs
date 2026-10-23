@@ -114,25 +114,6 @@ type TokenView struct {
 	NamespaceLabel string
 }
 
-func remoteHost(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	s := raw
-	if i := strings.Index(s, "://"); i >= 0 {
-		s = s[i+3:]
-	} else if i := strings.Index(s, "@"); i >= 0 {
-		s = s[i+1:]
-	}
-	if i := strings.Index(s, "/"); i >= 0 {
-		s = s[:i]
-	}
-	if i := strings.Index(s, ":"); i >= 0 {
-		s = s[:i]
-	}
-	return s
-}
-
 // settingFields builds the settings-page state of every config.yaml setting,
 // keyed by schema key (git.remote_url). Environment-only settings are never
 // editable, and secrets only report whether they are set.

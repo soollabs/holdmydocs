@@ -2,8 +2,7 @@
 <div class="login-card">
 	{{$loginPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $loginPanel}}
 	<div class="login-intro">
-		{{t "login.intro" "Version" .Version}} &middot; {{t "login.tagline"}}
-		{{if .RemoteHost}}<br>{{t "login.git_remote" "Host" .RemoteHost}}{{end}}
+		{{t "login.intro"}}
 	</div>
 	{{if .Error}}{{$loginError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $loginError}}{{.Error}}{{template "ui-notice-end" $loginError}}{{end}}
 	{{if .OIDCLocalLogin}}

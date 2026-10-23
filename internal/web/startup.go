@@ -27,7 +27,7 @@ func StartupHandler() (http.Handler, error) {
 	mux.HandleFunc("GET /_/static/style.css", handleStyleSheet)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var body bytes.Buffer
-		data := TemplateData{Version: version, CSPNonce: httpmiddleware.CspNonce(r.Context()), Skin: defaultSkin, ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: skins[defaultSkin].Palette})}
+		data := TemplateData{CSPNonce: httpmiddleware.CspNonce(r.Context()), Skin: defaultSkin, ThemeStyle: buildThemeStyle(auth.UserRecord{Palette: skins[defaultSkin].Palette})}
 		if err := page.ExecuteTemplate(&body, "starting", data); err != nil {
 			slog.Error("rendering starting page", "err", err)
 			http.Error(w, "starting", http.StatusServiceUnavailable)

@@ -150,7 +150,6 @@ type TemplateData struct {
 	StatusMode              string // view|edit|search|log, drives the statusline mode block
 	StatusContext           string // right-aligned context: revision count / word counts
 	Version                 string // shown on login intro
-	RemoteHost              string // host of the git remote, for login intro (empty if none)
 	OIDCEnabled             bool   // show the SSO button on the login page
 	OIDCButtonText          string // SSO button label
 	OIDCLocalLogin          bool   // show the password form alongside SSO
@@ -318,7 +317,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	}
 	data.AssetPath = "/_/static/"
 	data.Version = version
-	data.RemoteHost = remoteHost(app.config().Git.RemoteURL)
 	if data.SyncState == "" {
 		data.SyncState, _, _ = app.apiClient().SyncState()
 	}
