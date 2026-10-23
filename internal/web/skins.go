@@ -33,7 +33,8 @@ func effectiveSkin(cfg config.Config, prefs auth.UserRecord) (string, skin) {
 }
 
 func effectivePalette(prefs auth.UserRecord, s skin) string {
-	if prefs.Palette != "" {
+	// A palette that has since been removed falls back to the skin's own.
+	if prefs.Palette != "" && presentation.ValidPalette(prefs.Palette) {
 		return prefs.Palette
 	}
 	return s.Palette

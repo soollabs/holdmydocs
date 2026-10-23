@@ -8,11 +8,11 @@
     "skin": {
       "type": "string",
       "enum": [
+        "bare",
         "phosphor",
         "newsprint",
         "journal",
-        "soft",
-        "bare"
+        "soft"
       ],
       "description": "Typography, spacing, markers and statusline. Widgets and publishing are set per namespace; the same repository works under any skin."
     },

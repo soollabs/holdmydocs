@@ -1667,6 +1667,15 @@
     stackBanners();
   });
 
+  // The top-bar menu closes on a click outside it or Escape.
+  document.addEventListener('click', e => {
+    $$('.topbar-menu[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    $$('.topbar-menu[open]').forEach(menu => { menu.open = false; menu.querySelector('summary').focus(); });
+  });
+
   // Shutdown lives in the top-bar menu and the restart banner, so it is wired
   // outside the settings pages.
   (function () {

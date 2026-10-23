@@ -1393,7 +1393,7 @@ ul.page-tree.branch > li::before {
 }
 
 .tree-order-editor {
-	margin: 0.25rem 0 0.75rem var(--settings-control-inset);
+	margin: 0.25rem 0 0.75rem;
 }
 
 .tree-order-list {
@@ -1440,7 +1440,14 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 .tree-order-node > details[open] > .tree-order-item .tree-order-toggle { transform: rotate(90deg); }
 .tree-order-handle { color: var(--fg-faint); cursor: grab; }
 .tree-order-title { color: var(--fg-strong); flex: 1; min-width: 0; }
-.tree-order-item code { color: var(--fg-muted); font-size: 0.75rem; }
+.tree-order-item code {
+	color: var(--fg-muted);
+	font-size: 0.75rem;
+	max-width: 40%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
 .tree-order-index {
 	color: var(--primary);
 	font-size: 0.75rem;
@@ -1845,7 +1852,14 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 	flex-shrink: 0;
 }
 
+.palette-row .hit-tags {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
 .palette-row .snippet {
+	flex: 1 1 0;
+	min-width: 0;
 	color: var(--fg-muted);
 	font-size: 12px;
 	overflow: hidden;
@@ -2391,7 +2405,8 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 .settings-row .token-meta {
 	color: var(--fg-muted);
 	font-size: 0.85rem;
-	flex: 1;
+	flex: 1 1 auto;
+	min-width: max-content;
 }
 
 .settings-row.user-row {
@@ -2547,13 +2562,13 @@ body.no-sidebar { --settings-pad: 20px; }
 	body.no-sidebar .app-topbar { padding-left: var(--settings-pad); }
 }
 .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; }
-.settings-panels { min-width: 0; overflow-wrap: anywhere; }
+.settings-panels { min-width: 0; overflow-wrap: break-word; }
 /* Desktop: the settings menu fills the sidebar column and the panels the reading
    column, so they line up with the wiki sidebar and page text. */
 @media (min-width: 900px) {
 	.settings-container { max-width: var(--shell-measure); padding: 0; }
 	.settings-layout { grid-template-columns: 260px minmax(0, 1fr); gap: 0; }
-	.settings-layout > .settings-nav { padding: var(--pad); }
+	.settings-layout > .settings-nav { padding: var(--pad) calc(var(--pad) / 2); }
 	.settings-panels { max-width: calc(var(--prose-measure) + var(--rail-w)); padding: 40px 48px; }
 }
 .settings-panels > .content-col,
@@ -2790,10 +2805,16 @@ body.no-sidebar { --settings-pad: 20px; }
 	color: var(--primary);
 }
 
+.export-link-row .ui-field__label {
+	display: block;
+	flex: 0 0 6.5rem;
+}
+
 .export-link-row input,
 .export-link-row select {
 	min-width: 0;
 	width: 100%;
+	flex: 1 1 0;
 	background: none;
 	color: var(--fg-strong);
 	font: inherit;
@@ -3165,7 +3186,7 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .breadcrumb a:hover {
-	color: var(--fg);
+	color: var(--accent);
 }
 
 .breadcrumb .sep {
@@ -3481,6 +3502,8 @@ body.no-sidebar { --settings-pad: 20px; }
 .palette-card.selected {
 	border-color: var(--primary);
 	background: var(--surface-raised);
+	outline: 1px solid var(--primary);
+	outline-offset: calc(var(--border-w) * -1);
 }
 
 .skin-card input,
@@ -3961,3 +3984,6 @@ body.no-sidebar { --settings-pad: 20px; }
 .settings-status .state-failed {
 	color: var(--danger);
 }
+
+/* Keeps Save and Discard together when the notice wraps. */
+.ui-notice__actions { display: inline-flex; gap: 0.5rem; white-space: nowrap; vertical-align: middle; }

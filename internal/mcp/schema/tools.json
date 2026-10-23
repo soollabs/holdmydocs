@@ -823,11 +823,11 @@
           "description": "skin shown to visitors; empty for the default",
           "enum": [
             "",
+            "bare",
             "phosphor",
             "newsprint",
             "journal",
-            "soft",
-            "bare"
+            "soft"
           ]
         },
         "palette": {
@@ -835,14 +835,13 @@
           "description": "colour palette shown to visitors; empty for the skin's own",
           "enum": [
             "",
+            "neutral",
             "phosphor",
-            "catppuccin",
             "dracula",
             "everforest",
+            "flexoki",
             "gruvbox",
-            "monokai",
             "nord",
-            "one dark",
             "rosé pine",
             "solarized",
             "tokyo night"

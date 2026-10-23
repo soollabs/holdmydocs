@@ -649,6 +649,18 @@
     "description": "Item in the top bar more-actions menu, cycles the colour theme.",
     "other": "Theme"
   },
+  "base.topbar_menu.theme_dark": {
+    "description": "More-actions menu theme item when the dark theme is chosen.",
+    "other": "Theme: dark"
+  },
+  "base.topbar_menu.theme_light": {
+    "description": "More-actions menu theme item when the light theme is chosen.",
+    "other": "Theme: light"
+  },
+  "base.topbar_menu.theme_system": {
+    "description": "More-actions menu theme item when following the system theme.",
+    "other": "Theme: system"
+  },
   "common.cancel": {
     "description": "Shared label used wherever an action is named \"Cancel\".",
     "other": "Cancel"

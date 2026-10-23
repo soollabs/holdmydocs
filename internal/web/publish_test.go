@@ -158,7 +158,7 @@ func TestAnonymousPublicNamespaceSkinUsesDefaultPalette(t *testing.T) {
 		}()
 	}
 	body, _ := io.ReadAll(resp.Body)
-	for _, want := range []string{`data-skin="newsprint"`, `--bg:#002b36;`} {
+	for _, want := range []string{`data-skin="newsprint"`, `--bg:#100f0f;`} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("public newsprint page missing %q: %s", want, body)
 		}

@@ -111,11 +111,11 @@
           "type": "string",
           "default": "bare",
           "enum": [
+            "bare",
             "phosphor",
             "newsprint",
             "journal",
-            "soft",
-            "bare"
+            "soft"
           ],
           "description": "Skin used for users who have not chosen their own.",
           "x-restart": false

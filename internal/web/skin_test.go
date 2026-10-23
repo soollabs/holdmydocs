@@ -480,12 +480,12 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("reading switched skin: %v", err)
 	}
 	if !strings.Contains(string(body), `data-skin="newsprint"`) ||
-		!strings.Contains(string(body), `--primary:#268bd2;`) {
-		t.Errorf("newsprint response did not render its skin and Solarized primary")
+		!strings.Contains(string(body), `--primary:#3aa99f;`) {
+		t.Errorf("newsprint response did not render its skin and Flexoki primary")
 	}
 
 	resp3, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
-		"skin": {"newsprint"}, "palette": {"gruvbox"},
+		"skin": {"newsprint"}, "palette": {"nord"},
 	}))
 	if err != nil {
 		t.Fatalf("repicking palette: %v", err)
@@ -493,8 +493,8 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err := resp3.Body.Close(); err != nil {
 		t.Fatalf("closing appearance response body: %v", err)
 	}
-	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
-		t.Errorf("palette = %q, want gruvbox: an explicit pick on the same skin must stick", got)
+	if got := app.Auth.Prefs("admin").Palette; got != "nord" {
+		t.Errorf("palette = %q, want nord: an explicit pick on the same skin must stick", got)
 	}
 }
 
@@ -503,7 +503,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	defer server.Close()
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
-		"skin": {"newsprint"}, "palette": {"gruvbox"}, "palette_explicit": {"1"},
+		"skin": {"newsprint"}, "palette": {"nord"}, "palette_explicit": {"1"},
 	}))
 	if err != nil {
 		t.Fatalf("switching skin with explicit palette: %v", err)
@@ -511,8 +511,8 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	if err := resp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
 	}
-	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
-		t.Errorf("palette = %q, want gruvbox chosen after the skin", got)
+	if got := app.Auth.Prefs("admin").Palette; got != "nord" {
+		t.Errorf("palette = %q, want nord chosen after the skin", got)
 	}
 }
 
@@ -525,18 +525,6 @@ func TestSkinDefaultPalettesExist(t *testing.T) {
 		}
 		if _, ok := themePresets[s.Palette]; !ok {
 			t.Errorf("skin %q names palette %q, which is not a preset", name, s.Palette)
-		}
-	}
-}
-
-func TestNewsprintUsesSolarizedBlueAsPrimary(t *testing.T) {
-	preset := themePresets[skins["newsprint"].Palette]
-	for mode, colours := range map[string]map[string]string{"dark": preset.Dark, "light": preset.Light} {
-		if got := colours["primary"]; got != "#268bd2" {
-			t.Errorf("newsprint %s primary = %q, want Solarized blue", mode, got)
-		}
-		if got := colours["accent"]; got != "#6c71c4" {
-			t.Errorf("newsprint %s accent = %q, want Solarized violet", mode, got)
 		}
 	}
 }
