@@ -1601,13 +1601,9 @@
     "description": "Command palette description of the tag command.",
     "other": "edit tags"
   },
-  "login.git_remote": {
-    "description": "Line on the login page showing the git remote host. Host is the remote host name.",
-    "other": "git remote: {{.Host}}"
-  },
   "login.intro": {
-    "description": "Intro line on the login page with the app version. Version is the HoldMyDocs version number.",
-    "other": "hold my docs (hmd) {{.Version}}"
+    "description": "Product name shown above the login card. No version: it would tell anonymous visitors what to attack.",
+    "other": "hold my docs"
   },
   "login.password_label": {
     "description": "Label for the password field.",
@@ -1620,10 +1616,6 @@
   "login.submit": {
     "description": "Submit button of the login form.",
     "other": "log in"
-  },
-  "login.tagline": {
-    "description": "Tagline after the intro line on the login page.",
-    "other": "homelab wiki"
   },
   "login.username_label": {
     "description": "Label for the username field.",
@@ -2651,8 +2643,8 @@
     "other": "{{.Scope}} grants Administrator access to every namespace."
   },
   "starting.intro": {
-    "description": "Intro line on the starting page with the app version. Version is the HoldMyDocs version number.",
-    "other": "hold my docs (hmd) {{.Version}}"
+    "description": "Product name shown above the starting page card. No version: it would tell anonymous visitors what to attack.",
+    "other": "hold my docs"
   },
   "starting.reloads": {
     "description": "Second line on the starting page saying the page reloads when ready.",
@@ -2661,10 +2653,6 @@
   "starting.status": {
     "description": "Status line on the starting page, shown while HoldMyDocs starts.",
     "other": "starting…"
-  },
-  "starting.tagline": {
-    "description": "Tagline after the intro line on the starting page.",
-    "other": "homelab wiki"
   },
   "starting.title": {
     "description": "Browser tab title of the page shown while HoldMyDocs is starting.",

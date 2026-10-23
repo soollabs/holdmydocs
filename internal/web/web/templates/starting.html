@@ -19,7 +19,7 @@
 <main id="main-content">
 <div class="login-card">
 	{{$startingPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $startingPanel}}
-	<div class="login-intro">{{t "starting.intro" "Version" .Version}} &middot; {{t "starting.tagline"}}</div>
+	<div class="login-intro">{{t "starting.intro"}}</div>
 	<div class="login-form" role="status">{{t "starting.status"}}<br>{{t "starting.reloads"}}</div>
 {{template "ui-panel-end" $startingPanel}}
 </div>
