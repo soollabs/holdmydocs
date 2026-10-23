@@ -1,13 +1,15 @@
 # Hold My Docs
 
-**A self-hosted, Git-backed wiki for documentation, knowledge bases, and agent memory.**
+**A wiki that gets on with it.**
 
 Hold My Docs (HMD) runs as a single Go binary and keeps your content as Markdown in an ordinary Git repository. Every save is a commit, so your docs have real history and can sync to a remote you already use.
 
-<img src="docs/hero.png" width="860" alt="A fictional Field Lab wiki in HMD, shown on a dark desktop monitor beside a phone using the soft skin in light mode">
+<img src="docs/hero.png" width="860" alt="A fictional Ridge Cabin wiki in HMD, shown on a dark desktop monitor in the default skin beside a phone using the soft skin in light mode">
 
 > [!WARNING]
 > Hold My Docs is an early-stage project. Expect rough edges and breaking changes. Keep backups and test upgrades before relying on it as your only source for important documentation.
+
+<img src="docs/demo.webp" width="860" alt="HMD demo with a fictional wiki: a new page is typed and saved, five namespaces appear in the bare, phosphor, newsprint, journal and soft skins, then the wiki is shown on a desktop monitor and a phone">
 
 ## Features
 
@@ -47,12 +49,6 @@ HMD_ADMIN_USER=admin HMD_ADMIN_PASSWORD='use-a-unique-password-of-at-least-12-ch
 ```
 
 Keep `HMD_APP_DIR` on local disk (not NFS); `HMD_SERVER_REPO_DIR` can be on network storage.
-
-## Screenshots
-
-<img src="docs/demo.gif" width="860" alt="HMD walkthrough: a fictional Field Lab wiki, a Mermaid network diagram, services, the write-first Markdown editor, search, namespace settings, tags, and public notes in the light newsprint skin">
-
-More screenshots are in [`docs/screenshots/`](docs/screenshots/).
 
 ## Documentation
 
