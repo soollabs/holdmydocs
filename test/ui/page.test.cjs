@@ -11,17 +11,18 @@ const components = require('../../internal/web/web/static/components.js');
 
 function fixture(clipboard) {
   const copied = [], selected = [], timers = [], rendered = [];
-  function page(text) {
-    const buttons = [];
-    const code = { textContent: text };
+  function page(text, className = '') {
+    const buttons = [], labels = [], classes = [];
+    const code = { textContent: text, className };
     code.parentElement = {
-      classList: { add() {} },
+      classList: { add(name) { classes.push(name); } },
       querySelector() { return buttons[0] || null; },
-      appendChild(button) { buttons.push(button); }
+      appendChild(button) { buttons.push(button); },
+      insertBefore(label, before) { assert.equal(before, code); labels.push(label); }
     };
     const diagram = { processed: false };
     return {
-      code, buttons, diagram,
+      code, buttons, labels, classes, diagram,
       querySelectorAll(selector) {
         return selector === 'pre > code' ? [code] : diagram.processed ? [] : [diagram];
       }
@@ -87,4 +88,17 @@ test('enhancements are idempotent and work on replacement page content', () => {
   assert.equal(updated.buttons.length, 1);
   assert.equal(f.rendered.length, 2);
   f.context.HMDEnhancePage(null);
+});
+
+test('names a fenced language in the code block header', () => {
+  const f = fixture();
+  assert.deepEqual(f.initial.labels, []);
+  assert.ok(!f.initial.classes.includes('code-has-lang'));
+  const fenced = f.page('ls\n', 'language-sh');
+  f.context.HMDEnhancePage(fenced);
+  assert.equal(fenced.labels.length, 1);
+  assert.equal(fenced.labels[0].className, 'code-lang');
+  assert.equal(fenced.labels[0].textContent, 'sh');
+  assert.ok(fenced.classes.includes('code-has-lang'));
+  assert.equal(fenced.buttons.length, 1);
 });

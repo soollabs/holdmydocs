@@ -394,7 +394,7 @@ func TestNamespaceManagement(t *testing.T) {
 		t.Errorf("closing response body: %v", err)
 	}
 	body = string(content)
-	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/_/api/namespaces/delete`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `ON THIS PAGE`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `name="name"`) || !strings.Contains(body, `/_/api/namespaces/delete`) || !strings.Contains(body, `Published view preview`) || !strings.Contains(body, `sidebar-tree`) || !strings.Contains(body, `on this page`) {
 		t.Errorf("namespace editor = %d, body missing focused form: %s", resp.StatusCode, body)
 	}
 
