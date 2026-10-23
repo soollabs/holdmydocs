@@ -320,7 +320,7 @@ MCP clients can access ordinary pages only by default; when document search is e
 
 ## Skins
 
-A skin is how the app looks: typography, spacing, markers and what the statusline shows. The namespace decides which widgets mount, and a skin never changes how or where pages are stored, so the same repo opens correctly under any of them. Pick one on ` + "`/_/settings/appearance`" + `: ` + "`phosphor`" + ` (default, terminal), ` + "`newsprint`" + ` (broadsheet serif), ` + "`journal`" + ` (writing first: serif, wide measure), ` + "`soft`" + ` (rounded, low-contrast sans) or ` + "`bare`" + ` (stripped down). Each skin comes with the colour **palette** it was designed for, and you can pick a different one afterwards.
+A skin is how the app looks: typography, spacing, markers and what the statusline shows. The namespace decides which widgets mount, and a skin never changes how or where pages are stored, so the same repo opens correctly under any of them. Pick one on ` + "`/_/settings/appearance`" + `: ` + "`bare`" + ` (default, plain and stripped down), ` + "`soft`" + ` (rounded, low-contrast sans), ` + "`journal`" + ` (writing first: serif, wide measure), ` + "`newsprint`" + ` (broadsheet serif) or ` + "`phosphor`" + ` (terminal green, monospace). Each skin comes with the colour **palette** it was designed for, and you can pick a different one afterwards.
 `
 
 const DefaultHelpMD = defaultHelpMD

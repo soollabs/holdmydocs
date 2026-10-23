@@ -510,6 +510,17 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 	}
 
+	// Pages without a viewer or namespace skin (login, anonymous errors) use
+	// the server's skin rather than the bare stylesheet defaults. The palette
+	// needs an inline style, so it only follows where the page has a nonce.
+	if data.Skin == "" {
+		var s skin
+		data.Skin, s = effectiveSkin(app.config(), auth.UserRecord{})
+		if data.ThemeStyle == "" && data.CSPNonce != "" {
+			data.ThemeStyle = buildThemeStyle(auth.UserRecord{Palette: s.Palette})
+		}
+	}
+
 	// Load Mermaid only for pages that contain Mermaid content.
 	if strings.Contains(string(data.Content), "class=\"mermaid\"") ||
 		strings.Contains(data.Body, "mermaid") {

@@ -1,5 +1,5 @@
 {{define "starting"}}<!DOCTYPE html>
-<html lang="en">
+<html lang="en"{{if .Skin}} data-skin="{{.Skin}}"{{end}}>
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -8,6 +8,7 @@
 	<link rel="stylesheet" href="{{static "style.css"}}">
 	<link rel="stylesheet" href="{{static "skins.css"}}">
 	<link rel="stylesheet" href="{{static "components.css"}}">
+	{{if .ThemeStyle}}<style nonce="{{.CSPNonce}}" id="theme-style">{{.ThemeStyle}}</style>{{end}}
 	<link rel="icon" href="{{static "icon.svg"}}" type="image/svg+xml">
 	<meta name="theme-color" content="#0b0f14" id="meta-theme-color">
 	<script nonce="{{.CSPNonce}}">

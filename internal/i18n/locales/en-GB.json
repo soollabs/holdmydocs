@@ -2552,7 +2552,7 @@
   },
   "settings.skin.note.bare": {
     "description": "Short description under the bare skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "minimal: wide margins without borders or markers"
+    "other": "the default: plain sans, wide margins, no borders or markers"
   },
   "settings.skin.note.journal": {
     "description": "Short description under the journal skin's name in the skin picker. The skin name itself is not translated.",
@@ -2564,7 +2564,7 @@
   },
   "settings.skin.note.phosphor": {
     "description": "Short description under the phosphor skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "the default: terminal green, monospace, # markers"
+    "other": "terminal green, monospace, # markers"
   },
   "settings.skin.note.soft": {
     "description": "Short description under the soft skin's name in the skin picker. The skin name itself is not translated.",

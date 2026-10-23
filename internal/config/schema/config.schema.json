@@ -109,7 +109,7 @@
         "skin": {
           "title": "default skin",
           "type": "string",
-          "default": "phosphor",
+          "default": "bare",
           "enum": [
             "phosphor",
             "newsprint",

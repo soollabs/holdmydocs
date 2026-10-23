@@ -13,7 +13,7 @@ type Skin struct {
 }
 
 // DefaultSkin is the skin used when none is configured or a name is unknown.
-const DefaultSkin = "phosphor"
+const DefaultSkin = "bare"
 
 // SkinNames lists every selectable skin in display order.
 var SkinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
