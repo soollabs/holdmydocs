@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"hmd/internal/api"
-	"hmd/internal/auth"
 	"hmd/internal/i18n"
 	"hmd/internal/wiki"
 )
@@ -284,11 +283,7 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 	}
 
 	cfg := ns.Resolve(slug)
-	skin := resolveSkin(cfg.Skin)
-	palette := cfg.Palette
-	if palette == "" {
-		palette = skin.Palette
-	}
+	skinName, themeStyle := app.publicAppearance(cfg.Skin, cfg.Palette)
 	var sidebarTreeNS string
 	var sidebarTreeEntries []wiki.BacklinkEntry
 	if summary := app.apiClient().NamespaceSummary(r.Context(), pageNS); summary != nil {
@@ -313,8 +308,8 @@ func (app *App) handlePublicPage(w http.ResponseWriter, r *http.Request, slug st
 		NamespaceTitle:     publishedTitle,
 		Description:        description,
 		Preview:            liveLinkPreview(app.config().BaseURL, pageNS, pageRest, cfg, image),
-		Skin:               skinName(cfg.Skin),
-		ThemeStyle:         buildThemeStyle(auth.UserRecord{Palette: palette}),
+		Skin:               skinName,
+		ThemeStyle:         themeStyle,
 		SidebarTreeNS:      sidebarTreeNS,
 		SidebarTreeEntries: sidebarTreeEntries,
 		// The outline widget builds its list from this page's own headings
@@ -409,8 +404,7 @@ func (app *App) handleNamespaceIndex(w http.ResponseWriter, r *http.Request, nam
 		siteName = publishedTitle
 		description = summary.Config.Description
 		preview = liveLinkPreview(app.config().BaseURL, name, "", summary.Config, "")
-		namespaceSkin = summary.Config.Skin
-		themeStyle = buildThemeStyle(auth.UserRecord{Palette: summary.Config.Palette})
+		namespaceSkin, themeStyle = app.publicAppearance(summary.Config.Skin, summary.Config.Palette)
 	}
 
 	tagPages := filterBacklinkEntries(r.Context(), summary.Pages)

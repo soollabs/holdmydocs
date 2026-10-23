@@ -444,7 +444,7 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	defer server.Close()
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
-		"skin": {"phosphor"}, "palette": {"dracula"},
+		"skin": {defaultSkin}, "palette": {"dracula"},
 	}))
 	if err != nil {
 		t.Fatalf("setting palette: %v", err)

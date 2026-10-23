@@ -39,6 +39,7 @@ type NamespaceManagementData struct {
 	PaletteNames []string
 	Palettes     map[string]themePreset // JSON-encoded for the published-view preview
 	SkinPalettes map[string]string      // skin -> default palette for the preview
+	ServerSkin   string                 // skin a namespace without its own skin falls back to
 	Now          time.Time
 	TreeEditor   template.HTML
 	Error        string
@@ -370,6 +371,7 @@ func (app *App) namespaceManagementData(r *http.Request, name, errMsg string) Na
 		PaletteNames: themePresetNames,
 		Palettes:     themePresets,
 		SkinPalettes: skinPalettes(),
+		ServerSkin:   skinName(app.config().Skin),
 		Now:          time.Now(),
 		Error:        errMsg,
 	}

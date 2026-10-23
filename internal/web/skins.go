@@ -1,6 +1,7 @@
 package web
 
 import (
+	"html/template"
 	"net/http"
 	"net/url"
 
@@ -39,6 +40,14 @@ func effectivePalette(prefs auth.UserRecord, s skin) string {
 }
 
 func skinPalettes() map[string]string { return presentation.SkinPalettes() }
+
+// publicAppearance returns the skin and palette style anonymous viewers of a
+// public namespace see: the namespace's own choices, falling back to the
+// server skin and that skin's palette.
+func (app *App) publicAppearance(nsSkin, nsPalette string) (string, template.CSS) {
+	name, s := effectiveSkin(app.config(), auth.UserRecord{Skin: nsSkin})
+	return name, buildThemeStyle(auth.UserRecord{Palette: effectivePalette(auth.UserRecord{Palette: nsPalette}, s)})
+}
 
 // appearanceCookie holds an appearance draft: a skin, palette and fonts that
 // one browser applies before they are saved. The settings page writes it as
