@@ -1,13 +1,13 @@
 {{define "widget-tags"}}
-{{if .AllTags}}
+{{if .SidebarTags}}
 <div class="sidebar-section sidebar-tags-section">
 	{{$widgetPanel := component "panel" "variant" "default"}}{{template "ui-panel-start" $widgetPanel}}
 	<h2>{{t "widget.tags.title"}}</h2>
 	<ul class="tag-chips">
-		{{range .AllTags}}
+		{{range .SidebarTags}}
 		<li><a href="/_/tags/{{.Slug}}">{{.Tag}}<span class="count">{{.Count}}</span></a></li>
 		{{end}}
-		<li><a href="/_/tags" class="all-link">{{t "widget.tags.all"}}</a></li>
+		{{if .MoreTags}}<li><a href="/_/tags" class="all-link">{{tn "widget.tags.more" .MoreTags "Count" .MoreTags}}</a></li>{{end}}
 	</ul>
 	{{template "ui-panel-end" $widgetPanel}}
 </div>

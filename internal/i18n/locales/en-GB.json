@@ -3119,8 +3119,8 @@
     "other": "history({{.Count}})"
   },
   "widget.pages.title": {
-    "description": "Heading of the recent pages widget in the sidebar.",
-    "other": "pages"
+    "description": "Heading of the sidebar widget listing the pages this browser opened recently, with its palette pins first.",
+    "other": "recently viewed"
   },
   "widget.pinned.title": {
     "description": "Heading of the pinned pages widget in the sidebar.",
@@ -3130,9 +3130,10 @@
     "description": "Label above the list of earlier journal entries.",
     "other": "earlier"
   },
-  "widget.tags.all": {
-    "description": "Link at the end of the tags widget that opens the full tag list. Includes a leading triangle glyph.",
-    "other": "▸ all"
+  "widget.tags.more": {
+    "description": "Link at the end of the tags widget that opens the full tag list. Count is the number of tags not shown in the widget.",
+    "one": "{{.Count}} more",
+    "other": "{{.Count}} more"
   },
   "widget.tags.title": {
     "description": "Heading of the tags widget in the sidebar.",

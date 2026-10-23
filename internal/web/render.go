@@ -127,6 +127,8 @@ type TemplateData struct {
 	TagsInput               string
 	PageTags                []TagChip
 	AllTags                 []wiki.TagCount
+	SidebarTags             []wiki.TagCount // the most used tags, for the sidebar widget
+	MoreTags                int             // tags left out of SidebarTags
 	TagName                 string
 	TagPages                []wiki.BacklinkEntry
 	SyncState               string
@@ -351,6 +353,7 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 			ns, _ := wiki.NamespaceFor(data.Slug)
 			data.AllTags = app.apiClient().NamespaceTags(r.Context(), ns)
 		}
+		data.SidebarTags, data.MoreTags = topTags(data.AllTags, sidebarTagLimit)
 	}
 	if data.Authed && data.StatusMode == "" {
 		data.StatusMode = "view"
@@ -617,4 +620,24 @@ func (app *App) gitAuthor(username string) (name, email string) {
 
 func htmlEscape(s string) string {
 	return html.EscapeString(s)
+}
+
+// sidebarTagLimit is how many tags the sidebar tags widget lists before it
+// links to the full tag index.
+const sidebarTagLimit = 5
+
+// topTags returns the limit most used tags, most used first and then by name,
+// and how many tags it left out.
+func topTags(tags []wiki.TagCount, limit int) ([]wiki.TagCount, int) {
+	top := slices.Clone(tags)
+	slices.SortStableFunc(top, func(a, b wiki.TagCount) int {
+		if a.Count != b.Count {
+			return b.Count - a.Count
+		}
+		return strings.Compare(a.Tag, b.Tag)
+	})
+	if len(top) <= limit {
+		return top, 0
+	}
+	return top[:limit], len(top) - limit
 }

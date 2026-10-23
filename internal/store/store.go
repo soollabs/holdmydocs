@@ -258,7 +258,7 @@ Every page starts with a frontmatter block:
 
 ` + "`title`" + ` is the display heading. ` + "`tags`" + ` is a comma-separated list.
 
-` + "`pin: true`" + ` puts the page in the pinned sidebar widget for everyone, and an ordinary editor save keeps it. The palette's ` + "`pin`" + ` command is separate: it pins the page for you only, in this browser, at the top of the pages widget.
+` + "`pin: true`" + ` puts the page in the pinned sidebar widget for everyone, and an ordinary editor save keeps it. The palette's ` + "`pin`" + ` command is separate: it pins the page for you only, in this browser, at the top of the recently viewed widget.
 
 ## Body
 
