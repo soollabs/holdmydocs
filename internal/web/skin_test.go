@@ -1,15 +1,18 @@
 package web
 
 import (
+	"hmd/internal/auth"
 	"hmd/internal/testhttp"
 
 	"bytes"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -480,12 +483,12 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 		t.Fatalf("reading switched skin: %v", err)
 	}
 	if !strings.Contains(string(body), `data-skin="newsprint"`) ||
-		!strings.Contains(string(body), `--primary:#268bd2;`) {
-		t.Errorf("newsprint response did not render its skin and Solarized primary")
+		!strings.Contains(string(body), `--primary:#3aa99f;`) {
+		t.Errorf("newsprint response did not render its skin and Flexoki primary")
 	}
 
 	resp3, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
-		"skin": {"newsprint"}, "palette": {"gruvbox"},
+		"skin": {"newsprint"}, "palette": {"nord"},
 	}))
 	if err != nil {
 		t.Fatalf("repicking palette: %v", err)
@@ -493,8 +496,8 @@ func TestSkinSwitchResetsPalette(t *testing.T) {
 	if err := resp3.Body.Close(); err != nil {
 		t.Fatalf("closing appearance response body: %v", err)
 	}
-	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
-		t.Errorf("palette = %q, want gruvbox: an explicit pick on the same skin must stick", got)
+	if got := app.Auth.Prefs("admin").Palette; got != "nord" {
+		t.Errorf("palette = %q, want nord: an explicit pick on the same skin must stick", got)
 	}
 }
 
@@ -503,7 +506,7 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	defer server.Close()
 
 	resp, err := postJSON(t, client, server.URL+"/_/api/settings/appearance", appearanceJSON(url.Values{
-		"skin": {"newsprint"}, "palette": {"gruvbox"}, "palette_explicit": {"1"},
+		"skin": {"newsprint"}, "palette": {"nord"}, "palette_explicit": {"1"},
 	}))
 	if err != nil {
 		t.Fatalf("switching skin with explicit palette: %v", err)
@@ -511,8 +514,8 @@ func TestSkinSwitchKeepsExplicitPaletteChoice(t *testing.T) {
 	if err := resp.Body.Close(); err != nil {
 		t.Errorf("closing response body: %v", err)
 	}
-	if got := app.Auth.Prefs("admin").Palette; got != "gruvbox" {
-		t.Errorf("palette = %q, want gruvbox chosen after the skin", got)
+	if got := app.Auth.Prefs("admin").Palette; got != "nord" {
+		t.Errorf("palette = %q, want nord chosen after the skin", got)
 	}
 }
 
@@ -529,14 +532,52 @@ func TestSkinDefaultPalettesExist(t *testing.T) {
 	}
 }
 
-func TestNewsprintUsesSolarizedBlueAsPrimary(t *testing.T) {
-	preset := themePresets[skins["newsprint"].Palette]
-	for mode, colours := range map[string]map[string]string{"dark": preset.Dark, "light": preset.Light} {
-		if got := colours["primary"]; got != "#268bd2" {
-			t.Errorf("newsprint %s primary = %q, want Solarized blue", mode, got)
+// relativeLuminance is the WCAG relative luminance of a #rrggbb colour.
+func relativeLuminance(t *testing.T, hex string) float64 {
+	t.Helper()
+	v, err := strconv.ParseUint(strings.TrimPrefix(hex, "#"), 16, 32)
+	if err != nil || len(hex) != 7 {
+		t.Fatalf("bad colour %q", hex)
+	}
+	channel := func(shift uint) float64 {
+		c := float64((v>>shift)&0xff) / 255
+		if c <= 0.03928 {
+			return c / 12.92
 		}
-		if got := colours["accent"]; got != "#6c71c4" {
-			t.Errorf("newsprint %s accent = %q, want Solarized violet", mode, got)
+		return math.Pow((c+0.055)/1.055, 2.4)
+	}
+	return 0.2126*channel(16) + 0.7152*channel(8) + 0.0722*channel(0)
+}
+
+func contrastRatio(t *testing.T, a, b string) float64 {
+	t.Helper()
+	la, lb := relativeLuminance(t, a), relativeLuminance(t, b)
+	return (math.Max(la, lb) + 0.05) / (math.Min(la, lb) + 0.05)
+}
+
+// Every palette keeps its text colours at WCAG AA (4.5:1) on the surface,
+// and button text readable on the primary fill, in both modes.
+func TestPalettesMeetTextContrast(t *testing.T) {
+	for name, preset := range themePresets {
+		for mode, colours := range map[string]map[string]string{"dark": preset.Dark, "light": preset.Light} {
+			for _, key := range []string{"fg", "fg-muted", "fg-faint", "primary", "accent", "danger", "warning"} {
+				if got := contrastRatio(t, colours[key], colours["surface"]); got < 4.5 {
+					t.Errorf("%s %s %s %s on surface %s = %.2f:1, want at least 4.5:1", name, mode, key, colours[key], colours["surface"], got)
+				}
+			}
+			if got := contrastRatio(t, colours["accent-fg"], colours["primary"]); got < 4.5 {
+				t.Errorf("%s %s button text %s on primary %s = %.2f:1, want at least 4.5:1", name, mode, colours["accent-fg"], colours["primary"], got)
+			}
 		}
+	}
+}
+
+func TestRemovedPaletteFallsBackToSkinPalette(t *testing.T) {
+	s := skins["newsprint"]
+	if got := effectivePalette(auth.UserRecord{Palette: "monokai"}, s); got != s.Palette {
+		t.Errorf("effective palette for removed monokai = %q, want the skin's %q", got, s.Palette)
+	}
+	if got := effectivePalette(auth.UserRecord{Palette: "nord"}, s); got != "nord" {
+		t.Errorf("effective palette for chosen nord = %q, want nord", got)
 	}
 }

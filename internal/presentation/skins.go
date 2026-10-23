@@ -16,7 +16,7 @@ type Skin struct {
 const DefaultSkin = "bare"
 
 // SkinNames lists every selectable skin in display order.
-var SkinNames = []string{"phosphor", "newsprint", "journal", "soft", "bare"}
+var SkinNames = []string{"bare", "phosphor", "newsprint", "journal", "soft"}
 
 // Skins maps each skin name to its definition.
 var Skins = map[string]Skin{
@@ -25,7 +25,7 @@ var Skins = map[string]Skin{
 		Status:  "full",
 	},
 	"newsprint": {
-		Palette: "solarized",
+		Palette: "flexoki",
 		Status:  "full",
 	},
 	"journal": {
@@ -37,7 +37,7 @@ var Skins = map[string]Skin{
 		Status:  "full",
 	},
 	"bare": {
-		Palette: "one dark",
+		Palette: "neutral",
 		Status:  "quiet",
 	},
 }

@@ -213,12 +213,9 @@
 	--prose-measure: 900px;
 	--prose-size:    18px;
 	--prose-leading: 1.75;
-	/* One ruled line. Gaps and heading spacing are whole lines so the text
-	   keeps sitting on the rules below it. */
+	/* One line of text. Gaps and heading spacing are whole lines. */
 	--rhythm:        calc(var(--prose-size) * var(--prose-leading));
 	--para-gap:      var(--rhythm);
-	--rule-ink:      color-mix(in srgb, var(--accent) 10%, transparent);
-	--margin-ink:    color-mix(in srgb, var(--danger) 40%, transparent);
 	--paper-grain:   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 
 	--title-size:      34px;
@@ -243,21 +240,14 @@
 	--paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
-/* The editor toolbar covers the page as it sticks, so it carries the grain
-   too. */
-:root[data-skin="journal"] :is(body, .toolbar) {
+/* The editor toolbar and the settings save bar cover the page as they stick,
+   so they carry the grain too. */
+:root[data-skin="journal"] :is(body, .toolbar, .settings-actions-sticky) {
 	background-image: var(--paper-grain);
 }
 
 :root[data-skin="journal"] .topbar-site {
 	font-style: italic;
-}
-
-/* A notebook page: faint rules one line apart, and a margin line. */
-:root[data-skin="journal"] #page-content {
-	padding-left: 1.25em;
-	border-left: 1px solid var(--margin-ink);
-	background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--rhythm) - 1px), var(--rule-ink) calc(var(--rhythm) - 1px) var(--rhythm));
 }
 
 :root[data-skin="journal"] #page-content :is(ul, ol) {
@@ -377,8 +367,8 @@
 	--prose-measure: 880px;
 	--prose-leading: 1.85;
 	--pad: 20px;
-	/* Keep a low-contrast border so the panel edge remains visible. */
-	--chrome-border: color-mix(in srgb, var(--border) 55%, var(--surface));
+	/* Softer than a plain rule, but still a visible seam between regions. */
+	--chrome-border: color-mix(in srgb, var(--border-visible) 75%, var(--surface));
 	--brand-prefix: "";
 	--topbar-inset: calc(var(--pad) - 8px);  /* the floating topbar already sits 8px in */
 	--brand-cursor: "";
@@ -398,6 +388,14 @@
 :root[data-skin="soft"] .settings-section,
 :root[data-skin="soft"] .preview-card {
 	border-radius: var(--radius-lg);
+}
+
+:root[data-skin="soft"] .settings-section {
+	background: var(--surface);
+}
+
+:root[data-skin="soft"] .settings-nav a:hover {
+	background: var(--surface-raised);
 }
 
 :root[data-skin="soft"] .sidebar-section {
@@ -446,9 +444,31 @@
 /* The topbar floats as a rounded island instead of spanning edge to edge. */
 :root[data-skin="soft"] .app-topbar {
 	margin: 6px 8px 0;
-	border: none;
+	border: var(--chrome-border-w) solid var(--chrome-border);
 	border-radius: var(--radius-lg);
 	background: var(--surface-raised);
+}
+
+/* On wide screens the shell leaves the sidebar unboxed. Soft draws it as a
+   filled, bordered panel so the region reads against the page. */
+@media (min-width: 900px) {
+	:root[data-skin="soft"] body.shell > .sidebar {
+		margin: 8px 0;
+		padding-inline: calc(var(--pad) - 6px);
+		border: var(--chrome-border-w) solid var(--chrome-border);
+		border-radius: var(--radius-lg);
+		background: var(--surface);
+	}
+}
+
+@media (min-width: 900px) {
+	:root[data-skin="soft"] .settings-nav {
+		margin-bottom: 8px;
+		padding: var(--pad-tight);
+		border: var(--chrome-border-w) solid var(--chrome-border);
+		border-radius: var(--radius-lg);
+		background: var(--surface);
+	}
 }
 
 /* The name lines up with the content's edge, allowing for the island's own
@@ -501,6 +521,10 @@
 	--brand-cursor: "";
 }
 
+:root:is([data-skin="journal"], [data-skin="bare"]) .settings-section legend {
+	padding-inline: 0;
+}
+
 /* Swiss restraint: one large, tightly set title carries the page. */
 :root[data-skin="bare"] h1.page-title:not(.settings-panels *) {
 	font-size: clamp(28px, 4vw, 44px);
@@ -525,17 +549,14 @@
 
 
 :root[data-skin="bare"] .sidebar-log,
-:root[data-skin="bare"] .breadcrumb,
-:root[data-skin="bare"] .statusline .seg {
+:root[data-skin="bare"] .statusline .seg:not(.seg-mode) {
 	color: var(--fg-faint);
 }
 
 :root[data-skin="bare"] .sidebar-log:hover,
 :root[data-skin="bare"] .sidebar-log:focus-within,
-:root[data-skin="bare"] .breadcrumb:hover,
-:root[data-skin="bare"] .breadcrumb:focus-within,
-:root[data-skin="bare"] .statusline:hover .seg,
-:root[data-skin="bare"] .statusline:focus-within .seg {
+:root[data-skin="bare"] .statusline:hover .seg:not(.seg-mode),
+:root[data-skin="bare"] .statusline:focus-within .seg:not(.seg-mode) {
 	color: var(--fg-muted);
 }
 

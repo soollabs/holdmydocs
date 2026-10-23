@@ -34,11 +34,11 @@
     "skin": {
       "type": "string",
       "enum": [
+        "bare",
         "phosphor",
         "newsprint",
         "journal",
-        "soft",
-        "bare"
+        "soft"
       ],
       "description": "Skin shown to anonymous readers and in the static export. Signed-in users see their own skin."
     },
