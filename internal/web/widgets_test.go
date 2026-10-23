@@ -97,7 +97,7 @@ func TestTreeIsRequiredBelowAppBar(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	page := string(body)
 
-	tree := strings.Index(page, "<summary>TREE</summary>")
+	tree := strings.Index(page, "<summary>tree</summary>")
 	pages := strings.Index(page, `class="sidebar-section sidebar-pages"`)
 	if !strings.Contains(page, `id="topbar-search"`) || strings.Contains(page, `class="sidebar-section sidebar-search"`) {
 		t.Error("search should live only in the app bar")

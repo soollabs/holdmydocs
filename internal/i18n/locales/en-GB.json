@@ -1611,7 +1611,7 @@
   },
   "login.password_label": {
     "description": "Label for the password field.",
-    "other": "password:"
+    "other": "password"
   },
   "login.remember_me": {
     "description": "Label of the remember me checkbox.",
@@ -1619,7 +1619,7 @@
   },
   "login.submit": {
     "description": "Submit button of the login form.",
-    "other": "login ↵"
+    "other": "log in"
   },
   "login.tagline": {
     "description": "Tagline after the intro line on the login page.",
@@ -1627,7 +1627,7 @@
   },
   "login.username_label": {
     "description": "Label for the username field.",
-    "other": "login:"
+    "other": "username"
   },
   "namespace.edit_link": {
     "description": "Link in the namespace index header to edit the namespace settings.",
@@ -1829,7 +1829,7 @@
   },
   "namespace_edit.preview.on_this_page": {
     "description": "Sample table-of-contents label in the preview.",
-    "other": "ON THIS PAGE"
+    "other": "on this page"
   },
   "namespace_edit.preview.page_one": {
     "description": "Sample page in the preview page tree.",
@@ -1857,7 +1857,7 @@
   },
   "namespace_edit.preview.tree": {
     "description": "Sample sidebar heading in the published-page preview.",
-    "other": "TREE"
+    "other": "tree"
   },
   "namespace_edit.preview_frame_title": {
     "description": "Accessible title of the published view preview iframe.",
@@ -2560,7 +2560,7 @@
   },
   "settings.skin.note.newsprint": {
     "description": "Short description under the newsprint skin's name in the skin picker. The skin name itself is not translated.",
-    "other": "broadsheet: masthead, serif, justified columns, ink on paper"
+    "other": "broadsheet: masthead, serif, dense columns, ink on paper"
   },
   "settings.skin.note.phosphor": {
     "description": "Short description under the phosphor skin's name in the skin picker. The skin name itself is not translated.",
@@ -3080,7 +3080,7 @@
   },
   "widget.health.title": {
     "description": "Heading of the sidebar health widget.",
-    "other": "HEALTH"
+    "other": "health"
   },
   "widget.keys.docs_label": {
     "description": "Tooltip and accessible label of the link to the HMD documentation site in the sidebar.",
@@ -3096,11 +3096,11 @@
   },
   "widget.log.title": {
     "description": "Heading of the recent changes log disclosure in the sidebar.",
-    "other": "LOG"
+    "other": "log"
   },
   "widget.namespaces.title": {
     "description": "Heading of the namespaces widget in the sidebar.",
-    "other": "NAMESPACES"
+    "other": "namespaces"
   },
   "widget.namespaces.view_all": {
     "description": "Link at the bottom of the namespaces widget that opens the full namespace settings list.",
@@ -3108,7 +3108,7 @@
   },
   "widget.outline.title": {
     "description": "Label above the table of contents for the current page.",
-    "other": "ON THIS PAGE"
+    "other": "on this page"
   },
   "widget.page_meta.edited": {
     "description": "Line showing when the page was last edited and by whom. When is the time, Author is the editor's name.",
@@ -3120,11 +3120,11 @@
   },
   "widget.pages.title": {
     "description": "Heading of the recent pages widget in the sidebar.",
-    "other": "PAGES"
+    "other": "pages"
   },
   "widget.pinned.title": {
     "description": "Heading of the pinned pages widget in the sidebar.",
-    "other": "PINNED"
+    "other": "pinned"
   },
   "widget.prev_entries.label": {
     "description": "Label above the list of earlier journal entries.",
@@ -3136,11 +3136,11 @@
   },
   "widget.tags.title": {
     "description": "Heading of the tags widget in the sidebar.",
-    "other": "TAGS"
+    "other": "tags"
   },
   "widget.tree.title": {
     "description": "Summary of the page tree disclosure in the sidebar.",
-    "other": "TREE"
+    "other": "tree"
   },
   "widget.writing_stats.days_written": {
     "description": "Label for the number of days written this month.",
@@ -3152,7 +3152,7 @@
   },
   "widget.writing_stats.title": {
     "description": "Heading of the writing statistics widget for the current month.",
-    "other": "THIS MONTH"
+    "other": "this month"
   },
   "widget.writing_stats.words_today": {
     "description": "Label for the number of words written today.",

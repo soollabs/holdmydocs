@@ -27,17 +27,17 @@ var WidgetIDs = []string{
 
 // Widgets maps each widget identifier to its definition.
 var Widgets = map[string]Widget{
-	"pages":      {ID: "pages", Title: "PAGES", Slot: SlotSidebar, Description: "recently edited pages in this namespace, most recent first."},
-	"namespaces": {ID: "namespaces", Title: "NAMESPACES", Slot: SlotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
-	"pinned":     {ID: "pinned", Title: "PINNED", Slot: SlotSidebar, Description: "pages you've pinned for quick access."},
-	"tags":       {ID: "tags", Title: "TAGS", Slot: SlotSidebar, Description: "tags used in this namespace, with page counts."},
-	"log":        {ID: "log", Title: "LOG", Slot: SlotSidebar, Description: "the last few commits to the page you're viewing."},
-	"health":     {ID: "health", Title: "HEALTH", Slot: SlotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
+	"pages":      {ID: "pages", Title: "pages", Slot: SlotSidebar, Description: "recently edited pages in this namespace, most recent first."},
+	"namespaces": {ID: "namespaces", Title: "namespaces", Slot: SlotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
+	"pinned":     {ID: "pinned", Title: "pinned", Slot: SlotSidebar, Description: "pages you've pinned for quick access."},
+	"tags":       {ID: "tags", Title: "tags", Slot: SlotSidebar, Description: "tags used in this namespace, with page counts."},
+	"log":        {ID: "log", Title: "log", Slot: SlotSidebar, Description: "the last few commits to the page you're viewing."},
+	"health":     {ID: "health", Title: "health", Slot: SlotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
 
 	"calendar":      {ID: "calendar", Title: "", Slot: SlotSidebar, Description: "a month grid of daily pages, with entries highlighted."},
-	"writing-stats": {ID: "writing-stats", Title: "THIS MONTH", Slot: SlotSidebar, Description: "days written, streak, and word count for this month."},
+	"writing-stats": {ID: "writing-stats", Title: "this month", Slot: SlotSidebar, Description: "days written, streak, and word count for this month."},
 
-	"outline":      {ID: "outline", Title: "ON THIS PAGE", Slot: SlotRail, Description: "a table of contents built from the headings on the page you're viewing."},
+	"outline":      {ID: "outline", Title: "on this page", Slot: SlotRail, Description: "a table of contents built from the headings on the page you're viewing."},
 	"page-meta":    {ID: "page-meta", Title: "", Slot: SlotPageHead, Description: "tags, last editor, and revision count for the page you're viewing."},
 	"backlinks":    {ID: "backlinks", Title: "linked from", Slot: SlotPageFoot, Description: "other pages that link to this one."},
 	"prev-entries": {ID: "prev-entries", Title: "earlier", Slot: SlotPageFoot, Description: "the daily entries just before this one."},

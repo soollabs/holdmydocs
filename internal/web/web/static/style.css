@@ -42,7 +42,6 @@
 	--collapse-glyph: "\00ab";  /* «, the sidebar collapse control */
 	--brand-prefix:  "~/";      /* before the site name in the topbar */
 	--brand-cursor:  "\258d";   /* ▍, blinks after the site name on hover */
-	--marker-glow:   0 0 10px color-mix(in srgb, var(--primary) 45%, transparent);
 	/* A short rule under the page title's left edge; `block` shows it. */
 	--title-rule:        none;
 	--title-rule-w:      2.5rem;
@@ -315,12 +314,10 @@ body.shell.shell-public {
 }
 
 .sidebar h2 {
-	font-size: 11px;
-	letter-spacing: 0.06em;
+	font-size: 12px;
 	color: var(--fg-muted);
 	margin: 0 0 6px;
-	text-transform: uppercase;
-	font-weight: 700;
+	font-weight: 600;
 }
 
 .sidebar-section {
@@ -725,24 +722,6 @@ main {
 .topbar-site:hover::after,
 .topbar-site:focus-visible::after {
 	visibility: visible;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-	.topbar-site:hover::after,
-	.topbar-site:focus-visible::after {
-		animation: brand-cursor-blink 1s steps(1) infinite;
-	}
-}
-
-@keyframes brand-cursor-blink {
-	50% { visibility: hidden; }
-}
-
-/* Glow reads as phosphor on a dark screen and as a smudge on a light one. */
-:root:not([data-theme="light"]) .topbar-site::before,
-:root:not([data-theme="light"]) .topbar-site::after,
-:root:not([data-theme="light"]) .h::before {
-	text-shadow: var(--marker-glow);
 }
 
 .topbar-actions {
@@ -1287,15 +1266,13 @@ ul.page-tree.branch > li::before {
 
 /* Sidebar TREE widget: the same tree, but compact (13px, sidebar-list's
    rhythm) and collapsible as a whole via <details>, matching every other
-   sidebar section's uppercase h2 header, but interactive. */
+   sidebar section's h2 header, but interactive. */
 .sidebar-tree > summary {
 	cursor: pointer;
 	list-style: revert;
-	font-size: 11px;
-	letter-spacing: 0.06em;
+	font-size: 12px;
 	color: var(--fg-muted);
-	text-transform: uppercase;
-	font-weight: 700;
+	font-weight: 600;
 	margin: 0 0 6px;
 }
 .sidebar-tree .page-tree {
@@ -1635,9 +1612,8 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 #page-content th {
 	background: var(--surface-raised);
 	color: var(--fg-muted);
-	text-transform: uppercase;
-	font-size: 11px;
-	letter-spacing: 0.04em;
+	font-size: 12px;
+	font-weight: 600;
 }
 
 #page-content td:first-child, #page-content th:first-child {
@@ -1658,9 +1634,8 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 .settings-table th {
 	background: var(--surface-raised);
 	color: var(--fg-muted);
-	text-transform: uppercase;
-	font-size: 11px;
-	letter-spacing: 0.04em;
+	font-size: 12px;
+	font-weight: 600;
 }
 
 .settings-table td:first-child, .settings-table th:first-child {
@@ -1678,7 +1653,6 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 #page-content pre {
 	background: var(--surface);
 	border: none;
-	border-left: 3px solid var(--primary);
 	border-radius: var(--radius);
 	font-size: 13.5px;
 }
@@ -1704,8 +1678,8 @@ summary.tree-order-item::-webkit-details-marker { display: none; }
 }
 
 .toc-rail .toc-label {
-	font-size: 11px;
-	letter-spacing: 0.06em;
+	font-size: 12px;
+	font-weight: 600;
 	color: var(--fg-muted);
 	margin-bottom: 8px;
 }
@@ -2196,7 +2170,6 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 .remote-changed-banner {
 	background: var(--warning-bg);
 	color: var(--fg-strong);
-	border-left: 3px solid var(--warning);
 	padding: 8px 14px;
 	border-radius: var(--radius-lg);
 	margin-bottom: 12px;
@@ -2247,7 +2220,7 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 }
 
 .login-card label {
-	color: var(--primary);
+	color: var(--fg-muted);
 	font-weight: 400;
 	width: 9ch;
 	flex-shrink: 0;
@@ -2256,15 +2229,6 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 /* The checkbox label is not a field-label column. */
 .login-card .ui-choice label {
 	width: auto;
-}
-
-.login-card input {
-	background: none;
-	border: none;
-	border-bottom: var(--field-border-w) solid var(--border-visible);
-	border-radius: 0;
-	color: var(--fg-strong);
-	padding: 4px 6px;
 }
 
 /* ---------------------------------------------------------------
@@ -2469,9 +2433,8 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 .oauth-heading strong { color: var(--fg-strong); overflow-wrap: anywhere; }
 .oauth-page h2 { font-size: 1.05rem; margin: 0; }
 .oauth-page h3 { font-size: 1rem; margin: 0; }
-.oauth-eyebrow { color: var(--primary); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 0.5rem; }
+.oauth-eyebrow { color: var(--fg-muted); font-size: 0.8rem; margin: 0 0 0.5rem; }
 .oauth-panel, #oauth-register { border: var(--border-w) solid var(--border-visible); padding: 1.25rem; margin-bottom: 1.25rem; border-radius: var(--radius-lg); min-width: 0; }
-.oauth-created { border-left: 3px solid var(--primary); }
 .oauth-facts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 0.6rem 1rem; margin: 1rem 0; font-size: 0.85rem; }
 .oauth-facts dt { color: var(--fg-muted); }
 .oauth-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
@@ -2513,7 +2476,7 @@ body main > .ui-notice--banner[data-stack]:not([data-stack="0"]) {
 .oauth-namespace { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.4rem 0; font-size: 0.85rem; cursor: pointer; overflow-wrap: anywhere; min-width: 0; }
 .oauth-namespace span { min-width: 0; }
 .oauth-scope-options { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; }
-.oauth-notice { padding: 0.9rem 1rem; border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--bg)); font-size: 0.85rem; overflow-wrap: anywhere; }
+.oauth-notice { padding: 0.9rem 1rem; background: color-mix(in srgb, var(--primary) 6%, var(--bg)); font-size: 0.85rem; overflow-wrap: anywhere; }
 .oauth-validation { font-size: 0.8rem; color: var(--fg-muted); margin: 0.8rem 0; }
 .oauth-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
 .oauth-consent-footer { border-top: var(--border-w) solid var(--chrome-border); padding-top: 1rem; }
@@ -2614,7 +2577,7 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 .settings-icon { width: 16px; height: 16px; flex: 0 0 16px; }
 .settings-nav a:hover { background: var(--surface); color: var(--fg-strong); }
-.settings-nav a[aria-current="page"] { background: var(--surface); color: var(--primary); box-shadow: inset 3px 0 var(--primary); }
+.settings-nav a[aria-current="page"] { background: var(--surface); color: var(--primary); font-weight: 600; }
 .settings-advanced summary { cursor: pointer; padding: 10px; color: var(--fg-muted); }
 .settings-advanced a { margin-top: 4px; }
 /* Namespace editor sections, nested under the namespaces link (16px icon + 8px gap). */
@@ -3263,10 +3226,9 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .sidebar-log summary {
-	font-size: 11px;
-	text-transform: uppercase;
+	font-size: 12px;
 	color: var(--fg-faint);
-	font-weight: 700;
+	font-weight: 600;
 	margin-bottom: 0.5rem;
 	cursor: pointer;
 	list-style: none;
@@ -3371,8 +3333,7 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .backlinks-label {
-	font-size: 11px;
-	text-transform: uppercase;
+	font-size: 12px;
 	color: var(--fg-muted);
 	margin-bottom: 1rem;
 }
@@ -3512,7 +3473,6 @@ body.no-sidebar { --settings-pad: 20px; }
 .palette-card.selected {
 	border-color: var(--primary);
 	background: var(--surface-raised);
-	box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .skin-card input,
@@ -3715,8 +3675,7 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .prev-entries-label {
-	font-size: 11px;
-	text-transform: uppercase;
+	font-size: 12px;
 	color: var(--fg-faint);
 	margin-bottom: 1rem;
 }
