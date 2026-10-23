@@ -27,10 +27,10 @@ var WidgetIDs = []string{
 
 // Widgets maps each widget identifier to its definition.
 var Widgets = map[string]Widget{
-	"pages":      {ID: "pages", Title: "pages", Slot: SlotSidebar, Description: "recently edited pages in this namespace, most recent first."},
+	"pages":      {ID: "pages", Title: "recently viewed", Slot: SlotSidebar, Description: "pages you opened recently in this namespace, in this browser, with your palette pins first."},
 	"namespaces": {ID: "namespaces", Title: "namespaces", Slot: SlotSidebar, Description: "every namespace in the wiki, with page counts, linking to its index."},
 	"pinned":     {ID: "pinned", Title: "pinned", Slot: SlotSidebar, Description: "pages you've pinned for quick access."},
-	"tags":       {ID: "tags", Title: "tags", Slot: SlotSidebar, Description: "tags used in this namespace, with page counts."},
+	"tags":       {ID: "tags", Title: "tags", Slot: SlotSidebar, Description: "the five most used tags in this namespace, with page counts and a link to the rest."},
 	"log":        {ID: "log", Title: "log", Slot: SlotSidebar, Description: "the last few commits to the page you're viewing."},
 	"health":     {ID: "health", Title: "health", Slot: SlotSidebar, Description: "missing links and orphaned pages, one click from a full report."},
 
