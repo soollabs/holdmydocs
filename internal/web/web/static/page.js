@@ -9,6 +9,15 @@
       var block = code.parentElement;
       if (block.querySelector('.code-copy')) return;
       block.classList.add('code-copy-block');
+      // A fenced language gets a header naming it; the copy button sits there too.
+      var lang = (code.className.match(/(?:^|\s)language-(\S+)/) || [])[1];
+      if (lang) {
+        var label = document.createElement('span');
+        label.className = 'code-lang';
+        label.textContent = lang;
+        block.insertBefore(label, code);
+        block.classList.add('code-has-lang');
+      }
       // An overlay control with its own .code-copy treatment, not a form action.
       var button = document.createElement('button');
       button.type = 'button';
