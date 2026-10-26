@@ -432,7 +432,6 @@ func (s *Store) DeleteLegacyAttachments(namespace, message, authorName, authorEm
 	return deleted, nil
 }
 
-// legacyNamespace is the namespace folder a legacy file sits in.
 func legacyNamespace(path string) string {
 	namespace, _, _ := strings.Cut(strings.TrimPrefix(path, attachmentsDir+"/"), "/")
 	return namespace

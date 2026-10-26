@@ -139,7 +139,7 @@ const (
 // any result the caller may not read. Post-filtering a bounded candidate window
 // cannot guarantee a full authorised result page; the window is preserved
 // rather than widened because authorisation-aware retrieval is out of scope for
-// this refactor.
+// this API.
 const attachmentSearchCandidates = 50
 
 // SearchAttachments runs attachment full-text search, limited to attachments

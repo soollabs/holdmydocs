@@ -278,34 +278,6 @@ func TestMiddleware(t *testing.T) {
 
 	token, _ := auth.Login("admin", "password12345")
 
-	successHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte("OK")); err != nil {
-			t.Errorf("writing response: %v", err)
-		}
-	})
-
-	protected := auth.Middleware(successHandler)
-
-	t.Run("unauthenticated redirect", func(t *testing.T) {
-		_, _ = http.NewRequestWithContext(t.Context(), "GET", "/page/index", nil)
-
-	})
-
-	t.Run("static allowed without auth", func(t *testing.T) {
-		req, _ := http.NewRequestWithContext(t.Context(), "GET", "/static/style.css", nil)
-		_ = protected
-		_ = req
-
-	})
-
-	t.Run("login allowed without auth", func(t *testing.T) {
-		req, _ := http.NewRequestWithContext(t.Context(), "GET", "/login", nil)
-		_ = protected
-		_ = req
-
-	})
-
 	if token == "" {
 		t.Error("Should have valid token for testing")
 	}

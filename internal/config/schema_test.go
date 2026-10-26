@@ -176,8 +176,8 @@ func TestSchemaRules(t *testing.T) {
 	}
 }
 
-// TestTikaURLFromFileAndEnvironment keeps HMD_DOCUMENT_SEARCH_TIKA_URL working now that
-// tika_url is also a config.yaml key.
+// TestTikaURLFromFileAndEnvironment keeps HMD_DOCUMENT_SEARCH_TIKA_URL working
+// alongside the tika_url config.yaml key.
 func TestTikaURLFromFileAndEnvironment(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

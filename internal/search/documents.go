@@ -326,7 +326,7 @@ type HugotEmbedder struct {
 	// mu runs one batch at a time. The model already needs most of the
 	// memory a small container has, and a search embedding its query while
 	// background indexing ran a batch pushed a 512 MiB container out of
-	// memory. A search now waits for the batch in progress instead.
+	// memory. A search waits for the batch in progress.
 	mu sync.Mutex
 }
 

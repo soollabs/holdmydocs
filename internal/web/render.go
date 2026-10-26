@@ -331,7 +331,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 	if data.Authed || data.NamespacePublic || name == "login" {
 		data.CSPNonce = httpmiddleware.CspNonce(r.Context())
 	}
-	// Use the current page's namespace as the default destination.
 	if data.Namespace == "" {
 		data.Namespace, _ = wiki.NamespaceFor(data.Slug)
 	}
@@ -522,7 +521,6 @@ func (app *App) render(w http.ResponseWriter, r *http.Request, status int, name 
 		}
 	}
 
-	// Load Mermaid only for pages that contain Mermaid content.
 	if strings.Contains(string(data.Content), "class=\"mermaid\"") ||
 		strings.Contains(data.Body, "mermaid") {
 		data.MermaidNeeded = true

@@ -64,7 +64,7 @@ func TestDynamicRegistrationCreatesClientWithoutGrant(t *testing.T) {
 }
 
 func TestDynamicClientUsesNormalAuthorizationFlow(t *testing.T) {
-	s, _, authn, session, _ := newOAuthServiceFixture(t)
+	s, _, _, session, _ := newOAuthServiceFixture(t)
 	s.options.DynamicRegistration = true
 	w := registerRequest(s, `{"redirect_uris":["https://client.example.test/callback"],"token_endpoint_auth_method":"none","scope":"read write"}`)
 	if w.Code != http.StatusCreated {
@@ -78,7 +78,7 @@ func TestDynamicClientUsesNormalAuthorizationFlow(t *testing.T) {
 	if _, ok := response["client_secret"]; ok {
 		t.Fatal("public client received secret")
 	}
-	code, _, _ := authoriseFixture(t, s, authn, session, id)
+	code, _, _ := authoriseFixture(t, s, session, id)
 	if code == "" {
 		t.Fatal("dynamic client could not complete consent")
 	}

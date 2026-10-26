@@ -116,7 +116,6 @@ func TestPasswordChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	session, _ := a.Login("alice", userTestPassword)
-	// Seed a second session to test future multiple-session support.
 	a.sessions["other"] = sessionRecord{User: "alice", Expires: time.Now().Add(time.Hour)}
 	next := "another-unique-test-password"
 	if err := a.ChangePassword("alice", userTestPassword, userTestPassword, session); !errors.Is(err, ErrSamePassword) {
