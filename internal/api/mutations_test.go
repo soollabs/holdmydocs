@@ -197,3 +197,95 @@ func TestRenameKeepsFolder(t *testing.T) {
 		t.Fatalf("renamed slug = %q, want notes/guides/new-title", result.Slug)
 	}
 }
+
+func TestMoveTakesAttachmentsAndHistory(t *testing.T) {
+	ix, err := search.BuildIndex(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, st := newMutationAPI(t, ix)
+	ctx := writeCtx()
+	if _, err := st.Save(wiki.NamespaceConfigPath("notes"), []byte("index: home\nimage: page/pic.png\ntree:\n  - page\n  - other\n"), "configure", "tester", "tester@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RefreshNamespaces(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SaveAttachment("notes/page", "pic.png", []byte("png"), nil, "add pic", "tester", "tester@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SaveAttachment("notes/page/child", "pic.png", []byte("child"), nil, "add child pic", "tester", "tester@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	body := "![a](" + wiki.AttachmentURL("notes/page", "pic.png") + ") ![b](" + wiki.AttachmentURL("notes/page/child", "pic.png") + ")"
+	first, err := a.SavePage(ctx, SavePageInput{Slug: "notes/page", Title: "Page", Body: body})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.MovePage(ctx, MovePageInput{FromSlug: "notes/page", ToSlug: "notes/moved", BaseHash: first.BlobHash}); err != nil {
+		t.Fatal(err)
+	}
+
+	view, err := a.ViewPage(ctx, "notes/moved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "![a](" + wiki.AttachmentURL("notes/moved", "pic.png") + ") ![b](" + wiki.AttachmentURL("notes/page/child", "pic.png") + ")"
+	if view.Body != want {
+		t.Errorf("moved body = %q, want %q", view.Body, want)
+	}
+	if _, ok := st.FindAttachment("notes/moved", "pic.png"); !ok {
+		t.Error("attachment did not move with the page")
+	}
+	if _, ok := st.FindAttachment("notes/page", "pic.png"); ok {
+		t.Error("attachment still under the old slug")
+	}
+	if _, ok := st.FindAttachment("notes/page/child", "pic.png"); !ok {
+		t.Error("child page's attachment moved")
+	}
+	cfg := a.Namespaces()["notes"]
+	if cfg.Image != "moved/pic.png" || len(cfg.Tree) != 2 || cfg.Tree[0] != "moved" {
+		t.Errorf("namespace config = image %q tree %v, want it to follow the page", cfg.Image, cfg.Tree)
+	}
+
+	history, err := a.PageHistory(ctx, "notes/moved")
+	if err != nil || len(history) != 2 {
+		t.Fatalf("history = %+v, %v; want the move and the original save", history, err)
+	}
+	old, err := a.RevisionPage(ctx, "notes/moved", history[1].Hash)
+	if err != nil || old.Body != body {
+		t.Fatalf("pre-move revision = %+v, %v", old, err)
+	}
+}
+
+func TestIndexPageStaysPut(t *testing.T) {
+	ix, err := search.BuildIndex(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, st := newMutationAPI(t, ix)
+	ctx := writeCtx()
+	if _, err := st.Save(wiki.NamespaceConfigPath("notes"), []byte("index: home\n"), "configure", "tester", "tester@hmd.local"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RefreshNamespaces(); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := a.SavePage(ctx, SavePageInput{Slug: "notes/home", Title: "Home", Body: "body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.MovePage(ctx, MovePageInput{FromSlug: "notes/home", ToSlug: "notes/start", BaseHash: saved.BlobHash}); CategoryOf(err) != CategoryInvalidInput {
+		t.Fatalf("moving the index page = %v, want invalid input", err)
+	}
+	result, err := a.RenamePage(ctx, RenamePageInput{Slug: "notes/home", NewTitle: "Welcome"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Slug != "notes/home" {
+		t.Fatalf("renamed index slug = %q, want notes/home", result.Slug)
+	}
+	if view, err := a.ViewPage(ctx, "notes/home"); err != nil || view.Title != "Welcome" {
+		t.Fatalf("index page after rename = %+v, %v", view, err)
+	}
+}

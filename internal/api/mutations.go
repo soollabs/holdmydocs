@@ -288,14 +288,26 @@ func (a *API) MovePage(ctx context.Context, in MovePageInput) (*Mutation, error)
 	if err := ValidatePageInput(page.Title, page.Tags, page.Body); err != nil {
 		return nil, InvalidInput(err.Error(), err)
 	}
+	// Attachments belong to the normal page of a slug, not a hidden one.
+	move := store.PageMove{}
+	if !in.FromHidden {
+		body, followers, err := a.moveFollowers(in.FromSlug, in.ToSlug, page.Body)
+		if err != nil {
+			return nil, err
+		}
+		page.Body, move = body, followers
+	}
 	a.fetchBeforeWrite()
 	name, email := a.Author(ctx)
-	hash, err := a.store.SaveChecked(oldFile, newFile, in.BaseHash, page.Encode(), "Move "+page.Title, name, email)
+	hash, err := a.store.MoveChecked(oldFile, newFile, in.BaseHash, page.Encode(), move, "Move "+page.Title, name, email)
 	if errors.Is(err, store.ErrConflict) {
 		return nil, Conflict("the destination exists or the page changed since basehash")
 	}
 	if err != nil {
 		return nil, Unavailable("moving page", err)
+	}
+	if len(move.Files) > 0 {
+		a.refreshNamespaces()
 	}
 	a.removeFromIndex(in.FromSlug)
 	mutation := &Mutation{Slug: in.ToSlug, BlobHash: hash}
@@ -306,6 +318,89 @@ func (a *API) MovePage(ctx context.Context, in MovePageInput) (*Mutation, error)
 	}
 	slog.Info("page moved", "from", in.FromSlug, "to", in.ToSlug, "author", name)
 	return mutation, nil
+}
+
+// moveFollowers returns the body with its attachment links rewritten and what
+// else moves with the page: its attachments and the namespace image and tree.
+func (a *API) moveFollowers(fromSlug, toSlug, body string) (string, store.PageMove, error) {
+	move := store.PageMove{FromSlug: fromSlug, ToSlug: toSlug}
+	if fromSlug == toSlug {
+		return body, move, nil
+	}
+	fromNS, fromPage := wiki.NamespaceFor(fromSlug)
+	toNS, toPage := wiki.NamespaceFor(toSlug)
+	if a.Namespaces().IndexSlug(fromNS) == fromSlug {
+		return "", move, InvalidInput("this page is the namespace index; choose another index page in the namespace settings first", nil)
+	}
+	names, err := a.store.PageAttachments(fromSlug)
+	if err != nil {
+		return "", move, Unavailable("listing attachments", err)
+	}
+	for _, filename := range names {
+		body = replaceURL(body, wiki.AttachmentURL(fromSlug, filename), wiki.AttachmentURL(toSlug, filename))
+	}
+
+	configPath := wiki.NamespaceConfigPath(fromNS)
+	data, hash, err := a.store.Read(configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return body, move, nil
+	}
+	if err != nil {
+		return "", move, Unavailable("reading namespace config", err)
+	}
+	cfg, err := wiki.ParseNamespaceConfig(data)
+	if err != nil {
+		return body, move, nil
+	}
+	changed := false
+	if i := strings.LastIndexByte(cfg.Image, '/'); i > 0 && cfg.Image[:i] == fromPage {
+		if toNS != fromNS {
+			return "", move, InvalidInput("an attachment of this page is the namespace preview image; change it in the namespace settings first", nil)
+		}
+		cfg.Image = toPage + cfg.Image[i:]
+		changed = true
+	}
+	tree := cfg.Tree[:0]
+	for _, entry := range cfg.Tree {
+		if entry == fromPage {
+			changed = true
+			if toNS != fromNS {
+				continue
+			}
+			entry = toPage
+		}
+		tree = append(tree, entry)
+	}
+	cfg.Tree = tree
+	if !changed {
+		return body, move, nil
+	}
+	encoded, err := cfg.Encode()
+	if err != nil {
+		return "", move, Unavailable("encoding namespace config", err)
+	}
+	move.Files = []store.CheckedFile{{Path: configPath, ExpectedHash: hash, Content: encoded}}
+	return body, move, nil
+}
+
+// replaceURL replaces from with to where it is not the start of a longer path.
+func replaceURL(text, from, to string) string {
+	var out strings.Builder
+	for {
+		i := strings.Index(text, from)
+		if i < 0 {
+			out.WriteString(text)
+			return out.String()
+		}
+		end := i + len(from)
+		out.WriteString(text[:i])
+		if end == len(text) || strings.IndexByte(" \t\r\n)]\"'<>?#|", text[end]) >= 0 {
+			out.WriteString(to)
+		} else {
+			out.WriteString(from)
+		}
+		text = text[end:]
+	}
 }
 
 // EditPageInput is an ordered set of exact-text replacements against one
@@ -467,12 +562,16 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 		return nil, InvalidInput("invalid title", nil)
 	}
 	// Keep the page in its folder: only the last segment follows the title.
+	// The namespace index keeps its slug.
 	renameNS, renamePage := wiki.NamespaceFor(in.Slug)
 	newPage := wiki.Slugify(newTitle)
 	if dir := path.Dir(renamePage); dir != "." {
 		newPage = dir + "/" + newPage
 	}
 	newSlug := wiki.NamespaceSlug(renameNS, newPage)
+	if a.Namespaces().IndexSlug(renameNS) == in.Slug {
+		newSlug = in.Slug
+	}
 	if !AllowSlug(ctx, newSlug) {
 		return nil, Forbidden("namespace access denied")
 	}
@@ -503,14 +602,22 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 	oldTitle := page.Title
 	page.Title = newTitle
 	page.Slug = newSlug
+	body, move, err := a.moveFollowers(in.Slug, newSlug, page.Body)
+	if err != nil {
+		return nil, err
+	}
+	page.Body = body
 	name, email := a.Author(ctx)
 	message := fmt.Sprintf("Rename %s to %s", oldTitle, newTitle)
-	newHash, err := a.store.SaveChecked(file, wiki.PageFile(newSlug), hash, page.Encode(), message, name, email)
+	newHash, err := a.store.MoveChecked(file, wiki.PageFile(newSlug), hash, page.Encode(), move, message, name, email)
 	if errors.Is(err, store.ErrConflict) {
 		return nil, Conflict("the page changed before the rename")
 	}
 	if err != nil {
 		return nil, Unavailable("renaming page", err)
+	}
+	if len(move.Files) > 0 {
+		a.refreshNamespaces()
 	}
 	if newSlug != in.Slug {
 		a.removeFromIndex(in.Slug)
@@ -595,7 +702,11 @@ func (a *API) RevertPage(ctx context.Context, slug, hash string) (*Mutation, err
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
-	content, err := a.store.FileAt(wiki.PageFile(slug), hash)
+	commit, err := a.revisionCommit(ctx, slug, hash)
+	if err != nil {
+		return nil, err
+	}
+	content, err := a.store.FileAt(commit.Path, hash)
 	if err != nil {
 		return nil, NotFoundCause("revision not found", err)
 	}

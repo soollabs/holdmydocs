@@ -102,7 +102,7 @@
   {
     "name": "move_page",
     "title": "Move page",
-    "description": "Move a page to a new slug in one Git commit, keeping its title, tags, pin and history. The destination namespace must exist and new_slug must not hold a page. Wiki-links to the page are not rewritten; check backlinks first. A conflict error returns the current hash: re-read and retry.",
+    "description": "Move a page to a new slug in one Git commit, keeping its title, tags, pin, history and attachments. The destination namespace must exist and new_slug must not hold a page. A namespace index page cannot be moved. Wiki-links to the page are not rewritten; check backlinks first. A conflict error returns the current hash: re-read and retry.",
     "x-scope": "write",
     "annotations": {
       "destructiveHint": true,
@@ -158,7 +158,7 @@
   {
     "name": "rename_page",
     "title": "Rename page",
-    "description": "Change a page's title and its slug to match, within its namespace, and rewrite wiki-links to it in other pages. The rename is one commit; each page whose links are rewritten is its own commit, and failed_links lists pages that could not be updated. A conflict error returns the current hash: re-read and retry.",
+    "description": "Change a page's title and its slug to match, in place, and rewrite wiki-links to it in other pages. A namespace index page keeps its slug. The rename is one commit; each page whose links are rewritten is its own commit, and failed_links lists pages that could not be updated. A conflict error returns the current hash: re-read and retry.",
     "x-scope": "write",
     "annotations": {
       "destructiveHint": true,

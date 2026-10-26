@@ -77,6 +77,12 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 		// so the user can log in again.
 		user, ok := s.auth.UserFor(session)
 		if session == "" || !ok || !s.auth.UserExists(user) {
+			// The flow cookie still proves the browser, so the next login binds the request.
+			s.pendingMu.Lock()
+			if pending := s.pending[handle]; pending != nil && !pending.consuming {
+				pending.user, pending.sessionDigest = "", ""
+			}
+			s.pendingMu.Unlock()
 			return AuthorizationStart{Handle: handle, LoginRequired: true}, nil
 		}
 		s.pendingMu.Lock()

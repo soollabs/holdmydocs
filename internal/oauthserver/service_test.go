@@ -656,3 +656,38 @@ func TestConcurrentRefreshReplayRevokesSurvivingFamily(t *testing.T) {
 		t.Fatal("concurrent replay left a rotated access token active")
 	}
 }
+
+func TestAuthorizationResumesAfterSessionEnds(t *testing.T) {
+	service, _, authn, session, clientID := newOAuthServiceFixture(t)
+	challenge, err := s256Challenge(strings.Repeat("v", 43))
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := url.Values{
+		"client_id": {clientID}, "redirect_uri": {"https://client.example.test/callback"},
+		"response_type": {"code"}, "state": {"s"}, "scope": {"read"}, "resource": {"https://wiki.example.test/_/mcp"},
+		"code_challenge": {challenge}, "code_challenge_method": {"S256"},
+	}
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/oauth/authorize?"+params.Encode(), nil)
+	started, err := service.StartAuthorization(request, session, []string{"notes"})
+	if err != nil || started.Prompt == nil {
+		t.Fatalf("start = %#v, %v", started, err)
+	}
+	authn.Logout(session)
+
+	resume := func(session string) (AuthorizationStart, error) {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/_/oauth/authorize?request="+url.QueryEscape(started.Handle), nil)
+		request.AddCookie(&http.Cookie{Name: "hmd_oauth_flow", Value: started.FlowCookie})
+		return service.StartAuthorization(request, session, []string{"notes"})
+	}
+	if again, err := resume(session); err != nil || !again.LoginRequired {
+		t.Fatalf("resume with an ended session = %#v, %v; want login", again, err)
+	}
+	fresh, ok := authn.Login("alice", "a-unique-long-test-password")
+	if !ok {
+		t.Fatal("could not log in again")
+	}
+	if again, err := resume(fresh); err != nil || again.Prompt == nil {
+		t.Fatalf("resume after logging in again = %#v, %v; want consent", again, err)
+	}
+}

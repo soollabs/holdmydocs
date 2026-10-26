@@ -1756,3 +1756,30 @@ func TestMCPMoveAndRename(t *testing.T) {
 		t.Errorf("linker body = %q, want the link rewritten", page.Body)
 	}
 }
+
+func TestMCPMoveAndRenameRejectUncheckedWrites(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+	callTool(t, session, "save_page", map[string]any{"slug": testNS + "/page", "title": "Page", "body": "body"})
+
+	for name, args := range map[string]map[string]any{
+		"move missing":      {"slug": testNS + "/missing", "new_slug": testNS + "/x", "basehash": "abc"},
+		"move empty hash":   {"slug": testNS + "/page", "new_slug": testNS + "/x", "basehash": ""},
+		"move to same slug": {"slug": testNS + "/page", "new_slug": testNS + "/page", "basehash": "abc"},
+		"rename empty hash": {"slug": testNS + "/page", "title": "Other", "basehash": ""},
+	} {
+		tool := "move_page"
+		if strings.HasPrefix(name, "rename") {
+			tool = "rename_page"
+		}
+		if res := callTool(t, session, tool, args); !res.IsError {
+			t.Errorf("%s succeeded: %s", name, toolText(t, res))
+		}
+	}
+	if res := callTool(t, session, "read_page", map[string]any{"slug": testNS + "/x"}); !res.IsError {
+		t.Error("a rejected move created the destination page")
+	}
+	if res := callTool(t, session, "read_page", map[string]any{"slug": testNS + "/page"}); res.IsError {
+		t.Error("a rejected write moved the page")
+	}
+}

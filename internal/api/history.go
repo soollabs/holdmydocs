@@ -95,6 +95,9 @@ func (a *API) PageHistory(ctx context.Context, slug string) ([]Revision, error) 
 	}
 	revisions := make([]Revision, 0, len(history))
 	for _, commit := range history {
+		if !commitAllowed(ctx, []string{commit.Path}) {
+			continue
+		}
 		revisions = append(revisions, Revision{
 			Hash: commit.Hash, Message: commit.Message, Author: commit.Author, When: commit.When,
 		})
@@ -111,21 +114,31 @@ func (a *API) RevisionPage(ctx context.Context, slug, hash string) (*RevisionPag
 	if !AllowSlug(ctx, slug) {
 		return nil, Forbidden("namespace access denied")
 	}
-	content, err := a.store.FileAt(wiki.PageFile(slug), hash)
+	commit, err := a.revisionCommit(ctx, slug, hash)
+	if err != nil {
+		return nil, err
+	}
+	content, err := a.store.FileAt(commit.Path, hash)
 	if err != nil {
 		return nil, NotFoundCause("revision not found", err)
 	}
 	page := wiki.ParsePage(slug, content)
-	revision := &RevisionPage{Slug: page.Slug, Title: page.Title, Tags: page.Tags, Body: page.Body}
-	if history, err := a.store.History(wiki.PageFile(slug)); err == nil {
-		for _, commit := range history {
-			if commit.Hash == hash {
-				revision.When = commit.When
-				break
-			}
+	return &RevisionPage{Slug: page.Slug, Title: page.Title, Tags: page.Tags, Body: page.Body, When: commit.When}, nil
+}
+
+// revisionCommit finds a commit in a page's history, which may name an
+// earlier path of the page.
+func (a *API) revisionCommit(ctx context.Context, slug, hash string) (store.CommitInfo, error) {
+	history, err := a.store.History(wiki.PageFile(slug))
+	if err != nil && !store.IsNoCommits(err) {
+		return store.CommitInfo{}, Unavailable("reading page history", err)
+	}
+	for _, commit := range history {
+		if commit.Hash == hash && commitAllowed(ctx, []string{commit.Path}) {
+			return commit, nil
 		}
 	}
-	return revision, nil
+	return store.CommitInfo{}, NotFound("revision not found")
 }
 
 // commitAllowed reports whether every file a commit touches lies within the
