@@ -113,6 +113,25 @@ type mcpDeleteOut struct {
 	Slug string `json:"slug"`
 }
 
+type mcpMoveIn struct {
+	Slug     string `json:"slug"`
+	NewSlug  string `json:"new_slug"`
+	BaseHash string `json:"basehash"`
+}
+
+type mcpRenameIn struct {
+	Slug     string `json:"slug"`
+	Title    string `json:"title"`
+	BaseHash string `json:"basehash"`
+}
+
+type mcpRenameOut struct {
+	Slug         string   `json:"slug"`
+	Hash         string   `json:"hash"`
+	IndexWarning string   `json:"index_warning,omitempty"`
+	FailedLinks  []string `json:"failed_links"`
+}
+
 type mcpBacklinksOut struct {
 	Backlinks []mcpPageMeta `json:"backlinks"`
 }
@@ -297,6 +316,59 @@ func (s *Server) registerPages(server *sdk.Server) {
 		}
 		slog.Info("mcp deleted", "slug", slug)
 		return nil, mcpDeleteOut{Slug: slug}, nil
+	})
+
+	addTool(s, server, "move_page", func(ctx context.Context, req *sdk.CallToolRequest, in mcpMoveIn) (*sdk.CallToolResult, mcpSaveOut, error) {
+		slug, err := mcpPageSlug(in.Slug)
+		if err != nil {
+			return nil, mcpSaveOut{}, err
+		}
+		newSlug, err := mcpPageSlug(in.NewSlug)
+		if err != nil {
+			return nil, mcpSaveOut{}, err
+		}
+		if err := s.requireSlug(ctx, slug); err != nil {
+			return nil, mcpSaveOut{}, err
+		}
+		if err := s.requireSlug(ctx, newSlug); err != nil {
+			return nil, mcpSaveOut{}, err
+		}
+		mutation, err := s.api.MovePage(ctx, api.MovePageInput{FromSlug: slug, ToSlug: newSlug, BaseHash: in.BaseHash})
+		if api.CategoryOf(err) == api.CategoryConflict {
+			hash := ""
+			if view, readErr := s.api.ViewPage(ctx, slug); readErr == nil {
+				hash = view.Hash
+			}
+			return nil, mcpSaveOut{}, mcpConflict("new_slug already holds a page, or the page changed since basehash", hash)
+		}
+		if err != nil {
+			return nil, mcpSaveOut{}, err
+		}
+		slog.Info("mcp moved", "from", slug, "to", mutation.Slug)
+		return nil, mcpSaveOut{Slug: mutation.Slug, Hash: mutation.BlobHash, IndexWarning: mutation.IndexWarning}, nil
+	})
+
+	addTool(s, server, "rename_page", func(ctx context.Context, req *sdk.CallToolRequest, in mcpRenameIn) (*sdk.CallToolResult, mcpRenameOut, error) {
+		slug, err := mcpPageSlug(in.Slug)
+		if err != nil {
+			return nil, mcpRenameOut{}, err
+		}
+		if err := s.requireSlug(ctx, slug); err != nil {
+			return nil, mcpRenameOut{}, err
+		}
+		result, err := s.api.RenamePage(ctx, api.RenamePageInput{Slug: slug, NewTitle: in.Title, BaseHash: in.BaseHash})
+		if api.CategoryOf(err) == api.CategoryConflict {
+			hash := ""
+			if view, readErr := s.api.ViewPage(ctx, slug); readErr == nil {
+				hash = view.Hash
+			}
+			return nil, mcpRenameOut{}, mcpConflict("a page with that title already exists, or the page changed since basehash", hash)
+		}
+		if err != nil {
+			return nil, mcpRenameOut{}, err
+		}
+		slog.Info("mcp renamed", "from", slug, "to", result.Slug, "failures", len(result.FailedLinks))
+		return nil, mcpRenameOut{Slug: result.Slug, Hash: result.BlobHash, IndexWarning: result.IndexWarning, FailedLinks: nonNil(result.FailedLinks)}, nil
 	})
 
 	addTool(s, server, "backlinks", func(ctx context.Context, req *sdk.CallToolRequest, in mcpSlugIn) (*sdk.CallToolResult, mcpBacklinksOut, error) {

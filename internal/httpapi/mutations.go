@@ -109,7 +109,7 @@ func (h *Handlers) savePage(w http.ResponseWriter, r *http.Request) {
 	case targetSlug != slug:
 		mutation, err = h.api.MovePage(r.Context(), api.MovePageInput{
 			FromSlug: slug, ToSlug: targetSlug, FromHidden: in.FromHidden, ToHidden: in.Hidden,
-			Title: in.Title, Tags: in.Tags, Body: in.Body, BaseHash: in.BaseHash,
+			Title: &in.Title, Tags: &in.Tags, Body: &in.Body, BaseHash: in.BaseHash,
 		})
 	case in.BaseHash == "":
 		mutation, err = h.api.SavePage(r.Context(), api.SavePageInput{

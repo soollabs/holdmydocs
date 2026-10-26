@@ -219,17 +219,17 @@ func (a *API) UpdatePage(ctx context.Context, in UpdatePageInput) (*Mutation, er
 }
 
 // MovePageInput is a checked move of a page to a new slug, optionally between
-// the normal and hidden trees. Title, tags and body replace the metadata
-// explicitly; pin is carried over from the source revision.
+// the normal and hidden trees. Title, tags and body replace the source's when
+// set and are kept when nil; pin is carried over from the source revision.
 type MovePageInput struct {
 	FromSlug   string
 	ToSlug     string
 	FromHidden bool
 	ToHidden   bool
 	BaseHash   string
-	Title      string
-	Tags       []string
-	Body       string
+	Title      *string
+	Tags       *[]string
+	Body       *string
 }
 
 // MovePage moves a page in one checked write. A move across namespaces only
@@ -268,11 +268,22 @@ func (a *API) MovePage(ctx context.Context, in MovePageInput) (*Mutation, error)
 	if _, _, err := a.store.Read(newFile); err == nil {
 		return nil, Conflict("a page with that filename already exists")
 	}
-	pin := false
+	// A missing source is not an error here: the editor creates an unsaved
+	// page under a changed slug through this path.
+	var page wiki.Page
 	if content, _, err := a.store.Read(oldFile); err == nil {
-		pin = wiki.ParsePage(in.FromSlug, content).Pin
+		page = wiki.ParsePage(in.FromSlug, content)
 	}
-	page := wiki.Page{Slug: in.ToSlug, Title: in.Title, Tags: in.Tags, Body: in.Body, Pin: pin}
+	page.Slug = in.ToSlug
+	if in.Title != nil {
+		page.Title = *in.Title
+	}
+	if in.Tags != nil {
+		page.Tags = *in.Tags
+	}
+	if in.Body != nil {
+		page.Body = *in.Body
+	}
 	if err := ValidatePageInput(page.Title, page.Tags, page.Body); err != nil {
 		return nil, InvalidInput(err.Error(), err)
 	}
@@ -421,6 +432,7 @@ func (a *API) SetPageTags(ctx context.Context, slug string, tags []string) (*Mut
 type RenamePageInput struct {
 	Slug     string
 	NewTitle string
+	BaseHash string
 }
 
 // RenameResult reports a retitle and its backlink repair. FailedLinks lists
@@ -468,6 +480,9 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 			return nil, NotFound("page not found")
 		}
 		return nil, Unavailable("reading page", err)
+	}
+	if in.BaseHash != "" && in.BaseHash != hash {
+		return nil, Conflict("the page changed since basehash")
 	}
 	if newSlug != in.Slug && a.index.Exists(newSlug) {
 		return nil, Conflict("a page with that title already exists")
