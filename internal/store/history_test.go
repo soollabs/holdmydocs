@@ -193,12 +193,15 @@ func TestHistoryWalkMatchesPatchPaths(t *testing.T) {
 			}
 		}
 		for path := range paths {
-			want[path] = append(want[path], CommitInfo{Hash: c.Hash.String(), Message: c.Message, Author: c.Author.Name, When: c.Author.When})
+			want[path] = append(want[path], CommitInfo{Hash: c.Hash.String(), Message: c.Message, Author: c.Author.Name, When: c.Author.When, Path: path})
 		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// The moved page's history follows it to its new path.
+	want["docs/renamed.md"] = append(want["docs/renamed.md"], want["docs/one.md"][1:]...)
+	delete(want, "docs/one.md")
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("walk paths differ from the patch walk:\ngot  %v\nwant %v", got, want)
 	}

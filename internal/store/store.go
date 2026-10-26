@@ -47,6 +47,7 @@ type CommitInfo struct {
 	Message string
 	Author  string
 	When    time.Time
+	Path    string // where the file was in this commit
 }
 
 type GitOptions struct {
@@ -504,6 +505,23 @@ var ErrConflict = errors.New("optimistic lock conflict")
 
 // SaveChecked atomically saves content when expectedHash matches oldPath, optionally moving it to newPath.
 func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+	return s.MoveChecked(oldPath, newPath, expectedHash, content, PageMove{}, message, authorName, authorEmail)
+}
+
+// PageMove is what a page move carries in its commit besides the page.
+type PageMove struct {
+	FromSlug, ToSlug string
+	Files            []CheckedFile
+}
+
+// CheckedFile is written only while its blob hash is still ExpectedHash.
+type CheckedFile struct {
+	Path, ExpectedHash string
+	Content            []byte
+}
+
+// MoveChecked is SaveChecked that also moves the page's attachments and writes move.Files.
+func (s *Store) MoveChecked(oldPath, newPath, expectedHash string, content []byte, move PageMove, message, authorName, authorEmail string) (blobHash string, err error) {
 	if s.readOnly {
 		return "", ErrReadOnly
 	}
@@ -527,41 +545,51 @@ func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byt
 			return "", ErrConflict
 		}
 	}
+	for _, file := range move.Files {
+		hash, err := s.readHashLocked(file.Path)
+		if err != nil {
+			return "", err
+		}
+		if hash != file.ExpectedHash {
+			return "", ErrConflict
+		}
+	}
 
-	if oldPath == newPath {
+	if oldPath == newPath && len(move.Files) == 0 && move.FromSlug == move.ToSlug {
 		return s.saveLocked(newPath, content, message, authorName, authorEmail)
 	}
-	return s.moveLocked(oldPath, newPath, content, message, authorName, authorEmail)
+	return s.moveLocked(oldPath, newPath, content, move, message, authorName, authorEmail)
 }
 
 // moveLocked writes content to newPath and removes oldPath in one commit, so
 // Git sees a rename rather than a create followed by a delete.
-func (s *Store) moveLocked(oldPath, newPath string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
-	wt, err := s.repo.Worktree()
+func (s *Store) moveLocked(oldPath, newPath string, content []byte, move PageMove, message, authorName, authorEmail string) (blobHash string, err error) {
+	wt, tracked, err := s.trackedWorktree()
 	if err != nil {
-		return "", fmt.Errorf("getting worktree: %w", err)
+		return "", err
 	}
-	oldContent, err := s.readRepositoryFile(oldPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("inspecting file to remove: %w", err)
+	oldExists := oldPath != newPath && s.repositoryFileExists(oldPath)
+	var attachments []fileMove
+	if move.FromSlug != move.ToSlug {
+		if attachments, err = s.attachmentMoves(move.FromSlug, move.ToSlug); err != nil {
+			return "", err
+		}
 	}
-	oldExists := err == nil
 
-	// On failure, put both paths back so the next commit doesn't pick up a half-done move.
+	touched := []string{oldPath, newPath}
+	for _, m := range attachments {
+		touched = append(touched, m.from)
+		if m.to != "" {
+			touched = append(touched, m.to)
+		}
+	}
+	for _, file := range move.Files {
+		touched = append(touched, file.Path)
+	}
+	// On failure, put the paths back so the next commit doesn't pick up a half-done move.
 	defer func() {
-		if err == nil {
-			return
-		}
-		if resetErr := wt.Reset(&git.ResetOptions{Mode: git.MixedReset, Files: []string{oldPath, newPath}}); resetErr != nil {
-			slog.Warn("move rollback: resetting index", "error", resetErr)
-		}
-		if rmErr := s.removeRepositoryFile(newPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-			slog.Warn("move rollback: removing new file", "path", newPath, "error", rmErr)
-		}
-		if oldExists {
-			if wErr := s.writeRepositoryFile(oldPath, oldContent); wErr != nil {
-				slog.Warn("move rollback: restoring old file", "path", oldPath, "error", wErr)
-			}
+		if err != nil {
+			s.restoreFromHead(wt, touched)
 		}
 	}()
 
@@ -572,11 +600,35 @@ func (s *Store) moveLocked(oldPath, newPath string, content []byte, message, aut
 		return "", fmt.Errorf("adding file to index: %w", err)
 	}
 	if oldExists {
-		if err = s.removeRepositoryFile(oldPath); err != nil {
-			return "", fmt.Errorf("removing file: %w", err)
+		if err = s.removeTracked(wt, tracked, oldPath); err != nil {
+			return "", err
 		}
-		if _, err = wt.Remove(oldPath); err != nil {
-			return "", fmt.Errorf("removing file from index: %w", err)
+	}
+	for _, m := range attachments {
+		if m.to != "" {
+			if s.repositoryFileExists(m.to) {
+				// Left by an earlier page at this slug.
+				if err = s.removeRepositoryFile(m.to); err != nil {
+					return "", fmt.Errorf("replacing attachment %q: %w", m.to, err)
+				}
+			}
+			if err = s.copyRepositoryFile(m.from, m.to); err != nil {
+				return "", fmt.Errorf("moving attachment %q: %w", m.from, err)
+			}
+			if err = wt.AddWithOptions(&git.AddOptions{Path: m.to, SkipStatus: true}); err != nil {
+				return "", fmt.Errorf("adding attachment to index: %w", err)
+			}
+		}
+		if err = s.removeTracked(wt, tracked, m.from); err != nil {
+			return "", err
+		}
+	}
+	for _, file := range move.Files {
+		if err = s.writeRepositoryFile(file.Path, file.Content); err != nil {
+			return "", fmt.Errorf("writing file: %w", err)
+		}
+		if err = wt.AddWithOptions(&git.AddOptions{Path: file.Path, SkipStatus: true}); err != nil {
+			return "", fmt.Errorf("adding file to index: %w", err)
 		}
 	}
 
@@ -584,10 +636,54 @@ func (s *Store) moveLocked(oldPath, newPath string, content []byte, message, aut
 	if err != nil {
 		return "", err
 	}
-	delete(s.historyCache, oldPath)
-	s.prependHistory(newPath, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
-	slog.Debug("moved", "from", oldPath, "to", newPath, "hash", commitHash.String()[:8])
+	if len(attachments) > 0 {
+		s.removeAttachmentDirs(move.FromSlug)
+	}
+	for _, path := range touched[2:] {
+		delete(s.historyCache, path)
+	}
+	entry := CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when}
+	if oldPath == newPath {
+		s.prependHistory(newPath, entry)
+	} else if cached, ok := s.historyCache[oldPath]; ok {
+		entry.Path = newPath
+		s.historyCache[newPath] = append([]CommitInfo{entry}, cached...)
+		delete(s.historyCache, oldPath)
+	} else {
+		delete(s.historyCache, newPath)
+	}
+	slog.Debug("moved", "from", oldPath, "to", newPath, "attachments", len(attachments), "hash", commitHash.String()[:8])
 	return plumbing.ComputeHash(plumbing.BlobObject, content).String(), nil
+}
+
+// restoreFromHead resets paths in the index and on disk to HEAD.
+func (s *Store) restoreFromHead(wt *git.Worktree, paths []string) {
+	if err := wt.Reset(&git.ResetOptions{Mode: git.MixedReset, Files: paths}); err != nil {
+		slog.Warn("move rollback: resetting index", "error", err)
+	}
+	var tree *object.Tree
+	if commit, err := s.repo.CommitObject(s.headHash()); err == nil {
+		tree, _ = commit.Tree()
+	}
+	for _, path := range paths {
+		var file *object.File
+		if tree != nil {
+			file, _ = tree.File(path)
+		}
+		if file == nil {
+			if err := s.removeRepositoryFile(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				slog.Warn("move rollback: removing file", "path", path, "error", err)
+			}
+			continue
+		}
+		content, err := file.Contents()
+		if err == nil {
+			err = s.writeRepositoryFile(path, []byte(content))
+		}
+		if err != nil {
+			slog.Warn("move rollback: restoring file", "path", path, "error", err)
+		}
+	}
 }
 
 // commitLocked commits the staged index and schedules a push when a remote is set.
@@ -901,6 +997,7 @@ func (s *Store) prependHistory(path string, entry CommitInfo) {
 	if !ok {
 		return
 	}
+	entry.Path = path
 	s.historyCache[path] = append([]CommitInfo{entry}, cached...)
 }
 
@@ -1190,7 +1287,8 @@ func (s *Store) WarmHistory() error {
 // object file for every object it reads, which is slow on network storage,
 // and the shared storage is not safe for concurrent use with kept
 // descriptors. Changed paths come from a tree diff without rename detection,
-// which yields the same paths as a patch without reading blobs.
+// which yields the same paths as a patch without reading blobs; moved pages
+// are paired up by pageRenames.
 func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error) {
 	started := time.Now()
 	if head.IsZero() {
@@ -1210,6 +1308,14 @@ func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error)
 	}
 
 	histories := make(map[string][]CommitInfo)
+	// follow maps an old path of a moved page to its current history.
+	follow := map[string]string{}
+	owner := func(path string) string {
+		if key, ok := follow[path]; ok {
+			return key
+		}
+		return path
+	}
 	commits := 0
 	if err := object.NewCommitPreorderIter(commit, nil, nil).ForEach(func(c *object.Commit) error {
 		current, err := c.Tree()
@@ -1237,9 +1343,13 @@ func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error)
 			Author:  c.Author.Name,
 			When:    c.Author.When,
 		}
+		renames, err := pageRenames(changes)
+		if err != nil {
+			return err
+		}
 		paths := map[string]bool{}
 		for _, change := range changes {
-			if change.From.Name != "" {
+			if change.From.Name != "" && renames[change.From.Name] == "" {
 				paths[change.From.Name] = true
 			}
 			if change.To.Name != "" {
@@ -1247,7 +1357,16 @@ func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error)
 			}
 		}
 		for path := range paths {
-			histories[path] = append(histories[path], entry)
+			key := owner(path)
+			pathEntry := entry
+			pathEntry.Path = path
+			histories[key] = append(histories[key], pathEntry)
+		}
+		for from, to := range renames {
+			follow[from] = owner(to)
+		}
+		for _, to := range renames {
+			delete(follow, to)
 		}
 		commits++
 		if commits == 1 && historyWalkHook != nil {
@@ -1259,6 +1378,37 @@ func (s *Store) walkHistory(head plumbing.Hash) (map[string][]CommitInfo, error)
 	}
 	slog.Debug("history walk completed", "commits", commits, "paths", len(histories), "duration", time.Since(started))
 	return histories, nil
+}
+
+// pageRenames maps the pages a commit moved from old to new path. One page
+// removed and one added is a move; otherwise Git's rename detection decides.
+func pageRenames(changes object.Changes) (map[string]string, error) {
+	var removed, added object.Changes
+	for _, change := range changes {
+		switch {
+		case change.To.Name == "" && strings.HasSuffix(change.From.Name, ".md"):
+			removed = append(removed, change)
+		case change.From.Name == "" && strings.HasSuffix(change.To.Name, ".md"):
+			added = append(added, change)
+		}
+	}
+	if len(removed) == 0 || len(added) == 0 {
+		return nil, nil
+	}
+	if len(removed) == 1 && len(added) == 1 {
+		return map[string]string{removed[0].From.Name: added[0].To.Name}, nil
+	}
+	detected, err := object.DetectRenames(append(removed, added...), object.DefaultDiffTreeOptions)
+	if err != nil {
+		return nil, fmt.Errorf("detecting renames: %w", err)
+	}
+	renames := map[string]string{}
+	for _, change := range detected {
+		if change.From.Name != "" && change.To.Name != "" && change.From.Name != change.To.Name {
+			renames[change.From.Name] = change.To.Name
+		}
+	}
+	return renames, nil
 }
 
 // cacheFirstStorage answers object reads from its cache before the storage,

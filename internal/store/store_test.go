@@ -1258,7 +1258,7 @@ func TestHistoryColdLookupCachesEveryPath(t *testing.T) {
 	if _, err := store.History("one.md"); err != nil {
 		t.Fatalf("History failed: %v", err)
 	}
-	if length, ok := store.CachedHistoryLength("renamed.md"); !ok || length != 1 {
+	if length, ok := store.CachedHistoryLength("renamed.md"); !ok || length != 2 {
 		t.Fatalf("cold lookup did not cache renamed.md history: %d", length)
 	}
 }

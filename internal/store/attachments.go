@@ -129,6 +129,101 @@ func (s *Store) FindAttachment(slug, filename string) (Attachment, bool) {
 	return Attachment{}, false
 }
 
+// PageAttachments returns the filenames of a page's attachments, sorted.
+func (s *Store) PageAttachments(slug string) ([]string, error) {
+	if !wiki.ValidPageSlug(slug) {
+		return nil, nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	moves, err := s.attachmentMoves(slug, slug)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, m := range moves {
+		if m.to == "" {
+			continue
+		}
+		if _, filename, ok := ParseAttachmentPath(m.from); ok {
+			names = append(names, filename)
+		}
+	}
+	sort.Strings(names)
+	return slices.Compact(names), nil
+}
+
+// fileMove moves one file; an empty to deletes it.
+type fileMove struct{ from, to string }
+
+// attachmentMoves lists a page's attachment files in both layouts, sidecars
+// included, and where each goes in the namespace layout for toSlug. A
+// shadowed legacy copy is dropped.
+func (s *Store) attachmentMoves(fromSlug, toSlug string) ([]fileMove, error) {
+	var moves []fileMove
+	served := map[string]bool{}
+	for _, dir := range []string{attachmentDir(fromSlug), attachmentsDir + "/" + fromSlug} {
+		names, err := s.attachmentDirFiles(dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, filename := range names {
+			from := dir + "/" + filename
+			to := attachmentPath(toSlug, filename)
+			if served[filename] {
+				to = ""
+			}
+			served[filename] = true
+			moves = append(moves, fileMove{from, to})
+			if sidecar := extractedAttachmentPath(from); s.repositoryFileExists(sidecar) {
+				if to != "" {
+					to = extractedAttachmentPath(to)
+				}
+				moves = append(moves, fileMove{sidecar, to})
+			}
+		}
+	}
+	return moves, nil
+}
+
+func attachmentDir(slug string) string {
+	dir, _, _ := cutLast(attachmentPath(slug, "f"))
+	return dir
+}
+
+// attachmentDirFiles lists the attachments directly in dir.
+func (s *Store) attachmentDirFiles(dir string) ([]string, error) {
+	abs := filepath.Join(s.dir, filepath.FromSlash(dir))
+	if info, err := os.Lstat(abs); os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("inspecting attachments directory: %w", err)
+	} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		return nil, fmt.Errorf("reading attachments directory: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && validAttachmentFilename(e.Name()) {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
+}
+
+// removeAttachmentDirs deletes the empty folders a moved page left behind.
+func (s *Store) removeAttachmentDirs(slug string) {
+	for _, dir := range []string{attachmentDir(slug), attachmentsDir + "/" + slug} {
+		abs := filepath.Join(s.dir, filepath.FromSlash(dir))
+		_ = os.Remove(filepath.Join(abs, filepath.FromSlash(extractedAttachmentDir)))
+		_ = os.Remove(filepath.Join(abs, ".hmd"))
+		_ = os.Remove(abs)
+	}
+}
+
 // SaveAttachment commits a page's attachment, and its extracted text when
 // given, in the namespace layout. A legacy copy of the same file is left for
 // the migration and is no longer served.
@@ -413,14 +508,14 @@ func (s *Store) trackedWorktree() (*git.Worktree, map[string]bool, error) {
 	return wt, tracked, nil
 }
 
-// removeTracked deletes a legacy file from disk and, when tracked, the index.
+// removeTracked deletes a file from disk and, when tracked, the index.
 func (s *Store) removeTracked(wt *git.Worktree, tracked map[string]bool, path string) error {
 	if err := s.removeRepositoryFile(path); err != nil {
-		return fmt.Errorf("removing legacy attachment: %w", err)
+		return fmt.Errorf("removing %q: %w", path, err)
 	}
 	if tracked[path] {
 		if _, err := wt.Remove(path); err != nil {
-			return fmt.Errorf("removing legacy attachment from index: %w", err)
+			return fmt.Errorf("removing %q from index: %w", path, err)
 		}
 	}
 	delete(s.historyCache, path)

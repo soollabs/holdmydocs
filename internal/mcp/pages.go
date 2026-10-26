@@ -333,6 +333,16 @@ func (s *Server) registerPages(server *sdk.Server) {
 		if err := s.requireSlug(ctx, newSlug); err != nil {
 			return nil, mcpSaveOut{}, err
 		}
+		if newSlug == slug {
+			return nil, mcpSaveOut{}, api.InvalidInput("new_slug is the page's current slug", nil)
+		}
+		if in.BaseHash == "" {
+			return nil, mcpSaveOut{}, api.InvalidInput("basehash is required; read the page first", nil)
+		}
+		// MovePage accepts a missing source for the editor's unsaved pages.
+		if _, err := s.api.ViewPage(ctx, slug); err != nil {
+			return nil, mcpSaveOut{}, err
+		}
 		mutation, err := s.api.MovePage(ctx, api.MovePageInput{FromSlug: slug, ToSlug: newSlug, BaseHash: in.BaseHash})
 		if api.CategoryOf(err) == api.CategoryConflict {
 			hash := ""
@@ -355,6 +365,9 @@ func (s *Server) registerPages(server *sdk.Server) {
 		}
 		if err := s.requireSlug(ctx, slug); err != nil {
 			return nil, mcpRenameOut{}, err
+		}
+		if in.BaseHash == "" {
+			return nil, mcpRenameOut{}, api.InvalidInput("basehash is required; read the page first", nil)
 		}
 		result, err := s.api.RenamePage(ctx, api.RenamePageInput{Slug: slug, NewTitle: in.Title, BaseHash: in.BaseHash})
 		if api.CategoryOf(err) == api.CategoryConflict {
