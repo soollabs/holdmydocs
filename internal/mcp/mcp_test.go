@@ -290,7 +290,7 @@ func TestMCPExposesExpectedTools(t *testing.T) {
 	}
 	allowed := map[string]bool{
 		"list_pages": true, "read_page": true, "save_page": true, "edit_page": true, "delete_page": true,
-		"search": true, "backlinks": true, "recent_changes": true, "health": true,
+		"move_page": true, "rename_page": true, "search": true, "backlinks": true, "recent_changes": true, "health": true,
 		"list_namespaces": true, "read_namespace": true, "save_namespace": true,
 		"upload_attachment": true, "read_attachment": true,
 	}
@@ -339,6 +339,7 @@ func TestMCPToolContracts(t *testing.T) {
 		"list_pages": {"namespace", "offset", "limit"}, "list_namespaces": {},
 		"read_page": {"slug", "section", "offset", "limit"}, "save_page": {"slug", "title", "tags", "body", "pin", "basehash"},
 		"edit_page": {"slug", "basehash", "edits", "dryRun"}, "delete_page": {"slug", "basehash"},
+		"move_page": {"slug", "new_slug", "basehash"}, "rename_page": {"slug", "title", "basehash"},
 		"search": {"query", "namespace", "offset", "limit"}, "backlinks": {"slug"}, "recent_changes": {"limit"}, "health": {"namespace"},
 		"read_namespace":    {"name"},
 		"save_namespace":    {"name", "widgets", "public", "title", "description", "image", "skin", "palette", "index", "tree", "new", "export", "basehash"},
@@ -1698,5 +1699,60 @@ func TestMCPPagination(t *testing.T) {
 	toolJSON(t, callTool(t, session, "search", map[string]any{"query": "paged", "offset": search.NextOffset, "limit": 2}), &next)
 	if len(next.Hits) != 1 || next.More || slices.ContainsFunc(search.Hits, func(hit mcpSearchHit) bool { return hit.Slug == next.Hits[0].Slug }) {
 		t.Errorf("second search window = %+v after %+v", next, search)
+	}
+}
+
+func TestMCPMoveAndRename(t *testing.T) {
+	server, token := newMCPTestApp(t, true)
+	session := connectMCP(t, server, token)
+
+	var saved mcpSaveOut
+	toolJSON(t, callTool(t, session, "save_page", map[string]any{
+		"slug": testNS + "/target", "title": "Target", "tags": []string{"keep"}, "body": "target body", "pin": true,
+	}), &saved)
+	callTool(t, session, "save_page", map[string]any{"slug": testNS + "/linker", "title": "Linker", "body": "See [[Target]]."})
+
+	res := callTool(t, session, "move_page", map[string]any{"slug": testNS + "/target", "new_slug": testNS + "/moved", "basehash": "0000000000000000000000000000000000000000"})
+	var conflict struct{ Error, Hash string }
+	toolJSON(t, res, &conflict)
+	if !res.IsError || conflict.Hash != saved.Hash {
+		t.Fatalf("move with a stale basehash = %s, want a conflict with the current hash", toolText(t, res))
+	}
+	res = callTool(t, session, "move_page", map[string]any{"slug": testNS + "/target", "new_slug": testNS + "/linker", "basehash": saved.Hash})
+	if !res.IsError {
+		t.Fatal("move onto an existing page succeeded, want conflict")
+	}
+
+	res = callTool(t, session, "move_page", map[string]any{"slug": testNS + "/target", "new_slug": testNS + "/moved", "basehash": saved.Hash})
+	if res.IsError {
+		t.Fatalf("move failed: %s", toolText(t, res))
+	}
+	var moved mcpSaveOut
+	toolJSON(t, res, &moved)
+	var page mcpPageOut
+	toolJSON(t, callTool(t, session, "read_page", map[string]any{"slug": testNS + "/moved"}), &page)
+	if page.Title != "Target" || page.Body != "target body" || !page.Pin || len(page.Tags) != 1 || page.Tags[0] != "keep" || page.Hash != moved.Hash {
+		t.Errorf("moved page = %+v, want metadata kept", page)
+	}
+	if res := callTool(t, session, "read_page", map[string]any{"slug": testNS + "/target"}); !res.IsError {
+		t.Error("old slug still readable after move")
+	}
+
+	res = callTool(t, session, "rename_page", map[string]any{"slug": testNS + "/moved", "title": "Renamed", "basehash": "0000000000000000000000000000000000000000"})
+	if !res.IsError {
+		t.Fatal("rename with a stale basehash succeeded, want conflict")
+	}
+	res = callTool(t, session, "rename_page", map[string]any{"slug": testNS + "/moved", "title": "Renamed", "basehash": moved.Hash})
+	if res.IsError {
+		t.Fatalf("rename failed: %s", toolText(t, res))
+	}
+	var renamed mcpRenameOut
+	toolJSON(t, res, &renamed)
+	if renamed.Slug != testNS+"/renamed" || len(renamed.FailedLinks) != 0 {
+		t.Errorf("rename result = %+v", renamed)
+	}
+	toolJSON(t, callTool(t, session, "read_page", map[string]any{"slug": testNS + "/linker"}), &page)
+	if page.Body != "See [[Renamed]]." {
+		t.Errorf("linker body = %q, want the link rewritten", page.Body)
 	}
 }

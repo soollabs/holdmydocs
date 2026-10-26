@@ -100,6 +100,126 @@
     }
   },
   {
+    "name": "move_page",
+    "title": "Move page",
+    "description": "Move a page to a new slug in one Git commit, keeping its title, tags, pin and history. The destination namespace must exist and new_slug must not hold a page. Wiki-links to the page are not rewritten; check backlinks first. A conflict error returns the current hash: re-read and retry.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "new_slug": {
+          "type": "string",
+          "description": "destination page identifier in namespace/page form"
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_page; the page moves only if it is still that revision"
+        }
+      },
+      "required": [
+        "slug",
+        "new_slug",
+        "basehash"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string",
+          "description": "new revision; pass as basehash to the next change"
+        },
+        "index_warning": {
+          "type": "string",
+          "description": "set when the commit succeeded but search indexing is catching up in the background"
+        }
+      },
+      "required": [
+        "slug",
+        "hash"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "rename_page",
+    "title": "Rename page",
+    "description": "Change a page's title and its slug to match, within its namespace, and rewrite wiki-links to it in other pages. The rename is one commit; each page whose links are rewritten is its own commit, and failed_links lists pages that could not be updated. A conflict error returns the current hash: re-read and retry.",
+    "x-scope": "write",
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "page identifier in namespace/page form, e.g. notes/my-page; no segment may start with _ or ."
+        },
+        "title": {
+          "type": "string",
+          "description": "new title; the new slug is derived from it"
+        },
+        "basehash": {
+          "type": "string",
+          "description": "hash from read_page; the page is renamed only if it is still that revision"
+        }
+      },
+      "required": [
+        "slug",
+        "title",
+        "basehash"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string",
+          "description": "new revision; pass as basehash to the next change"
+        },
+        "index_warning": {
+          "type": "string",
+          "description": "set when the commit succeeded but search indexing is catching up in the background"
+        },
+        "failed_links": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "pages whose links to the old title could not be rewritten"
+        }
+      },
+      "required": [
+        "slug",
+        "hash",
+        "failed_links"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "edit_page",
     "title": "Edit page",
     "description": "Replace exact text in an existing page's Markdown body without resending it; title, tags and pin are kept. Each oldText must match exactly once when its edit is applied, and any failed edit cancels the whole call. All edits land in one commit; dryRun returns the diff without committing. A conflict error returns the current hash: re-read and retry.",
