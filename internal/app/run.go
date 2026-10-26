@@ -73,7 +73,7 @@ func Run() {
 	web.LoadThemeDefaults()
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Loading config: %v", err)
+		log.Fatalf("loading config: %v", err)
 	}
 	if *resetAdmin != "" {
 		if err := ResetAdmin(cfg, *resetAdmin, os.Stdin, os.Stderr); err != nil {
@@ -193,7 +193,7 @@ func Run() {
 	for _, path := range paths {
 		raw, hash, err := content.Read(path)
 		if err != nil {
-			log.Fatalf("Reading %s: %v", path, err)
+			log.Fatalf("reading %s: %v", path, err)
 		}
 		slug := path[:len(path)-3]
 		pages = append(pages, wiki.ParsePage(slug, raw))
@@ -289,7 +289,7 @@ func Run() {
 	finishStage = debugStartupStage("parse templates")
 	templates, err := web.ParseTemplates()
 	if err != nil {
-		log.Fatalf("Parsing templates: %v", err)
+		log.Fatalf("parsing templates: %v", err)
 	}
 	finishStage()
 	apiClient := api.New(content, index, authn)

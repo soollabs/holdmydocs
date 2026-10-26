@@ -27,7 +27,7 @@ func TestStoredUserRevokerWithoutState(t *testing.T) {
 func checkRevokeUserGrants(t *testing.T, disabled bool) {
 	t.Helper()
 	service, store, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	response := tokenPost(t, service.TokenHandler(), url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID}, "code": {code},
 		"redirect_uri": {"https://client.example.test/callback"}, "code_verifier": {verifier},

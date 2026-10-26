@@ -71,8 +71,7 @@ func (testOAuthVerifier) Challenge() string {
 
 func newMCPTestApp(t *testing.T, mcpEnabled bool) (*httptest.Server, string) {
 	t.Helper()
-	app, server, token := newMCPTestAppWithApp(t, mcpEnabled)
-	_ = app
+	_, server, token := newMCPTestAppWithApp(t, mcpEnabled)
 	return server, token
 }
 

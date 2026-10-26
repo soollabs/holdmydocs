@@ -3,8 +3,8 @@ package oauthserver
 import "testing"
 
 func TestClientDeletionRequiresDisableAndRemovesBindings(t *testing.T) {
-	s, store, authn, session, id := newOAuthServiceFixture(t)
-	authoriseFixture(t, s, authn, session, id)
+	s, store, _, session, id := newOAuthServiceFixture(t)
+	authoriseFixture(t, s, session, id)
 	if err := s.DeleteClient(id); err == nil {
 		t.Fatal("active client deleted")
 	}

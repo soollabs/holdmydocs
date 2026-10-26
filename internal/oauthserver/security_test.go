@@ -105,8 +105,8 @@ func TestConsentBindingAndPrivilegeBoundaries(t *testing.T) {
 }
 
 func TestCodeReplayRevokesOnlyAfterProofOfBinding(t *testing.T) {
-	service, store, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, store, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	fields := url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID}, "code": {code},
 		"redirect_uri": {"https://client.example.test/callback"}, "code_verifier": {verifier},
@@ -183,8 +183,8 @@ func TestClientAuthenticationRejectsRepeatedHeaders(t *testing.T) {
 }
 
 func TestRevocationIgnoresUnknownTypeHint(t *testing.T) {
-	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, _, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	response := tokenPost(t, service.TokenHandler(), url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID}, "code": {code},
 		"redirect_uri": {"https://client.example.test/callback"}, "code_verifier": {verifier},

@@ -21,8 +21,8 @@ import (
 )
 
 func TestCodeConsumptionRollsBackLibraryPKCEFailure(t *testing.T) {
-	service, store, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, store, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	redirect := "https://client.example.test/callback"
 	ctx := context.WithValue(t.Context(), redirectURIContextKey{}, redirect)
 	request := requestWithTrustedResource(
@@ -57,7 +57,7 @@ func TestTokenTransactionUsesCurrentPolicy(t *testing.T) {
 	for _, change := range []string{"disconnect", "family replay", "client disable", "user downgrade", "client downgrade", "expiry"} {
 		t.Run(change, func(t *testing.T) {
 			service, store, authn, session, clientID := newOAuthServiceFixture(t)
-			code, _, _ := authoriseFixture(t, service, authn, session, clientID)
+			code, _, _ := authoriseFixture(t, service, session, clientID)
 			// This represents the endpoint's pre-transaction snapshot. The
 			// transaction must not trust its policy after another operation.
 			stale, err := store.Snapshot()
@@ -118,8 +118,8 @@ func TestTokenTransactionUsesCurrentPolicy(t *testing.T) {
 func TestTokenPersistenceFailureDoesNotReturnCredentials(t *testing.T) {
 	for _, stage := range []string{"rename", "directory sync"} {
 		t.Run(stage, func(t *testing.T) {
-			service, store, authn, session, clientID := newOAuthServiceFixture(t)
-			code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+			service, store, _, session, clientID := newOAuthServiceFixture(t)
+			code, verifier, _ := authoriseFixture(t, service, session, clientID)
 			if stage == "rename" {
 				store.fs.rename = func(string, string) error { return context.Canceled }
 			} else {
@@ -186,7 +186,7 @@ func newOAuthServiceFixture(t *testing.T) (*Service, *Store, *auth.Auth, string,
 	return service, store, authn, session, client.ClientID
 }
 
-func authoriseFixture(t *testing.T, service *Service, authn *auth.Auth, session, clientID string) (string, string, string) {
+func authoriseFixture(t *testing.T, service *Service, session, clientID string) (string, string, string) {
 	t.Helper()
 	verifier := strings.Repeat("v", 43)
 	challenge, err := s256Challenge(verifier)
@@ -245,7 +245,7 @@ func tokenPost(t *testing.T, handler http.Handler, fields url.Values) *httptest.
 
 func TestOAuthCodeExchangeAndMCPBearerResolution(t *testing.T) {
 	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	handler := service.TokenHandler()
 	fields := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -344,8 +344,8 @@ func TestOAuthConsentHandleCanCompleteOnlyOnceConcurrently(t *testing.T) {
 }
 
 func TestOAuthRefreshRotationReplayRevokesFamily(t *testing.T) {
-	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, _, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	handler := service.TokenHandler()
 	codeFields := url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID},
@@ -397,8 +397,8 @@ func TestOAuthRefreshRotationReplayRevokesFamily(t *testing.T) {
 }
 
 func TestDisablingOAuthClientRevokesItsGrantAndTokens(t *testing.T) {
-	service, store, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, store, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	response := tokenPost(t, service.TokenHandler(), url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID},
 		"code": {code}, "redirect_uri": {"https://client.example.test/callback"},
@@ -429,8 +429,8 @@ func TestDisablingOAuthClientRevokesItsGrantAndTokens(t *testing.T) {
 }
 
 func TestOAuthTokenEndpointRejectsDuplicateParametersAndWrongClient(t *testing.T) {
-	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, _, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	handler := service.TokenHandler()
 	fields := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -499,8 +499,8 @@ func TestOAuthClientAuthenticationMethodEnforcement(t *testing.T) {
 }
 
 func TestOAuthRevocationIsClientBoundAndDisconnectRevokesGrant(t *testing.T) {
-	service, store, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, store, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	issuedResponse := tokenPost(t, service.TokenHandler(), url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID},
 		"code": {code}, "redirect_uri": {"https://client.example.test/callback"},
@@ -558,8 +558,8 @@ func TestOAuthRevocationIsClientBoundAndDisconnectRevokesGrant(t *testing.T) {
 }
 
 func TestConcurrentOAuthCodeRedemptionIssuesAtMostOnce(t *testing.T) {
-	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, _, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	fields := url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID},
 		"code": {code}, "redirect_uri": {"https://client.example.test/callback"},
@@ -603,8 +603,8 @@ func TestConcurrentOAuthCodeRedemptionIssuesAtMostOnce(t *testing.T) {
 }
 
 func TestConcurrentRefreshReplayRevokesSurvivingFamily(t *testing.T) {
-	service, _, authn, session, clientID := newOAuthServiceFixture(t)
-	code, verifier, _ := authoriseFixture(t, service, authn, session, clientID)
+	service, _, _, session, clientID := newOAuthServiceFixture(t)
+	code, verifier, _ := authoriseFixture(t, service, session, clientID)
 	issued := tokenPost(t, service.TokenHandler(), url.Values{
 		"grant_type": {"authorization_code"}, "client_id": {clientID},
 		"code": {code}, "redirect_uri": {"https://client.example.test/callback"},
