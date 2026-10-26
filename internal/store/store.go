@@ -528,16 +528,88 @@ func (s *Store) SaveChecked(oldPath, newPath, expectedHash string, content []byt
 		}
 	}
 
-	blobHash, err = s.saveLocked(newPath, content, message, authorName, authorEmail)
+	if oldPath == newPath {
+		return s.saveLocked(newPath, content, message, authorName, authorEmail)
+	}
+	return s.moveLocked(oldPath, newPath, content, message, authorName, authorEmail)
+}
+
+// moveLocked writes content to newPath and removes oldPath in one commit, so
+// Git sees a rename rather than a create followed by a delete.
+func (s *Store) moveLocked(oldPath, newPath string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
+	wt, err := s.repo.Worktree()
+	if err != nil {
+		return "", fmt.Errorf("getting worktree: %w", err)
+	}
+	oldContent, err := s.readRepositoryFile(oldPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("inspecting file to remove: %w", err)
+	}
+	oldExists := err == nil
+
+	// On failure, put both paths back so the next commit doesn't pick up a half-done move.
+	defer func() {
+		if err == nil {
+			return
+		}
+		if resetErr := wt.Reset(&git.ResetOptions{Mode: git.MixedReset, Files: []string{oldPath, newPath}}); resetErr != nil {
+			slog.Warn("move rollback: resetting index", "error", resetErr)
+		}
+		if rmErr := s.removeRepositoryFile(newPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+			slog.Warn("move rollback: removing new file", "path", newPath, "error", rmErr)
+		}
+		if oldExists {
+			if wErr := s.writeRepositoryFile(oldPath, oldContent); wErr != nil {
+				slog.Warn("move rollback: restoring old file", "path", oldPath, "error", wErr)
+			}
+		}
+	}()
+
+	if err = s.writeRepositoryFile(newPath, content); err != nil {
+		return "", fmt.Errorf("writing file: %w", err)
+	}
+	if err = wt.AddWithOptions(&git.AddOptions{Path: newPath, SkipStatus: true}); err != nil {
+		return "", fmt.Errorf("adding file to index: %w", err)
+	}
+	if oldExists {
+		if err = s.removeRepositoryFile(oldPath); err != nil {
+			return "", fmt.Errorf("removing file: %w", err)
+		}
+		if _, err = wt.Remove(oldPath); err != nil {
+			return "", fmt.Errorf("removing file from index: %w", err)
+		}
+	}
+
+	commitHash, when, err := s.commitLocked(wt, message, authorName, authorEmail)
 	if err != nil {
 		return "", err
 	}
-	if oldPath != newPath {
-		if err := s.removeLocked(oldPath, message, authorName, authorEmail); err != nil {
-			return blobHash, err
-		}
+	delete(s.historyCache, oldPath)
+	s.prependHistory(newPath, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
+	slog.Debug("moved", "from", oldPath, "to", newPath, "hash", commitHash.String()[:8])
+	return plumbing.ComputeHash(plumbing.BlobObject, content).String(), nil
+}
+
+// commitLocked commits the staged index and schedules a push when a remote is set.
+func (s *Store) commitLocked(wt *git.Worktree, message, authorName, authorEmail string) (plumbing.Hash, time.Time, error) {
+	preHead := s.headHash()
+	when := time.Now()
+	commitHash, err := wt.Commit(message, &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  authorName,
+			Email: authorEmail,
+			When:  when,
+		},
+	})
+	if err != nil {
+		return plumbing.ZeroHash, when, fmt.Errorf("committing: %w", err)
 	}
-	return blobHash, nil
+	s.noteCommit(commitHash, preHead)
+	if s.remote != "" {
+		s.syncState = "pending"
+		s.startPush()
+	}
+	return commitHash, when, nil
 }
 
 func (s *Store) Save(path string, content []byte, message, authorName, authorEmail string) (blobHash string, err error) {
@@ -632,31 +704,14 @@ func (s *Store) saveLocked(path string, content []byte, message, authorName, aut
 		return "", fmt.Errorf("adding file to index: %w", err)
 	}
 
-	preHead := s.headHash()
-	when := time.Now()
-	commitHash, err := wt.Commit(message, &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  authorName,
-			Email: authorEmail,
-			When:  when,
-		},
-	})
+	commitHash, when, err := s.commitLocked(wt, message, authorName, authorEmail)
 	if err != nil {
-		return "", fmt.Errorf("committing: %w", err)
+		return "", err
 	}
-	s.noteCommit(commitHash, preHead)
 	s.prependHistory(path, CommitInfo{Hash: commitHash.String(), Message: message, Author: authorName, When: when})
 	slog.Debug("committed", "path", path, "hash", commitHash.String()[:8], "author", authorName)
 
-	hash := plumbing.ComputeHash(plumbing.BlobObject, content)
-	blobHash = hash.String()
-
-	if s.remote != "" {
-		s.syncState = "pending"
-		s.startPush()
-	}
-
-	return blobHash, nil
+	return plumbing.ComputeHash(plumbing.BlobObject, content).String(), nil
 }
 
 // Remove deletes path from disk and the git index, committing the removal.
@@ -832,25 +887,12 @@ func (s *Store) removeLocked(path, message, authorName, authorEmail string) erro
 		return fmt.Errorf("removing file from index: %w", err)
 	}
 
-	preHead := s.headHash()
-	commitHash, err := wt.Commit(message, &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  authorName,
-			Email: authorEmail,
-			When:  time.Now(),
-		},
-	})
+	commitHash, _, err := s.commitLocked(wt, message, authorName, authorEmail)
 	if err != nil {
-		return fmt.Errorf("committing: %w", err)
+		return err
 	}
-	s.noteCommit(commitHash, preHead)
 	delete(s.historyCache, path)
 	slog.Debug("removed", "path", path, "hash", commitHash.String()[:8])
-
-	if s.remote != "" {
-		s.syncState = "pending"
-		s.startPush()
-	}
 	return nil
 }
 

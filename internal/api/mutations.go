@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 
@@ -428,7 +429,7 @@ func (a *API) SetPageTags(ctx context.Context, slug string, tags []string) (*Mut
 	return mutation, nil
 }
 
-// RenamePageInput retitles a page in place, keeping its namespace.
+// RenamePageInput retitles a page in place, keeping its namespace and folder.
 type RenamePageInput struct {
 	Slug     string
 	NewTitle string
@@ -462,11 +463,16 @@ func (a *API) RenamePage(ctx context.Context, in RenamePageInput) (*RenameResult
 	if newTitle == "" {
 		return nil, InvalidInput("missing title", nil)
 	}
-	renameNS, _ := wiki.NamespaceFor(in.Slug)
 	if wiki.Slugify(newTitle) == "" {
 		return nil, InvalidInput("invalid title", nil)
 	}
-	newSlug := wiki.NamespaceSlug(renameNS, wiki.Slugify(newTitle))
+	// Keep the page in its folder: only the last segment follows the title.
+	renameNS, renamePage := wiki.NamespaceFor(in.Slug)
+	newPage := wiki.Slugify(newTitle)
+	if dir := path.Dir(renamePage); dir != "." {
+		newPage = dir + "/" + newPage
+	}
+	newSlug := wiki.NamespaceSlug(renameNS, newPage)
 	if !AllowSlug(ctx, newSlug) {
 		return nil, Forbidden("namespace access denied")
 	}

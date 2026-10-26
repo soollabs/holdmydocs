@@ -178,3 +178,22 @@ func TestSavePageReplacementResetsOmittedMetadata(t *testing.T) {
 		t.Fatalf("replacement kept omitted metadata: %+v", view)
 	}
 }
+
+func TestRenameKeepsFolder(t *testing.T) {
+	ix, err := search.BuildIndex(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := newMutationAPI(t, ix)
+	ctx := writeCtx()
+	if _, err := a.SavePage(ctx, SavePageInput{Slug: "notes/guides/target", Title: "Old Title", Body: "body"}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := a.RenamePage(ctx, RenamePageInput{Slug: "notes/guides/target", NewTitle: "New Title"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Slug != "notes/guides/new-title" {
+		t.Fatalf("renamed slug = %q, want notes/guides/new-title", result.Slug)
+	}
+}
