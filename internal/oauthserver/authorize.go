@@ -73,12 +73,11 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 		if _, err := s.getPending(handle, flowCookie); err != nil {
 			return AuthorizationStart{}, err
 		}
-		if session == "" {
-			return AuthorizationStart{Handle: handle, LoginRequired: true}, nil
-		}
+		// A stale session cookie is treated as signed out
+		// so the user can log in again.
 		user, ok := s.auth.UserFor(session)
-		if !ok || !s.auth.UserExists(user) {
-			return AuthorizationStart{}, invalidRequest("browser session is no longer valid")
+		if session == "" || !ok || !s.auth.UserExists(user) {
+			return AuthorizationStart{Handle: handle, LoginRequired: true}, nil
 		}
 		s.pendingMu.Lock()
 		pending := s.pending[handle]
@@ -128,12 +127,9 @@ func (s *Service) StartAuthorization(r *http.Request, session string, namespaceN
 	s.pending[handle] = pending
 	s.pendingMu.Unlock()
 
-	if session == "" {
-		return AuthorizationStart{Handle: handle, FlowCookie: flowCookie, LoginRequired: true}, nil
-	}
 	user, ok := s.auth.UserFor(session)
-	if !ok || !s.auth.UserExists(user) {
-		return AuthorizationStart{}, invalidRequest("browser session is no longer valid")
+	if session == "" || !ok || !s.auth.UserExists(user) {
+		return AuthorizationStart{Handle: handle, FlowCookie: flowCookie, LoginRequired: true}, nil
 	}
 	s.pendingMu.Lock()
 	pending.user = user
