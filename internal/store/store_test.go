@@ -1286,3 +1286,30 @@ func TestNamespaceFileCountExcludesConfig(t *testing.T) {
 		t.Fatalf("missing namespace count = %d, %v; want 0", n, err)
 	}
 }
+
+func TestSaveCheckedMoveIsOneCommit(t *testing.T) {
+	store, err := OpenStore(Config{RepoDir: t.TempDir(), AppDir: t.TempDir(), Git: GitConfig{User: "test"}})
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	hash, err := store.Save("old.md", []byte("body"), "add", "alice", "alice@hmd.local")
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	if _, err := store.SaveChecked("old.md", "new.md", hash, []byte("body"), "move", "alice", "alice@hmd.local"); err != nil {
+		t.Fatalf("move failed: %v", err)
+	}
+	commits, err := store.RecentCommits(2)
+	if err != nil || len(commits) != 2 {
+		t.Fatalf("RecentCommits = %v, %v", commits, err)
+	}
+	if commits[0].Message != "move" || commits[1].Message != "add" {
+		t.Fatalf("commits = %q, %q; want one move commit after add", commits[0].Message, commits[1].Message)
+	}
+	if files := commits[0].Files; len(files) != 1 || files[0] != "old.md => new.md" {
+		t.Fatalf("move commit files = %v, want one rename", files)
+	}
+	if _, _, err := store.Read("old.md"); err == nil {
+		t.Fatal("old.md still exists after move")
+	}
+}
