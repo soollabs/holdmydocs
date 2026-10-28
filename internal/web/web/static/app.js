@@ -59,7 +59,7 @@
   }
 
   window.addEventListener('online', flushOfflineQueue);
-  if (navigator.onLine) flushOfflineQueue();
+  if (navigator.onLine) void flushOfflineQueue();
 
   // ---- Shared JSON mutation helpers ----
   // Every page mutation posts JSON to the httpapi surface; server-rendered
@@ -236,7 +236,7 @@
 
     function updateSyncAge() {
       const state = syncSeg.dataset.state || 'unknown';
-      const last = parseInt(syncSeg.dataset.lastSuccess || '0');
+      const last = Number.parseInt(syncSeg.dataset.lastSuccess || '0');
       if (state === 'no remote') {
         syncText.textContent = window.hmdT('js.sync.local_only');
         return;
@@ -493,9 +493,12 @@
   }
 
   function slugifyQuery(q) {
-    return q.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    let start = 0;
+    let end = slug.length;
+    while (start < end && slug[start] === '-') start++;
+    while (end > start && slug[end - 1] === '-') end--;
+    return slug.slice(start, end);
   }
 
   // encodeSlugPath percent-encodes each segment of a page slug for use in a
@@ -542,7 +545,7 @@
 
   function syncVerbDesc() {
     const seg = $('#status-sync');
-    const last = seg ? parseInt(seg.dataset.lastSuccess || '0') : 0;
+    const last = seg ? Number.parseInt(seg.dataset.lastSuccess || '0') : 0;
     if (!last) return window.hmdT('js.verb.sync');
     return window.hmdT('js.verb.sync_last', { Age: relativeAge(last), State: seg.dataset.state || 'unknown' });
   }
@@ -1012,7 +1015,7 @@
         if (range > 0) pageScroller.scrollTop += rect.top - pageScroller.getBoundingClientRect().top + progress * range;
       };
       // Focus follows the swap, so it never sits on the hidden pane.
-      if (show) renderPreview().then(() => { restore(); preview.focus({ preventScroll: true }); });
+      if (show) void renderPreview().then(() => { restore(); preview.focus({ preventScroll: true }); });
       else { restore(); editor.focus(); }
     }
 
@@ -1402,7 +1405,7 @@
       // Header shortcuts (Alt+1/2/3)
       if (e.altKey && !mod && (e.key === '1' || e.key === '2' || e.key === '3')) {
         e.preventDefault();
-        insertHeaderLevel(parseInt(e.key));
+        insertHeaderLevel(Number.parseInt(e.key));
         return;
       }
 
