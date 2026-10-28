@@ -15,7 +15,7 @@
 	{{template "ui-button" (button (t "edit.conflict_overwrite") "danger" "size" "compact" "id" "conflict-overwrite")}}
 {{template "ui-notice-end" $conflictNotice}}
 <form method="GET" action="{{.PageURL}}?do=edit" class="edit-form" id="edit-form">{{template "csrf" .}}
-	<h1 class="page-title edit-title"><span class="h"></span><input type="text" id="title" name="title" value="{{.Title}}" required placeholder="{{t "edit.title_field"}}" aria-label="{{t "edit.title_field"}}" autocomplete="off"></h1>
+	<h1 class="page-title edit-title" aria-label="{{t "edit.title_field"}}"><span class="h"></span><input type="text" id="title" name="title" value="{{.Title}}" required placeholder="{{t "edit.title_field"}}" aria-label="{{t "edit.title_field"}}" autocomplete="off"></h1>
 	<div class="edit-meta">
 		<div class="edit-field tags">
 			{{$tagsField := component "field" "id" "tags" "layout" "bare" "label" (t "edit.tags_label")}}{{template "ui-field-start" $tagsField}}<input type="text" id="tags" name="tags" value="{{.TagsInput}}" placeholder="{{t "edit.tags_placeholder"}}" autocomplete="off">{{template "ui-field-end" $tagsField}}
@@ -58,8 +58,8 @@
 		<div id="preview" tabindex="-1" hidden></div>
 	</div>
 
-	<textarea name="body" id="editor-src" rows="16" hidden>{{.Body}}</textarea>
-	<input type="file" id="attachment-input" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" hidden>
+	<textarea name="body" id="editor-src" rows="16" hidden aria-label="{{t "edit.body_label"}}">{{.Body}}</textarea>
+	<input type="file" id="attachment-input" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="{{t "edit.toolbar.attachment_title"}}" hidden>
 	<input type="hidden" name="basehash" value="{{.BaseHash}}">
 </form>
 

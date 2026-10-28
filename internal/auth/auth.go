@@ -330,7 +330,20 @@ const (
 	maxLoginAttempts = 1024
 )
 
-var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
+// Built at start-up from random input so no hash literal is committed; it never matches a login.
+var dummyPasswordHash = newDummyPasswordHash()
+
+func newDummyPasswordHash() []byte {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		panic(fmt.Sprintf("generating dummy password: %v", err))
+	}
+	hash, err := bcrypt.GenerateFromPassword(secret, bcrypt.DefaultCost)
+	if err != nil {
+		panic(fmt.Sprintf("hashing dummy password: %v", err))
+	}
+	return hash
+}
 
 func normaliseUserRecord(name string, rec userRecord) (userRecord, error) {
 	if len(rec.Scopes) == 0 {

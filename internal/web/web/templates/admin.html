@@ -44,7 +44,7 @@
 		{{$u := .}}
 		<form method="POST" action="/_/api/settings/users/scopes" class="settings-row user-row">{{template "csrf" $}}{{template "json-required" $}}
 			<input type="hidden" name="name" value="{{$u.Name}}">
-			<label>{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} {{t "admin.users.you"}}{{end}} <small>{{if $u.SSO}}{{t "admin.users.sso"}}{{else}}{{t "admin.users.password"}}{{end}}</small></label>
+			<span class="settings-row-label">{{$u.Name}}{{if eq $u.Name $.Settings.CurrentUser}} {{t "admin.users.you"}}{{end}} <small>{{if $u.SSO}}{{t "admin.users.sso"}}{{else}}{{t "admin.users.password"}}{{end}}</small></span>
 			<span class="scope-checks">
 				{{range $.Settings.AllScopes}}
 				{{$choiceSlot2 := component "choice" "id" "admin-choice-2" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot2}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}" {{if index $u.Has .}}checked{{end}}> {{.}}</label>{{template "ui-choice-end" $choiceSlot2}}
@@ -66,7 +66,7 @@
 			<div class="settings-row">{{$newName := component "field" "id" "new_user_name" "label" (t "admin.users.username_label") "layout" "bare"}}{{template "ui-field-start" $newName}}<input type="text" id="new_user_name" name="name" autocomplete="off">{{template "ui-field-end" $newName}}</div>
 			<div class="settings-row">{{$newPassword := component "field" "id" "new_user_password" "label" (t "admin.users.password_label") "layout" "bare"}}{{template "ui-field-start" $newPassword}}<input type="password" id="new_user_password" name="password" autocomplete="new-password">{{template "ui-field-end" $newPassword}}</div>
 			<div class="settings-row">{{$fieldSlot37 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot37}}
-				<label>{{t "admin.users.scopes_label"}}</label>
+				<span class="settings-row-label">{{t "admin.users.scopes_label"}}</span>
 				<span class="scope-checks">
 					{{range .Settings.AllScopes}}
 					{{$choiceSlot1 := component "choice" "id" "admin-choice-1" "type" "checkbox"}}{{template "ui-choice-slot-start" $choiceSlot1}}<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $choiceSlot1}}
@@ -130,7 +130,7 @@
 	<fieldset class="settings-section">
 		<legend>{{t "admin.legend.wiki_setup"}}</legend>
 		<div class="settings-row">
-			<label>{{t "admin.wiki.reseed_label"}}</label>
+			<span class="settings-row-label">{{t "admin.wiki.reseed_label"}}</span>
 			<form method="POST" action="/_/api/settings/setup" class="settings-inline-form">{{template "csrf" .}}{{template "json-required" .}}
 				{{template "ui-button" (button (t "admin.wiki.rerun_setup") "secondary" "type" "submit")}}
 			</form>
@@ -142,7 +142,7 @@
 		<legend>{{t "admin.legend.attachments"}}</legend>
 		<p class="settings-zone-desc">{{tl "admin.legacy_attachments_desc" "Folder" (code "attachments/")}}</p>
 		{{$legacyTable := component "table" "id" "legacy-attachments-table"}}{{template "ui-table-start" $legacyTable}}
-			<thead><tr><th>{{t "admin.attachments.col_namespace"}}</th><th>{{t "admin.attachments.col_files"}}</th><th>{{t "admin.attachments.col_what"}}</th></tr></thead>
+			<thead><tr><th scope="col">{{t "admin.attachments.col_namespace"}}</th><th scope="col">{{t "admin.attachments.col_files"}}</th><th scope="col">{{t "admin.attachments.col_what"}}</th></tr></thead>
 			<tbody>
 			{{range .Settings.LegacyAttachments}}<tr>
 				<td><code>{{.Namespace}}/</code></td>

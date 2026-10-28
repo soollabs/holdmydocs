@@ -3557,7 +3557,6 @@ body.no-sidebar { --settings-pad: 20px; }
 }
 
 .cal-day {
-	display: block;
 	aspect-ratio: 1;
 	display: flex;
 	align-items: center;

@@ -413,6 +413,7 @@ func TestReconcileAttachmentsStopsOnCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var requests atomic.Int32
 	tika := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)

@@ -125,7 +125,7 @@
 		{{if .Settings.TokenError}}{{$tokenError := component "notice" "variant" "danger" "role" "alert"}}{{template "ui-notice-start" $tokenError}}{{.Settings.TokenError}}{{template "ui-notice-end" $tokenError}}{{end}}
 		{{range .Settings.Tokens}}
 		<div class="settings-row">
-			<label>{{.Name}}</label>
+			<span class="settings-row-label">{{.Name}}</span>
 			<span class="token-meta">{{.ScopeLabel}} &middot; {{.NamespaceLabel}}</span>
 			<span class="token-meta">{{t "settings.tokens.created" "Created" .Created}} &middot; {{t "settings.tokens.expires" "Expires" .Expires}}</span>
 			<form method="POST" action="/_/api/settings/tokens/revoke" class="settings-inline-form js-token-revoke">{{template "csrf" $}}{{template "json-required" $}}
@@ -149,7 +149,7 @@
 				</select>{{template "ui-field-end" $expiryField}}
 			{{template "ui-field-end" $expirySlot}}</div>
 			<div class="settings-row">{{$fieldSlot7 := component "field" "id" "scopes" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot7}}
-				<label>{{t "settings.scopes.label"}}</label>
+				<span class="settings-row-label">{{t "settings.scopes.label"}}</span>
 				<span class="scope-checks">
 					{{range .Settings.TokenScopes}}{{$scopeChoice := component "choice" "id" (printf "token-scope-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $scopeChoice}}
 					<label class="scope-check"><input type="checkbox" name="scopes" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $scopeChoice}}
@@ -157,7 +157,7 @@
 				</span>
 			{{template "ui-field-end" $fieldSlot7}}</div>
 			<div class="settings-row">{{$fieldSlot8 := component "field" "id" "namespaces" "layout" "bare"}}{{template "ui-field-slot-start" $fieldSlot8}}
-				<label>{{t "settings.namespaces.label"}}</label>
+				<span class="settings-row-label">{{t "settings.namespaces.label"}}</span>
 				<span class="scope-checks">
 					{{range .Settings.TokenNamespaces}}{{$namespaceChoice := component "choice" "id" (printf "token-namespace-%s" .) "type" "checkbox"}}{{template "ui-choice-slot-start" $namespaceChoice}}<label class="scope-check"><input type="checkbox" name="namespaces" value="{{.}}"> {{.}}</label>{{template "ui-choice-end" $namespaceChoice}}{{end}}
 				</span>

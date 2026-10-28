@@ -19,7 +19,7 @@ LABEL org.opencontainers.image.source="https://github.com/soollabs/holdmydocs" \
       org.opencontainers.image.version="$BUILD_VERSION" \
       org.opencontainers.image.licenses="MIT"
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=build --chmod=1777 /scratch-tmp /tmp
+COPY --from=build --chown=65532:65532 --chmod=0700 /scratch-tmp /tmp
 COPY --from=build /hmd /hmd
 COPY --from=build --chown=65532:65532 --chmod=0700 /data/app /data/app
 COPY --from=build --chown=65532:65532 --chmod=0700 /data/repo /data/repo
