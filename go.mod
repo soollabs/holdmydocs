@@ -13,7 +13,7 @@ require (
 	github.com/knights-analytics/hugot v0.8.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/nicksnyder/go-i18n/v2 v2.6.1
+	github.com/nicksnyder/go-i18n/v2 v2.7.0
 	github.com/sergi/go-diff v1.4.0
 	github.com/yuin/goldmark/v2 v2.1.8
 	golang.org/x/crypto v0.58.0
