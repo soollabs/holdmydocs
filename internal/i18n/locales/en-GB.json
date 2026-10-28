@@ -905,6 +905,10 @@
     "description": "Calendar heading. Month is a full month name, Year a four-digit year.",
     "other": "{{.Month}} {{.Year}}"
   },
+  "edit.body_label": {
+    "description": "Accessible name of the hidden textarea that holds the page Markdown source (aria-label).",
+    "other": "Page content"
+  },
   "edit.cancel_link": {
     "description": "Link in the editor breadcrumb that returns to the page view without saving.",
     "other": "cancel"
