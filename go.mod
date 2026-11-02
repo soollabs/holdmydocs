@@ -10,7 +10,7 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.1
 	github.com/google/jsonschema-go v0.4.3
-	github.com/knights-analytics/hugot v0.8.4
+	github.com/knights-analytics/hugot v0.8.5
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nicksnyder/go-i18n/v2 v2.7.0
@@ -73,7 +73,7 @@ require (
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/knights-analytics/ortgenai v0.3.4 // indirect
-	github.com/microsoft/onnxruntime/go v0.0.0-20261029142256-a371cbde5d83 // indirect
+	github.com/microsoft/onnxruntime/go v0.0.0-20261030073735-b5fe413d0b05 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
