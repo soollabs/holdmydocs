@@ -37,14 +37,14 @@ type Renderer struct {
 func NewRenderer(resolve func(title, ns string) (slug string, ok bool)) *Renderer {
 	return &Renderer{
 		parser: parser.New(parser.WithExtensions(
-			extension.GFMParser,
-			extension.FootnoteParser,
+			extension.NewGFMParser(),
+			extension.NewFootnoteParser(),
 		)),
 		html: goldmarkhtml.New(
 			goldmarkhtml.WithUnsafe(),
 			goldmarkhtml.WithExtensions(
-				extension.GFMHTMLRenderer,
-				extension.FootnoteHTMLRenderer,
+				extension.NewGFMHTMLRenderer(),
+				extension.NewFootnoteHTMLRenderer(),
 			),
 		),
 		resolve: resolve,
