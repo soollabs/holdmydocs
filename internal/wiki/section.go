@@ -9,7 +9,7 @@ import (
 	"github.com/yuin/goldmark/v2/parser"
 )
 
-var sectionParser = parser.New(parser.WithExtensions(extension.GFMParser, extension.FootnoteParser))
+var sectionParser = parser.New(parser.WithExtensions(extension.NewGFMParser(), extension.NewFootnoteParser()))
 
 // Section is the part of a Markdown body under one heading: the heading line
 // through the line before the next heading of the same or a higher level.
