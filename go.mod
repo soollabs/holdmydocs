@@ -8,7 +8,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-oauth2/oauth2/v4 v4.6.0
 	github.com/goccy/go-yaml v1.19.2
-	github.com/gofrs/flock v0.13.1
+	github.com/gofrs/flock v0.13.2
 	github.com/google/jsonschema-go v0.4.3
 	github.com/knights-analytics/hugot v0.8.5
 	github.com/microcosm-cc/bluemonday v1.0.27
