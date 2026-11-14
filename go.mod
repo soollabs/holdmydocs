@@ -15,7 +15,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nicksnyder/go-i18n/v2 v2.7.0
 	github.com/sergi/go-diff v1.4.0
-	github.com/yuin/goldmark/v2 v2.1.15
+	github.com/yuin/goldmark/v2 v2.1.16
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.38.0
