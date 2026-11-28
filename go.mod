@@ -3,7 +3,7 @@ module hmd
 go 1.27.4
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.3
+	github.com/blevesearch/bleve/v2 v2.6.4
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-oauth2/oauth2/v4 v4.6.0
